@@ -6,6 +6,10 @@ import { SpacesLobby, SpaceInvitePanel } from './SpacesLobby';
 import { ProfileModalV2 } from '@/components/community/ProfileModalV2';
 import { useSpaceVoice } from '@/hooks/useSpaceVoice';
 import { useLivekitRoomVoice, useLiveKitEnabled } from '@/hooks/useLivekitVoice';
+import { tNow } from '@/store/langStore';
+// Current-language strings for the Virtual Space (module has ~30 subcomponents,
+// so a call-time accessor beats threading useT through every one).
+const vs = () => tNow().vspace as unknown as Record<string, string>;
 import { LiveKitVoiceBarView } from '@/components/game/LiveKitVoiceBar';
 import { useAuthStore } from '@/store/authStore';
 import { STAR_HAT_PNG } from '@/assets/starHat';
@@ -977,7 +981,7 @@ function DJPlayerPanel({
                 <input
                   value={input} onChange={e=>{setInput(e.target.value);setSearching(false);}}
                   onKeyDown={e=>{ if(e.key==='Enter') handlePlay(); }}
-                  placeholder="YouTube URL, ID, ან სიმღერის სახელი…"
+                  placeholder={vs().djPlaceholder}
                   style={{ flex:1,background:'rgba(255,255,255,.05)',fontFamily:'monospace',fontSize:12,color:'white',outline:'none',padding:'9px 12px',borderRadius:10,border:'1px solid rgba(255,0,150,.28)' }}
                   onFocus={e=>e.stopPropagation()}
                 />
@@ -986,7 +990,7 @@ function DJPlayerPanel({
                 </button>
               </div>
               <p style={{ fontFamily:'monospace',fontSize:9,color:'rgba(255,255,255,.22)',marginTop:5,paddingLeft:2 }}>
-                URL, video ID, ან მოძებნე სიმღერის სახელით
+                {vs().djHint}
               </p>
               {results.length > 0 && (
                 <div style={{ marginTop:8,maxHeight:180,overflowY:'auto',display:'flex',flexDirection:'column',gap:4 }}>
@@ -1011,7 +1015,7 @@ function DJPlayerPanel({
                 <span style={{ fontSize:20,animation:'vs-pulse 2s ease-in-out infinite' }}>🎵</span>
                 <div style={{ flex:1,minWidth:0 }}>
                   <p style={{ fontFamily:'monospace',fontSize:10,color:'rgba(255,150,200,.95)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>
-                    {searching ? 'ძიება…' : `youtu.be/${djState.videoId}`}
+                    {searching ? vs().searching : `youtu.be/${djState.videoId}`}
                   </p>
                   <p style={{ fontFamily:'monospace',fontSize:9,color:'rgba(255,255,255,.3)',marginTop:2 }}>DJ: {djState.djName}</p>
                 </div>
@@ -1028,11 +1032,11 @@ function DJPlayerPanel({
                 <div style={{ marginTop:10,display:'flex',gap:8 }}>
                   {localPlaying ? (
                     <button onClick={onStopListening} style={{ flex:1,padding:'8px 0',borderRadius:10,fontFamily:'monospace',fontSize:12,background:'rgba(255,0,150,.12)',border:'1px solid rgba(255,0,150,.4)',color:'rgba(255,150,200,.9)',cursor:'pointer' }}>
-                      ⏸ გაჩუმება
+                      {vs().muteBtn}
                     </button>
                   ) : (
                     <button onClick={onStartListening} style={{ flex:1,padding:'8px 0',borderRadius:10,fontFamily:'monospace',fontSize:13,background:'rgba(255,0,150,.18)',border:'1.5px solid rgba(255,0,150,.6)',color:'rgba(255,180,210,.95)',cursor:'pointer',boxShadow:'0 0 18px rgba(255,0,150,.25)' }}>
-                      ▶ მოსმენა
+                      {vs().listenBtn}
                     </button>
                   )}
                 </div>
@@ -1078,12 +1082,12 @@ function NowPlayingBar({ djState, localPlaying, onOpen, onStartListening }: {
           onClick={e=>{e.stopPropagation();onStartListening();}}
           style={{ padding:'6px 14px 6px 6px',background:'transparent',border:'none',cursor:'pointer',fontFamily:'monospace',fontSize:10,color:'rgba(255,0,150,.95)',whiteSpace:'nowrap',letterSpacing:'0.06em' }}
         >
-          ▶ მოსმენა
+          {vs().listenBtn}
         </button>
       )}
       {localPlaying && (
         <div style={{ padding:'6px 14px 6px 4px',fontFamily:'monospace',fontSize:10,color:'rgba(255,0,150,.7)',letterSpacing:'0.06em',animation:'vs-pulse 1.2s ease-in-out infinite' }}>
-          ♫ ისმის
+          {vs().playingNow}
         </div>
       )}
     </div>
@@ -1168,7 +1172,7 @@ function AvatarCustomizer({ playerName, onJoin }: { playerName: string; onJoin: 
       useAuthStore.setState(s => s.profile ? { profile: { ...s.profile, cosmetics: res.data.cosmetics } } : s);
       setCoins(res.data.newBalance);
       setter(optId);
-    } else { setShopMsg((res as any)?.error ?? 'შეძენა ვერ მოხერხდა'); setTimeout(() => setShopMsg(''), 3000); }
+    } else { setShopMsg((res as any)?.error ?? vs().purchaseFailed); setTimeout(() => setShopMsg(''), 3000); }
   }
 
   // Renders an option button with a 🔒+price overlay if it's a locked premium item.
@@ -1179,7 +1183,7 @@ function AvatarCustomizer({ playerName, onJoin }: { playerName: string; onJoin: 
     return (
       <button key={o.id} onClick={() => pick(o.id, prem, setter)} className={cls + ' transition-all active:scale-95'}
         style={{ position: 'relative', background: isSel ? `${glowColor}22` : 'rgba(255,255,255,0.03)', border: `1px solid ${isSel ? glowColor + '80' : 'rgba(255,255,255,0.08)'}`, color: isSel ? glowColor : 'rgba(255,255,255,0.4)' }}>
-        {o.label}
+        {vs()[`vsOpt_${o.id}`] ?? o.label}
         {locked && <span style={{ display: 'block', fontSize: 8, color: '#facc15', marginTop: 1 }}>{buying === it.id ? '…' : `🔒${it.price}`}</span>}
       </button>
     );
@@ -1195,22 +1199,22 @@ function AvatarCustomizer({ playerName, onJoin }: { playerName: string; onJoin: 
         {coins !== null && <p style={{ fontFamily:'monospace',fontSize:11,color:'#facc15' }}>🪙 {coins.toLocaleString()}</p>}
         {shopMsg && <p style={{ fontFamily:'monospace',fontSize:10,color:'#ff2d55' }}>{shopMsg}</p>}
       </div>
-      <div className="w-full"><p className="font-mono text-[10px] text-white/30 uppercase tracking-widest mb-2">სხეულის ფერი</p>
+      <div className="w-full"><p className="font-mono text-[10px] text-white/30 uppercase tracking-widest mb-2">{vs().bodyColor}</p>
         <div className="flex gap-2 flex-wrap">{BODY_COLORS.map(c=><button key={c} onClick={()=>setBodyColor(c)} style={{ width:30,height:30,borderRadius:'50%',background:c,flexShrink:0,border:bodyColor===c?'2.5px solid white':'2px solid transparent',boxShadow:bodyColor===c?`0 0 12px ${c}, 0 0 0 2px ${c}40`:'none',transition:'all .15s' }}/>)}</div>
       </div>
-      <div className="w-full"><p className="font-mono text-[10px] text-white/30 uppercase tracking-widest mb-2">გლოვის ფერი</p>
+      <div className="w-full"><p className="font-mono text-[10px] text-white/30 uppercase tracking-widest mb-2">{vs().glowColor}</p>
         <div className="flex gap-2 flex-wrap">{GLOW_COLORS.map(c=><button key={c} onClick={()=>setGlowColor(c)} style={{ width:30,height:30,borderRadius:'50%',background:c,flexShrink:0,border:glowColor===c?'2.5px solid white':'2px solid transparent',boxShadow:glowColor===c?`0 0 12px ${c}, 0 0 0 2px ${c}40`:'none',transition:'all .15s' }}/>)}</div>
       </div>
-      <div className="w-full"><p className="font-mono text-[10px] text-white/30 uppercase tracking-widest mb-2">ნიღაბი</p>
+      <div className="w-full"><p className="font-mono text-[10px] text-white/30 uppercase tracking-widest mb-2">{vs().mask}</p>
         <div className="flex gap-2">{MASKS.map(m=><button key={m.id} onClick={()=>setMask(m.id)} className="flex-1 py-1.5 rounded-xl font-mono text-[11px] uppercase tracking-wider transition-all active:scale-95" style={{ background:mask===m.id?`${bodyColor}22`:'rgba(255,255,255,0.03)',border:`1px solid ${mask===m.id?bodyColor+'80':'rgba(255,255,255,0.08)'}`,color:mask===m.id?bodyColor:'rgba(255,255,255,0.3)',boxShadow:mask===m.id?`0 0 10px ${bodyColor}30`:'none' }}>{m.label}</button>)}</div>
       </div>
-      <div className="w-full"><p className="font-mono text-[10px] text-white/30 uppercase tracking-widest mb-2">ფორმა</p>
+      <div className="w-full"><p className="font-mono text-[10px] text-white/30 uppercase tracking-widest mb-2">{vs().form}</p>
         <div className="flex gap-2">{FORMS.map(o=>optBtn(o, PREMIUM_FORMS, form, setForm, 'flex-1 py-1.5 rounded-xl font-mono text-[11px]'))}</div>
       </div>
-      <div className="w-full"><p className="font-mono text-[10px] text-white/30 uppercase tracking-widest mb-2">ქუდი</p>
+      <div className="w-full"><p className="font-mono text-[10px] text-white/30 uppercase tracking-widest mb-2">{vs().hat}</p>
         <div className="flex gap-2 flex-wrap">{HATS.map(o=>optBtn(o, PREMIUM_HATS, hat, setHat, 'py-1.5 px-3 rounded-xl font-mono text-[13px]'))}</div>
       </div>
-      <div className="w-full"><p className="font-mono text-[10px] text-white/30 uppercase tracking-widest mb-2">თანამგზავრი</p>
+      <div className="w-full"><p className="font-mono text-[10px] text-white/30 uppercase tracking-widest mb-2">{vs().pet}</p>
         <div className="flex gap-2 flex-wrap">{PETS.map(o=>optBtn(o, PREMIUM_PETS, pet, setPet, 'py-1.5 px-3 rounded-xl font-mono text-[13px]'))}</div>
         {petData && pet !== 'none' && (
           <div className="mt-2 px-1">
@@ -1225,9 +1229,9 @@ function AvatarCustomizer({ playerName, onJoin }: { playerName: string; onJoin: 
         )}
       </div>
       <button onClick={go} className="w-full py-3.5 rounded-2xl font-display font-bold text-sm uppercase tracking-widest transition-all active:scale-95" style={{ background:`linear-gradient(135deg, ${bodyColor}30, ${bodyColor}15)`,border:`1.5px solid ${bodyColor}`,color:bodyColor,boxShadow:`0 0 28px ${bodyColor}40, inset 0 0 20px ${bodyColor}08`,letterSpacing:'0.14em' }}>
-        Void Lounge-ში შესვლა →
+        {vs().enterLounge}
       </button>
-      <p className="font-mono text-[10px] text-white/20 text-center leading-relaxed">ხმოვანი ჩატი ავტომატურად ჩაირთება.<br/>მიკროფონის ნებართვა საჭიროა.</p>
+      <p className="font-mono text-[10px] text-white/20 text-center leading-relaxed">{vs().voiceAutoNote1}<br/>{vs().voiceAutoNote2}</p>
     </motion.div>
   );
 }
@@ -1248,10 +1252,10 @@ function ChatDrawer({ history, mySocketId, open }: {
           onClick={e=>e.stopPropagation()}
         >
           <div style={{ padding:'10px 12px',borderBottom:'1px solid rgba(255,255,255,0.06)',flexShrink:0 }}>
-            <p style={{ fontFamily:'monospace',fontSize:10,color:'rgba(255,255,255,0.3)',letterSpacing:'0.15em',textTransform:'uppercase' }}>ჩატი · {history.length}</p>
+            <p style={{ fontFamily:'monospace',fontSize:10,color:'rgba(255,255,255,0.3)',letterSpacing:'0.15em',textTransform:'uppercase' }}>{vs().chatLabel} · {history.length}</p>
           </div>
           <div style={{ flex:1,overflowY:'auto',padding:'8px 10px',display:'flex',flexDirection:'column',gap:6 }}>
-            {history.length===0 && <p style={{ fontFamily:'monospace',fontSize:10,color:'rgba(255,255,255,0.15)',textAlign:'center',paddingTop:20 }}>ჯერ გზავნილები არ არის</p>}
+            {history.length===0 && <p style={{ fontFamily:'monospace',fontSize:10,color:'rgba(255,255,255,0.15)',textAlign:'center',paddingTop:20 }}>{vs().noMessages}</p>}
             {history.map((msg,i)=>{
               if (msg.socketId === 'system') {
                 return (
@@ -1263,7 +1267,7 @@ function ChatDrawer({ history, mySocketId, open }: {
               const own=msg.socketId===mySocketId;
               return (
                 <div key={i} style={{ display:'flex',flexDirection:'column',gap:1,alignItems:own?'flex-end':'flex-start' }}>
-                  <span style={{ fontFamily:'monospace',fontSize:9,color:own?msg.glowColor:msg.bodyColor,opacity:0.8 }}>{own?'მე':msg.name}</span>
+                  <span style={{ fontFamily:'monospace',fontSize:9,color:own?msg.glowColor:msg.bodyColor,opacity:0.8 }}>{own?vs().me:msg.name}</span>
                   <div style={{ maxWidth:'92%',background:own?`${msg.glowColor}18`:'rgba(255,255,255,0.06)',border:`1px solid ${own?msg.glowColor+'40':'rgba(255,255,255,0.08)'}`,borderRadius:own?'12px 12px 4px 12px':'12px 12px 12px 4px',padding:'5px 9px',fontSize:12,color:'rgba(255,255,255,0.88)',wordBreak:'break-word',lineHeight:1.4 }}>{msg.message}</div>
                   <span style={{ fontFamily:'monospace',fontSize:9,color:'rgba(255,255,255,0.2)' }}>{new Date(msg.ts).toLocaleTimeString('ka',{hour:'2-digit',minute:'2-digit'})}</span>
                 </div>
@@ -1303,7 +1307,7 @@ function CinemaSeat({ seat, occupant, isMine, onTap, disabled }: {
       aria-label={`seat ${seat.id}`}
     >
       {!occupant && (
-        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: 9, fontFamily: 'monospace', color: 'rgba(150,120,220,.7)', whiteSpace: 'nowrap', letterSpacing: '0.08em' }}>დაჯექი</div>
+        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: 9, fontFamily: 'monospace', color: 'rgba(150,120,220,.7)', whiteSpace: 'nowrap', letterSpacing: '0.08em' }}>{vs().sitLabel}</div>
       )}
     </button>
   );
@@ -1504,7 +1508,7 @@ function CinemaTV({ tvState, canControl, myDist, viewerCount, tvX = 50, tvY = 17
           {needsTap && hasVideo && (
             <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, background: 'rgba(0,0,0,.55)', pointerEvents: 'none' }}>
               <span style={{ fontSize: 26 }}>▶</span>
-              <span style={{ fontFamily: 'monospace', fontSize: 9, color: 'rgba(255,255,255,.7)' }}>დააჭირე ყურებისთვის</span>
+              <span style={{ fontFamily: 'monospace', fontSize: 9, color: 'rgba(255,255,255,.7)' }}>{vs().tapToWatch}</span>
             </div>
           )}
           {/* Tap target — opens the watch-party panel for everyone (queue / skip;
@@ -1612,7 +1616,7 @@ function TVControlPanel({ tvState, canControl, onClose, onSetLink, onSearch, onE
             {(['link', 'search'] as const).map(m => (
               <button key={m} onClick={() => { setMode(m); setErr(false); }}
                 style={{ flex: 1, padding: '7px', borderRadius: 10, fontFamily: 'monospace', fontSize: 11, background: mode === m ? `${accent}22` : 'rgba(255,255,255,.04)', border: `1px solid ${mode === m ? accent : 'rgba(255,255,255,.1)'}`, color: mode === m ? accent : 'rgba(255,255,255,.4)' }}>
-                {m === 'link' ? '🔗 ბმული' : '🔍 ძებნა'}
+                {m === 'link' ? vs().linkTab : vs().searchTab}
               </button>
             ))}
           </div>
@@ -1620,21 +1624,21 @@ function TVControlPanel({ tvState, canControl, onClose, onSetLink, onSearch, onE
 
         <input value={input} onChange={e => { setInput(e.target.value); setErr(false); }}
           onKeyDown={e => { if (e.key === 'Enter') (canControl ? playNow : queueIt)(); }}
-          placeholder={mode === 'search' ? 'მოძებნე...' : 'YouTube ბმული ან ID'}
+          placeholder={mode === 'search' ? vs().searchPh : vs().linkPh}
           style={{ width: '100%', background: 'rgba(255,255,255,.04)', fontFamily: 'monospace', fontSize: 13, color: 'white', outline: 'none', padding: '9px 12px', borderRadius: 12, border: `1px solid ${err ? 'rgba(255,45,85,.5)' : 'rgba(255,255,255,.1)'}`, marginBottom: 8 }} />
         <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
           {canControl && (
-            <button onClick={playNow} style={{ flex: 1, padding: '9px', borderRadius: 12, fontFamily: 'monospace', fontSize: 12, background: `${accent}1f`, border: `1px solid ${accent}55`, color: accent }}>▶ ახლა</button>
+            <button onClick={playNow} style={{ flex: 1, padding: '9px', borderRadius: 12, fontFamily: 'monospace', fontSize: 12, background: `${accent}1f`, border: `1px solid ${accent}55`, color: accent }}>{vs().playNow}</button>
           )}
           {mode === 'link' && (
-            <button onClick={queueIt} style={{ flex: 1, padding: '9px', borderRadius: 12, fontFamily: 'monospace', fontSize: 12, background: 'rgba(155,0,255,.14)', border: '1px solid rgba(155,0,255,.4)', color: '#c084fc' }}>+ რიგში</button>
+            <button onClick={queueIt} style={{ flex: 1, padding: '9px', borderRadius: 12, fontFamily: 'monospace', fontSize: 12, background: 'rgba(155,0,255,.14)', border: '1px solid rgba(155,0,255,.4)', color: '#c084fc' }}>{vs().addQueue}</button>
           )}
         </div>
 
         {/* Up-next queue */}
         {!!tvState?.queue?.length && (
           <div style={{ marginBottom: 14 }}>
-            <p style={{ fontFamily: 'monospace', fontSize: 10, color: 'rgba(255,255,255,.35)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>📋 რიგი · {tvState.queue.length}</p>
+            <p style={{ fontFamily: 'monospace', fontSize: 10, color: 'rgba(255,255,255,.35)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>{vs().queueLabel} · {tvState.queue.length}</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 120, overflowY: 'auto' }}>
               {tvState.queue.map((q, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 9px', borderRadius: 9, background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)' }}>
@@ -1666,7 +1670,7 @@ function TVControlPanel({ tvState, canControl, onClose, onSetLink, onSearch, onE
               </>
             ) : (
               <button onClick={onVoteSkip} style={{ width: '100%', padding: '11px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: 'rgba(255,159,67,.14)', border: '1px solid rgba(255,159,67,.4)', color: '#ff9f43' }}>
-                ⏭ ხმა გამოტოვებას · {tvState.skipVotes}/{tvState.skipNeeded}
+                {vs().voteSkip} · {tvState.skipVotes}/{tvState.skipNeeded}
               </button>
             )}
           </>
@@ -1706,7 +1710,7 @@ function ExpressionPicker({ onReact, onGesture, onClose }: {
         onClick={e => e.stopPropagation()}
         style={{ position: 'absolute', left: 12, right: 12, bottom: 'calc(60px + env(safe-area-inset-bottom,0px))', zIndex: 61, background: 'rgba(8,3,22,.98)', backdropFilter: 'blur(22px)', border: '1px solid rgba(155,0,255,.3)', borderRadius: 18, padding: '12px 14px', boxShadow: '0 10px 40px rgba(0,0,0,.6)' }}
       >
-        <p style={{ fontFamily: 'monospace', fontSize: 9, color: 'rgba(255,255,255,.3)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 7 }}>რეაქცია</p>
+        <p style={{ fontFamily: 'monospace', fontSize: 9, color: 'rgba(255,255,255,.3)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 7 }}>{vs().reactionLabel}</p>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
           {REACT_EMOJIS.map(e => (
             <button key={e} onClick={() => onReact(e)}
@@ -1717,13 +1721,13 @@ function ExpressionPicker({ onReact, onGesture, onClose }: {
             </button>
           ))}
         </div>
-        <p style={{ fontFamily: 'monospace', fontSize: 9, color: 'rgba(255,255,255,.3)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 7 }}>ემოტები</p>
+        <p style={{ fontFamily: 'monospace', fontSize: 9, color: 'rgba(255,255,255,.3)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 7 }}>{vs().emotesLabel}</p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6 }}>
           {GESTURES.map(g => (
             <button key={g.id} onClick={() => onGesture(g.id)}
               style={{ padding: '8px 0', borderRadius: 12, background: 'rgba(255,0,150,.08)', border: '1px solid rgba(255,0,150,.25)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
               <span style={{ fontSize: 16 }}>{g.emoji}</span>
-              <span style={{ fontFamily: 'monospace', fontSize: 7, color: 'rgba(255,255,255,.4)' }}>{g.label}</span>
+              <span style={{ fontFamily: 'monospace', fontSize: 7, color: 'rgba(255,255,255,.4)' }}>{vs()[`vsGesture_${g.id}`] ?? g.label}</span>
             </button>
           ))}
         </div>
@@ -2191,7 +2195,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
             {joined && space ? `${space.icon} ${space.name}`.toUpperCase() : 'VOID LOUNGE'}
           </p>
           <p style={{ fontFamily:'monospace',fontSize:10,color:'rgba(255,255,255,.28)',letterSpacing:'0.08em',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis' }}>
-            {joined ? (livekitEnabled ? `${players.size} online` : `${players.size} online · ${voiceLabel}`) : 'სოციალური სივრცე'}
+            {joined ? (livekitEnabled ? `${players.size} online` : `${players.size} online · ${voiceLabel}`) : vs().socialSpace}
           </p>
         </div>
         {joined && (
@@ -2200,7 +2204,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
           </button>
         )}
         {joined && (
-          <button onClick={()=>setShowInvite(true)} className="w-8 h-8 shrink-0 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:'rgba(155,0,255,.1)',border:'1px solid rgba(155,0,255,.3)',fontSize:14 }} title="მოწვევა">
+          <button onClick={()=>setShowInvite(true)} className="w-8 h-8 shrink-0 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:'rgba(155,0,255,.1)',border:'1px solid rgba(155,0,255,.3)',fontSize:14 }} title={vs().inviteTitle}>
             ✦
           </button>
         )}
@@ -2215,22 +2219,22 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
           </span>
         )}
         {joined && (
-          <button onClick={openKoBoard} className="w-8 h-8 shrink-0 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:'rgba(255,180,0,.1)',border:'1px solid rgba(255,180,0,.3)',fontSize:14 }} title="KO რეიტინგი">
+          <button onClick={openKoBoard} className="w-8 h-8 shrink-0 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:'rgba(255,180,0,.1)',border:'1px solid rgba(255,180,0,.3)',fontSize:14 }} title={vs().koTitle}>
             🏆
           </button>
         )}
         {joined && !ghost && (
-          <button onClick={() => { setTournamentOpen(true); refreshTournaments(); }} className="w-8 h-8 shrink-0 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:'rgba(0,245,255,.1)',border:'1px solid rgba(0,245,255,.3)',fontSize:14 }} title="ტურნირი">
+          <button onClick={() => { setTournamentOpen(true); refreshTournaments(); }} className="w-8 h-8 shrink-0 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:'rgba(0,245,255,.1)',border:'1px solid rgba(0,245,255,.3)',fontSize:14 }} title={vs().tournamentTitle}>
             ⚔
           </button>
         )}
         {joined && !ghost && (
-          <button onClick={startReaction} className="w-8 h-8 shrink-0 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:'rgba(255,45,85,.1)',border:'1px solid rgba(255,45,85,.3)',fontSize:14 }} title="რეაქციის ტესტი">
+          <button onClick={startReaction} className="w-8 h-8 shrink-0 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:'rgba(255,45,85,.1)',border:'1px solid rgba(255,45,85,.3)',fontSize:14 }} title={vs().reactionTitle}>
             ⚡
           </button>
         )}
         {joined && (canChangeTheme || canEditSpace) && (
-          <button onClick={()=>setThemePickerOpen(true)} className="w-8 h-8 shrink-0 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:`${themeDef.accent}14`,border:`1px solid ${themeDef.accent}40`,fontSize:14 }} title="თემა">
+          <button onClick={()=>setThemePickerOpen(true)} className="w-8 h-8 shrink-0 flex items-center justify-center rounded-xl transition-all active:scale-90" style={{ background:`${themeDef.accent}14`,border:`1px solid ${themeDef.accent}40`,fontSize:14 }} title={vs().themeTitle}>
             🎨
           </button>
         )}
@@ -2445,7 +2449,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
             {players.size===1 && !djPanelOpen && (
               <div className="absolute bottom-4 left-0 right-0 flex justify-center pointer-events-none">
                 <p className="font-mono text-[10px] text-white/20 tracking-wider" style={{animation:'vs-pulse 2.5s ease-in-out infinite'}}>
-                  ↓ დააჭირე გადასაადგილებლად · DJ BOOTH ჩართვისთვის
+                  {vs().moveHint}
                 </p>
               </div>
             )}
@@ -2480,12 +2484,12 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
             {ghost ? (
               <div style={{ flex:1,display:'flex',alignItems:'center',gap:6,fontFamily:'monospace',fontSize:13,color:'#c084fc',paddingLeft:4 }}>👻 Observing — read only</div>
             ) : (<>
-            <input value={chat} onChange={e=>{ setChat(e.target.value); if(e.target.value.trim()) setTyping(true); else setTyping(false); }} maxLength={140} placeholder="გზავნილი…"
+            <input value={chat} onChange={e=>{ setChat(e.target.value); if(e.target.value.trim()) setTyping(true); else setTyping(false); }} maxLength={140} placeholder={vs().msgPh}
               style={{ flex:1,background:'rgba(255,255,255,.04)',fontFamily:'monospace',fontSize:14,color:'white',outline:'none',padding:'10px 14px',borderRadius:14,border:'1px solid rgba(255,255,255,.1)' }}
               onFocus={e=>e.stopPropagation()}
               onBlur={()=>setTyping(false)}
             />
-            <button type="button" onClick={()=>setShowExpr(o=>!o)} style={{ padding:'10px 12px',borderRadius:14,fontFamily:'monospace',fontSize:18,lineHeight:1,background:showExpr?'rgba(255,0,150,.2)':'rgba(255,255,255,.04)',border:`1px solid ${showExpr?'rgba(255,0,150,.5)':'rgba(255,255,255,.1)'}`,transition:'all .15s',flexShrink:0 }} title="გამოხატვა">😊</button>
+            <button type="button" onClick={()=>setShowExpr(o=>!o)} style={{ padding:'10px 12px',borderRadius:14,fontFamily:'monospace',fontSize:18,lineHeight:1,background:showExpr?'rgba(255,0,150,.2)':'rgba(255,255,255,.04)',border:`1px solid ${showExpr?'rgba(255,0,150,.5)':'rgba(255,255,255,.1)'}`,transition:'all .15s',flexShrink:0 }} title={vs().exprTitle}>😊</button>
             <button type="submit" disabled={!chat.trim()} style={{ padding:'10px 16px',borderRadius:14,fontFamily:'monospace',fontSize:15,background:'rgba(155,0,255,.15)',border:'1px solid rgba(155,0,255,.4)',color:'#c084fc',transition:'all .15s',flexShrink:0 }}>→</button>
             </>)}
             <button type="button" onClick={()=>setDrawerOpen(o=>!o)} style={{ padding:'10px 12px',borderRadius:14,fontFamily:'monospace',fontSize:15,background:drawerOpen?'rgba(155,0,255,.18)':'rgba(255,255,255,.04)',border:`1px solid ${drawerOpen?'rgba(155,0,255,.45)':'rgba(255,255,255,.1)'}`,color:drawerOpen?'#c084fc':'rgba(255,255,255,.4)',transition:'all .15s',flexShrink:0,position:'relative' }}>
@@ -2540,11 +2544,11 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
                     style={{ width: '100%', padding: '12px', borderRadius: 12, fontFamily: 'monospace', fontSize: 14, fontWeight: 700, background: 'rgba(255,45,85,.16)', border: '1px solid rgba(255,45,85,.45)', color: '#ff6b81', opacity: here ? 1 : 0.4, transition: 'transform .08s' }}
                     onMouseDown={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(0.95)'; }}
                     onMouseUp={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)'; }}
-                  >{weapon === 'tomato' ? '🍅 სროლა' : weapon === 'snowball' ? '❄️ სროლა' : '👊 დარტყმა'}</button>
+                  >{weapon === 'tomato' ? vs().throwTomato : weapon === 'snowball' ? vs().throwSnow : vs().punch}</button>
                   {activeDuel
                     ? (
                       (activeDuel.aSocketId === selectedPlayer.socketId || activeDuel.bSocketId === selectedPlayer.socketId)
-                        ? <p style={{ marginTop: 8, textAlign: 'center', fontFamily: 'monospace', fontSize: 12, color: '#facc15' }}>⚔️ დუელი მიმდინარეობს — დაარტყი!</p>
+                        ? <p style={{ marginTop: 8, textAlign: 'center', fontFamily: 'monospace', fontSize: 12, color: '#facc15' }}>{vs().duelActive}</p>
                         : null
                     )
                     : (
@@ -2553,17 +2557,17 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
                         disabled={!here}
                         onClick={() => { if (players.has(selectedPlayer.socketId)) { challengeDuel(selectedPlayer.socketId); setSelectedPlayer(null); } }}
                         style={{ width: '100%', marginTop: 8, padding: '11px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, fontWeight: 700, background: 'rgba(255,180,0,.12)', border: '1px solid rgba(255,180,0,.4)', color: '#facc15', opacity: here ? 1 : 0.4 }}
-                      >⚔️ დუელზე გამოწვევა</button>
+                      >{vs().duelChallenge}</button>
                       <button
                         disabled={!here}
                         onClick={() => { if (players.has(selectedPlayer.socketId)) { challengeRps(selectedPlayer.socketId); setSelectedPlayer(null); } }}
                         style={{ width: '100%', marginTop: 6, padding: '11px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, fontWeight: 700, background: 'rgba(0,229,255,.12)', border: '1px solid rgba(0,229,255,.4)', color: '#00e5ff', opacity: here ? 1 : 0.4 }}
-                      >🪨 ჯეირანი</button>
+                      >{vs().rpsBtn}</button>
                       <button
                         disabled={!here}
                         onClick={() => { if (players.has(selectedPlayer.socketId)) { challengeTod(selectedPlayer.socketId); setSelectedPlayer(null); } }}
                         style={{ width: '100%', marginTop: 6, padding: '11px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, fontWeight: 700, background: 'rgba(255,159,67,.12)', border: '1px solid rgba(255,159,67,.4)', color: '#ff9f43', opacity: here ? 1 : 0.4 }}
-                      >✊ სიმართლე თუ მოქმედება</button>
+                      >{vs().todBtn}</button>
                       </>
                     )}
                 </div>
@@ -2581,7 +2585,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
                       });
                     }}
                     style={{ padding: '11px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: followState==='done' ? 'rgba(0,255,136,.12)' : 'rgba(155,0,255,.14)', border: `1px solid ${followState==='done' ? 'rgba(0,255,136,.4)' : 'rgba(155,0,255,.4)'}`, color: followState==='done' ? '#00ff88' : '#c084fc' }}>
-                    {followState === 'busy' ? '…' : followState === 'done' ? '✓ მოთხოვნა გაიგზავნა' : '➕ მეგობრობის მოთხოვნა'}
+                    {followState === 'busy' ? '…' : followState === 'done' ? vs().requestSent : vs().friendRequest}
                   </button>
                   {/* These open as glass overlays ON TOP of the lounge — they no longer eject you. */}
                   <button onClick={() => { const tid = selectedPlayer.profileId!; setSelectedPlayer(null); openDmWith(tid); }}
@@ -2595,7 +2599,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
                 </>
               )}
               <button onClick={() => setSelectedPlayer(null)}
-                style={{ padding: '9px', borderRadius: 12, fontFamily: 'monospace', fontSize: 12, background: 'transparent', border: 'none', color: 'rgba(255,255,255,.35)' }}>დახურვა</button>
+                style={{ padding: '9px', borderRadius: 12, fontFamily: 'monospace', fontSize: 12, background: 'transparent', border: 'none', color: 'rgba(255,255,255,.35)' }}>{vs().close}</button>
             </div>
           </div>
         </div>,
@@ -2662,9 +2666,9 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
                   }}>
                   <span style={{ fontSize: 20 }}>🛠️</span>
                   <div style={{ flex: 1, textAlign: 'left' }}>
-                    <p className="font-mono text-[13px] font-bold" style={{ color: '#00ff88' }}>ავეჯის რედაქტორი</p>
+                    <p className="font-mono text-[13px] font-bold" style={{ color: '#00ff88' }}>{vs().furnitureEditor}</p>
                     <p className="font-mono text-[11px]" style={{ color: 'rgba(255,255,255,.35)' }}>
-                      {editMode ? 'რედაქტორი აქტიურია — დააჭირე გასათიშად' : 'ავეჯის დადგმა / გადაადგილება / წაშლა'}
+                      {editMode ? vs().editorOn : vs().editorDesc}
                     </p>
                   </div>
                   <span className="font-mono text-[11px]" style={{ color: editMode ? '#00ff88' : 'rgba(255,255,255,.3)' }}>
@@ -2683,11 +2687,11 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
         <div key="furn-editor">
           {/* Edit-mode banner + actions */}
           <div style={{ position: 'fixed', top: 'calc(env(safe-area-inset-top,0px) + 54px)', left: '50%', transform: 'translateX(-50%)', zIndex: 1200, display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderRadius: 999, background: 'rgba(4,20,10,.96)', border: '1px solid rgba(0,255,136,.45)', boxShadow: '0 6px 24px rgba(0,0,0,.55)' }}>
-            <span style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: '#00ff88', whiteSpace: 'nowrap' }}>🛠️ რედაქტორი · {furniture.length}/40</span>
+            <span style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: '#00ff88', whiteSpace: 'nowrap' }}>{vs().editorLabel} · {furniture.length}/40</span>
             <button onClick={() => { setPaletteOpen(o => !o); setSelectedFurn(null); }}
-              style={{ padding: '7px 12px', borderRadius: 999, fontFamily: 'monospace', fontSize: 12, fontWeight: 700, background: paletteOpen ? 'rgba(0,255,136,.25)' : 'rgba(0,255,136,.12)', border: '1px solid rgba(0,255,136,.5)', color: '#00ff88' }}>➕ ავეჯი</button>
+              style={{ padding: '7px 12px', borderRadius: 999, fontFamily: 'monospace', fontSize: 12, fontWeight: 700, background: paletteOpen ? 'rgba(0,255,136,.25)' : 'rgba(0,255,136,.12)', border: '1px solid rgba(0,255,136,.5)', color: '#00ff88' }}>{vs().addFurniture}</button>
             <button onClick={() => { setEditMode(false); setPaletteOpen(false); setSelectedFurn(null); }}
-              style={{ padding: '7px 12px', borderRadius: 999, fontFamily: 'monospace', fontSize: 12, fontWeight: 700, background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.2)', color: '#fff' }}>✓ მზადაა</button>
+              style={{ padding: '7px 12px', borderRadius: 999, fontFamily: 'monospace', fontSize: 12, fontWeight: 700, background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.2)', color: '#fff' }}>{vs().doneBtn}</button>
           </div>
           {furnMsg && (
             <p style={{ position: 'fixed', top: 'calc(env(safe-area-inset-top,0px) + 100px)', left: '50%', transform: 'translateX(-50%)', zIndex: 1200, fontFamily: 'monospace', fontSize: 11, color: '#ff6b81', background: 'rgba(10,4,26,.9)', padding: '5px 12px', borderRadius: 10 }}>{furnMsg}</p>
@@ -2714,18 +2718,18 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
           {/* Item palette — bottom sheet */}
           {paletteOpen && (
             <div style={{ position: 'fixed', left: 8, right: 8, bottom: 'calc(env(safe-area-inset-bottom,0px) + 96px)', zIndex: 1200, maxWidth: 480, margin: '0 auto', padding: 12, borderRadius: 20, background: 'rgba(4,14,8,.97)', border: '1px solid rgba(0,255,136,.4)', boxShadow: '0 10px 40px rgba(0,0,0,.6)' }}>
-              <p style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: '.2em', color: 'rgba(0,255,136,.6)', textTransform: 'uppercase', marginBottom: 8 }}>აირჩიე ნივთი — დაემატება ცენტრში, გადაათრიე ადგილზე</p>
+              <p style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: '.2em', color: 'rgba(0,255,136,.6)', textTransform: 'uppercase', marginBottom: 8 }}>{vs().pickItemHint}</p>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
                 {FURNITURE_CATALOG.map(item => (
                   <button key={item.kind}
                     onClick={async () => {
                       setFurnMsg('');
                       const r = await furnitureAdd(item.kind, 46 + Math.random() * 8, 52 + Math.random() * 8);
-                      if (!r.ok) setFurnMsg(r.error ?? 'ვერ დაემატა');
+                      if (!r.ok) setFurnMsg(r.error ?? vs().addFailed);
                     }}
                     style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '8px 2px', borderRadius: 12, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)' }}>
                     <span style={{ fontSize: 22, lineHeight: 1 }}>{item.emoji}</span>
-                    <span style={{ fontFamily: 'monospace', fontSize: 8, color: 'rgba(255,255,255,.5)' }}>{item.label}</span>
+                    <span style={{ fontFamily: 'monospace', fontSize: 8, color: 'rgba(255,255,255,.5)' }}>{vs()[`vsFurn_${item.kind}`] ?? item.label}</span>
                   </button>
                 ))}
               </div>
@@ -2801,7 +2805,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
                 onPointerDown={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(0.92)'; }}
                 onPointerUp={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)'; }}
               >
-                {weapon === 'tomato' ? '🍅 სროლა' : weapon === 'snowball' ? '❄️ სროლა' : '🤜 დარტყმა'}
+                {weapon === 'tomato' ? vs().throwTomato : weapon === 'snowball' ? vs().throwSnow : vs().punch2}
               </button>
             </motion.div>
           </div>,
@@ -2824,13 +2828,13 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
               <motion.div initial={{ scale: 0.4, rotate: -12 }} animate={{ scale: 1, rotate: 0 }} transition={{ delay: 0.08, type: 'spring', stiffness: 260, damping: 14 }}
                 style={{ fontSize: 48, filter: 'drop-shadow(0 0 16px rgba(250,204,21,.8))', marginBottom: 4 }}>🏆</motion.div>
               <p style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: '.25em', color: 'rgba(250,204,21,.6)', textTransform: 'uppercase', marginBottom: 14 }}>
-                დუელი დასრულდა{duelResult.forfeit ? ' (გამოსვლა)' : ''}
+                {vs().duelOver}{duelResult.forfeit ? ` (${vs().forfeit})` : ''}
               </p>
               {/* Winner */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 14, marginBottom: 8, background: 'rgba(250,204,21,.1)', border: '1px solid rgba(250,204,21,.4)' }}>
                 <span style={{ fontSize: 22 }}>🥇</span>
                 <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
-                  <p style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: '.15em', color: 'rgba(250,204,21,.6)', textTransform: 'uppercase' }}>გამარჯვებული</p>
+                  <p style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: '.15em', color: 'rgba(250,204,21,.6)', textTransform: 'uppercase' }}>{vs().winner}</p>
                   <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 800, fontSize: 16, color: '#facc15', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{duelResult.winner ?? duelResult.text}</p>
                 </div>
               </div>
@@ -2838,13 +2842,13 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 14, background: 'rgba(255,45,85,.08)', border: '1px solid rgba(255,45,85,.3)' }}>
                 <span style={{ fontSize: 22, filter: 'grayscale(.3)' }}>💀</span>
                 <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
-                  <p style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: '.15em', color: 'rgba(255,107,129,.6)', textTransform: 'uppercase' }}>დამარცხებული</p>
+                  <p style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: '.15em', color: 'rgba(255,107,129,.6)', textTransform: 'uppercase' }}>{vs().loser}</p>
                   <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 15, color: '#ff6b81', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{duelResult.loser ?? '—'}</p>
                 </div>
               </div>
               <button onClick={dismissDuelResult}
                 style={{ marginTop: 18, width: '100%', padding: '12px', borderRadius: 14, fontFamily: '"Space Grotesk",monospace', fontWeight: 800, fontSize: 14, color: '#0a0410', background: 'linear-gradient(135deg,#facc15,#fbbf24)', border: 'none' }}>
-                გასაგებია
+                {vs().gotIt}
               </button>
             </motion.div>
           </motion.div>,
@@ -2864,15 +2868,15 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
           <motion.div onClick={e => e.stopPropagation()} initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
             style={{ width: 'min(320px,100%)', textAlign: 'center', background: 'rgba(8,3,22,.99)', border: '1px solid rgba(255,180,0,.45)', borderRadius: 20, padding: '26px 22px' }}>
             <div style={{ fontSize: 44, marginBottom: 6 }}>⚔️</div>
-            <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: '#fff', marginBottom: 6 }}>დუელის გამოწვევა</p>
+            <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: '#fff', marginBottom: 6 }}>{vs().duelInviteTitle}</p>
             <p style={{ fontFamily: 'monospace', fontSize: 13, color: 'rgba(255,255,255,.55)', marginBottom: 18 }}>
-              <span style={{ color: '#facc15' }}>{duelInvite.fromName}</span> გიწვევს დუელზე. მიიღებ?
+              <span style={{ color: '#facc15' }}>{duelInvite.fromName}</span> {vs().duelInviteQ}
             </p>
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={() => respondDuel(duelInvite.fromSocketId, false)}
-                style={{ flex: 1, padding: '12px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.14)', color: 'rgba(255,255,255,.6)' }}>უარი</button>
+                style={{ flex: 1, padding: '12px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.14)', color: 'rgba(255,255,255,.6)' }}>{vs().decline}</button>
               <button onClick={() => respondDuel(duelInvite.fromSocketId, true)}
-                style={{ flex: 1, padding: '12px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, fontWeight: 700, background: 'rgba(0,255,136,.14)', border: '1px solid rgba(0,255,136,.45)', color: '#00ff88' }}>⚔️ მიღება</button>
+                style={{ flex: 1, padding: '12px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, fontWeight: 700, background: 'rgba(0,255,136,.14)', border: '1px solid rgba(0,255,136,.45)', color: '#00ff88' }}>{vs().accept}</button>
             </div>
           </motion.div>
         </div>,
@@ -2885,15 +2889,15 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
           <motion.div onClick={e => e.stopPropagation()} initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
             style={{ width: 'min(320px,100%)', textAlign: 'center', background: 'rgba(8,3,22,.99)', border: '1px solid rgba(0,229,255,.45)', borderRadius: 20, padding: '26px 22px' }}>
             <div style={{ fontSize: 44, marginBottom: 6 }}>🪨</div>
-            <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: '#fff', marginBottom: 6 }}>ჯეირანი</p>
+            <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: '#fff', marginBottom: 6 }}>{vs().rpsTitle}</p>
             <p style={{ fontFamily: 'monospace', fontSize: 13, color: 'rgba(255,255,255,.55)', marginBottom: 18 }}>
-              <span style={{ color: '#00e5ff' }}>{rpsInvite.fromName}</span> გიწვევს ჯეირანზე. ითამაშებ?
+              <span style={{ color: '#00e5ff' }}>{rpsInvite.fromName}</span> {vs().rpsInviteQ}
             </p>
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={() => respondRps(rpsInvite.fromSocketId, false)}
-                style={{ flex: 1, padding: '12px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.14)', color: 'rgba(255,255,255,.6)' }}>უარი</button>
+                style={{ flex: 1, padding: '12px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.14)', color: 'rgba(255,255,255,.6)' }}>{vs().decline}</button>
               <button onClick={() => respondRps(rpsInvite.fromSocketId, true)}
-                style={{ flex: 1, padding: '12px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, fontWeight: 700, background: 'rgba(0,229,255,.14)', border: '1px solid rgba(0,229,255,.45)', color: '#00e5ff' }}>🪨 ვითამაშოთ!</button>
+                style={{ flex: 1, padding: '12px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, fontWeight: 700, background: 'rgba(0,229,255,.14)', border: '1px solid rgba(0,229,255,.45)', color: '#00e5ff' }}>{vs().letsPlayRps}</button>
             </div>
           </motion.div>
         </div>,
@@ -2906,22 +2910,22 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
           <motion.div initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
             style={{ width: 'min(340px,100%)', textAlign: 'center', background: 'rgba(8,3,22,.99)', border: '1px solid rgba(0,229,255,.35)', borderRadius: 20, padding: '26px 22px' }}>
             <p style={{ fontFamily: 'monospace', fontSize: 12, color: 'rgba(255,255,255,.4)', marginBottom: 4 }}>vs <span style={{ color: '#00e5ff' }}>{activeRps.opponent}</span></p>
-            <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 18, color: '#fff', marginBottom: 4 }}>რაუნდი {activeRps.round}/3</p>
+            <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 18, color: '#fff', marginBottom: 4 }}>{vs().round} {activeRps.round}/3</p>
             {rpsLastRound && !rpsLastRound.finished && (
               <p style={{ fontFamily: 'monospace', fontSize: 12, color: 'rgba(255,255,255,.45)', marginBottom: 8 }}>
-                წინა: {rpsLastRound.result === 'draw' ? 'ფრე' : rpsLastRound.result === 'a' ? `${rpsLastRound.aWins}-${rpsLastRound.bWins}` : `${rpsLastRound.aWins}-${rpsLastRound.bWins}`} ({rpsLastRound.aWins}-{rpsLastRound.bWins})
+                {vs().prev}: {rpsLastRound.result === 'draw' ? vs().draw : rpsLastRound.result === 'a' ? `${rpsLastRound.aWins}-${rpsLastRound.bWins}` : `${rpsLastRound.aWins}-${rpsLastRound.bWins}`} ({rpsLastRound.aWins}-{rpsLastRound.bWins})
               </p>
             )}
             {activeRps.myPick ? (
               <div style={{ padding: 20 }}>
                 <p style={{ fontFamily: 'monospace', fontSize: 14, color: '#00e5ff', marginBottom: 8 }}>
-                  {activeRps.myPick === 'rock' ? '🪨' : activeRps.myPick === 'paper' ? '📄' : '✂️'} აირჩიე — ელოდები მოწინააღმდეგეს...
+                  {activeRps.myPick === 'rock' ? '🪨' : activeRps.myPick === 'paper' ? '📄' : '✂️'} {vs().pickedWaiting}
                 </p>
                 <div className="animate-pulse" style={{ fontSize: 28 }}>⏳</div>
               </div>
             ) : (
               <>
-                <p style={{ fontFamily: 'monospace', fontSize: 13, color: 'rgba(255,255,255,.55)', marginBottom: 16 }}>აირჩიე:</p>
+                <p style={{ fontFamily: 'monospace', fontSize: 13, color: 'rgba(255,255,255,.55)', marginBottom: 16 }}>{vs().choose}</p>
                 <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
                   {([['rock', '🪨'], ['paper', '📄'], ['scissors', '✂️']] as const).map(([c, emoji]) => (
                     <button key={c} onClick={() => pickRps(c)}
@@ -2953,7 +2957,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
               </div>
             )}
             <div style={{ fontSize: 32, marginBottom: 8 }}>🪨</div>
-            <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: '#fff', marginBottom: 12 }}>ჯეირანის შედეგი</p>
+            <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: '#fff', marginBottom: 12 }}>{vs().rpsResult}</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
               <div style={{ padding: '10px 16px', borderRadius: 12, background: 'rgba(0,255,136,.1)', border: '1px solid rgba(0,255,136,.3)' }}>
                 <span style={{ fontFamily: 'monospace', fontSize: 13, color: '#00ff88' }}>🏆 {rpsResult.winner}</span>
@@ -2964,7 +2968,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
               <p style={{ fontFamily: 'monospace', fontSize: 12, color: 'rgba(255,255,255,.35)', marginTop: 4 }}>{rpsResult.aWins}-{rpsResult.bWins}</p>
             </div>
             <button onClick={dismissRpsResult}
-              style={{ width: '100%', padding: '12px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, fontWeight: 700, background: 'rgba(0,229,255,.14)', border: '1px solid rgba(0,229,255,.4)', color: '#00e5ff' }}>გასაგებია</button>
+              style={{ width: '100%', padding: '12px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, fontWeight: 700, background: 'rgba(0,229,255,.14)', border: '1px solid rgba(0,229,255,.4)', color: '#00e5ff' }}>{vs().gotIt}</button>
           </motion.div>
         </div>,
         document.body
@@ -2976,15 +2980,15 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
           <motion.div onClick={e => e.stopPropagation()} initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
             style={{ width: 'min(320px,100%)', textAlign: 'center', background: 'rgba(8,3,22,.99)', border: '1px solid rgba(255,159,67,.45)', borderRadius: 20, padding: '26px 22px' }}>
             <div style={{ fontSize: 44, marginBottom: 6 }}>✊</div>
-            <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: '#fff', marginBottom: 6 }}>სიმართლე თუ მოქმედება</p>
+            <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: '#fff', marginBottom: 6 }}>{vs().todTitle}</p>
             <p style={{ fontFamily: 'monospace', fontSize: 13, color: 'rgba(255,255,255,.55)', marginBottom: 18 }}>
-              <span style={{ color: '#ff9f43' }}>{todInvite.fromName}</span> გიწვევს. ითამაშებ?
+              <span style={{ color: '#ff9f43' }}>{todInvite.fromName}</span> {vs().todInviteQ}
             </p>
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={() => respondTod(todInvite.fromSocketId, false)}
-                style={{ flex: 1, padding: '12px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.14)', color: 'rgba(255,255,255,.6)' }}>უარი</button>
+                style={{ flex: 1, padding: '12px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.14)', color: 'rgba(255,255,255,.6)' }}>{vs().decline}</button>
               <button onClick={() => respondTod(todInvite.fromSocketId, true)}
-                style={{ flex: 1, padding: '12px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, fontWeight: 700, background: 'rgba(255,159,67,.14)', border: '1px solid rgba(255,159,67,.45)', color: '#ff9f43' }}>✊ ვითამაშოთ!</button>
+                style={{ flex: 1, padding: '12px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, fontWeight: 700, background: 'rgba(255,159,67,.14)', border: '1px solid rgba(255,159,67,.45)', color: '#ff9f43' }}>{vs().letsPlayTod}</button>
             </div>
           </motion.div>
         </div>,
@@ -2997,16 +3001,16 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
           <motion.div initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
             style={{ width: 'min(320px,100%)', textAlign: 'center', background: 'rgba(8,3,22,.99)', border: '1px solid rgba(255,159,67,.35)', borderRadius: 20, padding: '26px 22px' }}>
             <div style={{ fontSize: 36, marginBottom: 8 }}>✊</div>
-            <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: '#fff', marginBottom: 4 }}>აირჩიე:</p>
+            <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: '#fff', marginBottom: 4 }}>{vs().choose}</p>
             <p style={{ fontFamily: 'monospace', fontSize: 12, color: 'rgba(255,255,255,.4)', marginBottom: 16 }}>vs {activeTod.opponent}</p>
             <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
               <button onClick={() => pickTod('truth')}
                 style={{ flex: 1, padding: '16px 12px', borderRadius: 14, fontFamily: 'monospace', fontSize: 14, fontWeight: 700, background: 'rgba(0,229,255,.1)', border: '2px solid rgba(0,229,255,.4)', color: '#00e5ff' }}>
-                🔮 სიმართლე
+                {vs().truth}
               </button>
               <button onClick={() => pickTod('dare')}
                 style={{ flex: 1, padding: '16px 12px', borderRadius: 14, fontFamily: 'monospace', fontSize: 14, fontWeight: 700, background: 'rgba(255,45,85,.1)', border: '2px solid rgba(255,45,85,.4)', color: '#ff6b81' }}>
-                🔥 მოქმედება
+                {vs().dare}
               </button>
             </div>
           </motion.div>
@@ -3026,7 +3030,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
             <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 14, color: '#fff', marginBottom: 12 }}>{todQuestion.playerName}</p>
             <p style={{ fontFamily: 'monospace', fontSize: 15, color: 'rgba(255,255,255,.85)', lineHeight: 1.6, marginBottom: 20 }}>{todQuestion.question}</p>
             <button onClick={dismissTodQuestion}
-              style={{ width: '100%', padding: '12px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, fontWeight: 700, background: 'rgba(255,159,67,.14)', border: '1px solid rgba(255,159,67,.4)', color: '#ff9f43' }}>გასაგებია</button>
+              style={{ width: '100%', padding: '12px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, fontWeight: 700, background: 'rgba(255,159,67,.14)', border: '1px solid rgba(255,159,67,.4)', color: '#ff9f43' }}>{vs().gotIt}</button>
           </motion.div>
         </div>,
         document.body
@@ -3046,15 +3050,15 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
             {reactionGame.phase === 'invite' && (
               <>
                 <div style={{ fontSize: 44, marginBottom: 8 }}>⚡</div>
-                <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: '#fff', marginBottom: 6 }}>რეაქციის ტესტი</p>
+                <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: '#fff', marginBottom: 6 }}>{vs().reactionTitle}</p>
                 <p style={{ fontFamily: 'monospace', fontSize: 13, color: 'rgba(255,255,255,.55)', marginBottom: 6 }}>
-                  <span style={{ color: '#ff6b81' }}>{reactionGame.starterName}</span> იწვევს ყველას!
+                  <span style={{ color: '#ff6b81' }}>{reactionGame.starterName}</span> {vs().invitesAll}
                 </p>
                 <p style={{ fontFamily: 'monospace', fontSize: 12, color: 'rgba(255,255,255,.3)', marginBottom: 16 }}>
-                  {reactionGame.playerCount ?? 1} მოთამაშე შეუერთდა
+                  {reactionGame.playerCount ?? 1} {vs().playersJoined}
                 </p>
                 <button onClick={joinReaction}
-                  style={{ width: '100%', padding: '14px', borderRadius: 14, fontFamily: 'monospace', fontSize: 14, fontWeight: 700, background: 'rgba(255,45,85,.16)', border: '2px solid rgba(255,45,85,.5)', color: '#ff6b81' }}>⚡ შეუერთდი</button>
+                  style={{ width: '100%', padding: '14px', borderRadius: 14, fontFamily: 'monospace', fontSize: 14, fontWeight: 700, background: 'rgba(255,45,85,.16)', border: '2px solid rgba(255,45,85,.5)', color: '#ff6b81' }}>{vs().joinBtn}</button>
               </>
             )}
 
@@ -3062,8 +3066,8 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
             {reactionGame.phase === 'joined' && (
               <>
                 <div style={{ fontSize: 44, marginBottom: 8 }}>⚡</div>
-                <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: '#fff', marginBottom: 8 }}>მოთამაშეები იკრიბებიან...</p>
-                <p style={{ fontFamily: 'monospace', fontSize: 13, color: 'rgba(255,255,255,.4)' }}>{reactionGame.playerCount ?? 1} მოთამაშე</p>
+                <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: '#fff', marginBottom: 8 }}>{vs().gathering}</p>
+                <p style={{ fontFamily: 'monospace', fontSize: 13, color: 'rgba(255,255,255,.4)' }}>{reactionGame.playerCount ?? 1} {vs().playersWord}</p>
                 <div className="animate-pulse" style={{ fontSize: 28, marginTop: 12 }}>⏳</div>
               </>
             )}
@@ -3071,7 +3075,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
             {/* Countdown */}
             {reactionGame.phase === 'countdown' && (
               <>
-                <p style={{ fontFamily: 'monospace', fontSize: 14, color: 'rgba(255,255,255,.4)', marginBottom: 12 }}>მოემზადე...</p>
+                <p style={{ fontFamily: 'monospace', fontSize: 14, color: 'rgba(255,255,255,.4)', marginBottom: 12 }}>{vs().getReady}</p>
                 <motion.div key={reactionGame.countdown} initial={{ scale: 2, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.4 }}
                   style={{ fontSize: 72, fontWeight: 900, color: '#ff6b81' }}>
                   {reactionGame.countdown}
@@ -3087,7 +3091,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
                     style={{ width: 160, height: 160, borderRadius: '50%', fontSize: 24, fontFamily: '"Space Grotesk",sans-serif', fontWeight: 900, background: 'radial-gradient(circle, #ff2d55 0%, #cc0033 100%)', border: '4px solid rgba(255,255,255,.3)', color: '#fff', boxShadow: '0 0 40px rgba(255,45,85,.5)', transition: 'transform .08s' }}
                     onMouseDown={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(0.9)'; }}
                     onMouseUp={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)'; }}
-                  >დააჭირე!</button>
+                  >{vs().tapNow}</button>
                 </motion.div>
               </>
             )}
@@ -3097,7 +3101,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
               <>
                 <div style={{ fontSize: 36, marginBottom: 8 }}>✅</div>
                 <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 18, color: '#00ff88' }}>{reactionGame.myMs} ms</p>
-                <p style={{ fontFamily: 'monospace', fontSize: 12, color: 'rgba(255,255,255,.4)', marginTop: 8 }}>ელოდე სხვებს...</p>
+                <p style={{ fontFamily: 'monospace', fontSize: 12, color: 'rgba(255,255,255,.4)', marginTop: 8 }}>{vs().waitOthers}</p>
               </>
             )}
 
@@ -3105,7 +3109,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
             {reactionGame.phase === 'done' && (
               <>
                 <div style={{ fontSize: 36, marginBottom: 8 }}>⚡</div>
-                <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: '#fff', marginBottom: 12 }}>შედეგები</p>
+                <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: '#fff', marginBottom: 12 }}>{vs().results}</p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
                   {(reactionGame.results ?? []).map((r, i) => (
                     <div key={r.socketId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 10, background: i === 0 ? 'rgba(0,255,136,.1)' : 'rgba(255,255,255,.03)', border: `1px solid ${i === 0 ? 'rgba(0,255,136,.3)' : 'rgba(255,255,255,.08)'}` }}>
@@ -3120,7 +3124,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
                 {/* Leaderboard */}
                 {reactionGame.leaderboard && reactionGame.leaderboard.length > 0 && (
                   <div style={{ marginBottom: 16 }}>
-                    <p style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,.3)', textTransform: 'uppercase', letterSpacing: 2, marginBottom: 6 }}>🏆 ლიდერბორდი</p>
+                    <p style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,.3)', textTransform: 'uppercase', letterSpacing: 2, marginBottom: 6 }}>{vs().leaderboard}</p>
                     {reactionGame.leaderboard.slice(0, 5).map((e, i) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 8px' }}>
                         <span style={{ fontFamily: 'monospace', fontSize: 12, width: 20, color: i === 0 ? '#facc15' : 'rgba(255,255,255,.3)' }}>{i + 1}.</span>
@@ -3131,7 +3135,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
                   </div>
                 )}
                 <button onClick={dismissReaction}
-                  style={{ width: '100%', padding: '12px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, fontWeight: 700, background: 'rgba(255,45,85,.14)', border: '1px solid rgba(255,45,85,.4)', color: '#ff6b81' }}>გასაგებია</button>
+                  style={{ width: '100%', padding: '12px', borderRadius: 12, fontFamily: 'monospace', fontSize: 13, fontWeight: 700, background: 'rgba(255,45,85,.14)', border: '1px solid rgba(255,45,85,.4)', color: '#ff6b81' }}>{vs().gotIt}</button>
               </>
             )}
           </motion.div>
@@ -3145,7 +3149,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
         <div onClick={() => setTournamentOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 1250, background: 'rgba(0,0,0,.7)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
           <div onClick={e => e.stopPropagation()} style={{ width: 'min(380px,100%)', maxHeight: '80vh', overflowY: 'auto', background: 'rgba(8,3,22,.99)', border: '1px solid rgba(0,245,255,.3)', borderRadius: 20, padding: 20 }}>
             <div className="flex items-center justify-between mb-3">
-              <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 15, color: '#00f5ff' }}>⚔ ტურნირები</p>
+              <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 15, color: '#00f5ff' }}>{vs().tournaments}</p>
               <button onClick={() => setTournamentOpen(false)} className="w-7 h-7 rounded-lg flex items-center justify-center text-white/35" style={{ background: 'rgba(255,255,255,.05)' }}>✕</button>
             </div>
 
@@ -3155,7 +3159,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
                 <input
                   value={tName}
                   onChange={e => setTName(e.target.value.slice(0, 50))}
-                  placeholder="ტურნირის სახელი…"
+                  placeholder={vs().tournamentNamePh}
                   className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-white/20 font-mono focus:outline-none focus:border-neon-cyan/30"
                 />
                 <button
@@ -3169,14 +3173,14 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
                   className="px-3 py-2 rounded-xl font-mono text-[11px] font-bold uppercase tracking-wider transition-all active:scale-95 disabled:opacity-40"
                   style={{ background: 'rgba(0,245,255,.14)', border: '1px solid rgba(0,245,255,.4)', color: '#00f5ff' }}
                 >
-                  {tCreating ? '…' : '+ შექმნა'}
+                  {tCreating ? '…' : vs().createBtn}
                 </button>
               </div>
             </div>
 
             {/* Tournament list */}
             {tournaments.length === 0 ? (
-              <p className="text-center font-mono text-[12px] text-white/30 py-6">ტურნირები ჯერ არ არის</p>
+              <p className="text-center font-mono text-[12px] text-white/30 py-6">{vs().noTournaments}</p>
             ) : (
               <div className="space-y-2">
                 {tournaments.map(t => {
@@ -3192,7 +3196,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
                           color: t.status === 'open' ? '#00ff88' : t.status === 'in_progress' ? '#facc15' : 'rgba(255,255,255,.35)',
                           border: `1px solid ${t.status === 'open' ? 'rgba(0,255,136,.3)' : t.status === 'in_progress' ? 'rgba(255,180,0,.3)' : 'rgba(255,255,255,.1)'}`,
                         }}>
-                          {t.status === 'open' ? 'ღია' : t.status === 'in_progress' ? 'მიმდინარე' : 'დასრულებული'}
+                          {t.status === 'open' ? vs().statusOpen : t.status === 'in_progress' ? vs().statusInProgress : vs().statusDone}
                         </span>
                       </div>
                       <div className="flex flex-wrap gap-1 mb-2">
@@ -3203,7 +3207,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
                           </div>
                         ))}
                       </div>
-                      <p className="font-mono text-[10px] text-white/25 mb-2">{t.participants?.length ?? 0}/{t.maxPlayers} მოთამაშე</p>
+                      <p className="font-mono text-[10px] text-white/25 mb-2">{t.participants?.length ?? 0}/{t.maxPlayers} {vs().playersWord}</p>
                       <div className="flex gap-2">
                         {t.status === 'open' && !isParticipant && (
                           <button
@@ -3213,7 +3217,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
                             }}
                             className="flex-1 py-1.5 rounded-lg font-mono text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95"
                             style={{ background: 'rgba(0,255,136,.12)', border: '1px solid rgba(0,255,136,.3)', color: '#00ff88' }}
-                          >შეერთება</button>
+                          >{vs().joinWord}</button>
                         )}
                         {t.status === 'open' && isParticipant && !isCreator && (
                           <button
@@ -3223,7 +3227,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
                             }}
                             className="flex-1 py-1.5 rounded-lg font-mono text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95"
                             style={{ background: 'rgba(255,45,85,.1)', border: '1px solid rgba(255,45,85,.25)', color: '#ff6b81' }}
-                          >გასვლა</button>
+                          >{vs().leaveWord}</button>
                         )}
                         {t.status === 'open' && isCreator && (t.participants?.length ?? 0) >= 2 && (
                           <button
@@ -3233,7 +3237,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
                             }}
                             className="flex-1 py-1.5 rounded-lg font-mono text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95"
                             style={{ background: 'rgba(0,245,255,.14)', border: '1px solid rgba(0,245,255,.4)', color: '#00f5ff' }}
-                          >დაწყება</button>
+                          >{vs().startWord}</button>
                         )}
                         {isCreator && (
                           <button
@@ -3260,15 +3264,15 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
         <div onClick={() => setKoOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 1250, background: 'rgba(0,0,0,.7)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
           <div onClick={e => e.stopPropagation()} style={{ width: 'min(340px,100%)', maxHeight: '76vh', overflowY: 'auto', background: 'rgba(8,3,22,.99)', border: '1px solid rgba(255,180,0,.3)', borderRadius: 20, padding: 20 }}>
             <div className="flex items-center justify-between mb-3">
-              <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 15, color: '#facc15' }}>🏆 რეიტინგი</p>
+              <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 15, color: '#facc15' }}>{vs().ratingTitle}</p>
               <button onClick={() => setKoOpen(false)} className="w-7 h-7 rounded-lg flex items-center justify-center text-white/35" style={{ background: 'rgba(255,255,255,.05)' }}>✕</button>
             </div>
             {/* Tabs */}
             <div className="flex gap-1 mb-3">
               {([
                 { id: 'ko' as const, label: '👊 KO', color: '#ff6b81' },
-                { id: 'wins' as const, label: '🎮 მოგება', color: '#00ff88' },
-                { id: 'level' as const, label: '⭐ დონე', color: '#c084fc' },
+                { id: 'wins' as const, label: `🎮 ${vs().winsTab}`, color: '#00ff88' },
+                { id: 'level' as const, label: `⭐ ${vs().levelTab}`, color: '#c084fc' },
               ]).map(tb => (
                 <button
                   key={tb.id}
@@ -3286,7 +3290,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
               <p className="text-center font-mono text-[12px] text-white/30 py-6">…</p>
             ) : koList.length === 0 ? (
               <p className="text-center font-mono text-[12px] text-white/30 py-6">
-                {koTab === 'ko' ? 'ჯერ არავის ჩაურტყამს. იყავი პირველი! 👊' : koTab === 'wins' ? 'ჯერ არავის მოუგია' : 'ჯერ არავინ არ არის'}
+                {koTab === 'ko' ? vs().noKos : koTab === 'wins' ? vs().noWins : vs().noPlayers}
               </p>
             ) : (
               <div className="space-y-1.5">
@@ -3317,13 +3321,13 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
           <motion.div initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
             style={{ width: 'min(320px,100%)', textAlign: 'center', background: 'rgba(8,3,22,.99)', border: '1px solid rgba(255,45,85,.45)', borderRadius: 20, padding: '28px 22px', boxShadow: '0 0 50px rgba(255,45,85,.25)' }}>
             <div style={{ fontSize: 48, marginBottom: 8 }}>💥</div>
-            <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 18, color: '#fff', marginBottom: 6 }}>ნოკაუტი!</p>
+            <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 18, color: '#fff', marginBottom: 6 }}>{vs().knockout}</p>
             <p style={{ fontFamily: 'monospace', fontSize: 13, color: 'rgba(255,255,255,.55)', marginBottom: 18, lineHeight: 1.5 }}>
-              <span style={{ color: '#ff6b81' }}>{knockout.byName}</span>-მ გაგაგდო Space-დან. ხელახლა შემოდი სათამაშოდ.
+              <span style={{ color: '#ff6b81' }}>{knockout.byName}</span>{vs().koKickedDesc}
             </p>
             <button onClick={clearKnockout}
               style={{ width: '100%', padding: '12px', borderRadius: 12, fontFamily: 'monospace', fontSize: 14, fontWeight: 700, background: 'rgba(155,0,255,.18)', border: '1px solid rgba(155,0,255,.45)', color: '#c084fc' }}>
-              ↩ ხელახლა შესვლა
+              {vs().rejoin}
             </button>
           </motion.div>
         </div>,
@@ -3345,7 +3349,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
               <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: 'white' }}>🎮 Quick Play</p>
               <button onClick={() => !launchingGame && setShowGames(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.4)', fontSize: 16, cursor: 'pointer' }}>✕</button>
             </div>
-            <p style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,.4)', marginBottom: 14 }}>აირჩიე თამაში — შეიქმნება ოთახი და მოიწვევ მეგობრებს</p>
+            <p style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(255,255,255,.4)', marginBottom: 14 }}>{vs().pickGameHint}</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {[
                 { id: 'uno', label: 'UNO', emoji: '🎴', accent: '#ff2d55' },
@@ -3374,7 +3378,7 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
           style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,.7)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
           <div onClick={e => e.stopPropagation()}
             style={{ width: 'min(320px, 100%)', background: 'rgba(8,3,22,.99)', border: '1px solid rgba(155,0,255,.3)', borderRadius: 20, padding: '22px 20px', textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,.7)' }}>
-            <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: 'white', marginBottom: 6 }}>დარწმუნებული ხარ?</p>
+            <p style={{ fontFamily: '"Space Grotesk",sans-serif', fontWeight: 700, fontSize: 16, color: 'white', marginBottom: 6 }}>{vs().areYouSure}</p>
             <p style={{ fontFamily: 'monospace', fontSize: 12, color: 'rgba(255,255,255,.45)', marginBottom: 18 }}>Are you sure you want to exit?</p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setConfirmExit(false)}

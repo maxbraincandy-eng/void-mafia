@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { socket } from '@/lib/socket';
 import { SFX } from '@/lib/audioEngine';
+import { tNow } from '@/store/langStore';
+const vs = () => tNow().vspace as unknown as Record<string, string>;
 
 export type SpaceMask = 'none' | 'half' | 'full' | 'visor';
 
@@ -177,7 +179,7 @@ export function useVirtualSpace() {
           // Welcome the joiner on their own screen too — self never receives a
           // space:player-joined event, so mark ourselves as a recent join here.
           const me = players.get(myId);
-          const selfMsg: SpaceChatMsg[] = me ? [{ socketId: 'system', name: 'system', bodyColor: '#c084fc', glowColor: '#c084fc', message: `👋 ${me.name} შემოვიდა 🚪`, ts: Date.now() }] : [];
+          const selfMsg: SpaceChatMsg[] = me ? [{ socketId: 'system', name: 'system', bodyColor: '#c084fc', glowColor: '#c084fc', message: `👋 ${me.name} ${vs().joinedRoom} 🚪`, ts: Date.now() }] : [];
           setState({ joined: true, mySocketId: myId, players, chatHistory: selfMsg, space: res.data.space ?? null, reactions: [], projectiles: [], knockout: null, ghost: false, duelInvite: null, activeDuel: null, duelResult: null, rpsInvite: null, activeRps: null, rpsLastRound: null, rpsResult: null, todInvite: null, activeTod: null, todQuestion: null, reactionGame: null, furniture: res.data.furniture ?? [], recentJoins: [myId] });
           try { SFX.join(); } catch { /* ignore */ }
           setTimeout(() => setState(prev => ({ ...prev, recentJoins: prev.recentJoins.filter(id => id !== myId) })), 1900);
@@ -193,8 +195,8 @@ export function useVirtualSpace() {
 
   const challengeDuel = useCallback((targetSocketId: string) => {
     (socket as any).emit('space:duel_challenge', { targetSocketId }, (res: any) => {
-      if (res?.ok) flashDuelResult('⚔️ მოწვევა გაიგზავნა', false, 2200);
-      else flashDuelResult(res?.error === 'Already in a duel.' ? 'უკვე მიმდინარეობს დუელი' : 'დუელი ვერ გაიგზავნა', false, 2200);
+      if (res?.ok) flashDuelResult(vs().inviteSent, false, 2200);
+      else flashDuelResult(res?.error === 'Already in a duel.' ? vs().duelBusy : vs().duelSendFailed, false, 2200);
     });
   }, [flashDuelResult]);
 
@@ -206,8 +208,8 @@ export function useVirtualSpace() {
   // ── Rock-Paper-Scissors ("ჯეირანი") ────────────────────────────────
   const challengeRps = useCallback((targetSocketId: string) => {
     (socket as any).emit('space:rps_challenge', { targetSocketId }, (res: any) => {
-      if (res?.ok) flashDuelResult('🪨 მოწვევა გაიგზავნა', false, 2200);
-      else flashDuelResult('ვერ გაიგზავნა', false, 2200);
+      if (res?.ok) flashDuelResult(`🪨 ${vs().inviteSentPlain}`, false, 2200);
+      else flashDuelResult(vs().sendFailed, false, 2200);
     });
   }, [flashDuelResult]);
 
@@ -227,8 +229,8 @@ export function useVirtualSpace() {
   // ── Truth or Dare ("სიმართლე თუ მოქმედება") ──────────────────────
   const challengeTod = useCallback((targetSocketId: string) => {
     (socket as any).emit('space:tod_challenge', { targetSocketId }, (res: any) => {
-      if (res?.ok) flashDuelResult('✊ მოწვევა გაიგზავნა', false, 2200);
-      else flashDuelResult('ვერ გაიგზავნა', false, 2200);
+      if (res?.ok) flashDuelResult(`✊ ${vs().inviteSentPlain}`, false, 2200);
+      else flashDuelResult(vs().sendFailed, false, 2200);
     });
   }, [flashDuelResult]);
 
@@ -249,7 +251,7 @@ export function useVirtualSpace() {
   const startReaction = useCallback(() => {
     (socket as any).emit('space:reaction_start', {}, (res: any) => {
       if (res?.ok) setState(prev => ({ ...prev, reactionGame: { phase: 'joined', playerCount: 1 } }));
-      else flashDuelResult(res?.error === 'Already running.' ? 'უკვე მიმდინარეობს' : 'ვერ დაიწყო', false, 2200);
+      else flashDuelResult(res?.error === 'Already running.' ? vs().alreadyRunning : vs().startFailed, false, 2200);
     });
   }, [flashDuelResult]);
 
@@ -517,7 +519,7 @@ export function useVirtualSpace() {
         next.set(player.socketId, player);
         if (!isNew) return { ...prev, players: next };
         // Welcome: system chat line + short-lived arrival marker (drop-in + confetti).
-        const sysMsg: SpaceChatMsg = { socketId: 'system', name: 'system', bodyColor: '#c084fc', glowColor: '#c084fc', message: `👋 ${player.name} შემოვიდა 🚪`, ts: Date.now() };
+        const sysMsg: SpaceChatMsg = { socketId: 'system', name: 'system', bodyColor: '#c084fc', glowColor: '#c084fc', message: `👋 ${player.name} ${vs().joinedRoom} 🚪`, ts: Date.now() };
         return { ...prev, players: next, chatHistory: [...prev.chatHistory.slice(-99), sysMsg], recentJoins: [...prev.recentJoins, player.socketId] };
       });
       try { SFX.join(); } catch { /* ignore */ }
@@ -643,7 +645,7 @@ export function useVirtualSpace() {
       setState(prev => ({ ...prev, duelResult: { text: d.winnerName, win: true, sticky: true, winner: d.winnerName, loser: d.loserName, forfeit: d.forfeit } }));
     }
     function onDuelDeclined(d: { byName: string; expired?: boolean }) {
-      flashDuelResult(d.expired ? `${d.byName}-მ ვერ მოასწრო პასუხი` : `${d.byName}-მ უარყო დუელი`, false, 2600);
+      flashDuelResult(d.expired ? `${d.byName} — ${vs().noAnswerInTime}` : `${d.byName} — ${vs().declinedDuel}`, false, 2600);
     }
 
     // ── RPS ("ჯეირანი") listeners ────────────────────────────────────
@@ -655,14 +657,14 @@ export function useVirtualSpace() {
     }
     function onRpsRound(d: RpsRound) {
       if (d.finished) {
-        const sysMsg: SpaceChatMsg = { socketId: 'system', name: 'system', bodyColor: '#00e5ff', glowColor: '#00e5ff', message: `🪨 ჯეირანი: ${d.winnerName} მოიგო! (${d.aWins}-${d.bWins})`, ts: Date.now() };
+        const sysMsg: SpaceChatMsg = { socketId: 'system', name: 'system', bodyColor: '#00e5ff', glowColor: '#00e5ff', message: `🪨 ${vs().rpsWord}: ${d.winnerName} ${vs().wonExcl} (${d.aWins}-${d.bWins})`, ts: Date.now() };
         setState(prev => ({ ...prev, activeRps: null, rpsLastRound: d, rpsResult: { winner: d.winnerName!, loser: d.loserName!, aWins: d.aWins, bWins: d.bWins }, chatHistory: [...prev.chatHistory.slice(-99), sysMsg] }));
       } else {
         setState(prev => prev.activeRps ? { ...prev, rpsLastRound: d, activeRps: { ...prev.activeRps, round: d.nextRound!, myPick: undefined } } : prev);
       }
     }
     function onRpsDeclined(d: { byName: string }) {
-      flashDuelResult(`${d.byName}-მ უარყო ჯეირანი`, false, 2600);
+      flashDuelResult(`${d.byName} — ${vs().declinedRps}`, false, 2600);
     }
 
     // ── Truth or Dare listeners ─────────────────────────────────────
@@ -672,7 +674,7 @@ export function useVirtualSpace() {
       const sysMsg: SpaceChatMsg = { socketId: 'system', name: 'system', bodyColor: '#ff9f43', glowColor: '#ff9f43', message: `✊ ${d.label}: ${d.playerName} — ${d.question}`, ts: Date.now() };
       setState(prev => ({ ...prev, activeTod: null, todQuestion: d, chatHistory: [...prev.chatHistory.slice(-99), sysMsg] }));
     }
-    function onTodDeclined(d: { byName: string }) { flashDuelResult(`${d.byName}-მ უარყო`, false, 2600); }
+    function onTodDeclined(d: { byName: string }) { flashDuelResult(`${d.byName} — ${vs().declinedWord}`, false, 2600); }
 
     // ── Reaction Test listeners ─────────────────────────────────────
     function onReactionInvite(d: { starterName: string }) {
@@ -692,7 +694,7 @@ export function useVirtualSpace() {
     }
     function onReactionCancelled() {
       setState(prev => ({ ...prev, reactionGame: null }));
-      flashDuelResult('⚡ არ შეგროვდა საკმარისი მოთამაშე', false, 2600);
+      flashDuelResult(vs().notEnoughPlayers, false, 2600);
     }
 
     (socket as any).on('space:player-joined', onJoined);

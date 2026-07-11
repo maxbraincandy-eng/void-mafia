@@ -32,10 +32,6 @@ const COLOR_BG: Record<string, string> = {
   green: 'linear-gradient(135deg,#00c951,#008b35)',
   yellow: 'linear-gradient(135deg,#ffcc00,#cc9900)',
 };
-const COLOR_NAMES: Record<GameColor, string> = {
-  red: 'წ', blue: 'ლ', green: 'მ', yellow: 'ყ',
-};
-
 function ColorChoiceModal({ onChoose }: { onChoose: (c: GameColor) => void }) {
   const t = useT();
   const colorLabels: Record<GameColor, string> = {
