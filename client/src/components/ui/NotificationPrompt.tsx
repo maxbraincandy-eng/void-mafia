@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { AnimatePresence, motion } from 'framer-motion';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 
 const ASKED_KEY = 'vm-notif-asked';
 
 export function NotificationPrompt() {
   const isAuthed = useAuthStore(s => s.isAuthed);
+  const push = usePushNotifications();
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -26,7 +28,11 @@ export function NotificationPrompt() {
   const allow = async () => {
     localStorage.setItem(ASKED_KEY, '1');
     setVisible(false);
-    await Notification.requestPermission();
+    // subscribe() requests permission AND registers the push endpoint on the
+    // server (the old flow only requested permission, so nothing was ever
+    // delivered). Falls back to a bare permission request if push is unsupported.
+    if (push.isSupported) await push.subscribe();
+    else await Notification.requestPermission();
   };
 
   return (

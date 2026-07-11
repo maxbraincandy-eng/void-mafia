@@ -63,6 +63,7 @@ import { YourTurnToast } from '@/components/ui/YourTurnToast';
 import { NotificationPrompt } from '@/components/ui/NotificationPrompt';
 import { MediaPermissionPrimer } from '@/components/ui/MediaPermissionPrimer';
 import { useVoiceChat } from '@/hooks/useVoiceChat';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { ThemeProvider } from '@/components/ui/ThemeProvider';
 import { PWAInstallBanner } from '@/components/ui/PWAInstallBanner';
 import { tNow } from '@/store/langStore';
@@ -353,6 +354,10 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
   const [worldInvite, setWorldInvite] = useState<{ worldId: string; fromName: string } | null>(null);
   const [spaceInvite, setSpaceInvite] = useState<{ spaceId: string; code: string; name: string; icon: string; fromName: string } | null>(null);
   const [modOpen, setModOpen] = useState(false);
+
+  // Push notifications are ON by default — mounting the hook app-wide runs its
+  // auto-subscribe (silent when already granted, one-shot gesture prompt otherwise).
+  usePushNotifications();
 
   // Deep link: voidmafia.one/lounge/CODE → open that space directly.
   useEffect(() => {

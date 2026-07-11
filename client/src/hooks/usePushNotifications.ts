@@ -85,5 +85,17 @@ export function usePushNotifications() {
     }
   };
 
+  // Push notifications are ON by default. Whenever the browser permission is
+  // already granted but no push subscription is registered yet, subscribe
+  // silently — this covers returning users (and anyone who granted permission
+  // through the old prompt that never actually registered an endpoint). New
+  // users are asked via the NotificationPrompt card, whose "Allow" calls
+  // subscribe() directly (the user gesture iOS Safari requires).
+  useEffect(() => {
+    if (!isSupported || !vapidKey || isSubscribed || isLoading) return;
+    if (permission === 'granted') void subscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSupported, vapidKey, isSubscribed, permission]);
+
   return { isSupported, permission, isSubscribed, isLoading, subscribe, unsubscribe };
 }
