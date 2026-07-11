@@ -231,128 +231,78 @@ export function LobbyPage() {
         <motion.div
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-start justify-between mb-2 gap-4"
+          className="mb-2.5"
         >
-          <div className="flex items-start gap-2.5 min-w-0 flex-1">
-            {/* Leave room — top-left shortcut */}
-            <button
-              onClick={() => amHost ? setShowLeaveConfirm(true) : handleLeave()}
-              disabled={isLoading}
-              title={playerCount > 1 ? 'Leave room' : 'Close room'}
-              className="mt-0.5 p-1.5 rounded-xl transition-all active:scale-90 disabled:opacity-30 shrink-0"
-              style={{ border: '1px solid rgba(255,60,60,0.18)', color: 'rgba(255,80,80,0.45)', background: 'rgba(255,40,40,0.04)' }}
-              onMouseEnter={e => {
-                (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,60,60,0.45)';
-                (e.currentTarget as HTMLElement).style.color = 'rgba(255,80,80,0.85)';
-                (e.currentTarget as HTMLElement).style.background = 'rgba(255,40,40,0.10)';
-              }}
-              onMouseLeave={e => {
-                (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,60,60,0.18)';
-                (e.currentTarget as HTMLElement).style.color = 'rgba(255,80,80,0.45)';
-                (e.currentTarget as HTMLElement).style.background = 'rgba(255,40,40,0.04)';
-              }}
-            >
-              {/* door-exit icon */}
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                <polyline points="16 17 21 12 16 7" />
-                <line x1="21" y1="12" x2="9" y2="12" />
-              </svg>
-            </button>
-
-            <div className="min-w-0 flex-1 overflow-hidden">
-              <h1 className="font-display text-2xl font-bold gradient-text tracking-wide mb-1 leading-none whitespace-nowrap">
-                VOID MAFIA
-              </h1>
-              <div className="flex items-center gap-2 flex-wrap">
-                <div className="flex items-center gap-1.5">
-                  <span className={clsx(
-                    'w-1.5 h-1.5 rounded-full shrink-0 transition-colors',
-                    allReady && canStart ? 'bg-neon-green animate-pulse' : 'bg-white/[0.18]',
-                  )} />
-                  <span className="text-[11px] font-mono text-white/35 whitespace-nowrap">
-                    {allReady && canStart
-                      ? t.lobby.allReady
-                      : t.lobby.joinedOf.replace('{n}', String(playerCount)).replace('{m}', String(minPlayers))}
-                  </span>
-                </div>
-                <span className="text-white/10 select-none">·</span>
-                <button
-                  onClick={() => setShowRoleGuide(true)}
-                  className="text-[11px] font-mono text-white/22 hover:text-white/50 transition-colors whitespace-nowrap"
-                >
-                  {t.lobby.roleGuideLink}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 self-start mt-0.5 flex-shrink-0">
-          {/* More menu button */}
-          <button
-            onClick={() => setShowMoreMenu(true)}
-            className="p-2 rounded-xl transition-all hover:bg-white/5 active:scale-95"
-            style={{ border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.4)' }}
-            title="More options"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="5" r="1" fill="currentColor" /><circle cx="12" cy="12" r="1" fill="currentColor" /><circle cx="12" cy="19" r="1" fill="currentColor" />
-            </svg>
-          </button>
-          {/* Mod button */}
-          {isMod && (
-            <button
-              onClick={() => setShowModPanel(true)}
-              className="p-2 rounded-xl transition-colors"
-              style={{ border: '1px solid rgba(0,229,255,0.25)', color: 'rgba(0,229,255,0.7)', background: 'rgba(0,229,255,0.06)' }}
-              title="Mod Panel"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-              </svg>
-            </button>
-          )}
-          {/* Messages button */}
-          <button
-            onClick={openDmList}
-            className="relative p-2 rounded-xl transition-colors"
-            style={{ border: '1px solid rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.28)' }}
-            onMouseEnter={e => {
-              (e.currentTarget as HTMLElement).style.borderColor = 'rgba(138,43,226,0.3)';
-              (e.currentTarget as HTMLElement).style.color = 'rgba(192,132,252,0.7)';
-            }}
-            onMouseLeave={e => {
-              (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.07)';
-              (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.28)';
-            }}
-          >
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>
-            {unreadDmCount > 0 && (
-              <span
-                className="absolute -top-1 -right-1 text-void text-[7px] font-bold rounded-full min-w-[13px] h-3.5 flex items-center justify-center px-0.5 leading-none"
-                style={{ background: '#ff0080' }}
+          {/* Row 1 — toolbar (left) + room code (right) */}
+          <div className="flex items-center justify-between gap-3">
+            {/* Left toolbar — leave / more / mod / messages */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              {/* Leave room */}
+              <button
+                onClick={() => setShowLeaveConfirm(true)}
+                disabled={isLoading}
+                title={playerCount > 1 ? 'Leave room' : 'Close room'}
+                className="p-2 rounded-xl transition-all active:scale-90 disabled:opacity-30"
+                style={{ border: '1px solid rgba(255,60,60,0.20)', color: 'rgba(255,80,80,0.60)', background: 'rgba(255,40,40,0.05)' }}
               >
-                {unreadDmCount > 9 ? '9+' : unreadDmCount}
-              </span>
-            )}
-          </button>
-          </div>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <polyline points="16 17 21 12 16 7" />
+                  <line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
+              </button>
+              {/* More menu */}
+              <button
+                onClick={() => setShowMoreMenu(true)}
+                className="p-2 rounded-xl transition-all hover:bg-white/5 active:scale-95"
+                style={{ border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.4)' }}
+                title="More options"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="5" r="1" fill="currentColor" /><circle cx="12" cy="12" r="1" fill="currentColor" /><circle cx="12" cy="19" r="1" fill="currentColor" />
+                </svg>
+              </button>
+              {/* Mod panel */}
+              {isMod && (
+                <button
+                  onClick={() => setShowModPanel(true)}
+                  className="p-2 rounded-xl transition-colors"
+                  style={{ border: '1px solid rgba(0,229,255,0.25)', color: 'rgba(0,229,255,0.7)', background: 'rgba(0,229,255,0.06)' }}
+                  title="Mod Panel"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                  </svg>
+                </button>
+              )}
+              {/* Messages */}
+              <button
+                onClick={openDmList}
+                className="relative p-2 rounded-xl transition-colors"
+                style={{ border: '1px solid rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.28)' }}
+                title="Messages"
+              >
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                </svg>
+                {unreadDmCount > 0 && (
+                  <span
+                    className="absolute -top-1 -right-1 text-void text-[7px] font-bold rounded-full min-w-[13px] h-3.5 flex items-center justify-center px-0.5 leading-none"
+                    style={{ background: '#ff0080' }}
+                  >
+                    {unreadDmCount > 9 ? '9+' : unreadDmCount}
+                  </span>
+                )}
+              </button>
+            </div>
 
-          {/* Room code */}
-          <div className="text-right shrink-0">
-            {room.name && (
-              <p className="text-xs font-display font-bold text-white/55 truncate max-w-[140px] mb-1">{room.name}</p>
-            )}
-            <div className="flex items-center justify-end gap-1.5">
-              <span className="font-mono text-lg font-bold text-neon-cyan/80 tracking-[0.18em]">
+            {/* Room code (right) */}
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="font-mono text-sm font-bold text-neon-cyan/80 tracking-[0.12em] truncate">
                 {room.code}
               </span>
               <button onClick={handleCopy} className={clsx(
-                'text-[11px] px-1.5 py-0.5 rounded border font-mono transition-all',
+                'text-[11px] px-1.5 py-0.5 rounded border font-mono transition-all shrink-0',
                 copied
                   ? 'border-neon-green/35 bg-neon-green/[0.07] text-neon-green/80'
                   : 'border-white/[0.08] text-white/22 hover:border-white/18 hover:text-white/45',
@@ -360,7 +310,7 @@ export function LobbyPage() {
                 {copied ? '✓' : 'Copy'}
               </button>
               <button onClick={handleShare} className={clsx(
-                'text-[11px] px-1.5 py-0.5 rounded border font-mono transition-all',
+                'text-[11px] px-1.5 py-0.5 rounded border font-mono transition-all shrink-0',
                 shared
                   ? 'border-neon-cyan/35 bg-neon-cyan/[0.07] text-neon-cyan/80'
                   : 'border-white/[0.08] text-white/22 hover:border-white/18 hover:text-white/45',
@@ -368,7 +318,32 @@ export function LobbyPage() {
                 {shared ? '✓' : 'Share'}
               </button>
             </div>
-            <div className="flex items-center justify-end gap-2 mt-1">
+          </div>
+
+          {/* Row 2 — status (left) + room name / ranked (right) */}
+          <div className="flex items-center justify-between gap-3 mt-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className={clsx(
+                'w-1.5 h-1.5 rounded-full shrink-0 transition-colors',
+                allReady && canStart ? 'bg-neon-green animate-pulse' : 'bg-white/[0.18]',
+              )} />
+              <span className="text-[11px] font-mono text-white/35 whitespace-nowrap">
+                {allReady && canStart
+                  ? t.lobby.allReady
+                  : t.lobby.joinedOf.replace('{n}', String(playerCount)).replace('{m}', String(minPlayers))}
+              </span>
+              <span className="text-white/10 select-none">·</span>
+              <button
+                onClick={() => setShowRoleGuide(true)}
+                className="text-[11px] font-mono text-white/22 hover:text-white/50 transition-colors whitespace-nowrap"
+              >
+                {t.lobby.roleGuideLink}
+              </button>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {room.name && (
+                <p className="text-[11px] font-display font-bold text-white/45 truncate max-w-[110px]">{room.name}</p>
+              )}
               {room.settings.isPrivate && (
                 <p className="text-[11px] text-white/22 font-mono">Private</p>
               )}
@@ -380,15 +355,6 @@ export function LobbyPage() {
                   ⚔️ Ranked
                 </span>
               )}
-              {/* Quick player↔spectator switch */}
-              <button
-                onClick={() => (amSpectator ? toPlayer() : toSpectator()).catch(() => {})}
-                disabled={isLoading}
-                className="text-[11px] px-1.5 py-0.5 rounded border font-mono transition-all border-white/[0.08] text-white/30 hover:border-white/20 hover:text-white/55"
-                title={amSpectator ? t.lobbyPage.joinGame : t.lobbyPage.switchToSpectators}
-              >
-                {amSpectator ? t.lobbyPage.gameTab : t.lobbyPage.spectatorTab}
-              </button>
             </div>
           </div>
         </motion.div>
@@ -706,17 +672,6 @@ export function LobbyPage() {
                 </div>
               )}
 
-              {/* Step out to the spectator bench (frees the seat, keeps listening) */}
-              {!amSpectator && (
-                <button
-                  onClick={() => toSpectator().catch(() => {})}
-                  disabled={isLoading}
-                  className="w-full py-2 rounded-xl border border-white/[0.08] text-white/35 hover:text-white/60 hover:border-white/20 transition-all text-[11px] font-mono"
-                >
-                  {t.lobbyPage.leaveToSpectators}
-                </button>
-              )}
-
               {amHost && (
                 <div className="flex gap-2">
                   <Button
@@ -763,15 +718,13 @@ export function LobbyPage() {
                   >
                     👁 Settings
                   </button>
-                  {!amSpectator && (
-                    <button
-                      onClick={handleLeave}
-                      disabled={isLoading}
-                      className="px-4 py-2 rounded-xl border border-white/[0.06] text-[11px] font-mono text-white/18 hover:text-neon-red/50 hover:border-neon-red/20 transition-colors disabled:opacity-30"
-                    >
-                      Leave
-                    </button>
-                  )}
+                  <button
+                    onClick={() => setShowLeaveConfirm(true)}
+                    disabled={isLoading}
+                    className="px-4 py-2 rounded-xl border border-white/[0.06] text-[11px] font-mono text-white/18 hover:text-neon-red/50 hover:border-neon-red/20 transition-colors disabled:opacity-30"
+                  >
+                    Leave
+                  </button>
                 </div>
               )}
 
@@ -804,37 +757,6 @@ export function LobbyPage() {
                 </div>
               )}
 
-              {/* Leave confirm — full-width bar below */}
-              <AnimatePresence>
-                {showLeaveConfirm && (
-                  <motion.div
-                    key="confirm"
-                    initial={{ opacity: 0, y: -4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-neon-red/20 bg-neon-red/[0.04]"
-                  >
-                    <span className="text-[13px] text-white/50 font-mono">
-                      {playerCount > 1 ? 'Leave the room?' : 'Close this room?'}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={handleLeave}
-                        disabled={isLoading}
-                        className="px-4 py-1.5 rounded-lg bg-neon-red/70 text-white text-[12px] font-mono font-bold hover:bg-neon-red/90 transition-colors disabled:opacity-40"
-                      >
-                        Yes
-                      </button>
-                      <button
-                        onClick={() => setShowLeaveConfirm(false)}
-                        className="px-4 py-1.5 rounded-lg border border-white/10 text-white/35 text-[12px] font-mono hover:text-white/60 hover:border-white/20 transition-colors"
-                      >
-                        No
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
             </motion.div>
 
             {/* ── Auto-start countdown ────────────────────────── */}
@@ -1342,6 +1264,68 @@ export function LobbyPage() {
 
       {/* Mod panel overlay */}
       <ModPanel open={showModPanel} onClose={() => setShowModPanel(false)} />
+
+      {/* Leave / switch confirm — centered modal */}
+      {createPortal(
+        <AnimatePresence>
+          {showLeaveConfirm && (
+            <motion.div
+              className="fixed inset-0 z-[200] flex items-center justify-center p-6"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowLeaveConfirm(false)}
+            >
+              <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.62)', backdropFilter: 'blur(4px)' }} />
+              <motion.div
+                className="relative w-full max-w-[300px] rounded-2xl overflow-hidden"
+                style={{ background: 'rgba(8,3,20,0.98)', border: '1px solid rgba(155,0,255,0.18)', boxShadow: '0 20px 60px rgba(0,0,0,0.7)' }}
+                initial={{ scale: 0.85, opacity: 0, y: 14 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.85, opacity: 0, y: 14 }}
+                transition={{ type: 'spring', stiffness: 360, damping: 26 }}
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="px-5 pt-5 pb-3 text-center">
+                  <p className="font-display font-bold text-white/90 text-[16px]">
+                    {playerCount > 1 ? t.lobbyPage.leaveDialogTitle : 'Close this room?'}
+                  </p>
+                </div>
+                <div className="px-4 pb-4 space-y-2">
+                  {/* Leave the room — red */}
+                  <button
+                    onClick={() => { setShowLeaveConfirm(false); handleLeave(); }}
+                    disabled={isLoading}
+                    className="w-full py-3 rounded-xl font-mono font-bold text-sm transition-all active:scale-[0.97] disabled:opacity-40"
+                    style={{ background: 'rgba(255,40,60,0.14)', border: '1px solid rgba(255,60,80,0.42)', color: 'rgba(255,120,130,0.96)' }}
+                  >
+                    🚪 {t.lobbyPage.leaveRoomCta}
+                  </button>
+                  {/* Switch to spectators — blue */}
+                  {!amSpectator && (
+                    <button
+                      onClick={() => { setShowLeaveConfirm(false); toSpectator().catch(() => {}); }}
+                      disabled={isLoading}
+                      className="w-full py-3 rounded-xl font-mono font-bold text-sm transition-all active:scale-[0.97] disabled:opacity-40"
+                      style={{ background: 'rgba(0,150,255,0.12)', border: '1px solid rgba(0,180,255,0.42)', color: 'rgba(90,200,255,0.96)' }}
+                    >
+                      👁 {t.lobbyPage.switchToSpectatorsCta}
+                    </button>
+                  )}
+                  {/* Cancel */}
+                  <button
+                    onClick={() => setShowLeaveConfirm(false)}
+                    className="w-full py-2.5 rounded-xl font-mono text-[13px] text-white/40 border border-white/10 hover:text-white/70 hover:border-white/20 transition-all"
+                  >
+                    {t.lobbyPage.cancel}
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body,
+      )}
 
       {/* Invite friends modal */}
       <AnimatePresence>
