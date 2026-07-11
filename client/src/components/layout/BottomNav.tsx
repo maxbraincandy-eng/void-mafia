@@ -82,26 +82,26 @@ type TabDef = { id: NavTab; label: string } & (
 const LEFT_TABS: TabDef[] = [
   {
     id: 'community', kind: 'svg', label: 'კომუნითი',
-    renderIcon: (a, c) => <VoidCommunityIcon size={18} active={a} color={c} />,
+    renderIcon: (a, c) => <VoidCommunityIcon size={21} active={a} color={c} />,
   },
   {
     id: 'games', kind: 'svg', label: 'თამაშები',
-    renderIcon: (a, c) => <VoidGamesIcon size={18} active={a} color={c} />,
+    renderIcon: (a, c) => <VoidGamesIcon size={21} active={a} color={c} />,
   },
   {
     id: 'clans', kind: 'svg', label: 'კლანები',
-    renderIcon: (a, c) => <VoidClansIcon size={18} active={a} color={c} />,
+    renderIcon: (a, c) => <VoidClansIcon size={21} active={a} color={c} />,
   },
 ];
 
 const RIGHT_TABS: TabDef[] = [
   {
     id: 'leaderboard', kind: 'svg', label: 'ტოპი',
-    renderIcon: (a, c) => <VoidStatsIcon size={18} active={a} color={c} />,
+    renderIcon: (a, c) => <VoidStatsIcon size={21} active={a} color={c} />,
   },
   {
     id: 'profile', kind: 'svg', label: 'პროფილი',
-    renderIcon: (a, c) => <VoidProfileIcon size={18} active={a} color={c} />,
+    renderIcon: (a, c) => <VoidProfileIcon size={21} active={a} color={c} />,
   },
 ];
 
@@ -120,22 +120,22 @@ function NavItem({ tab, active, color, onPress, label }: { tab: TabDef; active: 
     <button
       onClick={() => onPress(tab.id)}
       className="flex flex-col items-center justify-end flex-1 transition-all duration-150 active:scale-90 relative"
-      style={{ color: active ? color : 'rgba(255,255,255,0.28)', height: 76, paddingBottom: 14 }}
+      style={{ color: active ? color : 'rgba(255,255,255,0.34)', height: 84, paddingBottom: 15, gap: 3 }}
     >
       {active && (
         <span
-          className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-0.5 rounded-full"
+          className="absolute top-0 left-1/2 -translate-x-1/2 w-7 h-0.5 rounded-full"
           style={{ background: color, boxShadow: `0 0 6px ${color}` }}
         />
       )}
 
-      <span className="flex items-center justify-center mb-1" style={{ height: 18 }}>
+      <span className="flex items-center justify-center" style={{ height: 24 }}>
         {tab.kind === 'svg'
           ? tab.renderIcon(active, color)
           : (
             <span
-              className="text-base leading-none"
-              style={{ filter: active ? `drop-shadow(0 0 5px ${color})` : 'none' }}
+              className="leading-none"
+              style={{ fontSize: 21, filter: active ? `drop-shadow(0 0 5px ${color})` : 'none' }}
             >
               {tab.icon}
             </span>
@@ -145,7 +145,7 @@ function NavItem({ tab, active, color, onPress, label }: { tab: TabDef; active: 
 
       <span
         className="font-mono leading-none text-center w-full overflow-hidden"
-        style={{ fontSize: 'clamp(7px, 2vw, 9px)', letterSpacing: '0.01em', display: 'block' }}
+        style={{ fontSize: 'clamp(9px, 2.7vw, 11px)', fontWeight: 600, letterSpacing: '0.02em', display: 'block' }}
       >
         {label}
       </span>
@@ -176,7 +176,7 @@ export function BottomNav({ active, onChange, onMoreClick }: Props) {
         transition: 'background 180ms ease, border-color 180ms ease',
       }}
     >
-      <div className="flex items-end max-w-lg mx-auto px-2" style={{ height: 76 }}>
+      <div className="flex items-end max-w-lg mx-auto px-2" style={{ height: 84 }}>
 
         {/* Left 3 tabs */}
         {LEFT_TABS.map(tab => (
@@ -184,20 +184,20 @@ export function BottomNav({ active, onChange, onMoreClick }: Props) {
         ))}
 
         {/* CENTER FAB — Mafia */}
-        <div className="flex-1 flex justify-center" style={{ position: 'relative', height: 76 }}>
+        <div className="flex-1 flex justify-center" style={{ position: 'relative', height: 84 }}>
           <button
             onClick={() => go('rooms')}
             className="absolute transition-all duration-200 active:scale-90 flex flex-col items-center justify-center"
             style={{
-              width: 58, height: 58, borderRadius: '50%', bottom: 8,
+              width: 62, height: 62, borderRadius: '50%', bottom: 9,
               background: isRooms ? 'var(--vm-fab-on)' : 'var(--vm-fab-off)',
               boxShadow: isRooms ? 'var(--vm-fab-shadow-on)' : 'var(--vm-fab-shadow-off)',
               zIndex: 2,
             }}
             aria-label="Mafia"
           >
-            <span style={{ fontSize: 26, lineHeight: 1, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.4))' }}>🎩</span>
-            <span className="font-mono uppercase text-white/70 leading-none" style={{ fontSize: 8, letterSpacing: '0.08em', marginTop: 2 }}>
+            <span style={{ fontSize: 29, lineHeight: 1, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.4))' }}>🎩</span>
+            <span className="font-mono uppercase text-white/80 leading-none" style={{ fontSize: 9.5, fontWeight: 600, letterSpacing: '0.08em', marginTop: 2 }}>
               {t.nav.rooms}
             </span>
           </button>
@@ -212,10 +212,10 @@ export function BottomNav({ active, onChange, onMoreClick }: Props) {
         <button
           onClick={goMore}
           className="flex flex-col items-center justify-end flex-1 transition-all duration-150 active:scale-90 relative"
-          style={{ color: 'rgba(255,255,255,0.28)', height: 76, paddingBottom: 14 }}
+          style={{ color: 'rgba(255,255,255,0.34)', height: 84, paddingBottom: 15, gap: 3 }}
         >
-          <span className="text-base leading-none mb-1">☰</span>
-          <span className="font-mono uppercase leading-none text-center relative" style={{ fontSize: 9, letterSpacing: '0.03em' }}>
+          <span className="leading-none flex items-center justify-center" style={{ fontSize: 20, height: 24 }}>☰</span>
+          <span className="font-mono uppercase leading-none text-center relative" style={{ fontSize: 'clamp(9px, 2.7vw, 11px)', fontWeight: 600, letterSpacing: '0.03em' }}>
             {t.nav.more}
             {unreadDmCount > 0 && (
               <span

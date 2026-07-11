@@ -569,18 +569,28 @@ html.theme-transitioning body {
   animation: skeleton-shimmer 1.6s ease-in-out infinite;
 }
 
-/* ── Large Text mode ──────────────────────────────────────────── */
-html.large-text .text-\[10px\] { font-size: 11px !important; }
-html.large-text .text-\[11px\] { font-size: 12px !important; }
-html.large-text .text-\[12px\] { font-size: 13px !important; }
-html.large-text .text-\[13px\] { font-size: 14px !important; }
-html.large-text .text-xs  { font-size: 13px !important; }
-html.large-text .text-sm  { font-size: 15px !important; }
-html.large-text .text-base { font-size: 17px !important; }
-html.large-text .text-lg  { font-size: 19px !important; }
-html.large-text .text-xl  { font-size: 22px !important; }
-html.large-text .text-2xl { font-size: 26px !important; }
-html.large-text .text-3xl { font-size: 32px !important; }
+/* ── Default readability bump (applies to everyone) ───────────────
+   Many labels used very small hardcoded sizes (10–12px) that read as
+   cramped on phones. Nudge the tiniest ones up a touch app-wide. The
+   opt-in "Large text" setting below stacks a bigger increase on top. */
+.text-\[10px\] { font-size: 11px !important; }
+.text-\[11px\] { font-size: 12px !important; }
+.text-\[12px\] { font-size: 12.5px !important; }
+.text-\[13px\] { font-size: 13.5px !important; }
+.text-xs  { font-size: 12.5px !important; }
+
+/* ── Large Text mode (opt-in setting) ─────────────────────────── */
+html.large-text .text-\[10px\] { font-size: 12px !important; }
+html.large-text .text-\[11px\] { font-size: 13px !important; }
+html.large-text .text-\[12px\] { font-size: 14px !important; }
+html.large-text .text-\[13px\] { font-size: 15px !important; }
+html.large-text .text-xs  { font-size: 14px !important; }
+html.large-text .text-sm  { font-size: 16px !important; }
+html.large-text .text-base { font-size: 18px !important; }
+html.large-text .text-lg  { font-size: 20px !important; }
+html.large-text .text-xl  { font-size: 23px !important; }
+html.large-text .text-2xl { font-size: 28px !important; }
+html.large-text .text-3xl { font-size: 34px !important; }
 
 /* Virtual Space: new-arrival drop-in (base transform preserved in keyframes) */
 @keyframes vs-dropin {
