@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { socket } from '@/lib/socket';
 import { useGameStore } from '@/store/gameStore';
-import { useLangStore } from '@/store/langStore';
+import { useLangStore, useT } from '@/store/langStore';
 import type { PlayerPublic } from '@/types/index';
 
 interface Props {

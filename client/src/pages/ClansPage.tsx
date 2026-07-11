@@ -186,6 +186,7 @@ function WinRate({ wins, losses }: { wins: number; losses: number }) {
 }
 
 export function ClansPage() {
+  const t = useT();
   const profile = useAuthStore(s => s.profile);
   const myClanRole = useAuthStore(s => s.myClanRole);
   const refreshClanMembership = useAuthStore(s => s.refreshClanMembership);
