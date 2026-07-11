@@ -61,6 +61,7 @@ import { CLIENT_VERSION } from './version';
 import { haptic } from '@/lib/haptics';
 import { YourTurnToast } from '@/components/ui/YourTurnToast';
 import { NotificationPrompt } from '@/components/ui/NotificationPrompt';
+import { CallOverlay } from '@/components/social/CallOverlay';
 import { MediaPermissionPrimer } from '@/components/ui/MediaPermissionPrimer';
 import { useVoiceChat } from '@/hooks/useVoiceChat';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
@@ -847,6 +848,7 @@ export default function App() {
       {/* <HermesToggle /> */}
       {/* <HermesPanel /> */}
       <NotificationPrompt />
+      <CallOverlay />
       <AnimatePresence>
         {awaitingMediaPrimer && <MediaPermissionPrimer />}
       </AnimatePresence>

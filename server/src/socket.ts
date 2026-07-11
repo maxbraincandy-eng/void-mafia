@@ -4776,6 +4776,62 @@ export function attachSocketHandlers(io: AppServer): void {
       } catch (e: any) { cb(err(e.message)); }
     });
 
+    // ── 1:1 calls (audio / video) — signaling only; media rides LiveKit ──
+    // Both participants join a deterministic LiveKit room `dmcall_<sorted ids>`.
+    async function callPeerOf(conversationId: string, selfId: string): Promise<string> {
+      const [conv] = await sql`SELECT * FROM conversations WHERE id = ${conversationId}` as any[];
+      if (!conv) throw new Error('Conversation not found.');
+      if (conv.participant1 !== selfId && conv.participant2 !== selfId) throw new Error('Not a participant.');
+      return conv.participant1 === selfId ? conv.participant2 : conv.participant1;
+    }
+
+    socket.on('dm:call_invite' as any, async ({ conversationId, video }: { conversationId: string; video?: boolean }, cb: any) => {
+      try {
+        const selfId = socket.data.profileId;
+        if (!selfId) throw new Error('Not authenticated.');
+        const peerId = await callPeerOf(conversationId, selfId);
+        const roomId = `dmcall_${[selfId, peerId].sort().join('_')}`;
+        const peerSocket = findSocketByProfile(io, peerId);
+        const me = await getPlayer(selfId);
+        if (!peerSocket) {
+          sendPushToUser(peerId, {
+            title: `📞 ${me?.username ?? 'Someone'}`,
+            body: video ? 'Video call' : 'Audio call',
+          }).catch(() => {});
+          cb(err('User is offline.'));
+          return;
+        }
+        peerSocket.emit('dm:call_ring', {
+          roomId,
+          conversationId,
+          video: !!video,
+          fromProfileId: selfId,
+          fromUsername: me?.username ?? 'Unknown',
+          fromAvatar: me?.avatar ?? '?',
+          fromAvatarUrl: me?.avatarUrl ?? null,
+        });
+        cb(ok({ roomId }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('dm:call_answer' as any, async ({ conversationId, roomId, accept }: { conversationId: string; roomId: string; accept: boolean }) => {
+      try {
+        const selfId = socket.data.profileId;
+        if (!selfId) return;
+        const peerId = await callPeerOf(conversationId, selfId);
+        findSocketByProfile(io, peerId)?.emit('dm:call_answered', { roomId, accept: !!accept });
+      } catch { /* ignore */ }
+    });
+
+    socket.on('dm:call_close' as any, async ({ conversationId, roomId }: { conversationId: string; roomId: string }) => {
+      try {
+        const selfId = socket.data.profileId;
+        if (!selfId) return;
+        const peerId = await callPeerOf(conversationId, selfId);
+        findSocketByProfile(io, peerId)?.emit('dm:call_closed', { roomId });
+      } catch { /* ignore */ }
+    });
+
     socket.on('dm:voice', async (data: { conversationId: string; audioData: string; duration: number }, cb: any) => {
       try {
         const senderId = socket.data.profileId;
