@@ -332,13 +332,6 @@ export function LobbyPage() {
                   ? t.lobby.allReady
                   : t.lobby.joinedOf.replace('{n}', String(playerCount)).replace('{m}', String(minPlayers))}
               </span>
-              <span className="text-white/10 select-none">·</span>
-              <button
-                onClick={() => setShowRoleGuide(true)}
-                className="text-[11px] font-mono text-white/22 hover:text-white/50 transition-colors whitespace-nowrap"
-              >
-                {t.lobby.roleGuideLink}
-              </button>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               {room.name && (
