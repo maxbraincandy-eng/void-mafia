@@ -296,10 +296,28 @@ export async function setLiveKitMic(enabled: boolean): Promise<void> {
     await room.localParticipant.setMicrophoneEnabled(enabled);
     patch({ micEnabled: enabled, error: null });
   } catch (e: any) {
+    // "insufficient permissions" means this connection is holding a stale token
+    // that was issued without publish rights (e.g. joined earlier as a
+    // spectator/dead). Reconnect once to fetch a fresh (publish-granted) token,
+    // then retry — so the mic self-heals instead of erroring out.
+    const raw = String(e?.message ?? '');
+    if (enabled && !_micPermRetry && /insufficient permission|permission|not allowed to publish/i.test(raw)) {
+      _micPermRetry = true;
+      const rid = currentRoomId, id = room.localParticipant.identity, wasDead = state.dead;
+      try {
+        await leaveLiveKitVoice();
+        if (rid) await joinLiveKitVoice(id, rid, { alive: !wasDead });
+        await new Promise(r => setTimeout(r, 250));
+        if (room) { await room.localParticipant.setMicrophoneEnabled(true); patch({ micEnabled: true, error: null }); }
+      } catch { patch({ micEnabled: false, error: friendlyLiveKitError(e) }); }
+      finally { _micPermRetry = false; }
+      return;
+    }
     if (enabled) patch({ micEnabled: false, error: friendlyLiveKitError(e) });
     else patch({ micEnabled: false });
   }
 }
+let _micPermRetry = false;
 
 /**
  * Apply a server phase rule: force-mute (lock mic off) or force-unmute (allow
