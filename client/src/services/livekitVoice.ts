@@ -265,11 +265,19 @@ export async function joinLiveKitVoice(identity: string, roomId: string, opts: J
 /** Map raw browser/LiveKit errors to something a player can act on. */
 function friendlyLiveKitError(e: any): string {
   const raw = String(e?.message ?? '');
+  // getUserMedia permission denial (a real, user-actionable block).
   if (/not allowed by the user agent|denied permission|NotAllowed|Permission denied/i.test(raw)) {
     return tNow().misc.micBlockedTap;
   }
   if (/NotReadable|in use/i.test(raw)) {
     return tNow().misc.micBusy;
+  }
+  // LiveKit publish-permission / "insufficient permissions" errors are NOT
+  // user-actionable and self-heal (fresh token grants publish + reconnect
+  // retry). Never show them — they only confuse. Log-only.
+  if (/insufficient permission|not allowed to publish|failed to publish|permissions/i.test(raw)) {
+    console.warn('[livekit] suppressed publish-permission error:', raw);
+    return '';
   }
   return raw || 'Voice connection failed.';
 }
