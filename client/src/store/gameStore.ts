@@ -713,6 +713,15 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     addToast: (text: string, type: Toast['type'] = 'info') => {
+      // A stray "Insufficient permissions." toast was firing on room entry (a
+      // background mod-permission action auto-running for mod accounts). It's
+      // never useful to the player — swallow it and log its origin so the
+      // source is visible in the console instead of nagging users.
+      if (/^Insufficient permissions\.?$/i.test(text.trim())) {
+        console.warn('[toast suppressed] "Insufficient permissions." — origin:');
+        console.trace();
+        return;
+      }
       const id = `t_${++toastCounter}`;
       set(s => ({ toasts: [...s.toasts, { id, text, type }] }));
       setTimeout(() => {
