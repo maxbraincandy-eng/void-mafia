@@ -137,11 +137,16 @@ export function useLivekitVoice() {
   });
 
   const active = !!phase && !INACTIVE_PHASES.has(phase);
-  // Don-mode Planning Night: the Mafia team plans in a PRIVATE LiveKit sub-room
-  // so the town neither hears them nor sees their speaking rings. Everyone else
-  // stays in the shared room (and is force-muted by the server this phase).
-  const mafiaPlanning = phase === 'planning_night' && myTeam === 'mafia' && isAlive;
-  const effectiveRoomId = roomId && mafiaPlanning ? `${roomId}::mafia` : roomId;
+  // Faction night talk: mafia (night / planning night / don-mode kill step) and
+  // yakuza+shogun (night) each move into a PRIVATE LiveKit sub-room so the town
+  // neither hears them nor sees their speaking rings. Everyone else stays in
+  // the shared room (and is force-muted by the server for these phases).
+  const mafiaChannel = myTeam === 'mafia' && isAlive
+    && (phase === 'planning_night' || phase === 'night' || phase === 'mafia_kill');
+  const yakuzaChannel = myTeam === 'yakuza' && isAlive && phase === 'night';
+  const effectiveRoomId = roomId && mafiaChannel ? `${roomId}::mafia`
+    : roomId && yakuzaChannel ? `${roomId}::yakuza`
+    : roomId;
   const voice = useLivekitRoomVoice({ roomId: effectiveRoomId, identity: myPlayerId, active, listenOnly: !isAlive });
 
   // Honor the server's phase voice rules so a player is only heard on their
@@ -159,6 +164,17 @@ export function useLivekitVoice() {
   useEffect(() => {
     if (active && voice.connected) socket.emit('voice:livekit_sync');
   }, [active, voice.connected]);
+
+  // LiveKit reconnects independently of socket.io. On a socket-only reconnect
+  // the server's force-mute/unmute events went to our OLD socket id, so re-pull
+  // the phase rule the moment the socket comes back — otherwise the player can
+  // be stuck muted (or stale-unmuted) until the next phase change.
+  useEffect(() => {
+    if (!active) return;
+    const onConnect = () => { socket.emit('voice:livekit_sync'); };
+    socket.on('connect', onConnect);
+    return () => { socket.off('connect', onConnect); };
+  }, [active]);
 
   // Map LiveKit participant identities (== player id) to socketIds so the game's
   // existing video tiles / speaking rings (keyed by socketId) work with LiveKit.

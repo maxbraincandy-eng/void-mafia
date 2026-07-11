@@ -140,6 +140,7 @@ export function GamePage() {
   const [unreadChat, setUnreadChat] = useState(0);
   const [unreadEvents, setUnreadEvents] = useState(0);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [showJournal, setShowJournal] = useState(false);
   const [showRoleGuide, setShowRoleGuide] = useState(false);
   const sfxEnabled = useSettingsStore(s => s.sfxEnabled);
   const updateSettings = useSettingsStore(s => s.update);
@@ -425,7 +426,7 @@ export function GamePage() {
     if (p.voteTarget) voteCounts[p.voteTarget] = (voteCounts[p.voteTarget] ?? 0) + 1;
   }
   const aliveVoters = room.players.filter(p => p.isAlive && !p.isSpectator);
-  const votedCount = aliveVoters.filter(p => p.voteTarget).length;
+  const votedCount = aliveVoters.filter(p => p.hasVoted || !!p.voteTarget).length;
 
   // My pending vote selection (for PlayerGrid highlight)
   // We read this from VotingPanel indirectly — simpler to just track via room state
@@ -1100,6 +1101,37 @@ export function GamePage() {
       {/* Leaderboard */}
       <LeaderboardModal open={showLeaderboard} onClose={() => setShowLeaderboard(false)} />
 
+      {/* ── Game journal — full event log from the top bar ── */}
+      {showJournal && (
+        <div className="fixed inset-0 z-[120] flex items-start justify-center" style={{ background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(6px)' }} onClick={() => setShowJournal(false)}>
+          <div
+            className="w-full max-w-md mx-3 rounded-2xl border border-white/12 overflow-hidden flex flex-col"
+            style={{ background: 'rgba(8,5,20,0.97)', marginTop: 'max(56px, env(safe-area-inset-top))', maxHeight: '76vh' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+              <p className="font-display font-bold text-sm tracking-widest uppercase text-white/70">📜 {(t.gamePanels as unknown as Record<string, string>).journal ?? 'Journal'}</p>
+              <button onClick={() => setShowJournal(false)} className="w-8 h-8 rounded-lg flex items-center justify-center text-white/40 hover:text-white/80" style={{ background: 'rgba(255,255,255,0.05)' }}>✕</button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-3 min-h-0">
+              <GameEventLog messages={room.chat} className="h-full" />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── LiveKit remote-audio unlock — without this tap, the browser keeps
+            everyone silent (autoplay policy). Impossible to miss on purpose. ── */}
+      {livekitEnabled && lkVoice.connected && lkVoice.audioBlocked && (
+        <button
+          onClick={lkVoice.unlockAudio}
+          className="fixed left-1/2 -translate-x-1/2 z-[130] flex items-center gap-2 px-5 py-3 rounded-2xl font-display font-bold text-sm animate-pulse active:scale-95"
+          style={{ top: 'max(64px, calc(env(safe-area-inset-top) + 52px))', background: 'linear-gradient(135deg, rgba(245,197,66,0.95), rgba(230,150,20,0.95))', color: '#1a1205', boxShadow: '0 8px 30px rgba(245,197,66,0.45)' }}
+        >
+          🔊 {t.gamePanels.enableSound}
+        </button>
+      )}
+
       {/* Role Guide */}
       <RoleInfoModal open={showRoleGuide} onClose={() => setShowRoleGuide(false)} />
 
@@ -1571,6 +1603,15 @@ export function GamePage() {
                 </svg>
               </button>
 
+
+              {/* Game journal button */}
+              <button
+                onClick={() => setShowJournal(true)}
+                className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-white/40 hover:text-white/80 hover:bg-white/8 transition-all active:scale-90"
+                title={(t.gamePanels as unknown as Record<string, string>).journal ?? 'Journal'}
+              >
+                📜
+              </button>
 
               {/* Leaderboard button */}
               <button

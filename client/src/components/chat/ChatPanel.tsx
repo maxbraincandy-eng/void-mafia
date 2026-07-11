@@ -94,6 +94,7 @@ export function ChatPanel({ compact = false }: Props) {
   const isLobby     = room?.phase === 'lobby';
   const isNight     = room?.phase === 'night';
   const isMafia     = myPlayer?.team === 'mafia';
+  const isYakuza    = myPlayer?.team === 'yakuza';
 
   // Mirrors server-side validateChat in chatService.ts
   const isMySpeakingTurn = room?.phase === 'speech' ? room.currentSpeakerId === myPlayer?.id
@@ -104,10 +105,12 @@ export function ChatPanel({ compact = false }: Props) {
 
   const canChat     = isLobby ? true : (amAlive && !amSpectator && roomChatOpenThisPhase);
   const canMafiaChat  = isMafia && isNight && !amSpectator;
+  const canYakuzaChat = isYakuza && isNight && !amSpectator;
   const canDeadChat   = !amAlive && !amSpectator;
 
   const canSendInChannel = channel === 'spectator' ? amSpectator
     : channel === 'mafia' ? canMafiaChat
+    : channel === 'yakuza' ? canYakuzaChat
     : channel === 'dead'  ? canDeadChat
     : canChat;
 
@@ -117,6 +120,7 @@ export function ChatPanel({ compact = false }: Props) {
   }, [amSpectator, isLobby, channel]);
 
   const messages = channel === 'mafia' ? (room?.mafiaChat ?? [])
+    : channel === 'yakuza'    ? (room?.yakuzaChat ?? [])
     : channel === 'dead'      ? (room?.deadChat ?? [])
     : channel === 'spectator' ? (room?.spectatorChat ?? [])
     : (room?.chat ?? []).filter(m => m.channel !== 'dead');
@@ -140,9 +144,9 @@ export function ChatPanel({ compact = false }: Props) {
     ? ['room']
     : amSpectator
       ? ['spectator']
-      : (['room', ...(isMafia ? ['mafia'] : []), ...(!amAlive ? ['dead'] : [])] as ChatChannel[]);
+      : (['room', ...(isMafia ? ['mafia'] : []), ...(isYakuza ? ['yakuza'] : []), ...(!amAlive ? ['dead'] : [])] as ChatChannel[]);
 
-  const channelAccent = channel === 'mafia' ? 'neon-pink' : channel === 'spectator' ? 'neon-purple' : 'neon-cyan';
+  const channelAccent = channel === 'mafia' || channel === 'yakuza' ? 'neon-pink' : channel === 'spectator' ? 'neon-purple' : 'neon-cyan';
 
   return (
     <div className={clsx('flex flex-col', compact ? 'h-full' : 'h-80 md:h-full')}>
@@ -156,13 +160,14 @@ export function ChatPanel({ compact = false }: Props) {
               className={clsx(
                 'px-3 py-1 rounded-lg text-xs font-display font-semibold tracking-widest uppercase transition-all',
                 channel === ch
-                  ? ch === 'mafia' ? 'bg-neon-pink/20 text-neon-pink border border-neon-pink/40'
+                  ? ch === 'mafia' || ch === 'yakuza' ? 'bg-neon-pink/20 text-neon-pink border border-neon-pink/40'
                   : ch === 'dead'  ? 'bg-white/10 text-white/50 border border-white/20'
                   : 'bg-neon-cyan/10 text-neon-cyan border border-neon-cyan/30'
                   : 'text-white/30 hover:text-white/60',
               )}
             >
               {ch === 'mafia' ? t.game.chat.mafiaChannel
+                : ch === 'yakuza' ? ((t.game.chat as Record<string, string>).yakuzaChannel ?? '🐉 Yakuza')
                 : ch === 'dead' ? t.game.chat.deadChannel
                 : t.game.chat.roomChannel}
             </button>

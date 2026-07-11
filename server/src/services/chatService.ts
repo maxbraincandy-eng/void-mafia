@@ -39,6 +39,9 @@ export function addMessage(room: Room, msg: ChatMessage): void {
   if (msg.channel === 'mafia') {
     room.mafiaChat.push(msg);
     if (room.mafiaChat.length > 200) room.mafiaChat.shift();
+  } else if (msg.channel === 'yakuza') {
+    room.yakuzaChat.push(msg);
+    if (room.yakuzaChat.length > 200) room.yakuzaChat.shift();
   } else if (msg.channel === 'dead') {
     room.deadChat.push(msg);
     if (room.deadChat.length > 200) room.deadChat.shift();
@@ -74,6 +77,12 @@ export function validateChat(
   if (channel === 'mafia') {
     if (player.team !== 'mafia') return 'Mafia chat is restricted.';
     if (phase !== 'night') return 'Mafia chat is only available at night.';
+    return null;
+  }
+
+  if (channel === 'yakuza') {
+    if (player.team !== 'yakuza') return 'Yakuza chat is restricted.';
+    if (phase !== 'night') return 'Yakuza chat is only available at night.';
     return null;
   }
 

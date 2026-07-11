@@ -147,6 +147,31 @@ function wireRoom(r: Room) {
     speakingIdentities = new Set(speakers.map(s => s.identity));
     bumpRev();
   });
+  // Camera off in LiveKit MUTES the publication (no unsubscribe), which would
+  // leave a frozen/black <video> — drop/restore the remote stream on mute state.
+  r.on(RoomEvent.TrackMuted, (pub: any, participant: any) => {
+    if (pub?.kind !== Track.Kind.Video) return;
+    if (participant?.isLocal) { localVideoStream = null; bumpRev(); return; }
+    if (participant?.identity) { remoteVideo.delete(participant.identity); bumpRev(); }
+  });
+  r.on(RoomEvent.TrackUnmuted, (pub: any, participant: any) => {
+    if (pub?.kind !== Track.Kind.Video) return;
+    const mst = pub?.track?.mediaStreamTrack;
+    if (!mst) return;
+    if (participant?.isLocal) { localVideoStream = new MediaStream([mst]); bumpRev(); return; }
+    if (participant?.identity) { remoteVideo.set(participant.identity, new MediaStream([mst])); bumpRev(); }
+  });
+  // Event-driven local self-view: the moment our camera track publishes, expose
+  // it as a stream (more reliable than capturing it right after setCameraEnabled).
+  r.on(RoomEvent.LocalTrackPublished, (pub: any) => {
+    if (pub?.kind === Track.Kind.Video && pub?.track?.mediaStreamTrack) {
+      localVideoStream = new MediaStream([pub.track.mediaStreamTrack]);
+      patch({ cameraOn: true, rev: ++_rev });
+    }
+  });
+  r.on(RoomEvent.LocalTrackUnpublished, (pub: any) => {
+    if (pub?.kind === Track.Kind.Video) { localVideoStream = null; patch({ cameraOn: false, rev: ++_rev }); }
+  });
 }
 
 /** Unlock remote audio playback. MUST be called from a user gesture (tap). */
@@ -307,14 +332,29 @@ export async function toggleLiveKitMic(): Promise<void> {
 /** Enable/disable the local camera (publishes video to the room). */
 export async function setLiveKitCamera(enabled: boolean): Promise<void> {
   if (!room) return;
-  await room.localParticipant.setCameraEnabled(enabled);
+  try {
+    await room.localParticipant.setCameraEnabled(enabled);
+  } catch (e: any) {
+    patch({ error: friendlyLiveKitError(e), rev: ++_rev });
+    return;
+  }
   if (enabled) {
-    const track = room.localParticipant.getTrackPublication(Track.Source.Camera)?.videoTrack?.mediaStreamTrack;
-    localVideoStream = track ? new MediaStream([track]) : null;
+    // Capture the published track for the local self-view. Try the direct
+    // publication first, then scan all video publications (API/timing safety);
+    // the LocalTrackPublished handler in wireRoom covers any remaining gap.
+    const lp: any = room.localParticipant;
+    const pub = lp.getTrackPublication?.(Track.Source.Camera) ?? lp.getTrack?.(Track.Source.Camera);
+    let track: MediaStreamTrack | undefined = pub?.videoTrack?.mediaStreamTrack ?? pub?.track?.mediaStreamTrack;
+    if (!track && lp.videoTrackPublications) {
+      for (const p of lp.videoTrackPublications.values()) {
+        if (p?.source === Track.Source.Camera && p?.track?.mediaStreamTrack) { track = p.track.mediaStreamTrack; break; }
+      }
+    }
+    if (track) localVideoStream = new MediaStream([track]);
   } else {
     localVideoStream = null;
   }
-  patch({ cameraOn: enabled, rev: ++_rev });
+  patch({ cameraOn: enabled, error: null, rev: ++_rev });
 }
 
 export async function toggleLiveKitCamera(): Promise<void> {

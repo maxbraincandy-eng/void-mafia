@@ -276,6 +276,8 @@ export const useGameStore = create<GameStore>((set, get) => {
       if (!state.room) return state;
       if (msg.channel === 'mafia') {
         return { room: { ...state.room, mafiaChat: [...state.room.mafiaChat, msg].slice(-200) } };
+      } else if (msg.channel === 'yakuza') {
+        return { room: { ...state.room, yakuzaChat: [...(state.room.yakuzaChat ?? []), msg].slice(-200) } };
       } else if (msg.channel === 'dead') {
         return { room: { ...state.room, deadChat: [...state.room.deadChat, msg].slice(-200) } };
       } else if (msg.channel === 'spectator') {

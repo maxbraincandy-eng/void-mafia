@@ -41,7 +41,7 @@ export type RoleKey =
 
 export type Team = 'mafia' | 'town' | 'neutral' | 'cult' | 'yakuza';
 export type TieRule = 'no_elimination' | 'random';
-export type ChatChannel = 'room' | 'mafia' | 'dead' | 'spectator';
+export type ChatChannel = 'room' | 'mafia' | 'yakuza' | 'dead' | 'spectator';
 export type ModeratorLevel = 'moderator' | 'senior_moderator' | 'admin' | 'owner';
 export type ReportReason =
   | 'cheating'
@@ -296,6 +296,7 @@ export interface Player {
   role: RoleKey | null;
   team: Team | null;
   voteTarget: string | null;
+  hasVoted?: boolean;
   hasActedThisPhase: boolean;
   seat: number;
   joinedAt: number;
@@ -472,6 +473,7 @@ export interface Room {
   maxTimer: number;
   chat: ChatMessage[];
   mafiaChat: ChatMessage[];
+  yakuzaChat: ChatMessage[];
   nightActions: Map<string, NightAction>;
   votes: Map<string, string | null>;
   killedLastNight: Array<{ id: string; name: string; lastWill?: string | null }>;
@@ -526,6 +528,7 @@ export interface PlayerPublic {
   role: RoleKey | null;
   team: Team | null;
   voteTarget: string | null;
+  hasVoted?: boolean;
   hasActed: boolean;
   seat: number;
   profileId: string | null;
@@ -552,6 +555,7 @@ export interface RoomPublic {
   nextRoundQueue: PlayerPublic[];
   chat: ChatMessage[];
   mafiaChat: ChatMessage[];
+  yakuzaChat: ChatMessage[];
   killedLastNight: Array<{ id: string; name: string; lastWill?: string | null }>;
   savedLastNight: boolean;
   winner: Team | null;

@@ -1036,7 +1036,7 @@ const JoinRoomSchema = z.object({
 
 const ChatSchema = z.object({
   text: z.string().min(1).max(400),
-  channel: z.enum(['room', 'mafia', 'dead', 'spectator']),
+  channel: z.enum(['room', 'mafia', 'yakuza', 'dead', 'spectator']),
 });
 
 const AuthSchema = z.object({
@@ -1669,6 +1669,11 @@ function announceVoteResult(io: AppServer, room: Room): void {
         };
       });
     io.to(room.id).emit('game:vote_breakdown', breakdown);
+    // Journal: the who-voted-for-whom record becomes public only NOW, after
+    // the tribunal has ended (votes stay secret while voting is live).
+    for (const b of breakdown) {
+      broadcastSystemMsg(io, room, `🗳 ${b.voterName} → ${b.targetName}${b.weight > 1 ? ` ×${b.weight}` : ''}`);
+    }
   }
 
   const eliminated = resolveVotes(room);
@@ -2200,8 +2205,12 @@ export function attachSocketHandlers(io: AppServer): void {
           hostGraceTimers.delete(room.id);
           broadcastSystemMsg(io, room, `${player.name} (host) reconnected.`);
         } else if (isRejoin) {
-          // Silent reconnect — avoid "X joined" spam on refresh
+          // Silent reconnect — avoid "X joined" spam on refresh.
+          // Re-push the phase voice rules: force-mute/unmute events sent while
+          // this player was away went to their OLD socket id, so without this a
+          // reconnected player can be stuck muted until the next phase change.
           broadcastRoom(io, room);
+          enforceVoicePhaseRules(io, room);
           cb(ok(toPublicRoom(room, player.id)));
           return;
         } else {
@@ -2535,10 +2544,9 @@ export function attachSocketHandlers(io: AppServer): void {
         if (voter.isQueuedNextRound) throw new Error('Not an active player.');
         submitVote(room, voter, targetId);
 
-        const target = targetId ? room.players.get(targetId) : null;
-        if (target) {
-          broadcastSystemMsg(io, room, `🗳 ${voter.name} → ${target.name}`);
-        }
+        // Votes are SECRET while the tribunal runs — never announce who voted
+        // for whom live. The full breakdown is revealed by announceVoteResult
+        // (game:vote_breakdown + journal messages) once voting ends.
 
         // Auto-advance when every eligible player has voted (no need to wait for timer)
         const eligible = [...room.players.values()].filter(
@@ -2938,21 +2946,44 @@ export function attachSocketHandlers(io: AppServer): void {
         presser.foulCount = (presser.foulCount ?? 0) + 1;
 
         if (presser.foulCount >= 4) {
-          // 4th foul: immediate silent elimination — no final_words, game resumes in current phase
-          presser.isAlive = false;
-          presser.deathType = 'foul';
-          room.activeFoul = null;
+          // 4th foul: the player gets the SAME 6-second word window as fouls
+          // 1-3 — say your piece — and is eliminated when it expires. (An
+          // instant drop made pressing the 4th foul pointless: you'd die
+          // before saying anything.)
+          const fatalEndsAt = Date.now() + 6000;
+          room.activeFoul = { playerId: presser.id, endsAt: fatalEndsAt };
 
-          broadcastSystemMsg(io, room, `⚠️ ${presser.name}: ფოლი #4 — გარიცხულია!`);
+          broadcastSystemMsg(io, room, `⚠️ ${presser.name}: ფოლი #4 — ბოლო სიტყვა (6 წმ), შემდეგ გარიცხვა`);
 
-          if (checkWin(room)) {
-            timerService.stop(room.id);
-            setPhase(room, 'game_over');
-            await emitGameOver(io, room);
-          }
-
-          broadcastRoom(io, room);
+          // Open the presser's mic for the fatal word (mesh + LiveKit).
           enforceVoicePhaseRules(io, room);
+          broadcastRoom(io, room);
+
+          const fatalRoomId = room.id;
+          setTimeout(async () => {
+            const liveRoom = getRoom(fatalRoomId);
+            if (!liveRoom) return;
+            // Only act if this exact fatal window is still the active one.
+            if (liveRoom.activeFoul?.playerId !== presser.id || liveRoom.activeFoul.endsAt !== fatalEndsAt) return;
+            liveRoom.activeFoul = null;
+            const dying = liveRoom.players.get(presser.id);
+            if (!dying || !dying.isAlive || liveRoom.phase === 'game_over') {
+              enforceVoicePhaseRules(io, liveRoom);
+              broadcastRoom(io, liveRoom);
+              return;
+            }
+            dying.isAlive = false;
+            dying.deathType = 'foul';
+            broadcastSystemMsg(io, liveRoom, `⚠️ ${dying.name}: ფოლი #4 — გარიცხულია!`);
+            if (checkWin(liveRoom)) {
+              timerService.stop(liveRoom.id);
+              setPhase(liveRoom, 'game_over');
+              await emitGameOver(io, liveRoom);
+            }
+            broadcastRoom(io, liveRoom);
+            enforceVoicePhaseRules(io, liveRoom);
+          }, 6000);
+
           cb(ok(null));
           return;
         }
@@ -3163,6 +3194,10 @@ export function attachSocketHandlers(io: AppServer): void {
         if (parsed.channel === 'mafia') {
           for (const p of room.players.values()) {
             if (p.team === 'mafia' && p.socketId) io.to(p.socketId).emit('chat:new', msg);
+          }
+        } else if (parsed.channel === 'yakuza') {
+          for (const p of room.players.values()) {
+            if (p.team === 'yakuza' && p.socketId) io.to(p.socketId).emit('chat:new', msg);
           }
         } else if (parsed.channel === 'dead') {
           for (const p of room.players.values()) {
@@ -4288,7 +4323,7 @@ export function attachSocketHandlers(io: AppServer): void {
         const room = getRoom(roomId);
         if (!room) return cb(err('Room not found.'));
 
-        const validChannel: VoiceChannel = (channel === 'room' || channel === 'mafia') ? channel : 'room';
+        const validChannel: VoiceChannel = (channel === 'room' || channel === 'mafia' || channel === 'yakuza') ? channel : 'room';
         const authError = voiceCanJoin(room, playerId, validChannel);
         if (authError) return cb(err(authError));
 
@@ -8392,13 +8427,20 @@ function liveKitMainDecision(room: Room, player: Player): { transmit: boolean; r
   const silentDay = room.activeEvent?.key === 'silent_day';
   switch (phase) {
     case 'night':
+      // Mafia and Yakuza teams coordinate at night in their PRIVATE LiveKit
+      // sub-rooms (roomId::mafia / roomId::yakuza — the client switches rooms),
+      // so unmuting them here is only heard by their teammates.
+      if (player.team === 'mafia' || player.team === 'yakuza') return { transmit: true };
       return { transmit: false, reason: 'Voice muted during night phase.' };
     case 'role_reveal':
       return { transmit: false, reason: 'Voice disabled during role reveal.' };
     case 'voting':
       return { transmit: false, reason: 'Silent during voting.' };
-    case 'don_check':
     case 'mafia_kill':
+      // Don-mode kill step: the mafia team talks in its private sub-room.
+      if (player.team === 'mafia') return { transmit: true };
+      return { transmit: false, reason: 'Silent phase.' };
+    case 'don_check':
     case 'sheriff_check':
     case 'revote':
     case 'double_elim_vote':

@@ -534,6 +534,7 @@ export const TRANSLATIONS = {
       chat: {
         roomChannel: '💬 Room',
         mafiaChannel: '🔴 Mafia',
+        yakuzaChannel: '🐉 Yakuza',
         deadChannel: '💀 Dead',
         sendPlaceholder: 'Send a message…',
         mafiaChatPlaceholder: 'Mafia chat…',
@@ -1292,6 +1293,7 @@ export const TRANSLATIONS = {
       "tieRevoteHint": "⚖️ After the tie — a revote between the two candidates.",
       "tieYourTurn": "It's you! Use your 30 seconds to defend yourself.",
       "tribunalSettings": "Tribunal settings",
+      "journal": "Journal",
       "unmute": "🔈 Unmute",
       "vConnected": "Voice on",
       "vConnecting": "Connecting…",
@@ -2614,6 +2616,7 @@ export const TRANSLATIONS = {
       chat: {
         roomChannel: '💬 ოთახი',
         mafiaChannel: '🔴 მაფია',
+        yakuzaChannel: '🐉 იაკუზა',
         deadChannel: '💀 მიცვალებული',
         sendPlaceholder: 'გაგზავნე შეტყობინება…',
         mafiaChatPlaceholder: 'მაფიის ჩატი…',
@@ -3372,6 +3375,7 @@ export const TRANSLATIONS = {
       "tieRevoteHint": "⚖️ ფრეს შემდეგ — ხელახალი კენჭისყრა ორ კანდიდატს შორის.",
       "tieYourTurn": "შენ ხარ ახლა! გამოიყენე 30 წამი თავის გასამართლებლად.",
       "tribunalSettings": "ტრიბუნალის პარამეტრები",
+      "journal": "ჟურნალი",
       "unmute": "🔈 ჩართვა",
       "vConnected": "ხმა ჩართულია",
       "vConnecting": "უკავშირდება…",
@@ -4693,6 +4697,7 @@ export const TRANSLATIONS = {
       chat: {
         roomChannel: '💬 Комната',
         mafiaChannel: '🔴 Мафия',
+        yakuzaChannel: '🐉 Якудза',
         deadChannel: '💀 Мёртвые',
         sendPlaceholder: 'Отправить сообщение…',
         mafiaChatPlaceholder: 'Чат мафии…',
@@ -5451,6 +5456,7 @@ export const TRANSLATIONS = {
       "tieRevoteHint": "⚖️ После ничьей — переголосование между двумя кандидатами.",
       "tieYourTurn": "Сейчас ты! Используй 30 секунд, чтобы оправдаться.",
       "tribunalSettings": "Настройки трибунала",
+      "journal": "Журнал",
       "unmute": "🔈 Включить",
       "vConnected": "Голос включён",
       "vConnecting": "Подключение…",
