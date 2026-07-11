@@ -72,6 +72,10 @@ interface Props {
   trialCandidateIds?: Set<string>;
   onSelect?: (p: PlayerPublic) => void;
   belowHero?: React.ReactNode;
+  /** Desktop video-call layout: a plain seat-ordered grid (no speech hero). */
+  gridMode?: boolean;
+  /** Column count for gridMode (default 4 → 1-2-3-4 / 5-6-7-8 / …). */
+  columns?: number;
 }
 
 const TEAM_ROLE_COLOR: Record<string, { bg: string; border: string; text: string }> = {
@@ -816,11 +820,45 @@ export function PlayerGrid({
   trialCandidateIds,
   onSelect,
   belowHero,
+  gridMode,
+  columns = 4,
 }: Props) {
   const isSpeechPhase = phase === 'speech';
   const alivePlayers = players.filter(p => p.isAlive && !p.isSpectator);
   const totalAlive = alivePlayers.length;
   const numRows = Math.ceil(players.length / 2);
+
+  // ── Desktop video-call grid: fixed seat-ordered tiles (1-2-3-4 / 5-6-7-8 …) ──
+  if (gridMode) {
+    const ordered = [...players].sort((a, b) => (a.seat ?? 0) - (b.seat ?? 0));
+    const rows = Math.max(1, Math.ceil(ordered.length / columns));
+    return (
+      <div
+        className="grid gap-2 h-full w-full"
+        style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))` }}
+      >
+        {ordered.map(player => (
+          <PlayerCard
+            key={player.id}
+            player={player}
+            isMe={player.id === myPlayerId}
+            isSpeaker={player.id === currentSpeakerId}
+            voteCount={voteCounts[player.id] ?? 0}
+            isSelected={selectedVoteId === player.id}
+            showRole={showRoles}
+            phase={phase}
+            totalAlive={totalAlive}
+            fillHeight
+            voice={voice}
+            isAlly={allyIds?.has(player.id) ?? false}
+            isNominated={nominatedIds?.has(player.id) ?? false}
+            isOnTrial={trialCandidateIds?.has(player.id) ?? false}
+            onClick={() => onSelect?.(player)}
+          />
+        ))}
+      </div>
+    );
+  }
 
   if (isSpeechPhase && currentSpeakerId) {
     const speaker = players.find(p => p.id === currentSpeakerId);

@@ -1744,14 +1744,42 @@ export function GamePage() {
             ) : null}
           </aside>
 
-          {/* Center: Phase content */}
-          <main className="flex-1 overflow-y-auto p-4 md:p-6">
+          {/* Center: camera grid (video-call stage) + phase actions below */}
+          <main className="flex-1 overflow-hidden p-4 md:p-5 flex flex-col gap-3 min-w-0">
             {room.activeEvent && (
-              <div className="mb-4">
+              <div className="flex-shrink-0">
                 <DynamicEventBanner event={room.activeEvent} />
               </div>
             )}
-            {PhaseContent}
+            {phase === 'lobby' || phase === 'game_over' ? (
+              <div className="flex-1 overflow-y-auto">{PhaseContent}</div>
+            ) : (
+              <>
+                {/* Camera grid — 1-2-3-4 / 5-6-7-8 / 9-10-11-12 by seat */}
+                <div className="flex-1 min-h-0">
+                  <PlayerGrid
+                    players={activePlayers}
+                    phase={phase}
+                    currentSpeakerId={room.currentSpeakerId}
+                    myPlayerId={myPlayer?.id ?? null}
+                    voteCounts={voteCounts}
+                    selectedVoteId={myVoteTarget}
+                    showRoles={amSpectator}
+                    gridMode
+                    columns={activePlayers.length <= 6 ? 3 : 4}
+                    voice={tileVoice}
+                    allyIds={allyIds}
+                    nominatedIds={new Set(Object.values(room.nominations ?? {}))}
+                    trialCandidateIds={new Set(room.trialDefenseState?.candidateIds ?? [])}
+                    onSelect={handlePlayerSelect}
+                  />
+                </div>
+                {/* Phase actions (voting / night / speech controls) */}
+                <div className="flex-shrink-0 overflow-y-auto" style={{ maxHeight: '42%' }}>
+                  {PhaseContent}
+                </div>
+              </>
+            )}
           </main>
 
           {/* Events + Chat sidebar */}
