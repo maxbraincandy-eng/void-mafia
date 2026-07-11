@@ -1,6 +1,6 @@
 import { useSocialStore } from '@/store/socialStore';
 import { useSettingsStore } from '@/store/settingsStore';
-import { useT } from '@/store/langStore';
+import { useT, useLangStore } from '@/store/langStore';
 import { haptic } from '@/lib/haptics';
 import { VoidCommunityIcon } from '@/components/ui/VoidCommunityIcon';
 import { VoidGamesIcon } from '@/components/ui/VoidGamesIcon';
@@ -115,7 +115,17 @@ const GLASS_TAB_COLORS: Record<string, string> = {
 };
 
 // ── NavItem ─────────────────────────────────────────────────────────────────
-function NavItem({ tab, active, color, onPress, label }: { tab: TabDef; active: boolean; color: string; onPress: (id: NavTab) => void; label: string }) {
+// Georgian glyphs are wider than Latin/Cyrillic, so long labels
+// (კომუნითი / თამაშები / პროფილი) cram in the narrow tab. Use a slightly
+// smaller size and no letter-spacing for Georgian; keep the roomier style
+// for en/ru.
+function labelStyle(ka: boolean): React.CSSProperties {
+  return ka
+    ? { fontSize: 'clamp(8px, 2.35vw, 9.5px)', fontWeight: 600, letterSpacing: 0, display: 'block' }
+    : { fontSize: 'clamp(9px, 2.7vw, 11px)', fontWeight: 600, letterSpacing: '0.02em', display: 'block' };
+}
+
+function NavItem({ tab, active, color, onPress, label, ka }: { tab: TabDef; active: boolean; color: string; onPress: (id: NavTab) => void; label: string; ka: boolean }) {
   return (
     <button
       onClick={() => onPress(tab.id)}
@@ -144,8 +154,8 @@ function NavItem({ tab, active, color, onPress, label }: { tab: TabDef; active: 
       </span>
 
       <span
-        className="font-mono leading-none text-center w-full overflow-hidden"
-        style={{ fontSize: 'clamp(9px, 2.7vw, 11px)', fontWeight: 600, letterSpacing: '0.02em', display: 'block' }}
+        className="font-mono leading-none text-center w-full overflow-hidden whitespace-nowrap"
+        style={{ ...labelStyle(ka), textOverflow: 'ellipsis' }}
       >
         {label}
       </span>
@@ -160,6 +170,7 @@ export function BottomNav({ active, onChange, onMoreClick }: Props) {
   const TAB_COLORS = themeMode === 'minimal-glass' ? GLASS_TAB_COLORS : NEON_TAB_COLORS;
   const isRooms = active === 'rooms';
   const t = useT();
+  const ka = useLangStore(s => s.lang) === 'ka';
   const navLabel = (id: NavTab) => (t.nav as Record<string, string>)[id] ?? id;
 
   function go(tab: NavTab) { haptic('selection'); onChange(tab); }
@@ -180,7 +191,7 @@ export function BottomNav({ active, onChange, onMoreClick }: Props) {
 
         {/* Left 3 tabs */}
         {LEFT_TABS.map(tab => (
-          <NavItem key={tab.id} tab={tab} label={navLabel(tab.id)} active={active === tab.id} color={TAB_COLORS[tab.id] ?? '#ffffff'} onPress={go} />
+          <NavItem key={tab.id} tab={tab} ka={ka} label={navLabel(tab.id)} active={active === tab.id} color={TAB_COLORS[tab.id] ?? '#ffffff'} onPress={go} />
         ))}
 
         {/* CENTER FAB — Mafia */}
@@ -205,7 +216,7 @@ export function BottomNav({ active, onChange, onMoreClick }: Props) {
 
         {/* Right 2 tabs */}
         {RIGHT_TABS.map(tab => (
-          <NavItem key={tab.id} tab={tab} label={navLabel(tab.id)} active={active === tab.id} color={TAB_COLORS[tab.id] ?? '#ffffff'} onPress={go} />
+          <NavItem key={tab.id} tab={tab} ka={ka} label={navLabel(tab.id)} active={active === tab.id} color={TAB_COLORS[tab.id] ?? '#ffffff'} onPress={go} />
         ))}
 
         {/* ☰ მეტი */}
@@ -215,7 +226,7 @@ export function BottomNav({ active, onChange, onMoreClick }: Props) {
           style={{ color: 'rgba(255,255,255,0.34)', height: 84, paddingBottom: 15, gap: 3 }}
         >
           <span className="leading-none flex items-center justify-center" style={{ fontSize: 20, height: 24 }}>☰</span>
-          <span className="font-mono uppercase leading-none text-center relative" style={{ fontSize: 'clamp(9px, 2.7vw, 11px)', fontWeight: 600, letterSpacing: '0.03em' }}>
+          <span className="font-mono uppercase leading-none text-center relative" style={labelStyle(ka)}>
             {t.nav.more}
             {unreadDmCount > 0 && (
               <span
