@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { tNow } from '@/store/langStore';
+import { tNow, useT } from '@/store/langStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import { GameSettings, DynamicEventSettings } from '@/types/index';
@@ -96,30 +96,31 @@ function computeBalance(roles: GameSettings['roles'], playerCount: number) {
 
 // ── Sub-components ─────────────────────────────────────────────────────
 function BalanceBar({ roles, playerCount }: { roles: GameSettings['roles']; playerCount: number }) {
+  const rp = tNow().rolePicker as unknown as Record<string, string>;
   const b = computeBalance(roles, playerCount);
   const total = b.mafia + b.totalTown + b.neutral + b.cult + b.yakuza;
 
   const segments = [
-    { val: b.mafia,    color: '#ff00cc', label: 'Mafia',   glow: 'rgba(255,0,204,0.5)' },
-    { val: b.totalTown, color: '#00e5ff', label: 'Town',   glow: 'rgba(0,229,255,0.4)' },
-    { val: b.neutral,  color: '#9b00ff', label: 'Neutral', glow: 'rgba(155,0,255,0.4)' },
-    { val: b.cult,     color: '#c026d3', label: 'Cult',    glow: 'rgba(192,38,211,0.4)' },
-    { val: b.yakuza,   color: '#ef4444', label: 'Yakuza',  glow: 'rgba(239,68,68,0.5)' },
+    { val: b.mafia,    color: '#ff00cc', label: rp.team_mafia,   glow: 'rgba(255,0,204,0.5)' },
+    { val: b.totalTown, color: '#00e5ff', label: rp.team_town,   glow: 'rgba(0,229,255,0.4)' },
+    { val: b.neutral,  color: '#9b00ff', label: rp.team_neutral, glow: 'rgba(155,0,255,0.4)' },
+    { val: b.cult,     color: '#c026d3', label: rp.team_cult,    glow: 'rgba(192,38,211,0.4)' },
+    { val: b.yakuza,   color: '#ef4444', label: rp.team_yakuza,  glow: 'rgba(239,68,68,0.5)' },
   ].filter(s => s.val > 0);
 
   const statusColor = b.isAutoMode ? '#00e5ff' : b.isValid ? '#00ff88' : '#ff2d55';
   const statusIcon  = b.isAutoMode ? '⚡' : b.isValid ? '✓' : '✗';
   const statusMsg   = b.isAutoMode
-    ? `Auto: ${playerCount} players will be auto-assigned`
+    ? rp.statusAuto.replace('{n}', String(playerCount))
     : b.overflow
-      ? `Too many roles (${b.specified}) for ${playerCount} players`
+      ? rp.statusOverflow.replace('{n}', String(b.specified)).replace('{m}', String(playerCount))
       : b.shogunWithoutYakuza
-        ? 'Invalid: Shogun requires at least 1 Yakuza'
+        ? rp.statusShogun
         : b.mafia === 0 && b.yakuza === 0
-          ? 'Add at least 1 Mafia or Yakuza role'
+          ? rp.statusNeedMafia
           : !b.isValid
-            ? `Mafia (${b.mafia}) must be less than Town (${playerCount - b.mafia})`
-            : `Valid: ${b.mafia ? `${b.mafia}M · ` : ''}${b.totalTown}T${b.neutral ? ` · ${b.neutral}N` : ''}${b.cult ? ` · ${b.cult}C` : ''}${b.yakuza ? ` · ${b.yakuza}Y` : ''}${b.citizens ? ` · ${b.citizens}★` : ''}`;
+            ? rp.statusMafiaLess.replace('{m}', String(b.mafia)).replace('{t}', String(playerCount - b.mafia))
+            : `${rp.statusValidPrefix} ${b.mafia ? `${b.mafia}M · ` : ''}${b.totalTown}T${b.neutral ? ` · ${b.neutral}N` : ''}${b.cult ? ` · ${b.cult}C` : ''}${b.yakuza ? ` · ${b.yakuza}Y` : ''}${b.citizens ? ` · ${b.citizens}★` : ''}`;
 
   return (
     <div className="mb-1">
@@ -159,7 +160,7 @@ function BalanceBar({ roles, playerCount }: { roles: GameSettings['roles']; play
             </span>
           ))}
           {b.citizens > 0 && (
-            <span className="text-[12px] font-mono text-white/30">Citizens {b.citizens}</span>
+            <span className="text-[12px] font-mono text-white/30">{rp.citizens} {b.citizens}</span>
           )}
         </div>
       )}
@@ -178,6 +179,9 @@ function RoleCard({
 }) {
   const [showTip, setShowTip] = useState(false);
   const active = count > 0;
+  const _t = tNow();
+  const roleName = (_t.game.roles as unknown as Record<string, string>)[role.key] ?? role.name;
+  const roleDesc = (_t.rolePicker as unknown as Record<string, string>)[`desc_${role.key}`] ?? role.desc;
 
   return (
     <div className="relative">
@@ -203,7 +207,7 @@ function RoleCard({
             {role.icon}
           </button>
           <span className={clsx('text-[11px] font-semibold truncate flex-1', active ? 'text-white' : 'text-white/40')}>
-            {role.name}
+            {roleName}
           </span>
           {active && <span className="w-1.5 h-1.5 rounded-full bg-neon-green/70 flex-shrink-0" style={{ boxShadow: '0 0 5px rgba(0,255,136,0.8)' }} />}
         </div>
@@ -212,7 +216,7 @@ function RoleCard({
         {readOnly ? (
           <div className="flex items-center justify-center">
             <span className={clsx('text-sm font-bold font-mono', active ? 'text-neon-green/90' : 'text-white/25')}>
-              {active ? `×${count}` : 'off'}
+              {active ? `×${count}` : (tNow().rolePicker as unknown as Record<string,string>).off}
             </span>
           </div>
         ) : (
@@ -254,8 +258,8 @@ function RoleCard({
             exit={{ opacity: 0, y: 4 }}
             className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-20 w-44 rounded-xl border border-white/15 bg-void-50/95 backdrop-blur-sm p-2.5 pointer-events-none"
           >
-            <p className="text-[12px] font-bold text-white mb-1">{role.icon} {role.name}</p>
-            <p className="text-[12px] text-white/55 leading-relaxed">{role.desc}</p>
+            <p className="text-[12px] font-bold text-white mb-1">{role.icon} {roleName}</p>
+            <p className="text-[12px] text-white/55 leading-relaxed">{roleDesc}</p>
           </motion.div>
         )}
       </AnimatePresence>
@@ -335,6 +339,8 @@ const DE_EVENT_LABELS: Array<{ key: keyof DynamicEventSettings['allowed']; label
 ];
 
 export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading, readOnly }: Props) {
+  const t = useT();
+  const rp = t.rolePicker as unknown as Record<string, string>;
   const [local, setLocal] = useState<GameSettings>({ ...settings, roles: { ...settings.roles } });
   // Latest local, so rapid consecutive edits never build on stale state.
   const localRef = useRef(local);
@@ -389,7 +395,7 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading, re
       <div className="rounded-2xl border border-white/8 bg-void-50/60 p-4">
         <div className="flex items-center justify-between mb-3">
           <h4 className="text-xs font-display font-bold text-white/50 uppercase tracking-widest">
-            Balance
+            {rp.balance}
           </h4>
           {!readOnly && (
             <button
@@ -397,7 +403,7 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading, re
               onClick={handleAutoSetup}
               className="px-3 py-1 rounded-lg text-[12px] font-mono font-bold border border-neon-cyan/30 text-neon-cyan/70 hover:border-neon-cyan/60 hover:text-neon-cyan hover:bg-neon-cyan/5 transition-all uppercase tracking-wider"
             >
-              ⚡ Auto Setup
+              ⚡ {rp.autoSetup}
             </button>
           )}
         </div>
@@ -408,7 +414,7 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading, re
       {ROLE_GROUPS.map(group => (
         <div key={group.label} className={clsx('rounded-2xl border p-4', group.borderColor, group.bgColor)}>
           <p className={clsx('text-[12px] font-display font-bold tracking-[0.2em] uppercase mb-3', group.color)}>
-            {group.label}
+            {rp[`team_${group.team}`] ?? group.label}
           </p>
           <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
             {group.roles.map(role => (
@@ -427,27 +433,27 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading, re
 
       {/* ── Timer settings ─────────────────────────────────────────────── */}
       <div className="rounded-2xl border border-white/8 bg-void-50/60 p-4 space-y-4">
-        <h4 className="text-xs font-display font-bold text-white/50 uppercase tracking-widest">Timers</h4>
-        <SliderRow readOnly={readOnly} label="🌙 Night"   value={view.nightDuration}  min={15}  max={180} onChange={v => apply({ ...localRef.current, nightDuration:  v })} />
-        <SliderRow readOnly={readOnly} label="☀️ Day"    value={view.dayDuration}    min={30}  max={600} onChange={v => apply({ ...localRef.current, dayDuration:    v })} />
-        <SliderRow readOnly={readOnly} label="🎤 Speech" value={view.speechDuration}  min={15}  max={180} onChange={v => apply({ ...localRef.current, speechDuration: v })} />
-        <SliderRow readOnly={readOnly} label="⚖️ Vote"   value={view.voteDuration}   min={15}  max={120} onChange={v => apply({ ...localRef.current, voteDuration:   v })} />
+        <h4 className="text-xs font-display font-bold text-white/50 uppercase tracking-widest">{rp.timers}</h4>
+        <SliderRow readOnly={readOnly} label={`🌙 ${rp.night}`}   value={view.nightDuration}  min={15}  max={180} onChange={v => apply({ ...localRef.current, nightDuration:  v })} />
+        <SliderRow readOnly={readOnly} label={`☀️ ${rp.day}`}    value={view.dayDuration}    min={30}  max={600} onChange={v => apply({ ...localRef.current, dayDuration:    v })} />
+        <SliderRow readOnly={readOnly} label={`🎤 ${rp.speech}`} value={view.speechDuration}  min={15}  max={180} onChange={v => apply({ ...localRef.current, speechDuration: v })} />
+        <SliderRow readOnly={readOnly} label={`⚖️ ${rp.vote}`}   value={view.voteDuration}   min={15}  max={120} onChange={v => apply({ ...localRef.current, voteDuration:   v })} />
       </div>
 
       {/* ── Other options ──────────────────────────────────────────────── */}
       <div className="rounded-2xl border border-white/8 bg-void-50/60 p-4 space-y-3">
-        <h4 className="text-xs font-display font-bold text-white/50 uppercase tracking-widest">Rules</h4>
+        <h4 className="text-xs font-display font-bold text-white/50 uppercase tracking-widest">{rp.rules}</h4>
 
         {[
-          { id: 'selfHeal',  label: '💊 Doctor can self-heal',        value: view.allowDoctorSelfHeal,
+          { id: 'selfHeal',  label: `💊 ${rp.selfHeal}`,        value: view.allowDoctorSelfHeal,
             toggle: () => apply({ ...localRef.current, allowDoctorSelfHeal: !localRef.current.allowDoctorSelfHeal }) },
-          { id: 'private',   label: '🔒 Private room (invite only)',   value: view.isPrivate,
+          { id: 'private',   label: `🔒 ${rp.private}`,   value: view.isPrivate,
             toggle: () => apply({ ...localRef.current, isPrivate: !localRef.current.isPrivate }) },
-          { id: 'startNight', label: '🌙 Start game at night (skip day discussion)', value: view.startWithNight,
+          { id: 'startNight', label: `🌙 ${rp.startNight}`, value: view.startWithNight,
             toggle: () => apply({ ...localRef.current, startWithNight: !localRef.current.startWithNight }) },
-          { id: 'rotating', label: '🔄 Rotating circle — each day shifts the opener by one seat', value: view.rotatingSpeech ?? true,
+          { id: 'rotating', label: `🔄 ${rp.rotating}`, value: view.rotatingSpeech ?? true,
             toggle: () => apply({ ...localRef.current, rotatingSpeech: !(localRef.current.rotatingSpeech ?? true) }) },
-          { id: 'mafiaCanSelfKill', label: '🔪 Mafia can kill themselves at night', value: view.mafiaCanSelfKill ?? false,
+          { id: 'mafiaCanSelfKill', label: `🔪 ${rp.mafiaCanSelfKill}`, value: view.mafiaCanSelfKill ?? false,
             toggle: () => apply({ ...localRef.current, mafiaCanSelfKill: !(localRef.current.mafiaCanSelfKill ?? false) }) },
         ].map(opt => (
           <button
@@ -463,7 +469,7 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading, re
         ))}
 
         <div>
-          <label className="text-[11px] font-mono text-white/40 block mb-1">Tie vote rule</label>
+          <label className="text-[11px] font-mono text-white/40 block mb-1">{rp.tieVoteRule}</label>
           <div className="flex gap-2">
             {(['no_elimination', 'random'] as const).map(rule => (
               <button
@@ -478,14 +484,14 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading, re
                     : 'border-white/8 text-white/30 hover:text-white/60',
                 )}
               >
-                {rule === 'no_elimination' ? 'No elimination' : 'Random pick'}
+                {rule === 'no_elimination' ? rp.noElimination : rp.randomPick}
               </button>
             ))}
           </div>
         </div>
 
         <div>
-          <label className="text-[11px] font-mono text-white/40 block mb-1.5">Min players to start</label>
+          <label className="text-[11px] font-mono text-white/40 block mb-1.5">{rp.minPlayers}</label>
           <div className="flex gap-2">
             {[4, 5, 6, 7, 8, 10, 12].map(n => (
               <button
@@ -512,7 +518,7 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading, re
         <div className="flex items-center justify-between gap-3">
           <div>
             <h4 className="text-xs font-display font-bold text-white/50 uppercase tracking-widest">
-              ⚖️ Tribunal Settings
+              ⚖️ {rp.tribunalTitle}
             </h4>
             <p className="text-[12px] font-mono text-white/30 mt-0.5">
               {tNow().gamePanels.tribunalSettings}
@@ -535,7 +541,7 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading, re
         >
           <Toggle on={!!view.trialDefense?.enabled} />
           <div>
-            <span className="text-xs font-mono text-white/60">🛡 Enable Trial Defense Time</span>
+            <span className="text-xs font-mono text-white/60">🛡 {rp.enableDefense}</span>
             <span className="block text-[12px] font-mono text-white/28 mt-0.5">
               {tNow().gamePanels.defenseToggleDesc}
             </span>
@@ -578,10 +584,10 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading, re
         <div className="flex items-center justify-between gap-3">
           <div>
             <h4 className="text-xs font-display font-bold text-neon-purple/70 uppercase tracking-widest">
-              ⚡ Dynamic Events
+              ⚡ {rp.dynamicEvents}
             </h4>
             <p className="text-[12px] font-mono text-white/30 mt-0.5">
-              Random chaos events each phase
+              {rp.dynamicDesc}
             </p>
           </div>
           <button
@@ -603,7 +609,7 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading, re
         {de.enabled && (
           <div className="space-y-3">
             <div>
-              <p className="text-[12px] font-mono text-white/35 uppercase tracking-widest mb-2">Frequency</p>
+              <p className="text-[12px] font-mono text-white/35 uppercase tracking-widest mb-2">{rp.frequency}</p>
               <div className="flex gap-2">
                 {(['low', 'medium', 'high'] as const).map(f => (
                   <button
@@ -628,7 +634,7 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading, re
             </div>
 
             <div>
-              <p className="text-[12px] font-mono text-white/35 uppercase tracking-widest mb-2">Allowed Events</p>
+              <p className="text-[12px] font-mono text-white/35 uppercase tracking-widest mb-2">{rp.allowedEvents}</p>
               <div className="grid grid-cols-1 gap-1">
                 {DE_EVENT_LABELS.map(({ key, label, icon }) => {
                   const on = de.allowed[key] !== false;
@@ -644,9 +650,9 @@ export function RolePickerPanel({ settings, playerCount, onUpdate, isLoading, re
                       )}
                     >
                       <span className="text-sm leading-none flex-shrink-0">{icon}</span>
-                      <span className="text-[11px] font-mono text-white/55 flex-1">{label}</span>
+                      <span className="text-[11px] font-mono text-white/55 flex-1">{rp[`de_${key}`] ?? label}</span>
                       <span className={clsx('text-[12px] font-mono uppercase tracking-widest flex-shrink-0', on ? 'text-neon-green/50' : 'text-white/15')}>
-                        {on ? 'on' : 'off'}
+                        {on ? rp.on : rp.off}
                       </span>
                     </button>
                   );
