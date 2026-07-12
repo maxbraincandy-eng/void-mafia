@@ -231,9 +231,9 @@ export function setPhase(room, phase) {
         case 'tie_defense': {
             if (room.donModeState)
                 room.donModeState.currentDefenseIdx = 0;
-            // Don mode spec: tied players get 30s each for a final defense.
-            room.timer = 30;
-            room.maxTimer = 30;
+            // Competitive (Sports) spec: each tied player gets 45s to defend.
+            room.timer = 45;
+            room.maxTimer = 45;
             break;
         }
         case 'revote': {
@@ -524,8 +524,8 @@ export function advancePhase(room) {
             }
             if (validIdx < room.donModeState.defenseQueue.length) {
                 room.donModeState.currentDefenseIdx = validIdx;
-                room.timer = 30; // spec: 30s per tied candidate
-                room.maxTimer = 30;
+                room.timer = 45; // spec: 45s per tied candidate
+                room.maxTimer = 45;
                 return 'tie_defense';
             }
             // All done → revote
