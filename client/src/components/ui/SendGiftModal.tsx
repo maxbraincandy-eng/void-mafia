@@ -118,7 +118,7 @@ export function SendGiftModal({ recipientId, recipientName, recipientAvatar, rec
 
   return createPortal(
     <motion.div
-      className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-sm px-3 pb-4 sm:pb-0"
+      className="fixed inset-0 z-[340] flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-sm px-3 pb-4 sm:pb-0"
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       onClick={onClose}
     >

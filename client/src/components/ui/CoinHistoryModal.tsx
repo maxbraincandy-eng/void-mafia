@@ -52,7 +52,7 @@ export function CoinHistoryModal({ open, onClose }: Props) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-[250] flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-sm px-0 sm:px-4 pb-0"
+          className="fixed inset-0 z-[340] flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-sm px-0 sm:px-4 pb-0"
           onClick={onClose}
         >
           <motion.div

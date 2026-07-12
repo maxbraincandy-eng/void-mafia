@@ -10,6 +10,7 @@ import { GiftGallery } from '@/components/ui/GiftGallery';
 import { CoinHistoryModal } from '@/components/ui/CoinHistoryModal';
 import { useSocialStore } from '@/store/socialStore';
 import { useAuthStore } from '@/store/authStore';
+import { useT } from '@/store/langStore';
 import { useGameStore } from '@/store/gameStore';
 import type { Res, PublicProfileFull, FriendshipStatus, PlayerRoleStats, ModeratorLevel, WarnCategory, ClanRole, CommunityPostV2, CommunityProfileV2 } from '@/types/index';
 import {
@@ -59,7 +60,7 @@ function GiftSwipeViewer({ items, startIdx, onClose }: { items: AggGift[]; start
 
   return (
     <motion.div
-      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-md px-5"
+      className="fixed inset-0 z-[320] flex items-center justify-center bg-black/80 backdrop-blur-md px-5"
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       onClick={onClose}
     >
@@ -290,7 +291,7 @@ function FollowListOverlay({ profileId, mode, onClose }: { profileId: string; mo
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[270] bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
+      className="fixed inset-0 z-[310] bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
       onClick={onClose}
     >
       <motion.div
@@ -403,6 +404,7 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
   const [v2, setV2] = useState<CommunityProfileV2 | null>(null);
   const [followList, setFollowList] = useState<null | 'followers' | 'following'>(null);
 
+  const t = useT();
   const myProfile = useAuthStore(s => s.profile);
   const myProfileId = myProfile?.id;
   const myRank = modRank(myProfile?.moderatorLevel);
@@ -560,7 +562,7 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[260] bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
+          className="fixed inset-0 z-[300] bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
           onClick={onClose}
         >
           <motion.div
@@ -752,19 +754,18 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                         <p className="text-white/55 text-[13px] leading-snug text-center px-1">{v2.bio}</p>
                       )}
 
-                      {/* ── Tab bar ────────────────────────────── */}
+                      {/* ── Mafia / Community switch ─────────────── */}
                       <div className="flex gap-1.5">
                         {([
-                          { id: 'overview', label: 'Overview' },
-                          { id: 'posts',    label: 'Posts' },
-                          { id: 'items',    label: 'Items' },
+                          { id: 'overview', label: `🎮 ${t.uiMisc.mafiaProfile}` },
+                          { id: 'posts',    label: `🌐 ${t.uiMisc.communityProfile}` },
                         ] as { id: ProfileTab; label: string }[]).map(tb => {
                           const active = tab === tb.id;
                           return (
                             <button
                               key={tb.id}
                               onClick={() => setTab(tb.id)}
-                              className="flex-1 py-1.5 rounded-xl font-mono text-[12px] uppercase tracking-wider transition-all active:scale-95"
+                              className="flex-1 py-2 rounded-xl font-mono text-[12.5px] font-bold uppercase tracking-wider transition-all active:scale-95"
                               style={{
                                 background: active ? 'linear-gradient(135deg, rgba(155,0,255,0.28), rgba(0,245,255,0.16))' : 'rgba(255,255,255,0.03)',
                                 border: `1px solid ${active ? 'rgba(155,0,255,0.45)' : 'rgba(255,255,255,0.08)'}`,
@@ -777,11 +778,13 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                         })}
                       </div>
 
-                      {/* ════════ POSTS TAB ════════ */}
-                      {tab === 'posts' && <UserPostsList authorId={profile.id} />}
-
-                      {/* ════════ ITEMS TAB ════════ */}
-                      {tab === 'items' && <CosmeticsShowcase cosmetics={profile.cosmetics} />}
+                      {/* ════════ COMMUNITY TAB (posts + cosmetics) ════════ */}
+                      {tab === 'posts' && (
+                        <>
+                          <UserPostsList authorId={profile.id} />
+                          <CosmeticsShowcase cosmetics={profile.cosmetics} />
+                        </>
+                      )}
 
                       {/* ════════ OVERVIEW TAB ════════ */}
                       {tab === 'overview' && (<>
