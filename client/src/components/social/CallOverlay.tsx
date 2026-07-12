@@ -8,7 +8,7 @@ import { useCallStore } from '@/store/callStore';
 import { useT } from '@/store/langStore';
 import {
   joinLiveKitVoice, leaveLiveKitVoice, startLiveKitAudio,
-  toggleLiveKitMic, toggleLiveKitCamera, setLiveKitCamera,
+  toggleLiveKitMic, toggleLiveKitCamera, setLiveKitCamera, setLiveKitMic,
   subscribeLiveKit, getLiveKitState, getLiveKitRemoteVideo, getLiveKitLocalVideo,
 } from '@/services/livekitVoice';
 
@@ -153,6 +153,36 @@ export function CallOverlay() {
     return () => clearInterval(id);
   }, [status]);
 
+  // ── Unlock remote-audio playback on connect (mobile needs a user gesture) ──
+  // The callee tapped "Accept" (a gesture) so they're fine, but the caller has
+  // no fresh gesture when the call connects, so remote audio autoplay stays
+  // blocked → "no sound". Try immediately, then latch onto the first touch as
+  // the iOS-required gesture, and stop once playback is actually unblocked.
+  // (The mic self-heals separately via joinLiveKitVoice's gesture retry.)
+  useEffect(() => {
+    if (status !== 'connected') return;
+    let done = false;
+    const unlock = () => {
+      if (done) return;
+      startLiveKitAudio().then(() => {
+        if (!getLiveKitState().audioBlocked) {
+          done = true;
+          document.removeEventListener('pointerdown', unlock);
+          document.removeEventListener('touchend', unlock);
+          // Make sure our mic is live too (no-op if already publishing).
+          setLiveKitMic(true).catch(() => {});
+        }
+      }).catch(() => {});
+    };
+    unlock();
+    document.addEventListener('pointerdown', unlock);
+    document.addEventListener('touchend', unlock, { passive: true });
+    return () => {
+      document.removeEventListener('pointerdown', unlock);
+      document.removeEventListener('touchend', unlock);
+    };
+  }, [status]);
+
   // ── Socket signaling listeners (mounted once) ──
   useEffect(() => {
     const onRing = (p: {
@@ -269,6 +299,15 @@ export function CallOverlay() {
               )}
               {statusText}
             </p>
+            {status === 'connected' && lk.audioBlocked && (
+              <button
+                onClick={() => startLiveKitAudio()}
+                className="mt-3 px-4 py-2 rounded-full font-mono text-[12px] font-bold animate-pulse"
+                style={{ background: 'rgba(0,229,255,0.15)', border: '1px solid rgba(0,229,255,0.45)', color: '#00e5ff' }}
+              >
+                🔊 {t.dmPanel.callTapSound}
+              </button>
+            )}
           </div>
         </div>
 

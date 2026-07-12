@@ -5115,25 +5115,34 @@ export function attachSocketHandlers(io) {
                     throw new Error('Not authenticated.');
                 const peerId = await callPeerOf(conversationId, selfId);
                 const roomId = `dmcall_${[selfId, peerId].sort().join('_')}`;
-                const peerSocket = findSocketByProfile(io, peerId);
                 const me = await getPlayer(selfId);
-                if (!peerSocket) {
-                    sendPushToUser(peerId, {
-                        title: `📞 ${me?.username ?? 'Someone'}`,
-                        body: video ? 'Video call' : 'Audio call',
-                    }).catch(() => { });
+                // Ring EVERY socket the peer has open (a phone may hold a stale + live
+                // socket; the first match could be the dead one).
+                let delivered = 0;
+                for (const [, s] of io.sockets.sockets) {
+                    if (s.data.profileId === peerId) {
+                        s.emit('dm:call_ring', {
+                            roomId,
+                            conversationId,
+                            video: !!video,
+                            fromProfileId: selfId,
+                            fromUsername: me?.username ?? 'Unknown',
+                            fromAvatar: me?.avatar ?? '?',
+                            fromAvatarUrl: me?.avatarUrl ?? null,
+                        });
+                        delivered++;
+                    }
+                }
+                // Always push too — iOS Safari suspends the socket when the screen locks
+                // or the tab backgrounds, so the in-app ring alone is unreliable there.
+                sendPushToUser(peerId, {
+                    title: `📞 ${me?.username ?? 'Someone'}`,
+                    body: video ? 'Video call' : 'Audio call',
+                }).catch(() => { });
+                if (!delivered) {
                     cb(err('User is offline.'));
                     return;
                 }
-                peerSocket.emit('dm:call_ring', {
-                    roomId,
-                    conversationId,
-                    video: !!video,
-                    fromProfileId: selfId,
-                    fromUsername: me?.username ?? 'Unknown',
-                    fromAvatar: me?.avatar ?? '?',
-                    fromAvatarUrl: me?.avatarUrl ?? null,
-                });
                 cb(ok({ roomId }));
             }
             catch (e) {
