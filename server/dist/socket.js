@@ -1974,8 +1974,11 @@ export function attachSocketHandlers(io) {
                     if (clanMembership)
                         clanId = clanMembership.id;
                 }
-                // Don mode is temporarily disabled — only classic tables can be created.
-                const reqSettings = { ...parsed.settings, donMode: false };
+                // Sports (donMode) rooms lock to the fixed 10-role competitive deck;
+                // classic rooms use the editable role composition.
+                const reqSettings = { ...parsed.settings };
+                if (reqSettings.donMode)
+                    reqSettings.minPlayers = 10;
                 const room = createRoom(socket.id, username, profileId, reqSettings, clanId, parsed.roomName);
                 const hostInRoom = [...room.players.values()][0];
                 if (hostInRoom && playerProfile?.avatarUrl)
@@ -2325,6 +2328,10 @@ export function attachSocketHandlers(io) {
                 room.settings = {
                     ...room.settings,
                     ...settings,
+                    // The game style (Sports/classic) is fixed at creation — never let a
+                    // settings save flip donMode or shrink a Sports table below 10.
+                    donMode: room.settings.donMode,
+                    ...(room.settings.donMode ? { minPlayers: 10 } : {}),
                     roles: { ...room.settings.roles, ...(settings.roles ?? {}) },
                     dynamicEvents: settings.dynamicEvents
                         ? {
