@@ -38,10 +38,18 @@ export async function createAccessToken(identity, room, opts = {}) {
     at.addGrant({
         roomJoin: true,
         room,
-        canPublish: opts.canPublish ?? true, // dead players → false (can still subscribe/hear)
+        // Always grant publish rights. WHO is actually heard is enforced at runtime
+        // (server voice:force-mute + client setMicrophoneEnabled(false) for dead /
+        // listen-only / phase rules) — exactly like the WebRTC-mesh path. A
+        // canPublish:false token instead permanently 403s the mic the moment a
+        // participant legitimately needs it later (a lobby moderator enabling voice,
+        // a spectator becoming a player, a dead player reviving next round), which
+        // surfaced to users as "failed to publish track, insufficient permissions".
+        canPublish: true,
         canSubscribe: true,
         canPublishData: true,
     });
+    void opts.canPublish;
     // livekit-server-sdk v2: toJwt() is async.
     const token = await at.toJwt();
     return { token, url: cfg.url };

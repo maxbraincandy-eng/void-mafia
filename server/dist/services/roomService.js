@@ -115,6 +115,7 @@ export function createRoom(hostSocketId, hostName, profileId, settings, clanId, 
         maxTimer: 0,
         chat: [],
         mafiaChat: [],
+        yakuzaChat: [],
         deadChat: [],
         nightActions: new Map(),
         votes: new Map(),
@@ -482,7 +483,11 @@ export function toPublicRoom(room, viewerPlayerId) {
         ...(isCultLeader && p.team === 'cult' ? { role: p.role, team: p.team } : {}),
         // Yakuza team members see each other
         ...(isYakuza && p.team === 'yakuza' ? { role: p.role, team: p.team } : {}),
-        voteTarget: (room.phase === 'voting' && room.activeEvent?.key !== 'anonymous_voting') ? p.voteTarget : null,
+        // Votes are SECRET while the tribunal runs: each player only sees their
+        // OWN pick; who-voted-for-whom is revealed after voting ends via
+        // game:vote_breakdown. hasVoted lets the UI show voting progress.
+        voteTarget: (room.phase === 'voting' && p.id === viewerPlayerId) ? p.voteTarget : null,
+        hasVoted: room.phase === 'voting' ? !!p.voteTarget : false,
         hasActed: p.id === viewerPlayerId ? p.hasActedThisPhase : false,
         seat: p.seat,
         profileId: p.profileId,
@@ -512,6 +517,7 @@ export function toPublicRoom(room, viewerPlayerId) {
         nextRoundQueue,
         chat: room.chat.slice(-100),
         mafiaChat: isMafia ? room.mafiaChat.slice(-100) : [],
+        yakuzaChat: isYakuza ? room.yakuzaChat.slice(-100) : [],
         deadChat: isDeadViewer && !viewer?.isSpectator ? room.deadChat.slice(-100) : [],
         spectatorChat: viewer?.isSpectator ? room.spectatorChat.slice(-100) : [],
         killedLastNight: room.killedLastNight,
@@ -638,6 +644,7 @@ export function rematchRoom(room) {
     room.votes = new Map();
     room.chat = [];
     room.mafiaChat = [];
+    room.yakuzaChat = [];
     room.deadChat = [];
     room.spectatorChat = [];
     room.killedLastNight = [];

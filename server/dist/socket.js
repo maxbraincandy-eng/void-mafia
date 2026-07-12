@@ -12,7 +12,7 @@ import { registerUnoHandlers, handleUnoDisconnect } from './uno.js';
 import { timerService } from './services/timerService.js';
 import { getRole } from './services/roleService.js';
 import { getOrCreatePlayer, getPlayer, toPublicProfile, addGameResult, getActiveBan, getActiveMute, findSocketByProfile, registerWithEmail, authenticateWithEmail, addXP, getCosmetics, equipCosmetic, getNameColors, grantStarterCosmetics, incrementSpaceKnockouts, getKnockoutLeaderboard, getWinsLeaderboard, getLevelLeaderboard, getLeaderboard, getPlayerByFriendCode, setGrantedModLevel, updateAvatarUrl, updateUsername, } from './services/playerService.js';
-import { markOnline, markOffline, sendFriendRequest, acceptFriend, declineFriend, removeFriend, getFriends, getInvitablePeople, getPendingRequests, getOnlineCount, getFriendshipStatus, isOnline, getSpectatingCount, setLoungePresence, clearLoungePresence, getFriendIds, setInvisible, isInvisible, setGhost, isGhost, getPeakOnline, getOnlineCountRaw, getFriendSuggestions, } from './services/friendService.js';
+import { markOnline, markOffline, sendFriendRequest, acceptFriend, declineFriend, removeFriend, getFriends, getInvitablePeople, getPendingRequests, getOnlineCount, getFriendshipStatus, isOnline, getSpectatingCount, setLoungePresence, clearLoungePresence, getFriendIds, getPlayerStatus, setInvisible, isInvisible, setGhost, isGhost, getPeakOnline, getOnlineCountRaw, getFriendSuggestions, } from './services/friendService.js';
 import { checkAndAwardChallenges, getDailyQuestsForPlayer, } from './services/challengeService.js';
 import { checkAchievements, getPlayerAchievements } from './services/achievementService.js';
 import { recordGame, getPlayerHistory, getPlayerRoleStats, getPlayersLastRolesInRoom } from './services/gameHistoryService.js';
@@ -23,7 +23,7 @@ import { canJoin as voiceCanJoin, canTransmitVoice, join as voiceJoin, leave as 
 import { sql } from './db.js';
 import bcrypt from 'bcryptjs';
 import { sendPushToUser } from './pushService.js';
-import { getOrCreateConversation, listConversations, sendMessage, sendVoiceDm, sendImageDm, getMessages, markRead, getTotalUnread, toggleDmReaction, markViewOnceViewed, deleteConversationForUser, } from './services/dmService.js';
+import { getOrCreateConversation, listConversations, sendMessage, sendVoiceDm, sendImageDm, getMessages, markRead, getTotalUnread, toggleDmReaction, markViewOnceViewed, deleteConversationForUser, sendCallLog, } from './services/dmService.js';
 import { getCoins, claimDailyReward, grantCoins, deductCoins, refundGift, getTransactions, getAllTransactions, getGiftCatalog, createGift, updateGift, sendGift, getPlayerGifts, getGiftDetail, getGiftsSent, getGiftTimeline, getGiftStats, getPinnedGifts, pinGift, unpinGift, hideGift, unhideGift, getHiddenGifts, purchaseCosmeticItem, checkProfileCompletionBonus, } from './services/coinService.js';
 import { applyReferral, getReferralCount } from './services/referralService.js';
 import { updateRatingsAfterGame, getPlayerRating, getRankedLeaderboard, getRankTier } from './services/ratingService.js';
@@ -947,7 +947,7 @@ const JoinRoomSchema = z.object({
 });
 const ChatSchema = z.object({
     text: z.string().min(1).max(400),
-    channel: z.enum(['room', 'mafia', 'dead', 'spectator']),
+    channel: z.enum(['room', 'mafia', 'yakuza', 'dead', 'spectator']),
 });
 const AuthSchema = z.object({
     uid: z.string().min(1).max(64),
@@ -1582,6 +1582,11 @@ function announceVoteResult(io, room) {
             };
         });
         io.to(room.id).emit('game:vote_breakdown', breakdown);
+        // Journal: the who-voted-for-whom record becomes public only NOW, after
+        // the tribunal has ended (votes stay secret while voting is live).
+        for (const b of breakdown) {
+            broadcastSystemMsg(io, room, `🗳 ${b.voterName} → ${b.targetName}${b.weight > 1 ? ` ×${b.weight}` : ''}`);
+        }
     }
     const eliminated = resolveVotes(room);
     if (eliminated) {
@@ -2117,8 +2122,12 @@ export function attachSocketHandlers(io) {
                     broadcastSystemMsg(io, room, `${player.name} (host) reconnected.`);
                 }
                 else if (isRejoin) {
-                    // Silent reconnect — avoid "X joined" spam on refresh
+                    // Silent reconnect — avoid "X joined" spam on refresh.
+                    // Re-push the phase voice rules: force-mute/unmute events sent while
+                    // this player was away went to their OLD socket id, so without this a
+                    // reconnected player can be stuck muted until the next phase change.
                     broadcastRoom(io, room);
+                    enforceVoicePhaseRules(io, room);
                     cb(ok(toPublicRoom(room, player.id)));
                     return;
                 }
@@ -2479,10 +2488,9 @@ export function attachSocketHandlers(io) {
                 if (voter.isQueuedNextRound)
                     throw new Error('Not an active player.');
                 submitVote(room, voter, targetId);
-                const target = targetId ? room.players.get(targetId) : null;
-                if (target) {
-                    broadcastSystemMsg(io, room, `🗳 ${voter.name} → ${target.name}`);
-                }
+                // Votes are SECRET while the tribunal runs — never announce who voted
+                // for whom live. The full breakdown is revealed by announceVoteResult
+                // (game:vote_breakdown + journal messages) once voting ends.
                 // Auto-advance when every eligible player has voted (no need to wait for timer)
                 const eligible = [...room.players.values()].filter(p => p.isAlive && !p.isSpectator && !p.isQueuedNextRound);
                 const allVoted = eligible.length > 0 && eligible.every(p => room.votes.has(p.id));
@@ -2940,18 +2948,42 @@ export function attachSocketHandlers(io) {
                 // Track fouls on the PRESSER (the player who pressed the foul button)
                 presser.foulCount = (presser.foulCount ?? 0) + 1;
                 if (presser.foulCount >= 4) {
-                    // 4th foul: immediate silent elimination — no final_words, game resumes in current phase
-                    presser.isAlive = false;
-                    presser.deathType = 'foul';
-                    room.activeFoul = null;
-                    broadcastSystemMsg(io, room, `⚠️ ${presser.name}: ფოლი #4 — გარიცხულია!`);
-                    if (checkWin(room)) {
-                        timerService.stop(room.id);
-                        setPhase(room, 'game_over');
-                        await emitGameOver(io, room);
-                    }
-                    broadcastRoom(io, room);
+                    // 4th foul: the player gets the SAME 6-second word window as fouls
+                    // 1-3 — say your piece — and is eliminated when it expires. (An
+                    // instant drop made pressing the 4th foul pointless: you'd die
+                    // before saying anything.)
+                    const fatalEndsAt = Date.now() + 6000;
+                    room.activeFoul = { playerId: presser.id, endsAt: fatalEndsAt };
+                    broadcastSystemMsg(io, room, `⚠️ ${presser.name}: ფოლი #4 — ბოლო სიტყვა (6 წმ), შემდეგ გარიცხვა`);
+                    // Open the presser's mic for the fatal word (mesh + LiveKit).
                     enforceVoicePhaseRules(io, room);
+                    broadcastRoom(io, room);
+                    const fatalRoomId = room.id;
+                    setTimeout(async () => {
+                        const liveRoom = getRoom(fatalRoomId);
+                        if (!liveRoom)
+                            return;
+                        // Only act if this exact fatal window is still the active one.
+                        if (liveRoom.activeFoul?.playerId !== presser.id || liveRoom.activeFoul.endsAt !== fatalEndsAt)
+                            return;
+                        liveRoom.activeFoul = null;
+                        const dying = liveRoom.players.get(presser.id);
+                        if (!dying || !dying.isAlive || liveRoom.phase === 'game_over') {
+                            enforceVoicePhaseRules(io, liveRoom);
+                            broadcastRoom(io, liveRoom);
+                            return;
+                        }
+                        dying.isAlive = false;
+                        dying.deathType = 'foul';
+                        broadcastSystemMsg(io, liveRoom, `⚠️ ${dying.name}: ფოლი #4 — გარიცხულია!`);
+                        if (checkWin(liveRoom)) {
+                            timerService.stop(liveRoom.id);
+                            setPhase(liveRoom, 'game_over');
+                            await emitGameOver(io, liveRoom);
+                        }
+                        broadcastRoom(io, liveRoom);
+                        enforceVoicePhaseRules(io, liveRoom);
+                    }, 6000);
                     cb(ok(null));
                     return;
                 }
@@ -3164,6 +3196,12 @@ export function attachSocketHandlers(io) {
                 if (parsed.channel === 'mafia') {
                     for (const p of room.players.values()) {
                         if (p.team === 'mafia' && p.socketId)
+                            io.to(p.socketId).emit('chat:new', msg);
+                    }
+                }
+                else if (parsed.channel === 'yakuza') {
+                    for (const p of room.players.values()) {
+                        if (p.team === 'yakuza' && p.socketId)
                             io.to(p.socketId).emit('chat:new', msg);
                     }
                 }
@@ -4498,7 +4536,7 @@ export function attachSocketHandlers(io) {
                 const room = getRoom(roomId);
                 if (!room)
                     return cb(err('Room not found.'));
-                const validChannel = (channel === 'room' || channel === 'mafia') ? channel : 'room';
+                const validChannel = (channel === 'room' || channel === 'mafia' || channel === 'yakuza') ? channel : 'room';
                 const authError = voiceCanJoin(room, playerId, validChannel);
                 if (authError)
                     return cb(err(authError));
@@ -5055,6 +5093,116 @@ export function attachSocketHandlers(io) {
                     }).catch(() => { });
                 }
                 cb(ok(msg));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── 1:1 calls (audio / video) — signaling only; media rides LiveKit ──
+        // Both participants join a deterministic LiveKit room `dmcall_<sorted ids>`.
+        async function callPeerOf(conversationId, selfId) {
+            const [conv] = await sql `SELECT * FROM conversations WHERE id = ${conversationId}`;
+            if (!conv)
+                throw new Error('Conversation not found.');
+            if (conv.participant1 !== selfId && conv.participant2 !== selfId)
+                throw new Error('Not a participant.');
+            return conv.participant1 === selfId ? conv.participant2 : conv.participant1;
+        }
+        socket.on('dm:call_invite', async ({ conversationId, video }, cb) => {
+            try {
+                const selfId = socket.data.profileId;
+                if (!selfId)
+                    throw new Error('Not authenticated.');
+                const peerId = await callPeerOf(conversationId, selfId);
+                const roomId = `dmcall_${[selfId, peerId].sort().join('_')}`;
+                const peerSocket = findSocketByProfile(io, peerId);
+                const me = await getPlayer(selfId);
+                if (!peerSocket) {
+                    sendPushToUser(peerId, {
+                        title: `📞 ${me?.username ?? 'Someone'}`,
+                        body: video ? 'Video call' : 'Audio call',
+                    }).catch(() => { });
+                    cb(err('User is offline.'));
+                    return;
+                }
+                peerSocket.emit('dm:call_ring', {
+                    roomId,
+                    conversationId,
+                    video: !!video,
+                    fromProfileId: selfId,
+                    fromUsername: me?.username ?? 'Unknown',
+                    fromAvatar: me?.avatar ?? '?',
+                    fromAvatarUrl: me?.avatarUrl ?? null,
+                });
+                cb(ok({ roomId }));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('dm:call_answer', async ({ conversationId, roomId, accept }) => {
+            try {
+                const selfId = socket.data.profileId;
+                if (!selfId)
+                    return;
+                const peerId = await callPeerOf(conversationId, selfId);
+                findSocketByProfile(io, peerId)?.emit('dm:call_answered', { roomId, accept: !!accept });
+            }
+            catch { /* ignore */ }
+        });
+        socket.on('dm:call_close', async ({ conversationId, roomId }) => {
+            try {
+                const selfId = socket.data.profileId;
+                if (!selfId)
+                    return;
+                const peerId = await callPeerOf(conversationId, selfId);
+                findSocketByProfile(io, peerId)?.emit('dm:call_closed', { roomId });
+            }
+            catch { /* ignore */ }
+        });
+        // Persist a finished call as a DM (the caller reports the outcome).
+        socket.on('dm:call_log', async ({ conversationId, kind, status, duration }, cb) => {
+            try {
+                const selfId = socket.data.profileId;
+                if (!selfId)
+                    return;
+                const peerId = await callPeerOf(conversationId, selfId);
+                const k = kind === 'video' ? 'video' : 'audio';
+                const s = status === 'missed' || status === 'declined' ? status : 'completed';
+                const msg = await sendCallLog(conversationId, selfId, { kind: k, status: s, duration });
+                const me = await getPlayer(selfId);
+                // Caller gets a silent echo so their open chat updates without a toast.
+                socket.emit('dm:call_logged', { conversationId, message: msg });
+                const peerSock = findSocketByProfile(io, peerId);
+                if (s === 'completed') {
+                    // Both were present — silent update, no toast/unread nag.
+                    peerSock?.emit('dm:call_logged', { conversationId, message: msg });
+                }
+                else {
+                    // Missed / declined — a real notification for the peer.
+                    peerSock?.emit('dm:new_message', {
+                        conversationId, message: msg,
+                        senderUsername: me?.username ?? 'Unknown', senderAvatar: me?.avatar ?? '?',
+                    });
+                }
+                cb?.(ok(msg));
+            }
+            catch (e) {
+                cb?.(err(e.message));
+            }
+        });
+        // Presence for the DM header: online / in-game / last-seen.
+        socket.on('presence:get', async ({ profileId }, cb) => {
+            try {
+                if (!profileId)
+                    throw new Error('Missing profileId.');
+                const status = getPlayerStatus(profileId);
+                let lastSeenAt = null;
+                if (status === 'offline') {
+                    const p = await getPlayer(profileId);
+                    lastSeenAt = p?.lastSeenAt ?? null;
+                }
+                cb(ok({ status, lastSeenAt }));
             }
             catch (e) {
                 cb(err(e.message));
@@ -8998,6 +9146,24 @@ export function attachSocketHandlers(io) {
             }
         });
         socket.on('world:leave', () => { _leaveWorld(socket.id, io); });
+        socket.on('world:update-spec', ({ spec, bodyColor, glowColor }) => {
+            for (const [worldId, room] of _worlds) {
+                const p = room.get(socket.id);
+                if (!p)
+                    continue;
+                let safeSpec = null;
+                try {
+                    if (spec && typeof spec === 'object' && JSON.stringify(spec).length < 2048)
+                        safeSpec = spec;
+                }
+                catch { }
+                p.spec = safeSpec;
+                p.bodyColor = _hex6(bodyColor, p.bodyColor);
+                p.glowColor = _hex6(glowColor, p.glowColor);
+                socket.to(`world:${worldId}`).emit('world:player-spec', { socketId: socket.id, spec: safeSpec, bodyColor: p.bodyColor, glowColor: p.glowColor });
+                return;
+            }
+        });
         // ── World cinema (shared YouTube) ──────────────────────────────────
         const _worldOf = () => { for (const [wid, room] of _worlds)
             if (room.has(socket.id))
@@ -9427,6 +9593,8 @@ export function attachSocketHandlers(io) {
             const { roomId, playerId, profileId } = socket.data;
             if (profileId) {
                 markOffline(profileId);
+                // Stamp last-seen so the DM header can show "last seen …" accurately.
+                sql `UPDATE players SET last_seen_at = ${Date.now()} WHERE id = ${profileId}`.catch(() => { });
                 broadcastOnlineCount(io);
                 if (activeSessions.get(profileId) === socket.id)
                     activeSessions.delete(profileId);
@@ -9669,13 +9837,22 @@ function liveKitMainDecision(room, player) {
     const silentDay = room.activeEvent?.key === 'silent_day';
     switch (phase) {
         case 'night':
+            // Mafia and Yakuza teams coordinate at night in their PRIVATE LiveKit
+            // sub-rooms (roomId::mafia / roomId::yakuza — the client switches rooms),
+            // so unmuting them here is only heard by their teammates.
+            if (player.team === 'mafia' || player.team === 'yakuza')
+                return { transmit: true };
             return { transmit: false, reason: 'Voice muted during night phase.' };
         case 'role_reveal':
             return { transmit: false, reason: 'Voice disabled during role reveal.' };
         case 'voting':
             return { transmit: false, reason: 'Silent during voting.' };
-        case 'don_check':
         case 'mafia_kill':
+            // Don-mode kill step: the mafia team talks in its private sub-room.
+            if (player.team === 'mafia')
+                return { transmit: true };
+            return { transmit: false, reason: 'Silent phase.' };
+        case 'don_check':
         case 'sheriff_check':
         case 'revote':
         case 'double_elim_vote':

@@ -86,6 +86,43 @@ export async function sendMessage(conversationId, senderId, text, receiverId, op
     }
     return { id, conversationId, senderId, text, type, replyToId, createdAt: now, readAt: null };
 }
+/**
+ * Log a finished 1:1 call as a DM. `text` encodes "<kind>:<status>"
+ * (kind = audio|video, status = completed|missed|declined) and audio_duration
+ * carries the call length in seconds (reusing the voice column).
+ */
+export async function sendCallLog(conversationId, senderId, opts) {
+    const id = generateId();
+    const now = Date.now();
+    const duration = Math.max(0, Math.min(60 * 60 * 6, Math.floor(opts.duration || 0)));
+    const text = `${opts.kind}:${opts.status}`;
+    await sql `
+    INSERT INTO direct_messages (id, conversation_id, sender_id, text, type, audio_duration, created_at)
+    VALUES (${id}, ${conversationId}, ${senderId}, ${text}, 'call', ${duration}, ${now})
+  `;
+    const [conv] = await sql `SELECT * FROM conversations WHERE id = ${conversationId}`;
+    const isParticipant1 = conv.participant1 === senderId;
+    const isVideo = opts.kind === 'video';
+    const preview = opts.status === 'completed'
+        ? (isVideo ? '📹 ვიდეო ზარი' : '📞 აუდიო ზარი')
+        : (isVideo ? '📹 გამოტოვებული ვიდეო ზარი' : '📞 გამოტოვებული ზარი');
+    // A finished call is not "unread" for the participant who was in it — the
+    // caller already saw it. Only a missed/declined call marks the peer unread.
+    const markUnread = opts.status !== 'completed';
+    if (isParticipant1) {
+        if (markUnread)
+            await sql `UPDATE conversations SET last_message = ${preview}, last_message_at = ${now}, unread_by2 = 1 WHERE id = ${conversationId}`;
+        else
+            await sql `UPDATE conversations SET last_message = ${preview}, last_message_at = ${now} WHERE id = ${conversationId}`;
+    }
+    else {
+        if (markUnread)
+            await sql `UPDATE conversations SET last_message = ${preview}, last_message_at = ${now}, unread_by1 = 1 WHERE id = ${conversationId}`;
+        else
+            await sql `UPDATE conversations SET last_message = ${preview}, last_message_at = ${now} WHERE id = ${conversationId}`;
+    }
+    return { id, conversationId, senderId, text, type: 'call', audioDuration: duration, createdAt: now, readAt: null };
+}
 export async function sendVoiceDm(conversationId, senderId, audioData, audioDuration, receiverId) {
     const id = generateId();
     const now = Date.now();
@@ -159,7 +196,7 @@ export async function markViewOnceViewed(messageId, viewerId) {
     await sql `UPDATE direct_messages SET viewed_at = ${Date.now()} WHERE id = ${messageId}`;
     return true;
 }
-const DM_TYPES = ['text', 'voice', 'image', 'sticker', 'invite'];
+const DM_TYPES = ['text', 'voice', 'image', 'sticker', 'invite', 'call'];
 export async function getMessages(conversationId, viewerId, limit = 50) {
     const rows = await sql `
     SELECT * FROM direct_messages WHERE conversation_id = ${conversationId}

@@ -12,7 +12,7 @@ export interface Conversation {
     otherAvatar?: string;
     unreadCount?: number;
 }
-export type DmType = 'text' | 'voice' | 'image' | 'sticker' | 'invite';
+export type DmType = 'text' | 'voice' | 'image' | 'sticker' | 'invite' | 'call';
 export interface DirectMessage {
     id: string;
     conversationId: string;
@@ -33,6 +33,16 @@ export declare function listConversations(userId: string): Promise<any[]>;
 export declare function sendMessage(conversationId: string, senderId: string, text: string, receiverId: string, opts?: {
     type?: 'text' | 'sticker' | 'invite';
     replyToId?: string | null;
+}): Promise<DirectMessage>;
+/**
+ * Log a finished 1:1 call as a DM. `text` encodes "<kind>:<status>"
+ * (kind = audio|video, status = completed|missed|declined) and audio_duration
+ * carries the call length in seconds (reusing the voice column).
+ */
+export declare function sendCallLog(conversationId: string, senderId: string, opts: {
+    kind: 'audio' | 'video';
+    status: 'completed' | 'missed' | 'declined';
+    duration: number;
 }): Promise<DirectMessage>;
 export declare function sendVoiceDm(conversationId: string, senderId: string, audioData: string, audioDuration: number, receiverId: string): Promise<DirectMessage>;
 export declare function sendImageDm(conversationId: string, senderId: string, imageData: string, viewOnce?: boolean): Promise<DirectMessage>;
