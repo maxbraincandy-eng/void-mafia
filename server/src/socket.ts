@@ -2314,37 +2314,59 @@ export function attachSocketHandlers(io: AppServer): void {
     });
 
     // ── Kick Player ─────────────────────────────────────────────────
-    socket.on('room:kick', ({ playerId }, cb) => {
+    socket.on('room:kick', async ({ playerId }, cb) => {
       try {
         const room = getRoomFromSocket(socket);
-        const host = getPlayerOrError(socket, room);
-        if (!host.isHost) throw new Error('Only the host can kick players.');
-        if (room.phase !== 'lobby') throw new Error('Cannot kick during an active game.');
+        const actor = getPlayerOrError(socket, room);
+        // Moderators (mod/admin/owner) may kick anyone, at any time — even
+        // mid-game. The plain host is still limited to the lobby.
+        const pid = socket.data.profileId;
+        const modProfile = pid ? await getPlayer(pid) : null;
+        const isMod = !!modProfile && canDo(modProfile, 'kick');
+        if (!actor.isHost && !isMod) throw new Error('Only the host or a moderator can kick players.');
+        if (room.phase !== 'lobby' && !isMod) throw new Error('Cannot kick during an active game.');
 
         const target = room.players.get(playerId);
         if (!target) throw new Error('Player not found.');
-        if (target.id === host.id) throw new Error('Cannot kick yourself.');
+        if (target.id === actor.id) throw new Error('Cannot kick yourself.');
 
-        if (target.socketId) io.to(target.socketId).emit('kicked', { reason: 'You were removed by the host.' });
-        removePlayer(room, playerId);
-        broadcastSystemMsg(io, room, `${target.name} was removed from the room.`);
+        const byMod = isMod && !actor.isHost;
+        const label = byMod ? 'a moderator' : 'the host';
+        const targetSock = target.socketId ? io.sockets.sockets.get(target.socketId) : null;
+        targetSock?.emit('kicked', { reason: `You were removed by ${label}.` });
+
+        if (room.phase !== 'lobby' && targetSock) {
+          // Mid-game: route through the same safe teardown mods already use.
+          handleVoiceLeave(io, target.socketId);
+          handlePlayerLeave(io, targetSock as any, room.id, target.id);
+        } else {
+          removePlayer(room, playerId);
+        }
+        broadcastSystemMsg(io, room, `${target.name} was removed by ${label}.`);
         broadcastRoom(io, room);
+        if (byMod && modProfile) {
+          logKick(pid!, modProfile.username, target.profileId ?? '', target.name, room.id, 'In-game moderator kick').catch(() => {});
+        }
         cb(ok(null));
       } catch (e: any) { cb(err(e.message)); }
     });
 
-    // ── Warn Player (host only, announced to room) ───────────────────
-    socket.on('room:warn', ({ playerId }, cb) => {
+    // ── Warn Player (host OR moderator, announced to the whole room) ──
+    socket.on('room:warn', async ({ playerId }, cb) => {
       try {
         const room = getRoomFromSocket(socket);
-        const host = getPlayerOrError(socket, room);
-        if (!host.isHost) throw new Error('Only the host can warn players.');
+        const actor = getPlayerOrError(socket, room);
+        const pid = socket.data.profileId;
+        const modProfile = pid ? await getPlayer(pid) : null;
+        const isMod = !!modProfile && canDo(modProfile, 'warn');
+        if (!actor.isHost && !isMod) throw new Error('Only the host or a moderator can warn players.');
 
         const target = room.players.get(playerId);
         if (!target) throw new Error('Player not found.');
-        if (target.id === host.id) throw new Error('Cannot warn yourself.');
+        if (target.id === actor.id) throw new Error('Cannot warn yourself.');
 
-        broadcastSystemMsg(io, room, `⚠️ ${host.name} sent a warning to ${target.name}.`);
+        const who = (isMod && !actor.isHost) ? (modProfile?.username ?? actor.name) : actor.name;
+        broadcastSystemMsg(io, room, `⚠️ ${who} sent a warning to ${target.name}.`);
         cb(ok(null));
       } catch (e: any) { cb(err(e.message)); }
     });
