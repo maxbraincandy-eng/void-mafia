@@ -4847,8 +4847,11 @@ export function attachSocketHandlers(io: AppServer): void {
           requireInteraction: true,
           vibrate: [400, 200, 400, 200, 400],
         }).catch(() => {});
-        if (!delivered) { cb(err('User is offline.')); return; }
-        cb(ok({ roomId }));
+        // Even if no live socket received the ring (peer backgrounded on iOS),
+        // keep the call "ringing": the push wakes them and deliverPendingCall
+        // re-sends the ring the moment they reconnect. The caller still gets a
+        // roomId so an answer that arrives later can connect.
+        cb(ok({ roomId, delivered }));
       } catch (e: any) { cb(err(e.message)); }
     });
 
