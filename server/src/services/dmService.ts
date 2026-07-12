@@ -16,7 +16,7 @@ export interface Conversation {
   unreadCount?: number;
 }
 
-export type DmType = 'text' | 'voice' | 'image' | 'sticker' | 'invite';
+export type DmType = 'text' | 'voice' | 'image' | 'sticker' | 'invite' | 'call';
 
 export interface DirectMessage {
   id: string;
@@ -129,6 +129,42 @@ export async function sendMessage(
   return { id, conversationId, senderId, text, type, replyToId, createdAt: now, readAt: null };
 }
 
+/**
+ * Log a finished 1:1 call as a DM. `text` encodes "<kind>:<status>"
+ * (kind = audio|video, status = completed|missed|declined) and audio_duration
+ * carries the call length in seconds (reusing the voice column).
+ */
+export async function sendCallLog(
+  conversationId: string, senderId: string,
+  opts: { kind: 'audio' | 'video'; status: 'completed' | 'missed' | 'declined'; duration: number },
+): Promise<DirectMessage> {
+  const id = generateId();
+  const now = Date.now();
+  const duration = Math.max(0, Math.min(60 * 60 * 6, Math.floor(opts.duration || 0)));
+  const text = `${opts.kind}:${opts.status}`;
+  await sql`
+    INSERT INTO direct_messages (id, conversation_id, sender_id, text, type, audio_duration, created_at)
+    VALUES (${id}, ${conversationId}, ${senderId}, ${text}, 'call', ${duration}, ${now})
+  `;
+  const [conv] = await sql`SELECT * FROM conversations WHERE id = ${conversationId}` as any[];
+  const isParticipant1 = conv.participant1 === senderId;
+  const isVideo = opts.kind === 'video';
+  const preview = opts.status === 'completed'
+    ? (isVideo ? '📹 ვიდეო ზარი' : '📞 აუდიო ზარი')
+    : (isVideo ? '📹 გამოტოვებული ვიდეო ზარი' : '📞 გამოტოვებული ზარი');
+  // A finished call is not "unread" for the participant who was in it — the
+  // caller already saw it. Only a missed/declined call marks the peer unread.
+  const markUnread = opts.status !== 'completed';
+  if (isParticipant1) {
+    if (markUnread) await sql`UPDATE conversations SET last_message = ${preview}, last_message_at = ${now}, unread_by2 = 1 WHERE id = ${conversationId}`;
+    else await sql`UPDATE conversations SET last_message = ${preview}, last_message_at = ${now} WHERE id = ${conversationId}`;
+  } else {
+    if (markUnread) await sql`UPDATE conversations SET last_message = ${preview}, last_message_at = ${now}, unread_by1 = 1 WHERE id = ${conversationId}`;
+    else await sql`UPDATE conversations SET last_message = ${preview}, last_message_at = ${now} WHERE id = ${conversationId}`;
+  }
+  return { id, conversationId, senderId, text, type: 'call', audioDuration: duration, createdAt: now, readAt: null };
+}
+
 export async function sendVoiceDm(
   conversationId: string, senderId: string, audioData: string, audioDuration: number, receiverId: string,
 ): Promise<DirectMessage> {
@@ -203,7 +239,7 @@ export async function markViewOnceViewed(messageId: string, viewerId: string): P
   return true;
 }
 
-const DM_TYPES: DmType[] = ['text', 'voice', 'image', 'sticker', 'invite'];
+const DM_TYPES: DmType[] = ['text', 'voice', 'image', 'sticker', 'invite', 'call'];
 
 export async function getMessages(conversationId: string, viewerId?: string, limit = 50): Promise<DirectMessage[]> {
   const rows = await sql`

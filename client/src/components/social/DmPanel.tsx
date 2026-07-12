@@ -182,9 +182,37 @@ async function prepareDmImage(file: File, t: TFn): Promise<string> {
   return out;
 }
 
+function relTime(ts: number, t: TFn): string {
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 60) return t.dmPanel.presJustNow;
+  if (s < 3600) return `${Math.floor(s / 60)}m`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h`;
+  return `${Math.floor(s / 86400)}d`;
+}
+function presenceLabel(p: { status: string; lastSeenAt: number | null } | null, t: TFn): string | null {
+  if (!p) return null;
+  if (p.status === 'in_game' || p.status === 'spectating') return t.dmPanel.presInGame;
+  if (p.status === 'online' || p.status === 'in_lounge') return t.dmPanel.presOnline;
+  if (!p.lastSeenAt) return t.dmPanel.presOffline;
+  return t.dmPanel.presLastSeen.replace('{t}', relTime(p.lastSeenAt, t));
+}
+function presenceColor(p: { status: string; lastSeenAt: number | null } | null): string {
+  if (!p) return 'rgba(255,255,255,0.28)';
+  if (p.status === 'in_game' || p.status === 'spectating') return '#00e5ff';
+  if (p.status === 'online' || p.status === 'in_lounge') return '#4ade80';
+  return 'rgba(255,255,255,0.28)';
+}
+
 function previewOf(msg: DirectMessage, t: TFn): string {
   const body = msg.text ?? '';
   if (msg.type === 'voice' || body.startsWith('data:audio')) return t.dmPanel.voiceMessage;
+  if (msg.type === 'call') {
+    const [kind, status] = body.split(':');
+    const icon = kind === 'video' ? '📹' : '📞';
+    return status === 'completed'
+      ? `${icon} ${kind === 'video' ? t.dmPanel.callVideo : t.dmPanel.callAudio}`
+      : `${icon} ${t.dmPanel.callMissed}`;
+  }
   if (msg.type === 'sticker') return `${stickerByKey(body)?.emoji ?? '🎭'} ${t.dmPanel.sticker}`;
   if (msg.type === 'invite') return t.dmPanel.gameInvitePreview;
   if (msg.viewOnce) return t.dmPanel.viewOncePhoto;
@@ -424,6 +452,7 @@ export function DmPanel() {
   const [activeAvatar, setActiveAvatar] = useState('');
   const [activeAvatarUrl, setActiveAvatarUrl] = useState<string | null>(null);
   const [activeOtherProfileId, setActiveOtherProfileId] = useState<string | null>(null);
+  const [peerPresence, setPeerPresence] = useState<{ status: string; lastSeenAt: number | null } | null>(null);
   const [messages, setMessages] = useState<DirectMessage[]>([]);
   const [loadingConvs, setLoadingConvs] = useState(false);
   const [loadingMsgs, setLoadingMsgs] = useState(false);
@@ -721,6 +750,36 @@ export function DmPanel() {
     return () => { socket.off('dm:new_message', handler); };
   }, [dmPanelOpen, activeConvId, refreshUnreadCount, loadConversations, t]);
 
+  // Silent call-log echo (no toast, no unread) — for the caller and, on a
+  // completed call, both participants who were already in it.
+  useEffect(() => {
+    if (!dmPanelOpen) return;
+    const handler = ({ conversationId: convId, message }: { conversationId: string; message: DirectMessage }) => {
+      if (convId === activeConvId) {
+        setMessages(prev => prev.some(m => m.id === message.id) ? prev : [...prev, message]);
+      }
+      setConversations(prev => prev.map(c => c.id === convId
+        ? { ...c, lastMessage: previewOf(message, t), lastMessageAt: message.createdAt }
+        : c));
+    };
+    socket.on('dm:call_logged', handler);
+    return () => { socket.off('dm:call_logged', handler); };
+  }, [dmPanelOpen, activeConvId, t]);
+
+  // Peer presence (online / in-game / last-seen) for the conversation header.
+  useEffect(() => {
+    if (!dmPanelOpen || !activeOtherProfileId) { setPeerPresence(null); return; }
+    let alive = true;
+    const fetchPresence = () => {
+      emitWithAck<{ profileId: string }, Res<{ status: string; lastSeenAt: number | null }>>(
+        'presence:get', { profileId: activeOtherProfileId },
+      ).then(res => { if (alive && res.ok) setPeerPresence(res.data); }).catch(() => {});
+    };
+    fetchPresence();
+    const id = window.setInterval(fetchPresence, 20000);
+    return () => { alive = false; clearInterval(id); };
+  }, [dmPanelOpen, activeOtherProfileId]);
+
   // Typing indicator (peer → me)
   useEffect(() => {
     if (!dmPanelOpen) return;
@@ -923,8 +982,8 @@ export function DmPanel() {
                     <span className="font-display font-bold text-sm text-white tracking-wide truncate block leading-tight">
                       {activeUsername}
                     </span>
-                    <span className="font-mono text-[10px] leading-tight block" style={{ color: otherTyping ? '#4ade80' : 'rgba(255,255,255,0.28)' }}>
-                      {otherTyping ? t.dmPanel.typing : t.dmPanel.viewProfile}
+                    <span className="font-mono text-[10px] leading-tight block" style={{ color: otherTyping ? '#4ade80' : presenceColor(peerPresence) }}>
+                      {otherTyping ? t.dmPanel.typing : (presenceLabel(peerPresence, t) ?? t.dmPanel.viewProfile)}
                     </span>
                   </button>
                 ) : (
@@ -1211,7 +1270,29 @@ export function DmPanel() {
 
                               {msg.type === 'voice' ? (
                                 <VoiceMessageBubble msg={msg} isMe={isMe} />
-                              ) : msg.type === 'sticker' ? (
+                              ) : msg.type === 'call' ? (() => {
+                                const [kind, status] = (msg.text || 'audio:completed').split(':');
+                                const secs = msg.audioDuration ?? 0;
+                                const dur = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+                                const missedIn = status !== 'completed' && !isMe;
+                                const label = status === 'completed' ? dur
+                                  : status === 'declined' ? (isMe ? t.dmPanel.callDeclined : t.dmPanel.callMissed)
+                                  : (isMe ? t.dmPanel.callNoAnswer : t.dmPanel.callMissed);
+                                return (
+                                  <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-[18px]"
+                                    style={isMe ? { background: MY_BUBBLE_BG } : { background: THEIR_BUBBLE_BG, border: '1px solid rgba(255,255,255,0.08)' }}>
+                                    <span className="text-lg" style={{ filter: missedIn ? 'none' : undefined }}>{kind === 'video' ? '📹' : '📞'}</span>
+                                    <div className="flex flex-col leading-tight">
+                                      <span className="text-[12.5px] font-mono font-bold" style={{ color: missedIn ? '#ff6b6b' : '#fff' }}>
+                                        {kind === 'video' ? t.dmPanel.callVideo : t.dmPanel.callAudio}
+                                      </span>
+                                      <span className="text-[11px] font-mono" style={{ color: missedIn ? 'rgba(255,107,107,0.85)' : 'rgba(255,255,255,0.5)' }}>
+                                        {isMe ? '↗' : '↙'} {label}
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              })() : msg.type === 'sticker' ? (
                                 <div className="flex flex-col items-center px-2 py-1">
                                   <span style={{ fontSize: 54, lineHeight: 1.1, filter: 'drop-shadow(0 0 12px rgba(155,0,255,0.55))' }}>
                                     {stickerByKey(msg.text)?.emoji ?? '🎭'}

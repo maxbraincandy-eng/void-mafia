@@ -675,7 +675,7 @@ export interface DirectMessage {
   conversationId: string;
   senderId: string;
   text: string;
-  type?: 'text' | 'voice' | 'image' | 'sticker' | 'invite';
+  type?: 'text' | 'voice' | 'image' | 'sticker' | 'invite' | 'call';
   audioDuration?: number;
   replyToId?: string | null;
   viewOnce?: boolean;

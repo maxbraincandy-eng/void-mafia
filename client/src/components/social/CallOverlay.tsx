@@ -77,12 +77,34 @@ export function CallOverlay() {
   const lk = getLiveKitState();
 
   const invitedRef = useRef(false);
+  const wasCallerRef = useRef(false);
+  const connectedRef = useRef(false);
+  const loggedRef = useRef(false);
+  const durationRef = useRef(0);
   const [callSecs, setCallSecs] = useState(0);
+
+  // ── Log the finished call as a DM (only the caller reports the outcome) ──
+  const logCall = useCallback((logStatus: 'completed' | 'missed' | 'declined') => {
+    if (!wasCallerRef.current || loggedRef.current) return;
+    const st = useCallStore.getState();
+    if (!st.conversationId) return;
+    loggedRef.current = true;
+    socket.emit('dm:call_log' as any, {
+      conversationId: st.conversationId,
+      kind: st.video ? 'video' : 'audio',
+      status: logStatus,
+      duration: logStatus === 'completed' ? durationRef.current : 0,
+    });
+  }, []);
 
   // ── End the call locally (and free media) ──
   const endLocal = useCallback(() => {
     stopRingtone();
     invitedRef.current = false;
+    wasCallerRef.current = false;
+    connectedRef.current = false;
+    loggedRef.current = false;
+    durationRef.current = 0;
     leaveLiveKitVoice().catch(() => {});
     reset();
   }, [reset]);
@@ -95,6 +117,7 @@ export function CallOverlay() {
       await joinLiveKitVoice(myId, rid, { alive: true });
       await startLiveKitAudio().catch(() => {});
       if (wantVideo) await setLiveKitCamera(true).catch(() => {});
+      connectedRef.current = true;
       markConnected();
     } catch {
       addToast(t.dmPanel.callEnded, 'error');
@@ -106,6 +129,7 @@ export function CallOverlay() {
   useEffect(() => {
     if (status !== 'outgoing' || invitedRef.current || !conversationId) return;
     invitedRef.current = true;
+    wasCallerRef.current = true;
     startRingtone();
     emitWithAck<{ conversationId: string; video: boolean }, Res<{ roomId: string }>>(
       'dm:call_invite', { conversationId, video },
@@ -125,7 +149,7 @@ export function CallOverlay() {
   // ── Call duration timer ──
   useEffect(() => {
     if (status !== 'connected') { setCallSecs(0); return; }
-    const id = window.setInterval(() => setCallSecs(s => s + 1), 1000);
+    const id = window.setInterval(() => setCallSecs(s => { durationRef.current = s + 1; return s + 1; }), 1000);
     return () => clearInterval(id);
   }, [status]);
 
@@ -151,11 +175,12 @@ export function CallOverlay() {
       const st = useCallStore.getState();
       if (st.status !== 'outgoing' || st.roomId !== p.roomId) return;
       if (p.accept) beginConnected(p.roomId, st.video);
-      else { addToast(t.dmPanel.callDeclined, 'info'); endLocal(); }
+      else { addToast(t.dmPanel.callDeclined, 'info'); logCall('declined'); endLocal(); }
     };
     const onClosed = (p: { roomId: string }) => {
       const st = useCallStore.getState();
       if (st.roomId && st.roomId !== p.roomId) return;
+      if (connectedRef.current) logCall('completed');
       endLocal();
     };
     socket.on('dm:call_ring' as any, onRing);
@@ -166,7 +191,7 @@ export function CallOverlay() {
       socket.off('dm:call_answered' as any, onAnswered);
       socket.off('dm:call_closed' as any, onClosed);
     };
-  }, [startIncoming, beginConnected, endLocal, addToast, t]);
+  }, [startIncoming, beginConnected, endLocal, addToast, t, logCall]);
 
   // ── Button actions ──
   const accept = () => {
@@ -179,6 +204,8 @@ export function CallOverlay() {
     endLocal();
   };
   const hangup = () => {
+    if (connectedRef.current) logCall('completed');
+    else if (wasCallerRef.current) logCall('missed'); // caller canceled while ringing
     if (conversationId && roomId) socket.emit('dm:call_close' as any, { conversationId, roomId });
     endLocal();
   };

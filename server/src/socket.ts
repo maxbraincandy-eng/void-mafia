@@ -43,7 +43,7 @@ import {
 import {
   markOnline, markOffline, sendFriendRequest, acceptFriend, declineFriend,
   removeFriend, getFriends, getInvitablePeople, getPendingRequests, getOnlineCount, getFriendshipStatus, isOnline, getSpectatingCount,
-  setLoungePresence, clearLoungePresence, getFriendIds,
+  setLoungePresence, clearLoungePresence, getFriendIds, getPlayerStatus,
   setInvisible, isInvisible, setGhost, isGhost, getPeakOnline, getOnlineCountRaw,
   getFriendSuggestions,
 } from './services/friendService.js';
@@ -80,7 +80,7 @@ import bcrypt from 'bcryptjs';
 import { sendPushToUser } from './pushService.js';
 import {
   getOrCreateConversation, listConversations, sendMessage, sendVoiceDm, sendImageDm, getMessages, markRead, getTotalUnread,
-  toggleDmReaction, markViewOnceViewed, deleteConversationForUser,
+  toggleDmReaction, markViewOnceViewed, deleteConversationForUser, sendCallLog,
 } from './services/dmService.js';
 import {
   getCoins, claimDailyReward, grantCoins, deductCoins, refundGift,
@@ -4832,6 +4832,51 @@ export function attachSocketHandlers(io: AppServer): void {
       } catch { /* ignore */ }
     });
 
+    // Persist a finished call as a DM (the caller reports the outcome).
+    socket.on('dm:call_log' as any, async (
+      { conversationId, kind, status, duration }:
+      { conversationId: string; kind: 'audio' | 'video'; status: 'completed' | 'missed' | 'declined'; duration: number },
+      cb?: any,
+    ) => {
+      try {
+        const selfId = socket.data.profileId;
+        if (!selfId) return;
+        const peerId = await callPeerOf(conversationId, selfId);
+        const k = kind === 'video' ? 'video' : 'audio';
+        const s = status === 'missed' || status === 'declined' ? status : 'completed';
+        const msg = await sendCallLog(conversationId, selfId, { kind: k, status: s, duration });
+        const me = await getPlayer(selfId);
+        // Caller gets a silent echo so their open chat updates without a toast.
+        socket.emit('dm:call_logged' as any, { conversationId, message: msg });
+        const peerSock = findSocketByProfile(io, peerId);
+        if (s === 'completed') {
+          // Both were present — silent update, no toast/unread nag.
+          peerSock?.emit('dm:call_logged', { conversationId, message: msg });
+        } else {
+          // Missed / declined — a real notification for the peer.
+          peerSock?.emit('dm:new_message', {
+            conversationId, message: msg,
+            senderUsername: me?.username ?? 'Unknown', senderAvatar: me?.avatar ?? '?',
+          });
+        }
+        cb?.(ok(msg));
+      } catch (e: any) { cb?.(err(e.message)); }
+    });
+
+    // Presence for the DM header: online / in-game / last-seen.
+    socket.on('presence:get' as any, async ({ profileId }: { profileId: string }, cb: any) => {
+      try {
+        if (!profileId) throw new Error('Missing profileId.');
+        const status = getPlayerStatus(profileId);
+        let lastSeenAt: number | null = null;
+        if (status === 'offline') {
+          const p = await getPlayer(profileId);
+          lastSeenAt = p?.lastSeenAt ?? null;
+        }
+        cb(ok({ status, lastSeenAt }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
     socket.on('dm:voice', async (data: { conversationId: string; audioData: string; duration: number }, cb: any) => {
       try {
         const senderId = socket.data.profileId;
@@ -8248,6 +8293,8 @@ export function attachSocketHandlers(io: AppServer): void {
       const { roomId, playerId, profileId } = socket.data;
       if (profileId) {
         markOffline(profileId);
+        // Stamp last-seen so the DM header can show "last seen …" accurately.
+        sql`UPDATE players SET last_seen_at = ${Date.now()} WHERE id = ${profileId}`.catch(() => {});
         broadcastOnlineCount(io);
         if (activeSessions.get(profileId) === socket.id) activeSessions.delete(profileId);
         chatCooldowns.delete(profileId);
