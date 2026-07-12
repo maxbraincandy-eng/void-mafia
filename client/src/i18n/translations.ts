@@ -1443,7 +1443,7 @@ export const TRANSLATIONS = {
       "styleDon": "Sports",
       "styleDonDesc": "10 players · competitive ruleset",
       "styleLabel": "Style",
-      "tempUnavailable": "Temporarily unavailable",
+      "tempUnavailable": "Coming soon",
       "comingSoon": "Coming soon",
       "imageReadFailed": "Could not read the image.",
       "uploadRetry": "Upload failed, try again."
@@ -3552,7 +3552,7 @@ export const TRANSLATIONS = {
       "styleDon": "სპორტული",
       "styleDonDesc": "10 მოთამაშე · სპორტული წესები",
       "styleLabel": "სტილი",
-      "tempUnavailable": "დროებით არ მუშაობს",
+      "tempUnavailable": "მალე დაემატება",
       "comingSoon": "მალე დაემატება",
       "imageReadFailed": "სურათის წაკითხვა ვერ მოხერხდა.",
       "uploadRetry": "ატვირთვა ვერ მოხერხდა, სცადე ხელახლა."
@@ -5660,7 +5660,7 @@ export const TRANSLATIONS = {
       "styleDon": "Спортивный",
       "styleDonDesc": "10 игроков · спортивные правила",
       "styleLabel": "Стиль",
-      "tempUnavailable": "Временно недоступно",
+      "tempUnavailable": "Скоро",
       "comingSoon": "Скоро",
       "imageReadFailed": "Не удалось прочитать изображение.",
       "uploadRetry": "Не удалось загрузить, попробуй снова."

@@ -425,28 +425,32 @@ export function RoomsPage() {
                 ))}
               </div>
 
-              {/* Style selector — Classic (free roles) or Sports (competitive ruleset) */}
+              {/* Style selector — Sports is temporarily locked (coming soon) */}
               <p className="text-[12px] font-mono text-white/28 uppercase tracking-widest mb-2 mt-1">{t.misc.styleLabel}</p>
               <div className="grid grid-cols-2 gap-2 mb-5">
                 {(['classic', 'don'] as GameStyle[]).map(id => {
                   const m = STYLE_META[id];
-                  const selected = style === id;
+                  const locked = id === 'don';
+                  const selected = style === id && !locked;
                   return (
                     <button
                       key={id}
                       type="button"
-                      onClick={() => setStyle(id)}
-                      className="py-3 px-3 rounded-xl border text-left transition-all"
-                      style={selected
-                        ? { borderColor: 'rgba(255,215,0,0.35)', background: 'rgba(255,215,0,0.05)' }
-                        : { borderColor: 'rgba(255,255,255,0.06)' }}
+                      disabled={locked}
+                      onClick={() => !locked && setStyle(id)}
+                      className="py-3 px-3 rounded-xl border text-left transition-all disabled:cursor-not-allowed"
+                      style={locked
+                        ? { borderColor: 'rgba(255,255,255,0.05)', opacity: 0.5 }
+                        : selected
+                          ? { borderColor: 'rgba(255,215,0,0.35)', background: 'rgba(255,215,0,0.05)' }
+                          : { borderColor: 'rgba(255,255,255,0.06)' }}
                     >
                       <p className="text-xs font-mono font-bold flex items-center gap-1.5"
-                        style={{ color: selected ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.3)' }}>
-                        <span>{m.icon}</span>{m.label}
+                        style={{ color: locked ? 'rgba(255,255,255,0.3)' : selected ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.3)' }}>
+                        <span>{m.icon}</span>{m.label}{locked && ' 🔒'}
                       </p>
-                      <p className="text-[12px] font-mono mt-0.5" style={{ color: selected ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.22)' }}>
-                        {m.desc}
+                      <p className="text-[12px] font-mono mt-0.5" style={{ color: locked ? 'rgba(255,180,80,0.55)' : selected ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.22)' }}>
+                        {locked ? t.misc.tempUnavailable : m.desc}
                       </p>
                     </button>
                   );

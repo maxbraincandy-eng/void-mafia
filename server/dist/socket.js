@@ -1974,11 +1974,11 @@ export function attachSocketHandlers(io) {
                     if (clanMembership)
                         clanId = clanMembership.id;
                 }
-                // Sports (donMode) rooms lock to the fixed 10-role competitive deck;
-                // classic rooms use the editable role composition.
-                const reqSettings = { ...parsed.settings };
-                if (reqSettings.donMode)
-                    reqSettings.minPlayers = 10;
+                // Sports (donMode) is temporarily locked while under repair — force
+                // every new table to classic regardless of what the client requests.
+                // (Flip this back to `if (reqSettings.donMode) reqSettings.minPlayers = 10`
+                // to re-enable Sports; the whole engine is intact behind donMode.)
+                const reqSettings = { ...parsed.settings, donMode: false };
                 const room = createRoom(socket.id, username, profileId, reqSettings, clanId, parsed.roomName);
                 const hostInRoom = [...room.players.values()][0];
                 if (hostInRoom && playerProfile?.avatarUrl)
