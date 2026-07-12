@@ -495,6 +495,46 @@ function buildMusicBuffer(ctx: AudioContext): AudioBuffer {
   return buf;
 }
 
+// ── Call ringtone ─────────────────────────────────────────────────────
+// A classic double-ring that loops until stopped. Routes straight to
+// _master (bypassing the muffled 400 Hz SFX low-pass) so it sounds like a
+// real phone ring, and reuses the app's already-unlocked AudioContext — so
+// it plays on an incoming call without needing a fresh user gesture.
+let _ringInterval: number | null = null;
+function ringBurst(ctx: AudioContext, dest: AudioNode) {
+  const now = ctx.currentTime;
+  const tone = (start: number, dur: number) => {
+    const o1 = ctx.createOscillator();
+    const o2 = ctx.createOscillator();
+    const g = ctx.createGain();
+    o1.type = 'sine'; o2.type = 'sine';
+    o1.frequency.value = 440; o2.frequency.value = 480; // warble = phone ring
+    g.gain.setValueAtTime(0.0001, now + start);
+    g.gain.exponentialRampToValueAtTime(0.20, now + start + 0.04);
+    g.gain.setValueAtTime(0.20, now + start + dur - 0.06);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + start + dur);
+    o1.connect(g); o2.connect(g); g.connect(dest);
+    o1.start(now + start); o2.start(now + start);
+    o1.stop(now + start + dur + 0.05); o2.stop(now + start + dur + 0.05);
+  };
+  tone(0, 0.4);
+  tone(0.6, 0.4);
+}
+export function startCallRingtone(): void {
+  stopCallRingtone();
+  resume().then(() => {
+    if (!_ctx || !_master) return;
+    if (!useSettingsStore.getState().sfxEnabled) return;
+    ringBurst(_ctx, _master);
+    _ringInterval = window.setInterval(() => {
+      if (_ctx && _master) ringBurst(_ctx, _master);
+    }, 3000);
+  }).catch(() => {});
+}
+export function stopCallRingtone(): void {
+  if (_ringInterval !== null) { clearInterval(_ringInterval); _ringInterval = null; }
+}
+
 export function startMenuMusic() {
   if (_musicRunning) return;
   if (!useSettingsStore.getState().musicEnabled) return;

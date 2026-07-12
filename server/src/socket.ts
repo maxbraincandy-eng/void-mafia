@@ -190,6 +190,26 @@ function chatRateOk(key: string, text: string): { ok: boolean; error?: string } 
 // ── Session concurrency (one active socket per profile) ───────────────
 const activeSessions = new Map<string, string>(); // profileId → socketId
 
+// Pending incoming 1:1 calls, keyed by the callee's profileId. Lets a phone
+// that briefly dropped its socket (iOS backgrounding) get the ring re-delivered
+// the instant it reconnects/re-auths, within the ring window.
+interface PendingCall {
+  callerId: string; conversationId: string; roomId: string; video: boolean;
+  fromUsername: string; fromAvatar: string; fromAvatarUrl: string | null; at: number;
+}
+const pendingCalls = new Map<string, PendingCall>();
+const PENDING_CALL_TTL = 40000;
+function deliverPendingCall(socket: import('socket.io').Socket, profileId: string): void {
+  const pc = pendingCalls.get(profileId);
+  if (!pc) return;
+  if (Date.now() - pc.at > PENDING_CALL_TTL) { pendingCalls.delete(profileId); return; }
+  socket.emit('dm:call_ring' as any, {
+    roomId: pc.roomId, conversationId: pc.conversationId, video: pc.video,
+    fromProfileId: pc.callerId, fromUsername: pc.fromUsername,
+    fromAvatar: pc.fromAvatar, fromAvatarUrl: pc.fromAvatarUrl,
+  });
+}
+
 function enforceSessionUniqueness(io: AppServer, profileId: string, newSocketId: string): void {
   const existing = activeSessions.get(profileId);
   if (existing && existing !== newSocketId) {
@@ -1781,6 +1801,7 @@ export function attachSocketHandlers(io: AppServer): void {
         socket.data.profileId = parsed.uid;
         enforceSessionUniqueness(io, parsed.uid, socket.id);
         markOnline(parsed.uid);
+        deliverPendingCall(socket, parsed.uid);
         broadcastOnlineCount(io);
         if (maintenanceMode) socket.emit('maintenance:status', { enabled: true }); // surface banner to fresh connections
         await grantStarterCosmetics(parsed.uid);
@@ -1813,6 +1834,7 @@ export function attachSocketHandlers(io: AppServer): void {
         socket.data.profileId = profile.id;
         enforceSessionUniqueness(io, profile.id, socket.id);
         markOnline(profile.id);
+        deliverPendingCall(socket, profile.id);
         broadcastOnlineCount(io);
         socket.emit('player:profile', toPublicProfile(profile));
         cb(ok({ uid: profile.id, profile: toPublicProfile(profile) }));
@@ -1838,6 +1860,7 @@ export function attachSocketHandlers(io: AppServer): void {
         socket.data.profileId = profile.id;
         enforceSessionUniqueness(io, profile.id, socket.id);
         markOnline(profile.id);
+        deliverPendingCall(socket, profile.id);
         broadcastOnlineCount(io);
         socket.emit('player:profile', toPublicProfile(profile));
         cb(ok({ uid: profile.id, profile: toPublicProfile(profile) }));
@@ -4809,11 +4832,20 @@ export function attachSocketHandlers(io: AppServer): void {
             delivered++;
           }
         }
+        // Remember the ring so a phone that reconnects mid-ring gets it re-sent.
+        pendingCalls.set(peerId, {
+          callerId: selfId, conversationId, roomId, video: !!video,
+          fromUsername: me?.username ?? 'Unknown', fromAvatar: me?.avatar ?? '?',
+          fromAvatarUrl: me?.avatarUrl ?? null, at: Date.now(),
+        });
         // Always push too — iOS Safari suspends the socket when the screen locks
         // or the tab backgrounds, so the in-app ring alone is unreliable there.
         sendPushToUser(peerId, {
           title: `📞 ${me?.username ?? 'Someone'}`,
           body: video ? 'Video call' : 'Audio call',
+          tag: 'vm-call',
+          requireInteraction: true,
+          vibrate: [400, 200, 400, 200, 400],
         }).catch(() => {});
         if (!delivered) { cb(err('User is offline.')); return; }
         cb(ok({ roomId }));
@@ -4824,6 +4856,7 @@ export function attachSocketHandlers(io: AppServer): void {
       try {
         const selfId = socket.data.profileId;
         if (!selfId) return;
+        pendingCalls.delete(selfId); // callee responded — stop re-ringing
         const peerId = await callPeerOf(conversationId, selfId);
         findSocketByProfile(io, peerId)?.emit('dm:call_answered', { roomId, accept: !!accept });
       } catch { /* ignore */ }
@@ -4834,6 +4867,8 @@ export function attachSocketHandlers(io: AppServer): void {
         const selfId = socket.data.profileId;
         if (!selfId) return;
         const peerId = await callPeerOf(conversationId, selfId);
+        pendingCalls.delete(peerId); // caller hung up / cancelled — clear the ring
+        pendingCalls.delete(selfId);
         findSocketByProfile(io, peerId)?.emit('dm:call_closed', { roomId });
       } catch { /* ignore */ }
     });

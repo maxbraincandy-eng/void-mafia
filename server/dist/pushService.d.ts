@@ -4,5 +4,8 @@ export declare function sendPushToUser(userId: string, payload: {
     title: string;
     body: string;
     icon?: string;
+    tag?: string;
+    requireInteraction?: boolean;
+    vibrate?: number[];
 }): Promise<void>;
 //# sourceMappingURL=pushService.d.ts.map

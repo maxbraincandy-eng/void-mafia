@@ -37,7 +37,7 @@ export function getVapidPublicKey(): string {
 
 export async function sendPushToUser(
   userId: string,
-  payload: { title: string; body: string; icon?: string },
+  payload: { title: string; body: string; icon?: string; tag?: string; requireInteraction?: boolean; vibrate?: number[] },
 ): Promise<void> {
   if (!_publicKey) return;
   const subs = await sql`

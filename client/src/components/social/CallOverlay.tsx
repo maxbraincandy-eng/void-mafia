@@ -11,40 +11,17 @@ import {
   toggleLiveKitMic, toggleLiveKitCamera, setLiveKitCamera, setLiveKitMic,
   subscribeLiveKit, getLiveKitState, getLiveKitRemoteVideo, getLiveKitLocalVideo,
 } from '@/services/livekitVoice';
+import { startCallRingtone, stopCallRingtone } from '@/lib/audioEngine';
 
 type Res<T> = { ok: true; data: T } | { ok: false; error: string };
 
-// ── Ringtone (WebAudio, no asset) ──────────────────────────────────────
-let _ringCtx: AudioContext | null = null;
-let _ringTimer: number | null = null;
-function startRingtone() {
-  stopRingtone();
-  try {
-    const Ctx = window.AudioContext || (window as any).webkitAudioContext;
-    if (!Ctx) return;
-    _ringCtx = _ringCtx || new Ctx();
-    const ctx = _ringCtx;
-    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
-    const beep = () => {
-      if (!_ringCtx) return;
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.type = 'sine';
-      o.frequency.value = 480;
-      g.gain.setValueAtTime(0.0001, ctx.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.13, ctx.currentTime + 0.05);
-      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.5);
-      o.connect(g).connect(ctx.destination);
-      o.start();
-      o.stop(ctx.currentTime + 0.55);
-    };
-    beep();
-    _ringTimer = window.setInterval(beep, 2400);
-  } catch { /* ignore */ }
-}
-function stopRingtone() {
-  if (_ringTimer !== null) { clearInterval(_ringTimer); _ringTimer = null; }
-}
+// Ringtone uses the app's shared (already-unlocked) AudioContext so it plays
+// on an incoming call without a fresh gesture.
+const startRingtone = startCallRingtone;
+const stopRingtone = stopCallRingtone;
+
+// Auto-give-up on an unanswered outgoing call after this long.
+const RING_TIMEOUT_MS = 35000;
 
 // ── Remote / local video tiles ─────────────────────────────────────────
 function VideoTile({ stream, mirror, className }: { stream: MediaStream | null; mirror?: boolean; className?: string }) {
@@ -140,11 +117,29 @@ export function CallOverlay() {
     }).catch(() => { addToast(t.dmPanel.callOffline, 'error'); endLocal(); });
   }, [status, conversationId, video, setRoomId, addToast, t, endLocal]);
 
-  // ── Incoming ring plays a tone ──
+  // ── Incoming ring plays a tone (+ repeating buzz on mobile) ──
   useEffect(() => {
-    if (status === 'incoming') { startRingtone(); navigator.vibrate?.([300, 200, 300]); }
-    else if (status === 'connected' || status === 'idle') stopRingtone();
+    if (status === 'incoming') {
+      startRingtone();
+      const buzz = () => navigator.vibrate?.([400, 250, 400]);
+      buzz();
+      const id = window.setInterval(buzz, 2000);
+      return () => clearInterval(id);
+    }
+    if (status === 'connected' || status === 'idle') stopRingtone();
   }, [status]);
+
+  // ── Give up on an unanswered outgoing call ──
+  useEffect(() => {
+    if (status !== 'outgoing') return;
+    const id = window.setTimeout(() => {
+      logCall('missed');
+      const st = useCallStore.getState();
+      if (st.conversationId && st.roomId) socket.emit('dm:call_close' as any, { conversationId: st.conversationId, roomId: st.roomId });
+      endLocal();
+    }, RING_TIMEOUT_MS);
+    return () => clearTimeout(id);
+  }, [status, logCall, endLocal]);
 
   // ── Call duration timer ──
   useEffect(() => {

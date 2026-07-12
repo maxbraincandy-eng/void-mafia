@@ -1,5 +1,5 @@
-// v8 — loop-safe, no navigate, no fetch intercept
-const CACHE_VERSION = 'vm-v8';
+// v9 — loop-safe, no navigate, no fetch intercept; richer call notifications
+const CACHE_VERSION = 'vm-v9';
 
 self.addEventListener('install', e => {
   self.skipWaiting();
@@ -22,8 +22,11 @@ self.addEventListener('push', e => {
       body: data.body || '',
       icon: data.icon || '/icon-192.png',
       badge: '/icon-192.png',
-      vibrate: [150, 80, 150],
-      data: { url: '/' },
+      vibrate: data.vibrate || [150, 80, 150],
+      tag: data.tag,
+      renotify: !!data.tag,
+      requireInteraction: !!data.requireInteraction,
+      data: { url: data.url || '/' },
     })
   );
 });
