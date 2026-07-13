@@ -20,8 +20,9 @@ export function createHermesRouter() {
                 openrouterKey: !!process.env.OPENROUTER_API_KEY,
                 openaiKey: !!process.env.OPENAI_API_KEY,
                 geminiKey: !!process.env.GEMINI_API_KEY,
+                groqKey: !!process.env.GROQ_API_KEY,
                 hermesEnabledFlag: process.env.HERMES_ENABLED ?? null,
-                model: process.env.GEMINI_MODEL ?? process.env.OPENROUTER_MODEL ?? process.env.OPENAI_MODEL ?? null,
+                model: process.env.GROQ_MODEL ?? process.env.GEMINI_MODEL ?? process.env.OPENROUTER_MODEL ?? process.env.OPENAI_MODEL ?? null,
             },
         });
     });
@@ -61,6 +62,28 @@ export function createHermesRouter() {
         const { default: OpenAI } = await import('openai');
         const client = new OpenAI({ apiKey: key, baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/' });
         const models = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.0-flash-exp', 'gemini-2.5-flash', 'gemini-1.5-flash-8b', 'gemini-flash-latest'];
+        const results = [];
+        for (const m of models) {
+            try {
+                const r = await client.chat.completions.create({ model: m, messages: [{ role: 'user', content: 'თქვი ერთი მოკლე ქართული წინადადება მაფიის თამაშიდან.' }], max_tokens: 60 });
+                results.push({ model: m, ok: true, reply: r.choices[0]?.message?.content?.trim() });
+            }
+            catch (e) {
+                results.push({ model: m, ok: false, error: (e?.status ?? '') + ' ' + (e?.message ?? '').slice(0, 90) });
+            }
+        }
+        res.json({ ok: true, results });
+    });
+    // ── GET /api/hermes/probe-groq — which Groq models work for this key ──
+    router.get('/probe-groq', async (_req, res) => {
+        const key = process.env.GROQ_API_KEY;
+        if (!key) {
+            res.json({ ok: false, error: 'GROQ_API_KEY not set' });
+            return;
+        }
+        const { default: OpenAI } = await import('openai');
+        const client = new OpenAI({ apiKey: key, baseURL: 'https://api.groq.com/openai/v1' });
+        const models = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'llama3-70b-8192', 'gemma2-9b-it'];
         const results = [];
         for (const m of models) {
             try {

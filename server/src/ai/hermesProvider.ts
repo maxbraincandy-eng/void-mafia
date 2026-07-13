@@ -44,6 +44,11 @@ export async function initAIProvider(): Promise<AIProvider | null> {
       const { GeminiProvider } = await import('./geminiProvider.js');
       _cachedProvider = new GeminiProvider();
       console.log('[Hermes] Gemini provider ready');
+    } else if (providerName === 'groq') {
+      if (!process.env.GROQ_API_KEY) { console.warn('[Hermes] GROQ_API_KEY not set — Hermes disabled'); _cachedProvider = null; return null; }
+      const { GroqProvider } = await import('./groqProvider.js');
+      _cachedProvider = new GroqProvider();
+      console.log('[Hermes] Groq provider ready');
     } else {
       console.warn(`[Hermes] Unknown AI_PROVIDER "${providerName}" — Hermes disabled`);
       _cachedProvider = null;
