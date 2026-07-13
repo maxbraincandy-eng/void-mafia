@@ -82,6 +82,8 @@ export class WorldEngine {
 
   // adaptive perf + quality
   private perfAccum = 0; private perfFrames = 0; private curPR = 1;
+  private isMobile = false;
+  private targetFPS = 60;
   private quality: QualityMode = 'auto';
   private shadowsForced: boolean | null = null;
   private worldPerf = { reduced: false };
@@ -96,12 +98,19 @@ export class WorldEngine {
     this.canvas = canvas;
     this.def = def;
 
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: true });
-    this.curPR = Math.min(window.devicePixelRatio || 1, 1.5);
+    // Thermal budget: phones (esp. 120 Hz ProMotion) cook when rendering an
+    // uncapped, MSAA'd, high-DPR scene. On mobile we drop MSAA, cap the pixel
+    // ratio harder, use a cheaper shadow filter, and the render loop is capped
+    // to ~60 fps (see start()). preserveDrawingBuffer is off — capturePhoto()
+    // renders synchronously right before toDataURL, so screenshots still work.
+    this.isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+      (typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches);
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: !this.isMobile, powerPreference: 'high-performance' });
+    this.curPR = Math.min(window.devicePixelRatio || 1, this.isMobile ? 1.25 : 1.5);
     this.renderer.setPixelRatio(this.curPR);
     this.renderer.setClearColor(def.clear, 1);
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = this.isMobile ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
     (this.renderer as any).outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.15;
@@ -367,7 +376,19 @@ export class WorldEngine {
 
   start() {
     this.clock.start();
-    const loop = () => { if (this.disposed) return; this.raf = requestAnimationFrame(loop); this.frame(); };
+    // Cap the render rate. Without this a 120 Hz ProMotion phone renders twice
+    // the frames it needs, which is a large, needless thermal load. Movement
+    // stays correct because frame() uses the real clock delta, not a fixed step.
+    let last = performance.now();
+    const loop = (now: number) => {
+      if (this.disposed) return;
+      this.raf = requestAnimationFrame(loop);
+      const minMs = 1000 / this.targetFPS;
+      const elapsed = now - last;
+      if (elapsed < minMs - 1) return; // too soon — skip this vsync tick
+      last = now - (elapsed % minMs);   // keep a steady cadence
+      this.frame();
+    };
     this.raf = requestAnimationFrame(loop);
   }
 
@@ -402,7 +423,7 @@ export class WorldEngine {
     this.moon = new THREE.DirectionalLight(0x9fb6e0, 0.9);
     this.moon.position.set(-22, 34, -18);
     this.moon.castShadow = true;
-    this.moon.shadow.mapSize.set(1024, 1024);
+    this.moon.shadow.mapSize.set(this.isMobile ? 512 : 1024, this.isMobile ? 512 : 1024);
     const sc = this.moon.shadow.camera as THREE.OrthographicCamera;
     sc.left = -26; sc.right = 26; sc.top = 26; sc.bottom = -26; sc.near = 1; sc.far = 90;
     this.moon.shadow.bias = -0.0008;
@@ -517,7 +538,7 @@ export class WorldEngine {
     this.perfAccum += dt; this.perfFrames++;
     if (this.perfAccum >= 1) {
       const fps = this.perfFrames / this.perfAccum;
-      const maxPR = Math.min(window.devicePixelRatio || 1, 1.75);
+      const maxPR = Math.min(window.devicePixelRatio || 1, this.isMobile ? 1.35 : 1.75);
       if (this.quality === 'auto') {
         if (fps < 50 && this.curPR > 0.66) { this.curPR = Math.max(0.65, this.curPR - 0.18); this.renderer.setPixelRatio(this.curPR); this.resize(); }
         else if (fps > 58 && this.curPR < maxPR) { this.curPR = Math.min(maxPR, this.curPR + 0.08); this.renderer.setPixelRatio(this.curPR); this.resize(); }
