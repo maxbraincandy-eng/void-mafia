@@ -1,6 +1,8 @@
 import { getAIProvider } from './ai/hermesProvider.js';
 import { getAllRooms } from './services/roomService.js';
 import { createPlayerMessage, addMessage } from './services/chatService.js';
+import { submitVote, submitNightAction } from './services/gameService.js';
+import { getRole } from './services/roleService.js';
 const TALK_PHASES = new Set(['day', 'speech', 'voting']);
 const TICK_MS = 5000; // how often we consider making a bot talk
 const MIN_GAP_MS = 8000; // min time between two bot lines in one room
@@ -36,7 +38,86 @@ ${recent || '(ჯერ ყველა ჩუმად არის)'}
     const r = await provider.chat([{ role: 'user', content: user }], system);
     return (r.text || '').trim().replace(/^["“'']+|["”'']+$/g, '').slice(0, 280);
 }
+// ── Bot game actions (heuristic — fast, no LLM/quota) ─────────────────
+const rnd = (arr) => (arr.length ? arr[Math.floor(Math.random() * arr.length)] : null);
+function aliveOthers(room, self) {
+    return [...room.players.values()].filter(p => p.isAlive && !p.isSpectator && !p.isQueuedNextRound && p.id !== self.id);
+}
+function pickVoteTarget(room, bot) {
+    const others = aliveOthers(room, bot);
+    // Mafia team avoids voting its own; town votes anyone.
+    const pool = bot.team === 'mafia' ? others.filter(p => p.team !== 'mafia') : others;
+    return rnd(pool.length ? pool : others);
+}
+function pickNightTarget(room, bot) {
+    const others = aliveOthers(room, bot);
+    if (bot.team === 'mafia') {
+        const town = others.filter(p => p.team !== 'mafia');
+        return rnd(town.length ? town : others);
+    }
+    if (bot.role === 'doctor' || bot.role === 'bodyguard') {
+        // protect someone (or self if allowed)
+        const pool = room.settings.allowDoctorSelfHeal ? [...others, bot] : others;
+        return rnd(pool);
+    }
+    // sheriff / detective / lookout / tracker / consigliere … investigate anyone else
+    return rnd(others);
+}
+/** Bots cast votes and perform night actions so games actually resolve.
+ *  They only populate state — existing triggers (a human's action, or the
+ *  phase timer) do the resolution, so no engine logic is duplicated here. */
+function driveBotActions(room) {
+    const bots = [...room.players.values()].filter(p => p.isBot && p.isAlive && !p.isSpectator && !p.isQueuedNextRound);
+    if (!bots.length)
+        return;
+    if (room.phase === 'voting' || room.phase === 'revote') {
+        for (const bot of bots) {
+            if (room.votes.has(bot.id))
+                continue;
+            const t = pickVoteTarget(room, bot);
+            if (t) {
+                try {
+                    submitVote(room, bot, t.id);
+                }
+                catch { /* invalid — skip */ }
+            }
+        }
+    }
+    else if (room.phase === 'night') {
+        for (const bot of bots) {
+            if (bot.hasActedThisPhase || room.nightActions.has(bot.id))
+                continue;
+            if (!bot.role)
+                continue;
+            let role;
+            try {
+                role = getRole(bot.role);
+            }
+            catch {
+                continue;
+            }
+            if (!role?.wakeAtNight)
+                continue;
+            if (bot.role === 'veteran' || bot.role === 'arsonist')
+                continue; // skip chaotic self-target roles
+            const t = pickNightTarget(room, bot);
+            if (t) {
+                try {
+                    submitNightAction(room, bot, t.id);
+                }
+                catch { /* invalid — skip */ }
+            }
+        }
+    }
+}
 async function tick(io) {
+    // Game actions run even without an LLM provider (heuristic only).
+    for (const room of getAllRooms()) {
+        try {
+            driveBotActions(room);
+        }
+        catch { /* ignore */ }
+    }
     const provider = getAIProvider();
     if (!provider)
         return;
