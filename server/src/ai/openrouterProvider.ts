@@ -16,7 +16,7 @@ export class OpenRouterProvider implements AIProvider {
       baseURL: OPENROUTER_BASE_URL,
       defaultHeaders: {
         'HTTP-Referer': 'https://voidmafia.one',
-        'X-Title': 'Void Mafia — Hermes AI',
+        'X-Title': 'Void Mafia Hermes AI',
       },
     });
 

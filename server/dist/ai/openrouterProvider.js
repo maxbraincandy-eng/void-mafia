@@ -10,7 +10,7 @@ export class OpenRouterProvider {
             baseURL: OPENROUTER_BASE_URL,
             defaultHeaders: {
                 'HTTP-Referer': 'https://voidmafia.one',
-                'X-Title': 'Void Mafia — Hermes AI',
+                'X-Title': 'Void Mafia Hermes AI',
             },
         });
         this.model = process.env.OPENROUTER_MODEL ?? 'meta-llama/llama-3.1-8b-instruct:free';
