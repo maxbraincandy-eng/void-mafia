@@ -14,18 +14,12 @@ function todayKey(): string {
   return new Date().toISOString().slice(0, 10); // 'YYYY-MM-DD'
 }
 
-export function checkRateLimit(userId: string): { allowed: boolean; remaining: number } {
-  if (OWNER_IDS.has(userId)) return { allowed: true, remaining: 9999 };
-
-  const today = todayKey();
-  const entry = dailyUsage.get(userId);
-  const limit = FREE_LIMIT; // TODO: check premium status from DB
-
-  if (!entry || entry.dateKey !== today) {
-    return { allowed: true, remaining: limit };
-  }
-  const remaining = Math.max(0, limit - entry.count);
-  return { allowed: entry.count < limit, remaining };
+export function checkRateLimit(_userId: string): { allowed: boolean; remaining: number } {
+  // No per-user cap — Hermes is unlimited for everyone (owner's decision).
+  // (Usage is still counted below for stats; the only real ceiling is the
+  // upstream provider's own daily quota, which we don't control.)
+  void FREE_LIMIT; void PREMIUM_LIMIT; void OWNER_IDS; void dailyUsage;
+  return { allowed: true, remaining: 999999 };
 }
 
 export function incrementUsage(userId: string): void {

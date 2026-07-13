@@ -1,4 +1,4 @@
-export declare function checkRateLimit(userId: string): {
+export declare function checkRateLimit(_userId: string): {
     allowed: boolean;
     remaining: number;
 };
