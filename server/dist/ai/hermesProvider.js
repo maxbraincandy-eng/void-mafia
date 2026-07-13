@@ -34,6 +34,16 @@ export async function initAIProvider() {
             _cachedProvider = new OpenAIProvider();
             console.log('[Hermes] OpenAI provider ready');
         }
+        else if (providerName === 'gemini') {
+            if (!process.env.GEMINI_API_KEY) {
+                console.warn('[Hermes] GEMINI_API_KEY not set — Hermes disabled');
+                _cachedProvider = null;
+                return null;
+            }
+            const { GeminiProvider } = await import('./geminiProvider.js');
+            _cachedProvider = new GeminiProvider();
+            console.log('[Hermes] Gemini provider ready');
+        }
         else {
             console.warn(`[Hermes] Unknown AI_PROVIDER "${providerName}" — Hermes disabled`);
             _cachedProvider = null;

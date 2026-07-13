@@ -19,8 +19,9 @@ export function createHermesRouter() {
                 provider: (process.env.AI_PROVIDER ?? 'openrouter').toLowerCase(),
                 openrouterKey: !!process.env.OPENROUTER_API_KEY,
                 openaiKey: !!process.env.OPENAI_API_KEY,
+                geminiKey: !!process.env.GEMINI_API_KEY,
                 hermesEnabledFlag: process.env.HERMES_ENABLED ?? null,
-                model: process.env.OPENROUTER_MODEL ?? null,
+                model: process.env.GEMINI_MODEL ?? process.env.OPENROUTER_MODEL ?? process.env.OPENAI_MODEL ?? null,
             },
         });
     });
