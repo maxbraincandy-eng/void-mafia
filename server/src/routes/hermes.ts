@@ -75,6 +75,30 @@ export function createHermesRouter(): Router {
     res.json({ ok: true, results });
   });
 
+  // ── GET /api/hermes/limits — real Groq rate limits for this key ──────
+  router.get('/limits', async (_req, res) => {
+    const key = process.env.GROQ_API_KEY;
+    if (!key) { res.json({ ok: false, error: 'GROQ_API_KEY not set' }); return; }
+    const { default: OpenAI } = await import('openai');
+    const client = new OpenAI({ apiKey: key, baseURL: 'https://api.groq.com/openai/v1' });
+    try {
+      const model = process.env.GROQ_MODEL ?? 'llama-3.3-70b-versatile';
+      const { response } = await client.chat.completions
+        .create({ model, messages: [{ role: 'user', content: 'hi' }], max_tokens: 1 })
+        .withResponse();
+      const h = response.headers;
+      res.json({
+        ok: true, model,
+        requestsPerDayLimit: h.get('x-ratelimit-limit-requests'),
+        requestsRemaining: h.get('x-ratelimit-remaining-requests'),
+        requestsReset: h.get('x-ratelimit-reset-requests'),
+        tokensPerMinLimit: h.get('x-ratelimit-limit-tokens'),
+        tokensRemaining: h.get('x-ratelimit-remaining-tokens'),
+        tokensReset: h.get('x-ratelimit-reset-tokens'),
+      });
+    } catch (e: any) { res.json({ ok: false, error: e?.message }); }
+  });
+
   // ── GET /api/hermes/probe-groq — which Groq models work for this key ──
   router.get('/probe-groq', async (_req, res) => {
     const key = process.env.GROQ_API_KEY;
