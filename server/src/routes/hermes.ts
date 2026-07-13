@@ -49,10 +49,29 @@ export function createHermesRouter(): Router {
         const r = await provider.chat([{ role: 'user', content: s }], system);
         out.push({ scenario: s, reply: r.text.trim(), tokens: (r.inputTokens ?? 0) + (r.outputTokens ?? 0) });
       }
-      res.json({ ok: true, model: process.env.OPENROUTER_MODEL ?? null, samples: out });
+      res.json({ ok: true, samples: out });
     } catch (e: any) {
       res.status(500).json({ ok: false, error: e?.message });
     }
+  });
+
+  // ── GET /api/hermes/probe-gemini — which Gemini models work for this key ──
+  router.get('/probe-gemini', async (_req, res) => {
+    const key = process.env.GEMINI_API_KEY;
+    if (!key) { res.json({ ok: false, error: 'GEMINI_API_KEY not set' }); return; }
+    const { default: OpenAI } = await import('openai');
+    const client = new OpenAI({ apiKey: key, baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/' });
+    const models = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.0-flash-exp', 'gemini-2.5-flash', 'gemini-1.5-flash-8b', 'gemini-flash-latest'];
+    const results: any[] = [];
+    for (const m of models) {
+      try {
+        const r = await client.chat.completions.create({ model: m, messages: [{ role: 'user', content: 'თქვი ერთი მოკლე ქართული წინადადება მაფიის თამაშიდან.' }], max_tokens: 60 });
+        results.push({ model: m, ok: true, reply: r.choices[0]?.message?.content?.trim() });
+      } catch (e: any) {
+        results.push({ model: m, ok: false, error: (e?.status ?? '') + ' ' + (e?.message ?? '').slice(0, 90) });
+      }
+    }
+    res.json({ ok: true, results });
   });
 
   // ── POST /api/hermes/chat ─────────────────────────────────────────────
