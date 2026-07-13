@@ -24,6 +24,32 @@ export function createHermesRouter() {
             },
         });
     });
+    // ── GET /api/hermes/test-mafia — TEMP quality probe (no auth, no DB) ──
+    router.get('/test-mafia', async (_req, res) => {
+        await initAIProvider();
+        const provider = getAIProvider();
+        if (!provider) {
+            res.status(503).json({ ok: false, error: 'AI provider unavailable.' });
+            return;
+        }
+        const system = 'შენ ხარ მაფიის სოციალურ-დედუქციური თამაშის ცოცხალი მოთამაშე. ილაპარაკე მხოლოდ ქართულად, ბუნებრივად, მოკლედ (1–2 წინადადება). არ ახსნა რომ AI ხარ.';
+        const scenarios = [
+            'დღეა. შენ მშვიდობიანი მოქალაქე ხარ. ეჭვი შეიტანე მე-4 მოთამაშეზე და მოკლედ თქვი რატომ.',
+            'ტრიბუნალია. დაიცავი თავი — გეჭვობენ რომ მაფია ხარ, დაარწმუნე ხალხი რომ უდანაშაულო ხარ.',
+            'დღეა. შენ მაფია ხარ, მაგრამ თავი მოქალაქედ მოაჩვენე და ეჭვი სხვისკენ გადაიტანე.',
+        ];
+        try {
+            const out = [];
+            for (const s of scenarios) {
+                const r = await provider.chat([{ role: 'user', content: s }], system);
+                out.push({ scenario: s, reply: r.text.trim(), tokens: (r.inputTokens ?? 0) + (r.outputTokens ?? 0) });
+            }
+            res.json({ ok: true, model: process.env.OPENROUTER_MODEL ?? null, samples: out });
+        }
+        catch (e) {
+            res.status(500).json({ ok: false, error: e?.message });
+        }
+    });
     // ── POST /api/hermes/chat ─────────────────────────────────────────────
     router.post('/chat', async (req, res) => {
         await initAIProvider();
