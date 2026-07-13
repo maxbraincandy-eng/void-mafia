@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getAIProvider, isHermesEnabled } from '../ai/hermesProvider.js';
+import { getAIProvider, isHermesEnabled, initAIProvider } from '../ai/hermesProvider.js';
 import { buildHermesSystemPrompt, HermesMode } from '../ai/hermesPrompts.js';
 import {
   checkRateLimit, incrementUsage,
@@ -15,7 +15,8 @@ export function createHermesRouter(): Router {
   const router = Router();
 
   // ── GET /api/hermes/status ────────────────────────────────────────────
-  router.get('/status', (_req, res) => {
+  router.get('/status', async (_req, res) => {
+    await initAIProvider();
     // Non-secret diagnostics (booleans/names only) to debug why Hermes is off.
     res.json({
       ok: true,
@@ -32,6 +33,7 @@ export function createHermesRouter(): Router {
 
   // ── POST /api/hermes/chat ─────────────────────────────────────────────
   router.post('/chat', async (req, res) => {
+    await initAIProvider();
     if (!isHermesEnabled()) {
       res.status(503).json({
         ok: false,
