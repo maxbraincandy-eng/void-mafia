@@ -141,19 +141,43 @@ export function NeoBandicoot({ onClose }: { onClose: () => void }) {
     }
 
     // ── fixed-ish loop, capped 60 ──
+    // Hardened: a transient exception must never bubble out of rAF — the app's
+    // ErrorBoundary would hard-reload the page, which reads as "the game shut
+    // itself off". Log and keep running instead.
     let raf = 0, last = performance.now(), acc = 0;
     const loop = (now: number) => {
       if (disposed) return;
       raf = requestAnimationFrame(loop);
+      if (document.hidden) { last = now; return; } // paused in background
       const frame = Math.min((now - last) / 1000, 0.05);
       last = now;
       acc += frame;
       if (acc < 1 / 62) return;
       const dt = Math.min(acc, 1 / 30);
       acc = 0;
-      if (!over && !won) { step(dt); elapsed += dt; }
-      render();
+      try {
+        if (!over && !won) { step(dt); elapsed += dt; }
+        render();
+      } catch (err) {
+        console.warn('[bandicoot] frame error (recovered):', err);
+      }
     };
+
+    // Block pull-to-refresh / overscroll navigation while playing — a swipe on
+    // the game area reloading the page is exactly "it turned itself off".
+    const blockScroll = (e: TouchEvent) => { if (e.cancelable) e.preventDefault(); };
+    document.addEventListener('touchmove', blockScroll, { passive: false });
+
+    // Keep the screen awake during play (phones dim/lock on sparse touch input).
+    let wakeLock: any = null;
+    const acquireWake = () => {
+      (navigator as any).wakeLock?.request?.('screen')
+        .then((wl: any) => { wakeLock = wl; })
+        .catch(() => {});
+    };
+    acquireWake();
+    const onVis = () => { if (!document.hidden) { acquireWake(); last = performance.now(); } };
+    document.addEventListener('visibilitychange', onVis);
 
     function step(dt: number) {
       // horizontal
@@ -355,7 +379,15 @@ export function NeoBandicoot({ onClose }: { onClose: () => void }) {
     }
 
     raf = requestAnimationFrame(loop);
-    return () => { disposed = true; cancelAnimationFrame(raf); window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); };
+    return () => {
+      disposed = true;
+      cancelAnimationFrame(raf);
+      window.removeEventListener('keydown', kd);
+      window.removeEventListener('keyup', ku);
+      document.removeEventListener('touchmove', blockScroll);
+      document.removeEventListener('visibilitychange', onVis);
+      try { wakeLock?.release?.(); } catch { /* ignore */ }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetSignal.current]);
 
