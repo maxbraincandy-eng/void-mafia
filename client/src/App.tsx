@@ -844,9 +844,9 @@ export default function App() {
       <GiftReceivedAnimation notification={giftNotif} onDismiss={() => setGiftNotif(null)} />
       <CoinShopModal open={shopOpen} onClose={() => setShopOpen(false)} profileId={profile?.id ?? ''} />
       <ShopSuccessModal open={shopSuccess} onClose={() => setShopSuccess(false)} />
-      {/* Hermes AI assistant — temporarily hidden until provider is stable */}
-      {/* <HermesToggle /> */}
-      {/* <HermesPanel /> */}
+      {/* Hermes AI assistant — live (Groq provider) */}
+      <HermesToggle />
+      <HermesPanel />
       <NotificationPrompt />
       <CallOverlay />
       <AnimatePresence>
