@@ -59,7 +59,9 @@ export const useHermesStore = create<HermesStore>((set, get) => ({
 
   open: (context) => set({ isOpen: true, context: context ?? null }),
   close: () => set({ isOpen: false }),
-  setMode: (mode) => set({ mode }),
+  // Switching category starts a fresh view so that mode's quick prompts show
+  // (no need to clear history manually). The server keeps per-mode history.
+  setMode: (mode) => set(s => (s.mode === mode ? {} : { mode, messages: [], error: null })),
   clearMessages: () => set({ messages: [], error: null }),
   clearError: () => set({ error: null }),
 

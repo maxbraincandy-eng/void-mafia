@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { useHermesStore } from '@/store/hermesStore';
 import { useAuthStore } from '@/store/authStore';
+import { HermesGlyph } from './HermesGlyph';
 
 export function HermesToggle() {
   const isAuthed = useAuthStore(s => s.isAuthed);
@@ -23,7 +24,7 @@ export function HermesToggle() {
         boxShadow: '0 0 18px rgba(0,245,255,0.18), 0 4px 16px rgba(0,0,0,0.55)',
       }}
     >
-      <span style={{ fontSize: 19, lineHeight: 1 }}>🤖</span>
+      <HermesGlyph size={24} />
     </motion.button>
   );
 }

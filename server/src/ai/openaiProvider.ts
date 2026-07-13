@@ -23,7 +23,7 @@ export class OpenAIProvider implements AIProvider {
         { role: 'system', content: systemPrompt },
         ...messages.map(m => ({ role: m.role, content: m.content })),
       ],
-      max_tokens: 1024,
+      max_tokens: 2048,
       temperature: 0.72,
     });
 

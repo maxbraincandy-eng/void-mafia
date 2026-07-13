@@ -7,6 +7,7 @@ import { HermesModeSelector } from './HermesModeSelector';
 import { HermesMessageList } from './HermesMessageList';
 import { HermesInput } from './HermesInput';
 import { HermesQuickPrompts } from './HermesQuickPrompts';
+import { HermesGlyph } from './HermesGlyph';
 
 export function HermesPanel() {
   const { isOpen, close, checkStatus, isEnabled, messages, clearMessages } = useHermesStore();
@@ -67,7 +68,7 @@ export function HermesPanel() {
                     boxShadow: '0 0 16px rgba(0,245,255,0.1)',
                   }}
                 >
-                  🤖
+                  <HermesGlyph size={22} />
                 </div>
                 <div>
                   <p
@@ -110,7 +111,7 @@ export function HermesPanel() {
             {!isEnabled ? (
               <div className="flex-1 flex items-center justify-center px-6">
                 <div className="text-center space-y-3">
-                  <p className="text-5xl opacity-40">🤖</p>
+                  <div className="opacity-70 flex justify-center"><HermesGlyph size={60} /></div>
                   <p className="font-display text-base font-bold text-white/30 tracking-widest uppercase">
                     {t.hermes.offline}
                   </p>
