@@ -45,7 +45,7 @@ const PORT = Number(process.env.PORT ?? 3000);
 const CLIENT_URL = process.env.CLIENT_URL ?? 'http://localhost:5173';
 const IS_PROD = process.env.NODE_ENV === 'production';
 
-const CLIENT_BUILD = '2026-07-11-v405';
+const CLIENT_BUILD = '2026-07-11-v406';
 console.log('[Startup] Void Mafia server starting');
 console.log(`[Startup] Client build: ${CLIENT_BUILD}`);
 console.log(`[Startup] NODE_ENV=${process.env.NODE_ENV ?? 'development'}`);
@@ -362,6 +362,13 @@ setInterval(() => {
 // ── Socket.IO ─────────────────────────────────────────────────────────
 attachSocketHandlers(io);
 console.log('[Socket.IO] ready');
+
+// ── AI bot chatter (owner-added bots talk in Georgian via Hermes) ─────
+import('./ai/hermesProvider.js').then(async ({ initAIProvider }) => {
+  await initAIProvider();
+  const { startAiBots } = await import('./aiBotService.js');
+  startAiBots(io);
+}).catch(e => console.warn('[AI bots] init skipped:', e?.message));
 
 // ── Start — bind to 0.0.0.0 so Railway can reach the process ─────────
 // Listen FIRST so the healthcheck at /api/health responds immediately.
