@@ -10,7 +10,18 @@ export function createHermesRouter() {
     const router = Router();
     // ── GET /api/hermes/status ────────────────────────────────────────────
     router.get('/status', (_req, res) => {
-        res.json({ ok: true, enabled: isHermesEnabled() });
+        // Non-secret diagnostics (booleans/names only) to debug why Hermes is off.
+        res.json({
+            ok: true,
+            enabled: isHermesEnabled(),
+            diag: {
+                provider: (process.env.AI_PROVIDER ?? 'openrouter').toLowerCase(),
+                openrouterKey: !!process.env.OPENROUTER_API_KEY,
+                openaiKey: !!process.env.OPENAI_API_KEY,
+                hermesEnabledFlag: process.env.HERMES_ENABLED ?? null,
+                model: process.env.OPENROUTER_MODEL ?? null,
+            },
+        });
     });
     // ── POST /api/hermes/chat ─────────────────────────────────────────────
     router.post('/chat', async (req, res) => {
