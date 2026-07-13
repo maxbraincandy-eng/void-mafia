@@ -154,6 +154,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
   const lookTouch = useRef<{ id: number; x: number; y: number } | null>(null);
   const keys = useRef<Record<string, boolean>>({});
   const mouseLook = useRef<{ x: number; y: number } | null>(null);
+  const pointerLocked = useRef(false);
   const tapStart = useRef<{ x: number; y: number; t: number } | null>(null);
   const players = useRef<Map<string, RemoteWorldPlayer>>(new Map());
   const mySocketId = useRef('');
@@ -354,26 +355,47 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
     const kd = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
       if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return; // typing in chat
-      const k = e.key.toLowerCase(); keys.current[k] = true;
-      if (k === 'e') engineRef.current?.interact();
-      if (k === ' ') engineRef.current?.jump();
-      if (k === 'q') { engineRef.current?.emote(); if (socket.connected) socket.emit('world:wave'); }
-      if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) e.preventDefault();
+      // Key by physical position (e.code), not the produced character — so WASD
+      // and the action keys work on ANY keyboard layout (e.g. Georgian).
+      const code = e.code; keys.current[code] = true;
+      if (code === 'KeyE' || code === 'KeyC') engineRef.current?.interact(); // sit / interact / stand
+      if (code === 'Space') engineRef.current?.jump();
+      if (code === 'KeyQ') { engineRef.current?.emote(); if (socket.connected) socket.emit('world:wave'); }
+      if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(code)) e.preventDefault();
     };
-    const ku = (e: KeyboardEvent) => { keys.current[e.key.toLowerCase()] = false; };
+    const ku = (e: KeyboardEvent) => { keys.current[e.code] = false; };
     window.addEventListener('keydown', kd); window.addEventListener('keyup', ku);
     const iv = setInterval(() => {
       const eng = engineRef.current; if (!eng) return;
       if (!moveTouch.current) {
         let x = 0, y = 0; const k = keys.current;
-        if (k['w'] || k['arrowup']) y += 1;
-        if (k['s'] || k['arrowdown']) y -= 1;
-        if (k['d'] || k['arrowright']) x += 1;
-        if (k['a'] || k['arrowleft']) x -= 1;
-        eng.input.move.x = x; eng.input.move.y = y; eng.input.run = !!k['shift'];
+        if (k['KeyW'] || k['ArrowUp']) y += 1;
+        if (k['KeyS'] || k['ArrowDown']) y -= 1;
+        if (k['KeyD'] || k['ArrowRight']) x += 1;
+        if (k['KeyA'] || k['ArrowLeft']) x -= 1;
+        eng.input.move.x = x; eng.input.move.y = y; eng.input.run = !!(k['ShiftLeft'] || k['ShiftRight']);
       }
     }, 33);
     return () => { window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); clearInterval(iv); };
+  }, []);
+
+  // Desktop mouse-look via Pointer Lock — once locked, moving the mouse rotates
+  // the camera naturally (no button held); Esc releases it back to the cursor.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const onLockChange = () => { pointerLocked.current = document.pointerLockElement === canvas; };
+    const onDocMove = (e: MouseEvent) => {
+      if (!pointerLocked.current) return;
+      engineRef.current?.addLook(e.movementX, e.movementY);
+    };
+    document.addEventListener('pointerlockchange', onLockChange);
+    document.addEventListener('mousemove', onDocMove);
+    return () => {
+      document.removeEventListener('pointerlockchange', onLockChange);
+      document.removeEventListener('mousemove', onDocMove);
+      if (document.pointerLockElement === canvas) document.exitPointerLock?.();
+    };
   }, []);
 
   // reflect who's talking onto remote nameplates
@@ -472,7 +494,17 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
     }
   };
 
-  const onMouseDown = (e: React.MouseEvent) => { engineRef.current?.resumeAudio(); cinemaRef.current?.resume(); resumeWorldVoiceAudio(); poke(); if (isCtl(e.target)) return; if (e.clientX < window.innerWidth * 0.42) return; mouseLook.current = { x: e.clientX, y: e.clientY }; };
+  const onMouseDown = (e: React.MouseEvent) => {
+    engineRef.current?.resumeAudio(); cinemaRef.current?.resume(); resumeWorldVoiceAudio(); poke();
+    if (isCtl(e.target)) return; // clicking a HUD button
+    // Desktop: click the world to engage mouse-look (pointer lock). Esc releases.
+    if (pointerLocked.current) return; // already in mouse-look
+    const hasMouse = typeof matchMedia !== 'undefined' && matchMedia('(pointer: fine)').matches;
+    if (hasMouse) { canvasRef.current?.requestPointerLock?.(); return; }
+    // Touch/no-pointer-lock fallback: hold-to-drag look.
+    if (e.clientX < window.innerWidth * 0.42) return;
+    mouseLook.current = { x: e.clientX, y: e.clientY };
+  };
   const onMouseMove = (e: React.MouseEvent) => { if (!mouseLook.current) return; engineRef.current?.addLook(e.clientX - mouseLook.current.x, e.clientY - mouseLook.current.y); mouseLook.current = { x: e.clientX, y: e.clientY }; };
   const onMouseUp = () => { mouseLook.current = null; };
 
