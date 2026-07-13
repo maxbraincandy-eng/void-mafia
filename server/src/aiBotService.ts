@@ -19,7 +19,7 @@ const TALK_PHASES = new Set(['day', 'speech', 'voting']);
 const TICK_MS = 5000;       // how often we consider making a bot talk
 const MIN_GAP_MS = 8000;    // min time between two bot lines in one room
 const SPEAK_CHANCE = 0.55;  // randomness so it isn't clockwork
-const PER_GAME_BUDGET = 80; // hard cap on LLM calls per game (quota safety)
+const PER_GAME_BUDGET = 30; // hard cap on LLM calls per game (quota safety)
 
 interface RoomState { lastAt: number; calls: number; busy: boolean; day: number }
 const roomState = new Map<string, RoomState>();
@@ -50,7 +50,9 @@ ${recent || '(ჯერ ყველა ჩუმად არის)'}
 
 დაწერე შენი შემდეგი მოკლე რეპლიკა ქართულად.`;
 
-  const r = await provider.chat([{ role: 'user', content: user }], system);
+  // Tiny cap — a bot line is 1-2 sentences. This is the single biggest lever on
+  // the daily token budget (Groq bills the requested max_tokens, not just used).
+  const r = await provider.chat([{ role: 'user', content: user }], system, 100);
   return (r.text || '').trim().replace(/^["“'']+|["”'']+$/g, '').slice(0, 280);
 }
 

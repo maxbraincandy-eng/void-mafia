@@ -16,14 +16,14 @@ export class OpenAIProvider implements AIProvider {
     return !!process.env.OPENAI_API_KEY;
   }
 
-  async chat(messages: AIMessage[], systemPrompt: string): Promise<AIResponse> {
+  async chat(messages: AIMessage[], systemPrompt: string, maxTokens = 1024): Promise<AIResponse> {
     const response = await this.client.chat.completions.create({
       model: this.model,
       messages: [
         { role: 'system', content: systemPrompt },
         ...messages.map(m => ({ role: m.role, content: m.content })),
       ],
-      max_tokens: 2048,
+      max_tokens: maxTokens,
       temperature: 0.72,
     });
 

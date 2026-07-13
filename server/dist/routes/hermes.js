@@ -177,7 +177,9 @@ export function createHermesRouter() {
                 ...history.map(m => ({ role: m.role, content: m.content })),
                 { role: 'user', content: message.trim() },
             ];
-            const aiResponse = await provider.chat(aiMessages, systemPrompt);
+            // 1200 is enough for a full Georgian answer while keeping the daily
+            // token budget reasonable (Groq bills the requested max_tokens).
+            const aiResponse = await provider.chat(aiMessages, systemPrompt, 1200);
             // Persist both turns
             await saveMessage(conversationId, 'user', message.trim());
             await saveMessage(conversationId, 'assistant', aiResponse.text);

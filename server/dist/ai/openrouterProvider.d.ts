@@ -4,6 +4,6 @@ export declare class OpenRouterProvider implements AIProvider {
     private model;
     constructor();
     isAvailable(): boolean;
-    chat(messages: AIMessage[], systemPrompt: string): Promise<AIResponse>;
+    chat(messages: AIMessage[], systemPrompt: string, maxTokens?: number): Promise<AIResponse>;
 }
 //# sourceMappingURL=openrouterProvider.d.ts.map

@@ -10,14 +10,14 @@ export class OpenAIProvider {
     isAvailable() {
         return !!process.env.OPENAI_API_KEY;
     }
-    async chat(messages, systemPrompt) {
+    async chat(messages, systemPrompt, maxTokens = 1024) {
         const response = await this.client.chat.completions.create({
             model: this.model,
             messages: [
                 { role: 'system', content: systemPrompt },
                 ...messages.map(m => ({ role: m.role, content: m.content })),
             ],
-            max_tokens: 2048,
+            max_tokens: maxTokens,
             temperature: 0.72,
         });
         const choice = response.choices[0];

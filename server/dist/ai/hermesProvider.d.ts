@@ -8,7 +8,7 @@ export interface AIResponse {
     outputTokens?: number;
 }
 export interface AIProvider {
-    chat(messages: AIMessage[], systemPrompt: string): Promise<AIResponse>;
+    chat(messages: AIMessage[], systemPrompt: string, maxTokens?: number): Promise<AIResponse>;
     isAvailable(): boolean;
 }
 /**

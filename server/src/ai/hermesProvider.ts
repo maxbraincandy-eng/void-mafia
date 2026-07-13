@@ -10,7 +10,9 @@ export interface AIResponse {
 }
 
 export interface AIProvider {
-  chat(messages: AIMessage[], systemPrompt: string): Promise<AIResponse>;
+  // maxTokens caps the reply. Note: providers like Groq count the REQUESTED
+  // max_tokens toward the daily token budget, so keep it tight (bots use ~120).
+  chat(messages: AIMessage[], systemPrompt: string, maxTokens?: number): Promise<AIResponse>;
   isAvailable(): boolean;
 }
 

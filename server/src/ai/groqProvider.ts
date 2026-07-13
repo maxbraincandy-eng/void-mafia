@@ -24,7 +24,7 @@ export class GroqProvider implements AIProvider {
     return !!process.env.GROQ_API_KEY;
   }
 
-  async chat(messages: AIMessage[], systemPrompt: string): Promise<AIResponse> {
+  async chat(messages: AIMessage[], systemPrompt: string, maxTokens = 1024): Promise<AIResponse> {
     let response;
     try {
       response = await this.client.chat.completions.create({
@@ -33,7 +33,7 @@ export class GroqProvider implements AIProvider {
           { role: 'system', content: systemPrompt },
           ...messages.map(m => ({ role: m.role, content: m.content })),
         ],
-        max_tokens: 2048,
+        max_tokens: maxTokens,
         temperature: 0.75,
       });
     } catch (e: any) {
