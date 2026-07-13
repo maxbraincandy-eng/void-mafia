@@ -170,6 +170,19 @@ export const TRANSLATIONS = {
     },
     games: {
       title: 'Games',
+      aristocracy: {
+        title: 'Aristocracy Test',
+        subtitle: 'Quiz · prove how noble you are',
+        play: '▶ Play',
+        correct: 'Correct!',
+        wrong: 'Wrong',
+        next: 'Next',
+        finish: 'Finish',
+        yourScore: 'Your score',
+        questionOf: 'Question {n}/{m}',
+        retry: 'Play again',
+        exit: 'Exit',
+      },
       bandicoot: {
         title: 'Neo Bandicoot',
         subtitle: '2D platformer · solo adventure',
@@ -2291,6 +2304,19 @@ export const TRANSLATIONS = {
     },
     games: {
       title: 'თამაშები',
+      aristocracy: {
+        title: 'არისტოკრატიის ტესტი',
+        subtitle: 'ვიქტორინა · დაამტკიცე რამდენად არისტოკრატი ხარ',
+        play: '▶ თამაში',
+        correct: 'სწორია!',
+        wrong: 'არასწორია',
+        next: 'შემდეგი',
+        finish: 'დასრულება',
+        yourScore: 'შენი ქულა',
+        questionOf: 'კითხვა {n}/{m}',
+        retry: 'თავიდან',
+        exit: 'გასვლა',
+      },
       bandicoot: {
         title: 'Neo Bandicoot',
         subtitle: '2D პლატფორმერი · სოლო თავგადასავალი',
@@ -4411,6 +4437,19 @@ export const TRANSLATIONS = {
     },
     games: {
       title: 'Игры',
+      aristocracy: {
+        title: 'Тест на аристократизм',
+        subtitle: 'Викторина · докажи, насколько ты аристократ',
+        play: '▶ Играть',
+        correct: 'Верно!',
+        wrong: 'Неверно',
+        next: 'Далее',
+        finish: 'Завершить',
+        yourScore: 'Ваш счёт',
+        questionOf: 'Вопрос {n}/{m}',
+        retry: 'Заново',
+        exit: 'Выход',
+      },
       bandicoot: {
         title: 'Neo Bandicoot',
         subtitle: '2D платформер · соло-приключение',

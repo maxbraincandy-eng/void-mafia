@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 
 const NeoBandicoot = lazy(() => import('@/components/platformer/NeoBandicoot').then(m => ({ default: m.NeoBandicoot })));
+const AristocracyTest = lazy(() => import('@/components/quiz/AristocracyTest').then(m => ({ default: m.AristocracyTest })));
 import { useT } from '@/store/langStore';
 import { useAuthStore } from '@/store/authStore';
 import { useCheckersStore } from '@/store/checkersStore';
@@ -20,6 +21,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   const profile = useAuthStore(s => s.profile);
   const playerName = profile?.username ?? 'Player';
   const [bandicootOpen, setBandicootOpen] = useState(false);
+  const [aristocracyOpen, setAristocracyOpen] = useState(false);
 
   // ── Checkers ────────────────────────────────────────────────────────
   const {
@@ -235,6 +237,30 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
       {bandicootOpen && (
         <Suspense fallback={null}>
           <NeoBandicoot onClose={() => setBandicootOpen(false)} />
+        </Suspense>
+      )}
+
+      {/* ── Aristocracy Test card (solo taste/etiquette quiz) ───────────── */}
+      <div className="rounded-2xl overflow-hidden"
+        style={{ background: 'rgba(10,6,28,0.7)', border: '1px solid rgba(212,175,55,0.3)' }}>
+        <div className="px-4 py-3 flex items-center gap-3"
+          style={{ background: 'rgba(212,175,55,0.05)' }}>
+          <span className="text-2xl">👑</span>
+          <div className="flex-1 min-w-0">
+            <p className="font-display font-bold text-white text-sm leading-tight">{t.games.aristocracy.title}</p>
+            <p className="font-mono text-[12px] text-white/35">{t.games.aristocracy.subtitle}</p>
+          </div>
+          <button
+            onClick={() => setAristocracyOpen(true)}
+            className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95"
+            style={{ background: 'rgba(212,175,55,0.14)', border: '1px solid rgba(212,175,55,0.5)', color: '#e8cf7a' }}>
+            {t.games.aristocracy.play}
+          </button>
+        </div>
+      </div>
+      {aristocracyOpen && (
+        <Suspense fallback={null}>
+          <AristocracyTest onClose={() => setAristocracyOpen(false)} />
         </Suspense>
       )}
 
