@@ -170,6 +170,15 @@ export const TRANSLATIONS = {
     },
     games: {
       title: 'Games',
+      bandicoot: {
+        title: 'Neo Bandicoot',
+        subtitle: '2D platformer · solo adventure',
+        play: '▶ Play',
+        win: 'Level Complete!',
+        gameOver: 'Game Over',
+        retry: 'Retry',
+        exit: 'Exit',
+      },
       checkers: {
         title: 'Checkers',
         subtitle: 'Classic 2-player board game',
@@ -2279,6 +2288,15 @@ export const TRANSLATIONS = {
     },
     games: {
       title: 'თამაშები',
+      bandicoot: {
+        title: 'Neo Bandicoot',
+        subtitle: '2D პლატფორმერი · სოლო თავგადასავალი',
+        play: '▶ თამაში',
+        win: 'დონე გავლილია!',
+        gameOver: 'თამაში დასრულდა',
+        retry: 'თავიდან',
+        exit: 'გასვლა',
+      },
       checkers: {
         title: 'დამკა',
         subtitle: 'კლასიკური 2-მოთამაშიანი დაფის თამაში',
@@ -4387,6 +4405,15 @@ export const TRANSLATIONS = {
     },
     games: {
       title: 'Игры',
+      bandicoot: {
+        title: 'Neo Bandicoot',
+        subtitle: '2D платформер · соло-приключение',
+        play: '▶ Играть',
+        win: 'Уровень пройден!',
+        gameOver: 'Игра окончена',
+        retry: 'Заново',
+        exit: 'Выход',
+      },
       checkers: {
         title: 'Шашки',
         subtitle: 'Классическая настольная игра на 2 игроков',

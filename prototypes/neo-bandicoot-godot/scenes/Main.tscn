@@ -1,0 +1,95 @@
+[gd_scene load_steps=6 format=3 uid="uid://cnbomain00001"]
+
+[ext_resource type="PackedScene" uid="uid://cnbop1ayer00" path="res://scenes/player/Player.tscn" id="1_player"]
+
+[sub_resource type="RectangleShape2D" id="ground"]
+size = Vector2(2400, 80)
+
+[sub_resource type="RectangleShape2D" id="plat160"]
+size = Vector2(160, 24)
+
+[sub_resource type="RectangleShape2D" id="plat120"]
+size = Vector2(120, 24)
+
+[sub_resource type="RectangleShape2D" id="plat200"]
+size = Vector2(200, 24)
+
+[node name="Main" type="Node2D"]
+
+[node name="Background" type="Polygon2D" parent="."]
+z_index = -10
+color = Color(0.09, 0.06, 0.16, 1)
+polygon = PackedVector2Array(-1400, -600, 1400, -600, 1400, 700, -1400, 700)
+
+[node name="Ground" type="StaticBody2D" parent="."]
+position = Vector2(0, 400)
+
+[node name="Shape" type="CollisionShape2D" parent="Ground"]
+shape = SubResource("ground")
+
+[node name="Vis" type="Polygon2D" parent="Ground"]
+color = Color(0.2, 0.5, 0.28, 1)
+polygon = PackedVector2Array(-1200, -40, 1200, -40, 1200, 40, -1200, 40)
+
+[node name="P1" type="StaticBody2D" parent="."]
+position = Vector2(-260, 300)
+
+[node name="Shape" type="CollisionShape2D" parent="P1"]
+shape = SubResource("plat160")
+
+[node name="Vis" type="Polygon2D" parent="P1"]
+color = Color(0.45, 0.3, 0.2, 1)
+polygon = PackedVector2Array(-80, -12, 80, -12, 80, 12, -80, 12)
+
+[node name="P2" type="StaticBody2D" parent="."]
+position = Vector2(60, 230)
+
+[node name="Shape" type="CollisionShape2D" parent="P2"]
+shape = SubResource("plat160")
+
+[node name="Vis" type="Polygon2D" parent="P2"]
+color = Color(0.45, 0.3, 0.2, 1)
+polygon = PackedVector2Array(-80, -12, 80, -12, 80, 12, -80, 12)
+
+[node name="P3" type="StaticBody2D" parent="."]
+position = Vector2(360, 300)
+
+[node name="Shape" type="CollisionShape2D" parent="P3"]
+shape = SubResource("plat160")
+
+[node name="Vis" type="Polygon2D" parent="P3"]
+color = Color(0.45, 0.3, 0.2, 1)
+polygon = PackedVector2Array(-80, -12, 80, -12, 80, 12, -80, 12)
+
+[node name="P4_HighDoubleJump" type="StaticBody2D" parent="."]
+position = Vector2(200, 120)
+
+[node name="Shape" type="CollisionShape2D" parent="P4_HighDoubleJump"]
+shape = SubResource("plat120")
+
+[node name="Vis" type="Polygon2D" parent="P4_HighDoubleJump"]
+color = Color(0.5, 0.34, 0.22, 1)
+polygon = PackedVector2Array(-60, -12, 60, -12, 60, 12, -60, 12)
+
+[node name="P5_LedgeForCoyote" type="StaticBody2D" parent="."]
+position = Vector2(-560, 250)
+
+[node name="Shape" type="CollisionShape2D" parent="P5_LedgeForCoyote"]
+shape = SubResource("plat200")
+
+[node name="Vis" type="Polygon2D" parent="P5_LedgeForCoyote"]
+color = Color(0.45, 0.3, 0.2, 1)
+polygon = PackedVector2Array(-100, -12, 100, -12, 100, 12, -100, 12)
+
+[node name="Player" parent="." instance=ExtResource("1_player")]
+position = Vector2(0, 300)
+
+[node name="HUD" type="CanvasLayer" parent="."]
+
+[node name="Controls" type="Label" parent="HUD"]
+offset_left = 16.0
+offset_top = 12.0
+offset_right = 640.0
+offset_bottom = 60.0
+theme_override_colors/font_color = Color(0.9, 0.85, 1, 0.85)
+text = "Move: A/D or Arrows   Jump/Double-Jump: Space/W/Up   (Esc quits)"

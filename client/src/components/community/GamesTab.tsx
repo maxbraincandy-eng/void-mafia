@@ -1,5 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+
+const NeoBandicoot = lazy(() => import('@/components/platformer/NeoBandicoot').then(m => ({ default: m.NeoBandicoot })));
 import { useT } from '@/store/langStore';
 import { useAuthStore } from '@/store/authStore';
 import { useCheckersStore } from '@/store/checkersStore';
@@ -17,6 +19,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   const t = useT();
   const profile = useAuthStore(s => s.profile);
   const playerName = profile?.username ?? 'Player';
+  const [bandicootOpen, setBandicootOpen] = useState(false);
 
   // ── Checkers ────────────────────────────────────────────────────────
   const {
@@ -209,6 +212,30 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
             </button>
           </div>
         </div>
+      )}
+
+      {/* ── Neo Bandicoot card (solo 2D platformer) ─────────────────────── */}
+      <div className="rounded-2xl overflow-hidden"
+        style={{ background: 'rgba(10,6,28,0.7)', border: '1px solid rgba(255,140,38,0.3)' }}>
+        <div className="px-4 py-3 flex items-center gap-3"
+          style={{ background: 'rgba(255,140,38,0.05)' }}>
+          <span className="text-2xl">🦊</span>
+          <div className="flex-1 min-w-0">
+            <p className="font-display font-bold text-white text-sm leading-tight">{t.games.bandicoot.title}</p>
+            <p className="font-mono text-[12px] text-white/35">{t.games.bandicoot.subtitle}</p>
+          </div>
+          <button
+            onClick={() => setBandicootOpen(true)}
+            className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95"
+            style={{ background: 'rgba(255,140,38,0.12)', border: '1px solid rgba(255,140,38,0.45)', color: '#ffb46a' }}>
+            {t.games.bandicoot.play}
+          </button>
+        </div>
+      </div>
+      {bandicootOpen && (
+        <Suspense fallback={null}>
+          <NeoBandicoot onClose={() => setBandicootOpen(false)} />
+        </Suspense>
       )}
 
       {/* Consolidated connection error banner */}
