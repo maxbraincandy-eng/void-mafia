@@ -730,8 +730,17 @@ export function GamePage() {
                 {amSpectator ? t.game.spectatingNight : amAlive ? t.game.night.activeMsg : t.game.night.eliminatedMsg}
               </p>
             </div>
-            {/* Mafia Radio — private night channel */}
-            {isMafiaPlayer && amAlive && !amSpectator && (
+            {/* Mafia night voice: with LiveKit the ::mafia sub-room connects
+                automatically, so show just a slim "live" strip — the old mesh
+                widget (join buttons, PTT) only renders on the mesh fallback. */}
+            {isMafiaPlayer && amAlive && !amSpectator && livekitEnabled && (
+              <div className="rounded-2xl border border-neon-red/20 px-3 py-2.5 flex items-center gap-2.5" style={{ background: 'rgba(30,0,8,0.7)' }}>
+                <span className="w-1.5 h-1.5 rounded-full bg-neon-red animate-pulse" style={{ boxShadow: '0 0 6px rgba(255,45,85,0.8)' }} />
+                <span className="font-mono text-[12px] tracking-[0.2em] uppercase text-neon-red/70">{t.game.mafiaRadio}</span>
+                <span className="text-[12px] font-mono text-white/25 ml-auto">{t.game.mafiaRadioOnly}</span>
+              </div>
+            )}
+            {isMafiaPlayer && amAlive && !amSpectator && !livekitEnabled && (
               <div className="rounded-2xl border border-neon-red/20 overflow-hidden" style={{ background: 'rgba(30,0,8,0.7)' }}>
                 <div className="flex items-center gap-2.5 px-3 py-2 border-b border-neon-red/10">
                   <span className="text-xs" style={{ filter: 'drop-shadow(0 0 4px rgba(255,45,85,0.8))' }}>📻</span>
