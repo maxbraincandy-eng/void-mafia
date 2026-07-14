@@ -493,14 +493,39 @@ export function GamePage() {
     setPendingVoteId(null);
   }, [phase]);
 
-  // Haptic feedback on phase changes
+  // Haptic + sound feedback on phase changes. The SFX library has had these
+  // cues for a while — this finally plays them at the right moments. Family
+  // guards stop the night sting re-firing across don_check→mafia_kill→
+  // sheriff_check (one night = one sting), same for the tribunal chain.
   const prevPhaseForHaptic = useRef<string | null>(null);
   useEffect(() => {
     const cur = room?.phase ?? null;
     if (!cur || cur === prevPhaseForHaptic.current) return;
+    const prev = prevPhaseForHaptic.current;
     prevPhaseForHaptic.current = cur;
-    if (cur === 'voting') navigator.vibrate?.([200, 100, 200]);
-    else if (cur === 'night') navigator.vibrate?.([300]);
+
+    const NIGHTISH = ['night', 'planning_night', 'don_check', 'mafia_kill', 'sheriff_check'];
+    const VOTISH = ['voting', 'revote', 'tie_defense', 'double_elim_vote'];
+    const wasNight = prev !== null && NIGHTISH.includes(prev);
+    const wasVote = prev !== null && VOTISH.includes(prev);
+
+    if (VOTISH.includes(cur)) {
+      navigator.vibrate?.([200, 100, 200]);
+      if (!wasVote) SFX.voteStart();
+    } else if (NIGHTISH.includes(cur)) {
+      navigator.vibrate?.([300]);
+      if (!wasNight) SFX.nightStart();
+    } else if (cur === 'day') {
+      SFX.dayStart();
+    } else if (cur === 'speech' && prev !== null) {
+      SFX.phaseTransition();
+    } else if (cur === 'final_words') {
+      SFX.eliminate();
+    } else if (cur === 'game_over') {
+      SFX.gameOver();
+    } else if (cur === 'role_reveal') {
+      SFX.gameStart();
+    }
   }, [room?.phase]);
 
   // Haptic when it becomes MY turn to speak
@@ -511,6 +536,7 @@ export function GamePage() {
       prevSpeakerRef.current = cur;
       if (cur === myPlayer?.id && amAlive && !amSpectator) {
         navigator.vibrate?.([150, 50, 150]);
+        SFX.ping(); // audible "your turn" cue alongside the buzz
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -525,9 +551,9 @@ export function GamePage() {
     const iNominatedNow = Object.values(nominations).includes(myPlayer.id);
     const iWasNominated = Object.values(prevNominations).includes(myPlayer.id);
     if (iNominatedNow && !iWasNominated) {
-      SFX.timerWarning();
+      SFX.nomination(); // the dedicated nomination sting (was reusing timerWarning)
       navigator.vibrate?.([100, 50, 100]);
-      addToast('You were nominated!', 'error');
+      addToast(t.gamePanels.youWereNominated ?? 'You were nominated!', 'error');
     }
     prevNominationsRef.current = nominations;
   // eslint-disable-next-line react-hooks/exhaustive-deps

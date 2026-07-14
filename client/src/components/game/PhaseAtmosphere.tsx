@@ -41,15 +41,26 @@ function NightLayer() {
   );
 }
 
+// Every phase where the city sleeps shares the starfield night layer —
+// including the Don-mode night chain and the planning night.
+const NIGHTISH: Phase[] = ['night', 'planning_night', 'don_check', 'mafia_kill', 'sheriff_check'];
+
+const TRIBUNAL_RED =
+  'radial-gradient(ellipse 200% 80% at 50% 50%, rgba(110,0,25,0.22) 0%, transparent 65%),' +
+  'radial-gradient(ellipse 100% 40% at 0% 50%, rgba(90,0,15,0.12) 0%, transparent 60%),' +
+  'radial-gradient(ellipse 100% 40% at 100% 50%, rgba(90,0,15,0.12) 0%, transparent 60%)';
+
 const OVERLAYS: Partial<Record<Phase, string>> = {
   day:
     'radial-gradient(ellipse 140% 60% at 50% -5%, rgba(0,90,120,0.18) 0%, transparent 70%)',
   speech:
     'radial-gradient(ellipse 140% 60% at 50% -5%, rgba(0,120,70,0.14) 0%, transparent 70%)',
-  voting:
-    'radial-gradient(ellipse 200% 80% at 50% 50%, rgba(110,0,25,0.22) 0%, transparent 65%),' +
-    'radial-gradient(ellipse 100% 40% at 0% 50%, rgba(90,0,15,0.12) 0%, transparent 60%),' +
-    'radial-gradient(ellipse 100% 40% at 100% 50%, rgba(90,0,15,0.12) 0%, transparent 60%)',
+  voting: TRIBUNAL_RED,
+  revote: TRIBUNAL_RED,
+  tie_defense: TRIBUNAL_RED,
+  double_elim_vote: TRIBUNAL_RED,
+  final_words:
+    'radial-gradient(ellipse 160% 70% at 50% 50%, rgba(60,0,90,0.25) 0%, transparent 70%)',
   role_reveal:
     'radial-gradient(ellipse 140% 60% at 50% -5%, rgba(90,0,200,0.20) 0%, transparent 70%)',
 };
@@ -59,7 +70,7 @@ interface Props { phase: Phase }
 export function PhaseAtmosphere({ phase }: Props) {
   return (
     <AnimatePresence mode="sync">
-      {phase === 'night' ? (
+      {NIGHTISH.includes(phase) ? (
         <motion.div
           key="night"
           initial={{ opacity: 0 }}
