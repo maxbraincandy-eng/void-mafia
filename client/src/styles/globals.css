@@ -184,6 +184,40 @@
   padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
 }
 
+/* ── Desktop framing ──────────────────────────────────────────────────
+   The app is mobile-first: on a wide screen it would otherwise be a narrow
+   column with a full-width bottom bar and bare black sides. Frame it as a
+   centered "device" column with a hairline edge, ambient side glow, and a
+   floating centered nav so the layout reads as intentional, not empty. */
+@media (min-width: 1024px) {
+  body {
+    background:
+      radial-gradient(48% 40% at 14% 8%, rgba(124, 58, 237, 0.12), transparent 60%),
+      radial-gradient(46% 38% at 86% 92%, rgba(0, 229, 255, 0.09), transparent 60%),
+      radial-gradient(60% 50% at 50% 50%, rgba(20, 8, 40, 0.6), transparent 70%),
+      #05030f;
+    background-attachment: fixed;
+  }
+  .vm-app-frame {
+    max-width: 760px;
+    margin-inline: auto;
+    border-inline: 1px solid rgba(255, 255, 255, 0.07);
+    box-shadow: 0 0 90px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(155, 0, 255, 0.05);
+  }
+  /* Centered, floating, rounded nav that matches the framed column */
+  .vm-bottom-nav {
+    left: 50% !important;
+    right: auto !important;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 760px;
+    border-left: 1px solid var(--vm-nav-border);
+    border-right: 1px solid var(--vm-nav-border);
+  }
+  /* Floating action buttons hug the frame edge instead of the screen edge */
+  .vm-frame-anchor-right { right: calc(50% - 380px + 1rem) !important; }
+}
+
 /* Safe area padding — CSS classes for iOS PWA reliability (inline env() can be unreliable) */
 .safe-top {
   padding-top: calc(env(safe-area-inset-top, 0px) + var(--vm-banner-h, 0px));

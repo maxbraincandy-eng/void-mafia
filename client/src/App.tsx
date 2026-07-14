@@ -455,7 +455,7 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
 
   return (
     <div
-      className="min-h-screen vm-main-pb"
+      className="min-h-screen vm-main-pb vm-app-frame"
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >

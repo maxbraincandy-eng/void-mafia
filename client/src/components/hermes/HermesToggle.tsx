@@ -17,7 +17,7 @@ export function HermesToggle() {
       transition={{ delay: 1.2, type: 'spring', stiffness: 280, damping: 22 }}
       onClick={() => open()}
       aria-label="Open Hermes AI"
-      className="fixed bottom-[5.5rem] right-4 z-[60] w-12 h-12 rounded-full flex flex-col items-center justify-center"
+      className="vm-frame-anchor-right fixed bottom-[5.5rem] right-4 z-[60] w-12 h-12 rounded-full flex flex-col items-center justify-center"
       style={{
         background: 'linear-gradient(135deg, rgba(0,245,255,0.12), rgba(155,0,255,0.12))',
         border: '1px solid rgba(0,245,255,0.35)',
