@@ -1428,7 +1428,7 @@ export const TRANSLATIONS = {
       "listError": "Connection issue — the list failed to load",
       "retry": "Retry",
       "otherGames": "Other games",
-      "jokerUno": "Joker · UNO",
+      "jokerUno": "Joker · UNO · Ludo · Neo Bandicoot · Backrooms",
       "plAbbr": "pl.",
       "qAbbr": "q.",
       "myProfile": "My profile"
@@ -3609,7 +3609,7 @@ export const TRANSLATIONS = {
       "listError": "კავშირის შეფერხება — სია ვერ ჩაიტვირთა",
       "retry": "ხელახლა",
       "otherGames": "სხვა თამაშები",
-      "jokerUno": "ჯოკერი · UNO",
+      "jokerUno": "ჯოკერი · UNO · ლუდო · Neo Bandicoot · Backrooms",
       "plAbbr": "მოთ.",
       "qAbbr": "შეკ.",
       "myProfile": "ჩემი პროფილი"
@@ -5789,7 +5789,7 @@ export const TRANSLATIONS = {
       "listError": "Проблема с соединением — список не загрузился",
       "retry": "Повторить",
       "otherGames": "Другие игры",
-      "jokerUno": "Джокер · UNO",
+      "jokerUno": "Джокер · UNO · Лудо · Neo Bandicoot · Backrooms",
       "plAbbr": "игр.",
       "qAbbr": "вопр.",
       "myProfile": "Мой профиль"

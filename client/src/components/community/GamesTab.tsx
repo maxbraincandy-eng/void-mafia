@@ -217,45 +217,6 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
         </div>
       )}
 
-      {/* ── Backrooms card (3D horror mode) ─────────────────────────────── */}
-      {onOpenBackrooms && (
-        <div className="rounded-2xl overflow-hidden"
-          style={{ background: 'linear-gradient(135deg, rgba(20,16,4,0.85), rgba(8,6,2,0.85))', border: '1px solid rgba(255,214,90,0.25)' }}>
-          <div className="px-4 py-3 flex items-center gap-3"
-            style={{ background: 'rgba(255,214,90,0.04)' }}>
-            <span className="text-2xl">🟨</span>
-            <div className="flex-1 min-w-0">
-              <p className="font-display font-bold text-sm leading-tight" style={{ color: '#f5de80' }}>Backrooms</p>
-              <p className="font-mono text-[12px] text-white/35">{t.commB.backroomsSub}</p>
-            </div>
-            <button
-              onClick={onOpenBackrooms}
-              className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95"
-              style={{ background: 'rgba(255,214,90,0.1)', border: '1px solid rgba(255,214,90,0.4)', color: '#f5de80' }}>
-              {t.commB.enter}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── Neo Bandicoot card (solo 2D platformer) ─────────────────────── */}
-      <div className="rounded-2xl overflow-hidden"
-        style={{ background: 'rgba(10,6,28,0.7)', border: '1px solid rgba(255,140,38,0.3)' }}>
-        <div className="px-4 py-3 flex items-center gap-3"
-          style={{ background: 'rgba(255,140,38,0.05)' }}>
-          <span className="text-2xl">🦊</span>
-          <div className="flex-1 min-w-0">
-            <p className="font-display font-bold text-white text-sm leading-tight">{t.games.bandicoot.title}</p>
-            <p className="font-mono text-[12px] text-white/35">{t.games.bandicoot.subtitle}</p>
-          </div>
-          <button
-            onClick={() => setBandicootOpen(true)}
-            className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95"
-            style={{ background: 'rgba(255,140,38,0.12)', border: '1px solid rgba(255,140,38,0.45)', color: '#ffb46a' }}>
-            {t.games.bandicoot.play}
-          </button>
-        </div>
-      </div>
       {bandicootOpen && (
         <Suspense fallback={null}>
           <NeoBandicoot onClose={() => setBandicootOpen(false)} />
@@ -478,77 +439,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
         )}
       </div>
 
-      {/* ── Ludo card ─────────────────────────────────────────────────── */}
-      <div className="rounded-2xl overflow-hidden"
-        style={{ background: 'rgba(10,6,28,0.7)', border: '1px solid rgba(34,197,94,0.2)' }}>
-        <div className="px-4 py-3 flex items-center gap-3 border-b"
-          style={{ borderColor: 'rgba(34,197,94,0.15)', background: 'rgba(34,197,94,0.04)' }}>
-          <span className="text-2xl">🎲</span>
-          <div className="flex-1 min-w-0">
-            <p className="font-display font-bold text-white text-sm leading-tight">{t.games.ludo.title}</p>
-            <p className="font-mono text-[12px] text-white/35">{t.games.ludo.subtitle}</p>
-          </div>
-          <button onClick={handleRefresh}
-            className="w-7 h-7 flex items-center justify-center rounded-lg font-mono text-sm transition-all active:scale-95"
-            style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', color: 'rgba(34,197,94,0.6)' }}
-            title={t.games.ludo.refresh}>
-            ↻
-          </button>
-        </div>
-        <div className="px-4 py-3 flex flex-wrap gap-2">
-          {!ldShowJoin ? (
-            <>
-              <div className="w-full flex items-center gap-2 mb-1">
-                <span className="font-mono text-[12px] text-white/30 uppercase tracking-wider">Max Players:</span>
-                {([2, 3, 4] as const).map(n => (
-                  <button key={n} onClick={() => setLdMaxPlayers(n)}
-                    className="px-2 py-0.5 rounded-full font-mono text-[12px] transition-all"
-                    style={{
-                      background: ldMaxPlayers === n ? 'rgba(34,197,94,0.2)' : 'rgba(255,255,255,0.03)',
-                      border: `1px solid ${ldMaxPlayers === n ? 'rgba(34,197,94,0.5)' : 'rgba(255,255,255,0.08)'}`,
-                      color: ldMaxPlayers === n ? '#22c55e' : 'rgba(255,255,255,0.35)',
-                    }}>
-                    {n}
-                  </button>
-                ))}
-              </div>
-              <ActionButton onClick={handleLdCreate} accent="green" loading={ldLoading}>
-                {t.games.ludo.createMatch}
-              </ActionButton>
-              <ActionButton onClick={() => setLdShowJoin(true)} accent="cyan">
-                {t.games.ludo.joinMatch}
-              </ActionButton>
-            </>
-          ) : (
-            <div className="flex gap-2 w-full">
-              <input
-                value={ldJoinCode}
-                onChange={e => setLdJoinCode(e.target.value.toUpperCase())}
-                onKeyDown={e => { if (e.key === 'Enter') handleLdJoin(); }}
-                placeholder="LD-0000"
-                maxLength={7}
-                autoFocus
-                className="flex-1 bg-transparent font-mono text-sm text-white placeholder-white/20 outline-none px-3 py-2 rounded-xl border border-white/15 focus:border-white/35 transition-colors tracking-widest"
-              />
-              <button onClick={handleLdJoin} disabled={!ldJoinCode.trim() || ldLoading}
-                className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-40"
-                style={{ background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.3)', color: '#22c55e' }}>
-                {ldLoading ? '…' : t.games.ludo.joinMatch}
-              </button>
-              <button onClick={() => { setLdShowJoin(false); setLdJoinCode(''); }}
-                className="px-3 py-2 rounded-xl font-mono text-xs text-white/40 border border-white/10 hover:text-white/70 transition-colors">✕</button>
-            </div>
-          )}
-        </div>
-        {ldList.length > 0 && (
-          <div className="px-4 pb-3 space-y-1">
-            <p className="font-mono text-[12px] uppercase tracking-widest text-white/25">{t.games.ludo.openMatches}</p>
-            {ldList.map(m => <LudoRow key={m.id} match={m} onJoin={code => ldJoin(code, playerName)} />)}
-          </div>
-        )}
-      </div>
-
-      {/* ── Other games (collapsible: Joker + UNO) ───────────────────── */}
+      {/* ── Other games (collapsible: Joker · UNO · Ludo · Bandicoot · Backrooms) ── */}
       <div className="rounded-2xl overflow-hidden"
         style={{ background: 'rgba(10,6,28,0.7)', border: '1px solid rgba(255,255,255,0.1)' }}>
         <button onClick={() => setShowOther(v => !v)}
@@ -723,6 +614,116 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
           </div>
         )}
       </div>
+
+      {/* ── Ludo card ─────────────────────────────────────────────────── */}
+      <div className="rounded-2xl overflow-hidden"
+        style={{ background: 'rgba(10,6,28,0.7)', border: '1px solid rgba(34,197,94,0.2)' }}>
+        <div className="px-4 py-3 flex items-center gap-3 border-b"
+          style={{ borderColor: 'rgba(34,197,94,0.15)', background: 'rgba(34,197,94,0.04)' }}>
+          <span className="text-2xl">🎲</span>
+          <div className="flex-1 min-w-0">
+            <p className="font-display font-bold text-white text-sm leading-tight">{t.games.ludo.title}</p>
+            <p className="font-mono text-[12px] text-white/35">{t.games.ludo.subtitle}</p>
+          </div>
+          <button onClick={handleRefresh}
+            className="w-7 h-7 flex items-center justify-center rounded-lg font-mono text-sm transition-all active:scale-95"
+            style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', color: 'rgba(34,197,94,0.6)' }}
+            title={t.games.ludo.refresh}>
+            ↻
+          </button>
+        </div>
+        <div className="px-4 py-3 flex flex-wrap gap-2">
+          {!ldShowJoin ? (
+            <>
+              <div className="w-full flex items-center gap-2 mb-1">
+                <span className="font-mono text-[12px] text-white/30 uppercase tracking-wider">Max Players:</span>
+                {([2, 3, 4] as const).map(n => (
+                  <button key={n} onClick={() => setLdMaxPlayers(n)}
+                    className="px-2 py-0.5 rounded-full font-mono text-[12px] transition-all"
+                    style={{
+                      background: ldMaxPlayers === n ? 'rgba(34,197,94,0.2)' : 'rgba(255,255,255,0.03)',
+                      border: `1px solid ${ldMaxPlayers === n ? 'rgba(34,197,94,0.5)' : 'rgba(255,255,255,0.08)'}`,
+                      color: ldMaxPlayers === n ? '#22c55e' : 'rgba(255,255,255,0.35)',
+                    }}>
+                    {n}
+                  </button>
+                ))}
+              </div>
+              <ActionButton onClick={handleLdCreate} accent="green" loading={ldLoading}>
+                {t.games.ludo.createMatch}
+              </ActionButton>
+              <ActionButton onClick={() => setLdShowJoin(true)} accent="cyan">
+                {t.games.ludo.joinMatch}
+              </ActionButton>
+            </>
+          ) : (
+            <div className="flex gap-2 w-full">
+              <input
+                value={ldJoinCode}
+                onChange={e => setLdJoinCode(e.target.value.toUpperCase())}
+                onKeyDown={e => { if (e.key === 'Enter') handleLdJoin(); }}
+                placeholder="LD-0000"
+                maxLength={7}
+                autoFocus
+                className="flex-1 bg-transparent font-mono text-sm text-white placeholder-white/20 outline-none px-3 py-2 rounded-xl border border-white/15 focus:border-white/35 transition-colors tracking-widest"
+              />
+              <button onClick={handleLdJoin} disabled={!ldJoinCode.trim() || ldLoading}
+                className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-40"
+                style={{ background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.3)', color: '#22c55e' }}>
+                {ldLoading ? '…' : t.games.ludo.joinMatch}
+              </button>
+              <button onClick={() => { setLdShowJoin(false); setLdJoinCode(''); }}
+                className="px-3 py-2 rounded-xl font-mono text-xs text-white/40 border border-white/10 hover:text-white/70 transition-colors">✕</button>
+            </div>
+          )}
+        </div>
+        {ldList.length > 0 && (
+          <div className="px-4 pb-3 space-y-1">
+            <p className="font-mono text-[12px] uppercase tracking-widest text-white/25">{t.games.ludo.openMatches}</p>
+            {ldList.map(m => <LudoRow key={m.id} match={m} onJoin={code => ldJoin(code, playerName)} />)}
+          </div>
+        )}
+      </div>
+
+      {/* ── Neo Bandicoot card (solo 2D platformer) ─────────────────────── */}
+      <div className="rounded-2xl overflow-hidden"
+        style={{ background: 'rgba(10,6,28,0.7)', border: '1px solid rgba(255,140,38,0.3)' }}>
+        <div className="px-4 py-3 flex items-center gap-3"
+          style={{ background: 'rgba(255,140,38,0.05)' }}>
+          <span className="text-2xl">🦊</span>
+          <div className="flex-1 min-w-0">
+            <p className="font-display font-bold text-white text-sm leading-tight">{t.games.bandicoot.title}</p>
+            <p className="font-mono text-[12px] text-white/35">{t.games.bandicoot.subtitle}</p>
+          </div>
+          <button
+            onClick={() => setBandicootOpen(true)}
+            className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95"
+            style={{ background: 'rgba(255,140,38,0.12)', border: '1px solid rgba(255,140,38,0.45)', color: '#ffb46a' }}>
+            {t.games.bandicoot.play}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Backrooms card (3D horror mode) ─────────────────────────────── */}
+      {onOpenBackrooms && (
+        <div className="rounded-2xl overflow-hidden"
+          style={{ background: 'linear-gradient(135deg, rgba(20,16,4,0.85), rgba(8,6,2,0.85))', border: '1px solid rgba(255,214,90,0.25)' }}>
+          <div className="px-4 py-3 flex items-center gap-3"
+            style={{ background: 'rgba(255,214,90,0.04)' }}>
+            <span className="text-2xl">🟨</span>
+            <div className="flex-1 min-w-0">
+              <p className="font-display font-bold text-sm leading-tight" style={{ color: '#f5de80' }}>Backrooms</p>
+              <p className="font-mono text-[12px] text-white/35">{t.commB.backroomsSub}</p>
+            </div>
+            <button
+              onClick={onOpenBackrooms}
+              className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95"
+              style={{ background: 'rgba(255,214,90,0.1)', border: '1px solid rgba(255,214,90,0.4)', color: '#f5de80' }}>
+              {t.commB.enter}
+            </button>
+          </div>
+        </div>
+      )}
 
       </motion.div>
       )}
