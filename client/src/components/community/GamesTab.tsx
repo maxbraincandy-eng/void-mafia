@@ -10,6 +10,8 @@ import { useJokerStore } from '@/store/jokerStore';
 import { useLudoStore } from '@/store/ludoStore';
 import { useWWWStore } from '@/store/wwwStore';
 import { useUnoStore } from '@/store/unoStore';
+import { useBlackoutStore } from '@/store/blackoutStore';
+import type { BlackoutListItem } from '@/types/blackout';
 import type { CheckersMatchListItem } from '@/types/checkers';
 import type { JokerMatchListItem } from '@/types/joker';
 import type { LudoMatchListItem } from '@/types/ludo';
@@ -70,19 +72,28 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   const [unoJoinCode, setUnoJoinCode] = useState('');
   const [unoMaxPlayers, setUnoMaxPlayers] = useState(4);
 
+  // ── Blackout ────────────────────────────────────────────────────────
+  const {
+    matchList: boList, isLoading: boLoading, error: boError,
+    fetchList: boFetch, createMatch: boCreate, joinMatch: boJoin, clearError: boClear,
+  } = useBlackoutStore();
+  const [boShowJoin, setBoShowJoin] = useState(false);
+  const [boJoinCode, setBoJoinCode] = useState('');
+
   // ── "Other games" collapsible group (Joker + UNO) ───────────────────
   const [showOther, setShowOther] = useState(false);
 
   const handleRefresh = useCallback(() => {
-    ckClear(); jkClear(); ldClear(); wwClear(); unoClear();
+    ckClear(); jkClear(); ldClear(); wwClear(); unoClear(); boClear();
     ckFetch();
     jkFetch();
     ldFetch();
     wwFetch();
     unoFetch();
-  }, [ckFetch, jkFetch, ldFetch, wwFetch, unoFetch, ckClear, jkClear, ldClear, wwClear, unoClear]);
+    boFetch();
+  }, [ckFetch, jkFetch, ldFetch, wwFetch, unoFetch, boFetch, ckClear, jkClear, ldClear, wwClear, unoClear, boClear]);
 
-  useEffect(() => { ckFetch(); jkFetch(); ldFetch(); wwFetch(); unoFetch(); }, [ckFetch, jkFetch, ldFetch, wwFetch, unoFetch]);
+  useEffect(() => { ckFetch(); jkFetch(); ldFetch(); wwFetch(); unoFetch(); boFetch(); }, [ckFetch, jkFetch, ldFetch, wwFetch, unoFetch, boFetch]);
 
   // Refresh on visibility change
   useEffect(() => {
@@ -153,6 +164,17 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
     setUnoShowJoin(false);
     await unoJoin(unoJoinCode.trim().toUpperCase(), playerName);
     setUnoJoinCode('');
+  }
+
+  async function handleBoCreate() {
+    await boCreate(playerName, 8);
+  }
+
+  async function handleBoJoin() {
+    if (!boJoinCode.trim()) return;
+    setBoShowJoin(false);
+    await boJoin(boJoinCode.trim().toUpperCase(), playerName);
+    setBoJoinCode('');
   }
 
   return (
@@ -339,6 +361,65 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
         )}
       </div>
 
+      {/* ── Blackout card (social deduction · real-time) ─────────────────── */}
+      <div className="rounded-2xl overflow-hidden"
+        style={{ background: 'rgba(10,6,28,0.7)', border: '1px solid rgba(255,211,77,0.25)', boxShadow: '0 4px 24px rgba(155,0,255,0.10)' }}>
+        <div className="px-4 py-3 flex items-center gap-3 border-b"
+          style={{ borderColor: 'rgba(255,211,77,0.15)', background: 'rgba(255,211,77,0.04)' }}>
+          <span className="text-2xl">🔦</span>
+          <div className="flex-1 min-w-0">
+            <p className="font-display font-bold text-white text-sm leading-tight">
+              {t.games.blackout.title}
+              <span style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 1, color: '#fff', background: 'rgba(124,58,237,0.9)', borderRadius: 8, padding: '3px 8px', marginLeft: 8, verticalAlign: 'middle' }}>NEW</span>
+            </p>
+            <p className="font-mono text-[12px] text-white/35">{t.games.blackout.subtitle}</p>
+          </div>
+          <button onClick={handleRefresh}
+            className="w-7 h-7 flex items-center justify-center rounded-lg font-mono text-sm transition-all active:scale-95"
+            style={{ background: 'rgba(255,211,77,0.08)', border: '1px solid rgba(255,211,77,0.2)', color: 'rgba(255,224,138,0.6)' }}
+            title="Refresh">
+            ↻
+          </button>
+        </div>
+        <div className="px-4 py-3 flex flex-wrap gap-2">
+          {!boShowJoin ? (
+            <>
+              <ActionButton onClick={handleBoCreate} accent="purple" loading={boLoading}>
+                {t.games.blackout.createMatch}
+              </ActionButton>
+              <ActionButton onClick={() => setBoShowJoin(true)} accent="cyan">
+                {t.games.blackout.joinMatch}
+              </ActionButton>
+            </>
+          ) : (
+            <div className="flex gap-2 w-full">
+              <input
+                value={boJoinCode}
+                onChange={e => setBoJoinCode(e.target.value.toUpperCase())}
+                onKeyDown={e => { if (e.key === 'Enter') handleBoJoin(); }}
+                placeholder="XXXXXX"
+                maxLength={6}
+                autoFocus
+                className="flex-1 bg-transparent font-mono text-sm text-white placeholder-white/20 outline-none px-3 py-2 rounded-xl border border-white/15 focus:border-white/35 transition-colors tracking-widest"
+              />
+              <button onClick={handleBoJoin} disabled={!boJoinCode.trim() || boLoading}
+                className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-40"
+                style={{ background: 'rgba(255,211,77,0.12)', border: '1px solid rgba(255,211,77,0.35)', color: '#ffd34d' }}>
+                {boLoading ? '…' : t.games.blackout.joinMatch}
+              </button>
+              <button onClick={() => { setBoShowJoin(false); setBoJoinCode(''); }}
+                className="px-3 py-2 rounded-xl font-mono text-xs text-white/40 border border-white/10 hover:text-white/70 transition-colors">✕</button>
+            </div>
+          )}
+          {boError && <p className="w-full font-mono text-[12px] text-neon-red" onClick={boClear}>{boError}</p>}
+        </div>
+        {boList.length > 0 && (
+          <div className="px-4 pb-3 space-y-1">
+            <p className="font-mono text-[12px] uppercase tracking-widest text-white/25">{t.games.blackout.openMatches}</p>
+            {boList.map(m => <BlackoutRow key={m.id} match={m} onJoin={code => boJoin(code, playerName)} />)}
+          </div>
+        )}
+      </div>
 
       {/* ── Checkers card ─────────────────────────────────────────────── */}
       <div className="rounded-2xl overflow-hidden"
@@ -735,6 +816,27 @@ function LudoRow({ match, onJoin }: { match: LudoMatchListItem; onJoin: (code: s
           {t.games.ludo.spectate}
         </button>
       )}
+    </div>
+  );
+}
+
+function BlackoutRow({ match, onJoin }: { match: BlackoutListItem; onJoin: (code: string) => void }) {
+  const t = useT();
+  return (
+    <div className="flex items-center gap-3 px-2 py-2 rounded-xl"
+      style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
+      <div className="flex-1 min-w-0">
+        <p className="font-mono text-xs text-white truncate">{match.hostName}</p>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="font-mono text-[12px] text-white/25 tracking-widest">{match.code}</span>
+          <span className="font-mono text-[12px] text-white/20">{match.playerCount}/{match.maxPlayers} {t.commB.plAbbr}</span>
+        </div>
+      </div>
+      <button onClick={() => onJoin(match.code)}
+        className="px-2.5 py-1 rounded-lg font-mono text-[12px] uppercase tracking-wider transition-all active:scale-95"
+        style={{ background: 'rgba(255,211,77,0.1)', border: '1px solid rgba(255,211,77,0.25)', color: '#ffd34d' }}>
+        {t.games.blackout.join}
+      </button>
     </div>
   );
 }
