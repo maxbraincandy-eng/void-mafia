@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import { PlayerPublic, Phase, RoleKey } from '@/types/index';
@@ -805,6 +805,74 @@ function PlayerCard({
   );
 }
 
+// ── Desktop video wall ──────────────────────────────────────────────────────
+// Measures its own box and lays the tiles out as the LARGEST possible SQUARE
+// grid that fits — the same "gallery" math Zoom/Meet use. Tiles stay 1:1 and
+// the whole set is centered so it fills the stage without lopsided empty rows.
+const WALL_GAP = 8;
+
+function VideoWall({
+  count,
+  fallbackCols,
+  children,
+}: {
+  count: number;
+  fallbackCols: number;
+  children: React.ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [dims, setDims] = useState({ w: 0, h: 0 });
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = () => setDims({ w: el.clientWidth, h: el.clientHeight });
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const cols = useMemo(() => {
+    if (!dims.w || !dims.h || count === 0) {
+      return Math.max(1, Math.min(count || 1, fallbackCols));
+    }
+    // Pick the column count whose square tiles are the biggest.
+    let best = { c: 1, size: 0 };
+    for (let c = 1; c <= count; c++) {
+      const r = Math.ceil(count / c);
+      const tileW = (dims.w - WALL_GAP * (c - 1)) / c;
+      const tileH = (dims.h - WALL_GAP * (r - 1)) / r;
+      const size = Math.min(tileW, tileH); // square side is limited by the smaller axis
+      if (size > best.size) best = { c, size };
+    }
+    return best.c;
+  }, [dims.w, dims.h, count, fallbackCols]);
+
+  const rows = Math.max(1, Math.ceil(count / cols));
+  const tile = Math.floor(
+    Math.min(
+      (dims.w - WALL_GAP * (cols - 1)) / cols,
+      (dims.h - WALL_GAP * (rows - 1)) / rows,
+    ),
+  );
+
+  return (
+    <div ref={ref} className="w-full h-full flex items-center justify-center overflow-hidden">
+      <div
+        className="grid"
+        style={{
+          gap: `${WALL_GAP}px`,
+          gridTemplateColumns: `repeat(${cols}, ${tile > 0 ? `${tile}px` : 'minmax(0, 1fr)'})`,
+          gridAutoRows: tile > 0 ? `${tile}px` : 'minmax(0, 1fr)',
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export function PlayerGrid({
   players,
   phase,
@@ -828,15 +896,11 @@ export function PlayerGrid({
   const totalAlive = alivePlayers.length;
   const numRows = Math.ceil(players.length / 2);
 
-  // ── Desktop video-call grid: seat-ordered tiles, adaptive column count ──
+  // ── Desktop video wall: seat-ordered SQUARE tiles that fill the stage ──
   if (gridMode) {
     const ordered = [...players].sort((a, b) => (a.seat ?? 0) - (b.seat ?? 0));
-    const rows = Math.max(1, Math.ceil(ordered.length / columns));
     return (
-      <div
-        className="grid gap-2 h-full w-full"
-        style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))` }}
-      >
+      <VideoWall count={ordered.length} fallbackCols={columns}>
         {ordered.map(player => (
           <PlayerCard
             key={player.id}
@@ -856,7 +920,7 @@ export function PlayerGrid({
             onClick={() => onSelect?.(player)}
           />
         ))}
-      </div>
+      </VideoWall>
     );
   }
 
