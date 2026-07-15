@@ -7,7 +7,6 @@ import { Timer } from '@/components/ui/Timer';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { ChatPanel } from '@/components/chat/ChatPanel';
-import { PlayerList } from '@/components/game/PlayerList';
 import { RoleReveal, TeamMate } from '@/components/game/RoleReveal';
 import { NightPanel } from '@/components/game/NightPanel';
 import { VotingPanel } from '@/components/game/VotingPanel';
@@ -123,6 +122,18 @@ function getPhaseSubtitle(phase: Phase, day: number, t: import('@/i18n/translati
     case 'game_over':   return t.game.phaseSubtitles.gameOver;
     default:            return '';
   }
+}
+
+// Desktop camera-grid columns by active-player count. Region is landscape,
+// tiles fill their cell (PlayerCard fillHeight, no aspect ratio), so columns
+// control tile proportions. 5–12 honors the 1-2-3 / 4-5-6 / 7-8-9 / 10-11-12 intent.
+function desktopGridColumns(count: number): number {
+  if (count <= 1) return 1;
+  if (count === 2) return 2;
+  if (count === 3) return 3;
+  if (count === 4) return 2;   // balanced 2×2
+  if (count <= 12) return 3;   // 3+2, 3×2, 3×3 … 3×4
+  return 4;                    // 13+ overflow so tiles don't get too small
 }
 
 export function GamePage() {
@@ -1756,29 +1767,7 @@ export function GamePage() {
         })()}
 
         {/* ── DESKTOP layout (md+) ──────────────────────────────────── */}
-        <div className="hidden md:flex flex-1 overflow-hidden max-w-7xl w-full mx-auto">
-          {/* Players + Voice sidebar */}
-          <aside className="w-64 lg:w-72 flex-shrink-0 overflow-y-auto p-4 border-r border-white/5 flex flex-col">
-            <div className="flex-shrink-0">
-              <h2 className="text-xs font-display uppercase tracking-widest text-white/40 mb-3">
-                {t.lobby.players} · {alivePlayers}
-              </h2>
-              <PlayerList
-                players={activePlayers}
-                phase={phase}
-                showVotes={phase === 'voting'}
-                currentSpeakerId={phase === 'speech' ? room.currentSpeakerId : null}
-                onSelectTarget={handlePlayerSelect}
-              />
-            </div>
-            {/* Voice panel in sidebar — only for non-mafia-night or non-mafia players */}
-            {phase !== 'night' || !isMafiaPlayer ? (
-              <div className="mt-auto pt-4">
-                {VoicePanel}
-              </div>
-            ) : null}
-          </aside>
-
+        <div className="hidden md:flex flex-1 overflow-hidden max-w-[100rem] w-full mx-auto">
           {/* Center: camera grid (video-call stage) + phase actions below */}
           <main className="flex-1 overflow-hidden p-4 md:p-5 flex flex-col gap-3 min-w-0">
             {room.activeEvent && (
@@ -1801,7 +1790,7 @@ export function GamePage() {
                     selectedVoteId={myVoteTarget}
                     showRoles={amSpectator}
                     gridMode
-                    columns={activePlayers.length <= 6 ? 3 : 4}
+                    columns={desktopGridColumns(activePlayers.length)}
                     voice={tileVoice}
                     allyIds={allyIds}
                     nominatedIds={new Set(Object.values(room.nominations ?? {}))}
@@ -1810,11 +1799,17 @@ export function GamePage() {
                   />
                 </div>
                 {/* Phase actions (voting / night / speech controls) */}
-                <div className="flex-shrink-0 overflow-y-auto" style={{ maxHeight: '42%' }}>
+                <div className="flex-shrink-0 overflow-y-auto" style={{ maxHeight: '34%' }}>
                   {PhaseContent}
                 </div>
               </>
             )}
+            {/* Voice controls — moved out of the removed left sidebar */}
+            {phase !== 'night' || !isMafiaPlayer ? (
+              <div className="flex-shrink-0 overflow-y-auto" style={{ maxHeight: '30%' }}>
+                {VoicePanel}
+              </div>
+            ) : null}
           </main>
 
           {/* Events + Chat sidebar */}

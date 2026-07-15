@@ -828,7 +828,7 @@ export function PlayerGrid({
   const totalAlive = alivePlayers.length;
   const numRows = Math.ceil(players.length / 2);
 
-  // ── Desktop video-call grid: fixed seat-ordered tiles (1-2-3-4 / 5-6-7-8 …) ──
+  // ── Desktop video-call grid: seat-ordered tiles, adaptive column count ──
   if (gridMode) {
     const ordered = [...players].sort((a, b) => (a.seat ?? 0) - (b.seat ?? 0));
     const rows = Math.max(1, Math.ceil(ordered.length / columns));
