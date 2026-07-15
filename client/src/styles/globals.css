@@ -184,11 +184,13 @@
   padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
 }
 
-/* ── Desktop framing ──────────────────────────────────────────────────
-   The app is mobile-first: on a wide screen it would otherwise be a narrow
-   column with a full-width bottom bar and bare black sides. Frame it as a
-   centered "device" column with a hairline edge, ambient side glow, and a
-   floating centered nav so the layout reads as intentional, not empty. */
+/* ── Desktop shell ─────────────────────────────────────────────────────
+   The app is mobile-first. On a wide screen we drop the narrow "device"
+   column and use a real desktop shell instead: a fixed left navigation rail
+   (SideNav) plus the page content, which fills the full viewport width. Each
+   page already centers its own content (max-w-lg mx-auto), so it sits nicely
+   in the space to the right of the rail while the ambient background fills
+   the rest. The mobile BottomNav is hidden at this breakpoint. */
 @media (min-width: 1024px) {
   body {
     background:
@@ -198,24 +200,18 @@
       #05030f;
     background-attachment: fixed;
   }
+  /* Full-width, no device border; content is offset by the 248px rail. */
   .vm-app-frame {
-    max-width: 760px;
-    margin-inline: auto;
-    border-inline: 1px solid rgba(255, 255, 255, 0.07);
-    box-shadow: 0 0 90px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(155, 0, 255, 0.05);
+    max-width: none;
+    margin-inline: 0;
+    padding-left: 248px;
   }
-  /* Centered, floating, rounded nav that matches the framed column */
-  .vm-bottom-nav {
-    left: 50% !important;
-    right: auto !important;
-    transform: translateX(-50%);
-    width: 100%;
-    max-width: 760px;
-    border-left: 1px solid var(--vm-nav-border);
-    border-right: 1px solid var(--vm-nav-border);
+  /* No bottom nav on desktop, so reclaim its reserved space. */
+  .vm-main-pb {
+    padding-bottom: 0;
   }
-  /* Floating action buttons hug the frame edge instead of the screen edge */
-  .vm-frame-anchor-right { right: calc(50% - 380px + 1rem) !important; }
+  /* Floating action buttons hug the screen's right edge. */
+  .vm-frame-anchor-right { right: 1.5rem !important; }
 }
 
 /* Safe area padding — CSS classes for iOS PWA reliability (inline env() can be unreliable) */

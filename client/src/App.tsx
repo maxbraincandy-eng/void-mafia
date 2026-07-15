@@ -20,6 +20,7 @@ import { EconomyAdminPage } from '@/pages/EconomyAdminPage';
 import { ReplaysPage } from '@/pages/ReplaysPage';
 import { PublicProfilePage } from '@/pages/PublicProfilePage';
 import { BottomNav, NavTab } from '@/components/layout/BottomNav';
+import { SideNav } from '@/components/layout/SideNav';
 import { useCheckersStore } from '@/store/checkersStore';
 import { useLudoStore } from '@/store/ludoStore';
 import { useJokerStore } from '@/store/jokerStore';
@@ -471,7 +472,8 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
         {page === 'profile'     && <PageTransition key="profile"      direction={direction}><ProfilePage onViewReplay={navigateToReplay} /></PageTransition>}
 {page === 'economy' && isOwner && <PageTransition key="economy" direction={direction}><EconomyAdminPage /></PageTransition>}
       </AnimatePresence>
-      {!inGame && <BottomNav active={page} isMod={isMod} onChange={tab => navigate(tab)} onMoreClick={openMoreMenu} />}
+      {!inGame && <SideNav active={page} isMod={isMod} onChange={tab => navigate(tab)} onMoreClick={openMoreMenu} />}
+      {!inGame && <div className="lg:hidden">{<BottomNav active={page} isMod={isMod} onChange={tab => navigate(tab)} onMoreClick={openMoreMenu} />}</div>}
 
       {/* Game overlays — rendered outside PageTransition so fixed inset-0 works correctly */}
       <AnimatePresence>{checkersMatch && <CheckersGame />}</AnimatePresence>
