@@ -164,6 +164,21 @@ export function NeoBandicoot({ onClose }: { onClose: () => void }) {
     let disposed = false;
     const WORLD_W = L.worldW;
 
+    // Low-end tier: Redmi-class phones (little RAM / few cores) were getting
+    // their tab killed by the OS. Drop the render resolution and per-frame
+    // work so the game stays within a tight memory/CPU budget.
+    const lowEnd = (() => {
+      try {
+        const dm = (navigator as any).deviceMemory;
+        const hc = navigator.hardwareConcurrency || 8;
+        return (typeof dm === 'number' && dm <= 3) || hc <= 4;
+      } catch { return false; }
+    })();
+    const DPR_CAP = lowEnd ? 1 : 1.5;
+    const HILLS_1 = lowEnd ? 3 : 5;
+    const HILLS_2 = lowEnd ? 3 : 6;
+    const PART_CAP = lowEnd ? 60 : 120;
+
     const p = { x: L.spawn.x, y: L.spawn.y, vx: 0, vy: 0, face: 1, grounded: false, jumps: 2, coyote: 0, buffer: 0, spin: 0, hurt: 0, runPhase: 0, riding: -1 };
     let checkpoint = { ...L.spawn };
     const coins = L.coins.map(c => ({ ...c, got: false }));
@@ -173,8 +188,11 @@ export function NeoBandicoot({ onClose }: { onClose: () => void }) {
     const hazards = L.hazards;
     const parts: Particle[] = [];
     let coinCount = 0, lives = 3, status: Status = 'play', elapsed = 0, gameT = 0, shake = 0;
+    // Mirror of the values pushed to React HUD state — lets the frame loop skip
+    // dispatching setHud unless something actually changed.
+    let hudCoins = 0, hudLives = 3, hudTime = 0;
 
-    const syncHud = () => setHud({ coins: coinCount, lives, time: Math.floor(elapsed), status, level: levelIdx + 1, name: L.name, total: totalCoinsRef.current + coinCount });
+    const syncHud = () => { hudCoins = coinCount; hudLives = lives; hudTime = Math.floor(elapsed); setHud({ coins: coinCount, lives, time: hudTime, status, level: levelIdx + 1, name: L.name, total: totalCoinsRef.current + coinCount }); };
 
     const keys: Record<string, boolean> = {};
     const kd = (e: KeyboardEvent) => {
@@ -196,7 +214,7 @@ export function NeoBandicoot({ onClose }: { onClose: () => void }) {
     (canvas as any)._spin = () => startSpin();
 
     const spawnParts = (n: number, x: number, y: number, spread: number, color: string) => {
-      const cap = Math.min(n, 120 - parts.length);
+      const cap = Math.min(n, PART_CAP - parts.length);
       for (let i = 0; i < cap; i++) parts.push({ x, y, vx: (Math.random() - 0.5) * spread, vy: -Math.random() * spread, life: 0.6, color });
     };
     function startSpin() {
@@ -324,12 +342,21 @@ export function NeoBandicoot({ onClose }: { onClose: () => void }) {
       if (p.grounded && Math.abs(p.vx) > 20) p.runPhase += dt * 14;
       shake = Math.max(0, shake - dt * 30);
 
-      setHud(h => (h.coins !== coinCount || h.lives !== lives || Math.floor(elapsed) !== h.time) ? { ...h, coins: coinCount, lives, time: Math.floor(elapsed) } : h);
+      const tsec = Math.floor(elapsed);
+      if (coinCount !== hudCoins || lives !== hudLives || tsec !== hudTime) {
+        hudCoins = coinCount; hudLives = lives; hudTime = tsec;
+        setHud(h => ({ ...h, coins: coinCount, lives, time: tsec }));
+      }
     }
+
+    // Gradients are expensive to build every frame; cache them (sky by height,
+    // lava by y) so low-end phones aren't churning GC 60x/second.
+    let skyGrad: CanvasGradient | null = null, skyGradH = -1;
+    const lavaGrads = new Map<number, CanvasGradient>();
 
     function render() {
       const W = canvas.clientWidth, H = canvas.clientHeight;
-      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);   // low-end friendly
+      const dpr = Math.min(window.devicePixelRatio || 1, DPR_CAP);   // low-end friendly
       if (canvas.width !== Math.round(W * dpr) || canvas.height !== Math.round(H * dpr)) { canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr); }
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
@@ -339,13 +366,16 @@ export function NeoBandicoot({ onClose }: { onClose: () => void }) {
       camY = Math.max(-80, Math.min(WORLD_H - H / zoom + 40, camY));
       if (shake > 0) { camX += (Math.random() - 0.5) * shake; camY += (Math.random() - 0.5) * shake; }
 
-      const g = ctx.createLinearGradient(0, 0, 0, H);
-      g.addColorStop(0, L.sky[0]); g.addColorStop(0.6, L.sky[1]); g.addColorStop(1, L.sky[2]);
-      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      if (!skyGrad || skyGradH !== H) {
+        skyGrad = ctx.createLinearGradient(0, 0, 0, H);
+        skyGrad.addColorStop(0, L.sky[0]); skyGrad.addColorStop(0.6, L.sky[1]); skyGrad.addColorStop(1, L.sky[2]);
+        skyGradH = H;
+      }
+      ctx.fillStyle = skyGrad; ctx.fillRect(0, 0, W, H);
       ctx.fillStyle = L.hill1;
-      for (let i = 0; i < 5; i++) { const hx = ((i * 700 - camX * 0.3) % (WORLD_W * 0.5) + WORLD_W * 0.5) % (WORLD_W * 0.5) - 200; ctx.beginPath(); ctx.arc(hx, H * 0.86, 260, Math.PI, 0); ctx.fill(); }
+      for (let i = 0; i < HILLS_1; i++) { const hx = ((i * 700 - camX * 0.3) % (WORLD_W * 0.5) + WORLD_W * 0.5) % (WORLD_W * 0.5) - 200; ctx.beginPath(); ctx.arc(hx, H * 0.86, 260, Math.PI, 0); ctx.fill(); }
       ctx.fillStyle = L.hill2;
-      for (let i = 0; i < 6; i++) { const hx = ((i * 560 - camX * 0.55) % (WORLD_W * 0.6) + WORLD_W * 0.6) % (WORLD_W * 0.6) - 150; ctx.beginPath(); ctx.arc(hx, H * 0.95, 180, Math.PI, 0); ctx.fill(); }
+      for (let i = 0; i < HILLS_2; i++) { const hx = ((i * 560 - camX * 0.55) % (WORLD_W * 0.6) + WORLD_W * 0.6) % (WORLD_W * 0.6) - 150; ctx.beginPath(); ctx.arc(hx, H * 0.95, 180, Math.PI, 0); ctx.fill(); }
 
       ctx.save();
       ctx.scale(zoom, zoom);
@@ -357,7 +387,8 @@ export function NeoBandicoot({ onClose }: { onClose: () => void }) {
       for (const s of hazards) {
         if (s.w <= 0) continue;
         if (s.lava) {
-          const lg = ctx.createLinearGradient(0, s.y, 0, s.y + 60); lg.addColorStop(0, '#ff7a1a'); lg.addColorStop(1, '#8a1500');
+          let lg = lavaGrads.get(s.y);
+          if (!lg) { lg = ctx.createLinearGradient(0, s.y, 0, s.y + 60); lg.addColorStop(0, '#ff7a1a'); lg.addColorStop(1, '#8a1500'); lavaGrads.set(s.y, lg); }
           ctx.fillStyle = lg; ctx.fillRect(s.x, s.y, s.w, 60);
           ctx.fillStyle = 'rgba(255,220,120,0.6)';
           for (let bx = s.x + 6; bx < s.x + s.w; bx += 26) ctx.fillRect(bx, s.y + Math.sin(gameT * 4 + bx) * 3, 10, 4);
