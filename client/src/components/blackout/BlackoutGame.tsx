@@ -7,8 +7,11 @@ import { useBlackoutStore, blackoutRemotePos } from '@/store/blackoutStore';
 import {
   BLACKOUT_WORLD_W as WORLD_W, BLACKOUT_WORLD_H as WORLD_H,
   BLACKOUT_KILL_DIST as KILL_DIST, BLACKOUT_REPORT_DIST as REPORT_DIST,
+  BLACKOUT_DOOR_HACK_DIST as DOOR_HACK_DIST, BLACKOUT_EMERGENCY_DIST as EMERGENCY_DIST,
+  BLACKOUT_EMERGENCY_POS as EMERGENCY_POS, BLACKOUT_DOORS as DOORS,
 } from '@/types/blackout';
 import type { BlackoutEject } from '@/types/blackout';
+import { SFX } from '@/lib/audioEngine';
 
 /**
  * Blackout — social deduction with real-time top-down movement.
@@ -48,26 +51,53 @@ const SPEED = 245;          // px/s
 const BODY_R = 17;          // player radius
 const EMIT_MS = 85;         // position packets ~12Hz
 
-const collides = (x: number, y: number) => {
+// Doorway barrier rects when a door is hacked shut (gap is 100px wide)
+const DOOR_RECTS: Record<string, { x: number; y: number; w: number; h: number }> = Object.fromEntries(
+  DOORS.map(d => [d.id, { x: d.x - 50, y: d.y - 10, w: 100, h: 20 }]),
+);
+
+// Security camera positions (one per room) + coverage radius
+const CAMS: { x: number; y: number }[] = [
+  { x: 265, y: 250 }, { x: 800, y: 250 }, { x: 1335, y: 250 },
+  { x: 265, y: 950 }, { x: 800, y: 950 }, { x: 1335, y: 950 },
+];
+const CAM_RADIUS = 310;
+
+const collides = (x: number, y: number, lockedRects: { x: number; y: number; w: number; h: number }[]) => {
   for (const w of WALLS) {
+    if (x + BODY_R > w.x && x - BODY_R < w.x + w.w && y + BODY_R > w.y && y - BODY_R < w.y + w.h) return true;
+  }
+  for (const w of lockedRects) {
     if (x + BODY_R > w.x && x - BODY_R < w.x + w.w && y + BODY_R > w.y && y - BODY_R < w.y + w.h) return true;
   }
   return false;
 };
 
-interface Actions { killTargetId: string | null; canReport: boolean; cooldownLeft: number }
+interface Actions {
+  killTargetId: string | null;
+  canReport: boolean;
+  cooldownLeft: number;
+  canSabotage: boolean;
+  sabotageCd: number;
+  canEmergency: boolean;
+  hackDoorId: string | null;
+  hackCd: number;
+}
 
 export function BlackoutGame() {
   const t = useT();
   const tb = t.games.blackout;
   const profile = useAuthStore(s => s.profile);
   const nickname = profile?.username ?? 'Player';
-  const { match, leaveMatch, startMatch, kill, report, vote, rematch, sendChat, error, clearError } = useBlackoutStore();
+  const { match, leaveMatch, startMatch, kill, report, sabotage, emergency, hackDoor, vote, rematch, sendChat, error, clearError } = useBlackoutStore();
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const camCanvasRef = useRef<HTMLCanvasElement>(null);
   const inputRef = useRef({ keys: {} as Record<string, boolean>, jx: 0, jy: 0 });
   const joyStart = useRef({ x: 0, y: 0, active: false });
-  const [actions, setActions] = useState<Actions>({ killTargetId: null, canReport: false, cooldownLeft: 0 });
+  const [actions, setActions] = useState<Actions>({ killTargetId: null, canReport: false, cooldownLeft: 0, canSabotage: false, sabotageCd: 0, canEmergency: false, hackDoorId: null, hackCd: 0 });
+  const [camOpen, setCamOpen] = useState(false);
+  const [deathBanner, setDeathBanner] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [roleSplash, setRoleSplash] = useState(false);
   const [ejectBanner, setEjectBanner] = useState<BlackoutEject | null>(null);
@@ -96,10 +126,95 @@ export function BlackoutGame() {
     const le = useBlackoutStore.getState().match?.lastEject;
     if (!le) return;
     setEjectBanner(le);
+    if (le.userId) SFX.eliminate(); else SFX.ping();
     const timer = setTimeout(() => setEjectBanner(null), 4500);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastEjectKey]);
+
+  // SFX on lights/status transitions + my-death banner
+  const prevRef = useRef({ lightsOn: true, status: '', alive: true });
+  useEffect(() => {
+    if (!match) return;
+    const prev = prevRef.current;
+    const meNow = match.players.find(p => p.userId === match.myUserId);
+    if (match.status === 'play' && prev.status === 'play' && prev.lightsOn !== match.lightsOn) {
+      if (match.lightsOn) SFX.dayStart(); else SFX.nightStart();
+    }
+    if (match.status === 'meeting' && prev.status === 'play') SFX.voteStart();
+    if (match.status === 'play' && prev.status === 'waiting') SFX.gameStart();
+    if (match.status === 'finished' && prev.status && prev.status !== 'finished') SFX.gameOver();
+    if (prev.alive && meNow && !meNow.alive && (match.status === 'play' || match.status === 'meeting')) {
+      SFX.eliminate();
+      setDeathBanner(true);
+      setTimeout(() => setDeathBanner(false), 3000);
+    }
+    prevRef.current = { lightsOn: match.lightsOn, status: match.status, alive: meNow?.alive ?? true };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [match?.lightsOn, match?.status, match?.players]);
+
+  // Auto-close the camera overlay when leaving play or dying
+  useEffect(() => {
+    if (status !== 'play' || !amAlive) setCamOpen(false);
+  }, [status, amAlive]);
+
+  // ── Security camera minimap loop ──
+  useEffect(() => {
+    if (!camOpen) return;
+    const canvas = camCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d')!;
+    let raf = 0, disposed = false;
+    const loop = () => {
+      if (disposed) return;
+      raf = requestAnimationFrame(loop);
+      const m = useBlackoutStore.getState().match;
+      if (!m) return;
+      const W = canvas.clientWidth, H = canvas.clientHeight;
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+      if (canvas.width !== Math.round(W * dpr) || canvas.height !== Math.round(H * dpr)) {
+        canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.fillStyle = '#050310';
+      ctx.fillRect(0, 0, W, H);
+      const s = Math.min(W / WORLD_W, H / WORLD_H);
+      const ox = (W - WORLD_W * s) / 2, oy = (H - WORLD_H * s) / 2;
+      ctx.save();
+      ctx.translate(ox, oy);
+      ctx.scale(s, s);
+      for (const r of ROOMS) { ctx.fillStyle = 'rgba(255,255,255,0.035)'; ctx.fillRect(r.x, r.y, r.w, r.h); }
+      for (const w of WALLS) { ctx.fillStyle = 'rgba(155,0,255,0.35)'; ctx.fillRect(w.x, w.y, w.w, w.h); }
+      // Camera coverage
+      const blink = Math.floor(Date.now() / 600) % 2 === 0;
+      for (const c of CAMS) {
+        ctx.fillStyle = 'rgba(0,229,255,0.05)';
+        ctx.beginPath(); ctx.arc(c.x, c.y, CAM_RADIUS, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = blink ? '#ff2d55' : 'rgba(255,45,85,0.3)';
+        ctx.beginPath(); ctx.arc(c.x, c.y, 12, 0, Math.PI * 2); ctx.fill();
+      }
+      const inCoverage = (x: number, y: number) => CAMS.some(c => Math.hypot(c.x - x, c.y - y) <= CAM_RADIUS);
+      // Corpses in coverage
+      for (const c of m.corpses) {
+        if (!inCoverage(c.x, c.y)) continue;
+        ctx.strokeStyle = '#ff2d55'; ctx.lineWidth = 6;
+        ctx.beginPath(); ctx.moveTo(c.x - 14, c.y - 14); ctx.lineTo(c.x + 14, c.y + 14);
+        ctx.moveTo(c.x + 14, c.y - 14); ctx.lineTo(c.x - 14, c.y + 14); ctx.stroke();
+      }
+      // Live players in coverage — anonymous dots only
+      for (const p of m.players) {
+        if (!p.alive) continue;
+        const rp = p.userId === m.myUserId ? null : blackoutRemotePos.get(p.userId);
+        const px = rp?.x ?? p.x, py = rp?.y ?? p.y;
+        if (!inCoverage(px, py)) continue;
+        ctx.fillStyle = p.userId === m.myUserId ? '#00e5ff' : '#9be564';
+        ctx.beginPath(); ctx.arc(px, py, 14, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.restore();
+    };
+    raf = requestAnimationFrame(loop);
+    return () => { disposed = true; cancelAnimationFrame(raf); };
+  }, [camOpen]);
 
   // 1s countdown ticker (lights + meeting)
   useEffect(() => {
@@ -140,11 +255,11 @@ export function BlackoutGame() {
 
     const lastActions = { kill: '', report: false, cd: 0 };
 
-    const loop = (now: number) => {
+    const loop = (frameTs: number) => {
       if (disposed) return;
       raf = requestAnimationFrame(loop);
-      const dt = Math.min((now - last) / 1000, 0.05);
-      last = now;
+      const dt = Math.min((frameTs - last) / 1000, 0.05);
+      last = frameTs;
       const m = useBlackoutStore.getState().match;
       if (!m) return;
 
@@ -153,6 +268,11 @@ export function BlackoutGame() {
       if (m.round !== lastRound && meNow) { lastRound = m.round; pos.x = meNow.x; pos.y = meNow.y; }
 
       // ── Physics (frozen during meetings) ──
+      const now = Date.now();
+      const lockedRects = Object.entries(m.doors)
+        .filter(([, until]) => until > now)
+        .map(([id]) => DOOR_RECTS[id]!)
+        .filter(Boolean);
       if (m.status === 'play') {
         const k = input.keys;
         let dx = (k['KeyA'] || k['ArrowLeft'] ? -1 : 0) + (k['KeyD'] || k['ArrowRight'] ? 1 : 0) + input.jx;
@@ -162,8 +282,8 @@ export function BlackoutGame() {
           dx /= Math.max(1, len); dy /= Math.max(1, len);
           const nx = pos.x + dx * SPEED * dt;
           const ny = pos.y + dy * SPEED * dt;
-          if (!collides(nx, pos.y)) pos.x = nx;
-          if (!collides(pos.x, ny)) pos.y = ny;
+          if (!collides(nx, pos.y, lockedRects)) pos.x = nx;
+          if (!collides(pos.x, ny, lockedRects)) pos.y = ny;
           pos.fx = dx || pos.fx; pos.fy = dy || pos.fy;
           const fl = Math.hypot(pos.fx, pos.fy) || 1;
           pos.fx /= fl; pos.fy /= fl;
@@ -196,12 +316,28 @@ export function BlackoutGame() {
           if (Math.hypot(c.x - pos.x, c.y - pos.y) <= REPORT_DIST) { canReport = true; break; }
         }
       }
-      const cd = Math.max(0, Math.ceil((m.myKillCooldownUntil - Date.now()) / 1000));
-      if (killTarget !== lastActions.kill || canReport !== lastActions.report || cd !== lastActions.cd) {
-        lastActions.kill = killTarget ?? '';
-        lastActions.report = canReport;
-        lastActions.cd = cd;
-        setActions({ killTargetId: killTarget, canReport, cooldownLeft: cd });
+      const cd = Math.max(0, Math.ceil((m.myKillCooldownUntil - now) / 1000));
+      // Sabotage (killer, lights on)
+      const sabotageCd = Math.max(0, Math.ceil((m.sabotageCooldownUntil - now) / 1000));
+      const canSabotage = iAmKiller && meAlive && m.lightsOn && m.status === 'play';
+      // Emergency button (corridor, lights on, once per game)
+      const canEmergency = meAlive && m.status === 'play' && m.lightsOn && !m.myEmergencyUsed
+        && Math.hypot(EMERGENCY_POS.x - pos.x, EMERGENCY_POS.y - pos.y) <= EMERGENCY_DIST;
+      // Hacker: nearest door in range
+      let hackDoorNear: string | null = null;
+      if (m.mySpecialty === 'hacker' && meAlive && m.status === 'play') {
+        let bd = DOOR_HACK_DIST;
+        for (const d of DOORS) {
+          if ((m.doors[d.id] ?? 0) > now) continue;
+          const dd = Math.hypot(d.x - pos.x, d.y - pos.y);
+          if (dd < bd) { bd = dd; hackDoorNear = d.id; }
+        }
+      }
+      const hackCd = Math.max(0, Math.ceil((m.myHackCooldownUntil - now) / 1000));
+      const sig = `${killTarget}|${canReport}|${cd}|${canSabotage}|${sabotageCd}|${canEmergency}|${hackDoorNear}|${hackCd}`;
+      if (sig !== lastActions.kill) {
+        lastActions.kill = sig;
+        setActions({ killTargetId: killTarget, canReport, cooldownLeft: cd, canSabotage, sabotageCd, canEmergency, hackDoorId: hackDoorNear, hackCd });
       }
 
       // ── Render ──
@@ -250,6 +386,37 @@ export function BlackoutGame() {
         ctx.fillRect(w.x, w.y, w.w, w.h);
         ctx.fillStyle = 'rgba(155,0,255,0.28)';
         ctx.fillRect(w.x, w.y, w.w, 3);
+      }
+      // Emergency button (corridor center)
+      {
+        const used = m.myEmergencyUsed;
+        ctx.beginPath(); ctx.arc(EMERGENCY_POS.x, EMERGENCY_POS.y, 34, 0, Math.PI * 2);
+        ctx.fillStyle = used ? 'rgba(120,120,130,0.25)' : 'rgba(255,45,85,0.22)'; ctx.fill();
+        ctx.lineWidth = 3; ctx.strokeStyle = used ? 'rgba(160,160,170,0.4)' : 'rgba(255,45,85,0.75)'; ctx.stroke();
+        ctx.font = '26px system-ui';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('⚠', EMERGENCY_POS.x, EMERGENCY_POS.y + 1);
+        ctx.textBaseline = 'alphabetic';
+      }
+      // Security cameras (world markers, blinking)
+      {
+        const blink = Math.floor(now / 700) % 2 === 0;
+        for (const c of CAMS) {
+          ctx.fillStyle = blink ? 'rgba(255,45,85,0.9)' : 'rgba(255,45,85,0.35)';
+          ctx.beginPath(); ctx.arc(c.x, c.y - 0, 5, 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = 'rgba(0,229,255,0.3)'; ctx.lineWidth = 2;
+          ctx.strokeRect(c.x - 11, c.y - 11, 22, 22);
+        }
+      }
+      // Hacked (locked) doors — glowing barriers
+      for (const [id, until] of Object.entries(m.doors)) {
+        if (until <= now) continue;
+        const r = DOOR_RECTS[id];
+        if (!r) continue;
+        ctx.fillStyle = 'rgba(255,45,85,0.55)';
+        ctx.fillRect(r.x, r.y, r.w, r.h);
+        ctx.fillStyle = 'rgba(255,140,160,0.9)';
+        for (let bx = r.x + 6; bx < r.x + r.w - 4; bx += 16) ctx.fillRect(bx, r.y + 3, 5, r.h - 6);
       }
       // Corpses
       for (const c of m.corpses) {
@@ -443,7 +610,7 @@ export function BlackoutGame() {
                     color: match.myRole === 'killer' ? '#ff2d55' : '#00e5ff',
                   }}
                 >
-                  {match.myRole === 'killer' ? `🔪 ${tb.roleKiller}` : `🛡 ${tb.roleCrew}`}
+                  {match.myRole === 'killer' ? `🔪 ${tb.roleKiller}` : match.mySpecialty === 'security' ? `📹 ${tb.specialtySecurity}` : match.mySpecialty === 'hacker' ? `🔒 ${tb.specialtyHacker}` : `🛡 ${tb.roleCrew}`}
                 </span>
               )}
               <button
@@ -473,13 +640,55 @@ export function BlackoutGame() {
             <div className="absolute bottom-[calc(env(safe-area-inset-bottom,0px)+22px)] right-5 flex flex-col gap-3 items-end">
               {match.myRole === 'killer' && !match.lightsOn && (
                 <button
-                  onClick={() => actions.killTargetId && kill(actions.killTargetId)}
+                  onClick={() => { if (actions.killTargetId) { kill(actions.killTargetId); SFX.punch(); } }}
                   disabled={!actions.killTargetId || actions.cooldownLeft > 0}
                   className="w-[72px] h-[72px] rounded-full flex flex-col items-center justify-center font-display font-bold text-[13px] transition-all active:scale-90 disabled:opacity-35"
                   style={{ background: 'rgba(120,10,30,0.75)', border: '2px solid rgba(255,45,85,0.7)', color: '#ff8ca3' }}
                 >
                   <span className="text-xl leading-none">🔪</span>
                   {actions.cooldownLeft > 0 ? `${actions.cooldownLeft}s` : tb.kill}
+                </button>
+              )}
+              {actions.canSabotage && (
+                <button
+                  onClick={() => sabotage()}
+                  disabled={actions.sabotageCd > 0}
+                  className="w-[72px] h-[72px] rounded-full flex flex-col items-center justify-center font-display font-bold text-[12px] transition-all active:scale-90 disabled:opacity-35"
+                  style={{ background: 'rgba(60,20,100,0.75)', border: '2px solid rgba(155,0,255,0.65)', color: '#c084fc' }}
+                >
+                  <span className="text-xl leading-none">⚡</span>
+                  {actions.sabotageCd > 0 ? `${actions.sabotageCd}s` : tb.sabotage}
+                </button>
+              )}
+              {match.mySpecialty === 'hacker' && (
+                <button
+                  onClick={() => actions.hackDoorId && hackDoor(actions.hackDoorId)}
+                  disabled={!actions.hackDoorId || actions.hackCd > 0}
+                  className="w-[72px] h-[72px] rounded-full flex flex-col items-center justify-center font-display font-bold text-[12px] transition-all active:scale-90 disabled:opacity-30"
+                  style={{ background: 'rgba(10,80,60,0.72)', border: '2px solid rgba(63,174,90,0.65)', color: '#7fe0a0' }}
+                >
+                  <span className="text-xl leading-none">🔒</span>
+                  {actions.hackCd > 0 ? `${actions.hackCd}s` : tb.lockDoor}
+                </button>
+              )}
+              {match.mySpecialty === 'security' && (
+                <button
+                  onClick={() => setCamOpen(true)}
+                  className="w-[72px] h-[72px] rounded-full flex flex-col items-center justify-center font-display font-bold text-[12px] transition-all active:scale-90"
+                  style={{ background: 'rgba(10,50,90,0.72)', border: '2px solid rgba(0,229,255,0.55)', color: '#7fd8ff' }}
+                >
+                  <span className="text-xl leading-none">📹</span>
+                  {tb.cameras}
+                </button>
+              )}
+              {actions.canEmergency && (
+                <button
+                  onClick={() => emergency()}
+                  className="w-[72px] h-[72px] rounded-full flex flex-col items-center justify-center font-display font-bold text-[11px] transition-all active:scale-90"
+                  style={{ background: 'rgba(140,20,30,0.8)', border: '2px solid rgba(255,80,80,0.8)', color: '#ffb3b3' }}
+                >
+                  <span className="text-xl leading-none">⚠</span>
+                  {tb.emergencyBtn}
                 </button>
               )}
               <button
@@ -494,6 +703,34 @@ export function BlackoutGame() {
             </div>
           )}
 
+          {/* Security cameras overlay */}
+          {camOpen && (
+            <div className="absolute inset-0 flex flex-col" style={{ background: 'rgba(2,1,8,0.94)', zIndex: 5 }}>
+              <div className="flex items-center justify-between px-4 pt-[calc(env(safe-area-inset-top,0px)+10px)] pb-2 flex-shrink-0">
+                <span className="font-mono text-[13px] font-bold tracking-widest" style={{ color: '#7fd8ff' }}>📹 {tb.cameras}</span>
+                <button
+                  onClick={() => setCamOpen(false)}
+                  className="w-9 h-9 rounded-full flex items-center justify-center text-white/70"
+                  style={{ background: 'rgba(10,6,24,0.75)', border: '1px solid rgba(255,255,255,0.15)' }}
+                >
+                  ✕
+                </button>
+              </div>
+              <canvas ref={camCanvasRef} className="flex-1 w-full block" />
+              <p className="text-center font-mono text-[11px] text-white/30 pb-[calc(env(safe-area-inset-bottom,0px)+10px)] pt-2">{tb.camerasHint}</p>
+            </div>
+          )}
+
+          {/* Death banner */}
+          {deathBanner && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ background: 'rgba(40,0,8,0.55)', zIndex: 6 }}>
+              <div className="text-center">
+                <p className="text-6xl mb-2">💀</p>
+                <p className="font-display font-bold text-2xl" style={{ color: '#ff2d55' }}>{tb.youWereKilled}</p>
+              </div>
+            </div>
+          )}
+
           {/* Role splash */}
           {roleSplash && match.myRole && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ background: 'rgba(3,1,12,0.82)' }}>
@@ -505,6 +742,11 @@ export function BlackoutGame() {
                 <p className="font-mono text-[13px] text-white/50 max-w-[260px] mx-auto leading-relaxed">
                   {match.myRole === 'killer' ? tb.killerHint : tb.crewHint}
                 </p>
+                {match.mySpecialty && (
+                  <p className="mt-3 font-mono text-[13px] max-w-[260px] mx-auto leading-relaxed" style={{ color: match.mySpecialty === 'security' ? '#7fd8ff' : '#7fe0a0' }}>
+                    {match.mySpecialty === 'security' ? `📹 ${tb.specialtySecurity} — ${tb.securityHint}` : `🔒 ${tb.specialtyHacker} — ${tb.hackerHint}`}
+                  </p>
+                )}
               </div>
             </div>
           )}
@@ -532,7 +774,7 @@ export function BlackoutGame() {
               <p className="font-mono text-[12px] text-white/45">
                 {match.meeting.bodyName
                   ? tb.bodyFound.replace('{reporter}', match.meeting.reporterName).replace('{name}', match.meeting.bodyName)
-                  : match.meeting.reporterName}
+                  : tb.emergencyCalled.replace('{reporter}', match.meeting.reporterName)}
                 {' · '}⏱ {countdown}s
               </p>
             </div>

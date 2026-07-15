@@ -15,6 +15,7 @@ import { randomBytes } from 'crypto';
 
 export type BlackoutStatus = 'waiting' | 'play' | 'meeting' | 'finished';
 export type BlackoutRole = 'killer' | 'crew';
+export type BlackoutSpecialty = 'security' | 'hacker' | null;
 export type BlackoutWinner = 'killers' | 'crew' | null;
 
 // ── World constants (client mirrors these for rendering/physics) ────────
@@ -26,7 +27,20 @@ export const MEETING_MS = 60_000;
 export const KILL_DIST = 84;
 export const REPORT_DIST = 130;
 export const KILL_COOLDOWN_MS = 20_000;
+export const SABOTAGE_COOLDOWN_MS = 35_000;
+export const DOOR_LOCK_MS = 8_000;
+export const HACK_COOLDOWN_MS = 30_000;
+export const DOOR_HACK_DIST = 170;
+export const EMERGENCY_DIST = 130;
 const MIN_PLAYERS = 4;
+
+// Doorway centers (gaps in the divider walls) — ids d0..d5. Client mirrors.
+export const DOORS: { id: string; x: number; y: number }[] = [
+  { id: 'd0', x: 280, y: 490 }, { id: 'd1', x: 780, y: 490 }, { id: 'd2', x: 1300, y: 490 },
+  { id: 'd3', x: 280, y: 710 }, { id: 'd4', x: 780, y: 710 }, { id: 'd5', x: 1300, y: 710 },
+];
+// Emergency button in the corridor center
+const EMERGENCY_X = 800, EMERGENCY_Y = 600;
 
 // Spawn ring in the central corridor
 const SPAWN_CX = 800, SPAWN_CY = 600, SPAWN_R = 90;
@@ -43,6 +57,7 @@ export interface BlackoutPlayer {
   connected: boolean;
   alive: boolean;
   role: BlackoutRole;
+  specialty: BlackoutSpecialty;
   x: number;
   y: number;
 }
@@ -66,6 +81,7 @@ export interface BlackoutChatMsg {
 export interface BlackoutMeeting {
   reporterId: string;
   reporterName: string;
+  /** null when the meeting came from the emergency button, not a body. */
   bodyName: string | null;
   endsAt: number;
   /** voterId → targetUserId | 'skip' */
@@ -92,6 +108,14 @@ export interface BlackoutMatch {
   meeting: BlackoutMeeting | null;
   lastEject: BlackoutEject | null;
   killCooldownUntil: Record<string, number>;
+  /** Killer-team sabotage (force blackout) cooldown. */
+  sabotageCooldownUntil: number;
+  /** doorId → lockedUntil epoch ms. */
+  doors: Record<string, number>;
+  /** Hacker per-player door-lock cooldown. */
+  hackCooldownUntil: Record<string, number>;
+  /** userIds that already used their one emergency call. */
+  emergencyUsed: string[];
   winner: BlackoutWinner;
   chat: BlackoutChatMsg[];
   round: number;
@@ -125,8 +149,13 @@ export interface BlackoutPublicState {
   /** Killer teammates — only sent to killer viewers; revealed to all on finish. */
   killers: string[] | null;
   myRole: BlackoutRole | null;
+  mySpecialty: BlackoutSpecialty;
   myUserId: string;
   myKillCooldownUntil: number;
+  sabotageCooldownUntil: number;
+  doors: Record<string, number>;
+  myHackCooldownUntil: number;
+  myEmergencyUsed: boolean;
   chat: BlackoutChatMsg[];
   round: number;
 }
@@ -161,13 +190,17 @@ export function createMatch(hostId: string, socketId: string, nickname: string, 
     status: 'waiting',
     hostId,
     maxPlayers: clamp(Number(opts.maxPlayers ?? 8), MIN_PLAYERS, 12),
-    players: [{ userId: hostId, socketId, nickname, seat: 0, connected: true, alive: true, role: 'crew', x: SPAWN_CX, y: SPAWN_CY }],
+    players: [{ userId: hostId, socketId, nickname, seat: 0, connected: true, alive: true, role: 'crew', specialty: null, x: SPAWN_CX, y: SPAWN_CY }],
     lightsOn: true,
     lightsChangeAt: 0,
     corpses: [],
     meeting: null,
     lastEject: null,
     killCooldownUntil: {},
+    sabotageCooldownUntil: 0,
+    doors: {},
+    hackCooldownUntil: {},
+    emergencyUsed: [],
     winner: null,
     chat: [],
     round: 0,
@@ -214,7 +247,7 @@ export function joinMatch(matchId: string, userId: string, socketId: string, nic
     return { match: m, isNew: false };
   }
   if (m.status !== 'waiting' || m.players.length >= m.maxPlayers) return null;
-  m.players.push({ userId, socketId, nickname, seat: m.players.length, connected: true, alive: true, role: 'crew', x: SPAWN_CX, y: SPAWN_CY });
+  m.players.push({ userId, socketId, nickname, seat: m.players.length, connected: true, alive: true, role: 'crew', specialty: null, x: SPAWN_CX, y: SPAWN_CY });
   playerMatch.set(userId, matchId);
   return { match: m, isNew: true };
 }
@@ -262,10 +295,15 @@ export function startMatch(matchId: string, byUserId: string): BlackoutMatch | n
   const killerIds = new Set(shuffled.slice(0, killerCount).map(p => p.userId));
   for (const p of m.players) {
     p.role = killerIds.has(p.userId) ? 'killer' : 'crew';
+    p.specialty = null;
     p.alive = true;
     const sp = spawnPoint(p.seat, m.players.length);
     p.x = sp.x; p.y = sp.y;
   }
+  // Shadow Protocol specialties among the crew (6+ players: Security, 7+: + Hacker)
+  const crew = shuffled.filter(p => !killerIds.has(p.userId));
+  if (m.players.length >= 6 && crew[0]) crew[0].specialty = 'security';
+  if (m.players.length >= 7 && crew[1]) crew[1].specialty = 'hacker';
   m.status = 'play';
   m.round = 1;
   m.lightsOn = true;
@@ -274,9 +312,57 @@ export function startMatch(matchId: string, byUserId: string): BlackoutMatch | n
   m.meeting = null;
   m.lastEject = null;
   m.killCooldownUntil = {};
+  m.sabotageCooldownUntil = Date.now() + LIGHTS_ON_MS; // no sabotage before the first natural blackout
+  m.doors = {};
+  m.hackCooldownUntil = {};
+  m.emergencyUsed = [];
   m.winner = null;
   m.chat = [];
   return m;
+}
+
+/** Killer team forces the lights out early. Timer must be rescheduled by caller. */
+export function sabotage(matchId: string, userId: string): { match: BlackoutMatch } | { error: string } {
+  const m = matches.get(matchId);
+  if (!m || m.status !== 'play') return { error: 'Not in play' };
+  if (!m.lightsOn) return { error: 'Already dark' };
+  const p = m.players.find(pl => pl.userId === userId);
+  if (!p || p.role !== 'killer' || !p.alive) return { error: 'Not a killer' };
+  if (m.sabotageCooldownUntil > Date.now()) return { error: 'Cooldown' };
+  m.lightsOn = false;
+  m.lightsChangeAt = Date.now() + LIGHTS_OFF_MS;
+  m.sabotageCooldownUntil = Date.now() + SABOTAGE_COOLDOWN_MS;
+  return { match: m };
+}
+
+/** Emergency button in the corridor — one call per player per game, lights on only. */
+export function emergency(matchId: string, userId: string): { match: BlackoutMatch } | { error: string } {
+  const m = matches.get(matchId);
+  if (!m || m.status !== 'play') return { error: 'Not in play' };
+  if (!m.lightsOn) return { error: 'Too dark to find the button' };
+  const p = m.players.find(pl => pl.userId === userId);
+  if (!p || !p.alive) return { error: 'Not alive' };
+  if (m.emergencyUsed.includes(userId)) return { error: 'Already used' };
+  if (dist(p.x, p.y, EMERGENCY_X, EMERGENCY_Y) > EMERGENCY_DIST * 1.6) return { error: 'Not at the button' };
+  m.emergencyUsed.push(userId);
+  m.status = 'meeting';
+  m.meeting = { reporterId: userId, reporterName: p.nickname, bodyName: null, endsAt: Date.now() + MEETING_MS, votes: {} };
+  return { match: m };
+}
+
+/** Hacker seals a doorway for a few seconds (escape tool). */
+export function hackDoor(matchId: string, userId: string, doorId: string): { match: BlackoutMatch } | { error: string } {
+  const m = matches.get(matchId);
+  if (!m || m.status !== 'play') return { error: 'Not in play' };
+  const p = m.players.find(pl => pl.userId === userId);
+  if (!p || !p.alive || p.specialty !== 'hacker') return { error: 'Not a hacker' };
+  if ((m.hackCooldownUntil[userId] ?? 0) > Date.now()) return { error: 'Cooldown' };
+  const door = DOORS.find(d => d.id === doorId);
+  if (!door) return { error: 'No such door' };
+  if (dist(p.x, p.y, door.x, door.y) > DOOR_HACK_DIST * 1.6) return { error: 'Too far from door' };
+  m.doors[doorId] = Date.now() + DOOR_LOCK_MS;
+  m.hackCooldownUntil[userId] = Date.now() + HACK_COOLDOWN_MS;
+  return { match: m };
 }
 
 /** Called by the lights timer. Flips lights and schedules the next flip time. */
@@ -379,6 +465,8 @@ export function endMeeting(matchId: string): BlackoutMatch | null {
   m.round += 1;
   m.corpses = [];
   m.killCooldownUntil = {};
+  m.doors = {};
+  m.sabotageCooldownUntil = Date.now() + LIGHTS_ON_MS;
   for (const p of m.players) {
     if (!p.alive) continue;
     const sp = spawnPoint(p.seat, m.players.length);
@@ -395,12 +483,17 @@ export function rematch(matchId: string, byUserId: string): BlackoutMatch | null
   if (!m || m.status !== 'finished' || m.hostId !== byUserId) return null;
   m.status = 'waiting';
   m.players = m.players.filter(p => p.connected);
-  m.players.forEach((p, i) => { p.seat = i; p.alive = true; p.role = 'crew'; p.x = SPAWN_CX; p.y = SPAWN_CY; });
+  m.players.forEach((p, i) => { p.seat = i; p.alive = true; p.role = 'crew'; p.specialty = null; p.x = SPAWN_CX; p.y = SPAWN_CY; });
   if (m.players.length === 0) { matches.delete(matchId); return null; }
   if (!m.players.some(p => p.userId === m.hostId)) m.hostId = m.players[0]!.userId;
   m.corpses = [];
   m.meeting = null;
   m.lastEject = null;
+  m.killCooldownUntil = {};
+  m.sabotageCooldownUntil = 0;
+  m.doors = {};
+  m.hackCooldownUntil = {};
+  m.emergencyUsed = [];
   m.winner = null;
   m.chat = [];
   m.round = 0;
@@ -450,8 +543,13 @@ export function getSafeState(m: BlackoutMatch, viewerUserId: string): BlackoutPu
     winner: m.winner,
     killers: revealKillers ? killerIds : null,
     myRole: m.status === 'waiting' ? null : (viewer?.role ?? null),
+    mySpecialty: m.status === 'waiting' ? null : (viewer?.specialty ?? null),
     myUserId: viewerUserId,
     myKillCooldownUntil: m.killCooldownUntil[viewerUserId] ?? 0,
+    sabotageCooldownUntil: m.sabotageCooldownUntil,
+    doors: m.doors,
+    myHackCooldownUntil: m.hackCooldownUntil[viewerUserId] ?? 0,
+    myEmergencyUsed: m.emergencyUsed.includes(viewerUserId),
     chat: m.chat,
     round: m.round,
   };

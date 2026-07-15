@@ -2,6 +2,7 @@
 
 export type BlackoutStatus = 'waiting' | 'play' | 'meeting' | 'finished';
 export type BlackoutRole = 'killer' | 'crew';
+export type BlackoutSpecialty = 'security' | 'hacker' | null;
 export type BlackoutWinner = 'killers' | 'crew' | null;
 
 // World constants — must match the server
@@ -9,6 +10,15 @@ export const BLACKOUT_WORLD_W = 1600;
 export const BLACKOUT_WORLD_H = 1200;
 export const BLACKOUT_KILL_DIST = 84;
 export const BLACKOUT_REPORT_DIST = 130;
+export const BLACKOUT_DOOR_HACK_DIST = 170;
+export const BLACKOUT_EMERGENCY_DIST = 130;
+export const BLACKOUT_EMERGENCY_POS = { x: 800, y: 600 };
+
+// Doorway centers — must match server DOORS
+export const BLACKOUT_DOORS: { id: string; x: number; y: number }[] = [
+  { id: 'd0', x: 280, y: 490 }, { id: 'd1', x: 780, y: 490 }, { id: 'd2', x: 1300, y: 490 },
+  { id: 'd3', x: 280, y: 710 }, { id: 'd4', x: 780, y: 710 }, { id: 'd5', x: 1300, y: 710 },
+];
 
 export interface BlackoutPublicPlayer {
   userId: string;
@@ -58,8 +68,13 @@ export interface BlackoutPublicState {
   winner: BlackoutWinner;
   killers: string[] | null;
   myRole: BlackoutRole | null;
+  mySpecialty: BlackoutSpecialty;
   myUserId: string;
   myKillCooldownUntil: number;
+  sabotageCooldownUntil: number;
+  doors: Record<string, number>;
+  myHackCooldownUntil: number;
+  myEmergencyUsed: boolean;
   chat: BlackoutChatMsg[];
   round: number;
 }

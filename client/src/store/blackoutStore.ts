@@ -27,6 +27,9 @@ interface BlackoutStore {
   startMatch: () => Promise<void>;
   kill: (targetId: string) => Promise<void>;
   report: () => Promise<void>;
+  sabotage: () => Promise<void>;
+  emergency: () => Promise<void>;
+  hackDoor: (doorId: string) => Promise<void>;
   vote: (targetId: string) => Promise<void>;
   rematch: () => Promise<void>;
   sendChat: (text: string, nickname: string) => void;
@@ -89,6 +92,24 @@ export const useBlackoutStore = create<BlackoutStore>((set, get) => ({
     const { match } = get();
     if (!match) return;
     try { await emitWithAck<any, any>('blackout:report', { matchId: match.id }); } catch { /* ignore */ }
+  },
+
+  sabotage: async () => {
+    const { match } = get();
+    if (!match) return;
+    try { await emitWithAck<any, any>('blackout:sabotage', { matchId: match.id }); } catch { /* ignore */ }
+  },
+
+  emergency: async () => {
+    const { match } = get();
+    if (!match) return;
+    try { await emitWithAck<any, any>('blackout:emergency', { matchId: match.id }); } catch { /* ignore */ }
+  },
+
+  hackDoor: async (doorId) => {
+    const { match } = get();
+    if (!match) return;
+    try { await emitWithAck<any, any>('blackout:hack-door', { matchId: match.id, doorId }); } catch { /* ignore */ }
   },
 
   vote: async (targetId) => {

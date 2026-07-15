@@ -11,6 +11,7 @@ import {
   createMatch, getMatch, getMatchByCode, listMatches,
   joinMatch, leaveMatch, startMatch, toggleLights, move, kill, report, vote,
   endMeeting, rematch, sendChat, disconnectSocket, getSafeState,
+  sabotage, emergency, hackDoor,
 } from './services/blackoutService.js';
 
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -162,6 +163,40 @@ export function registerBlackoutHandlers(io: AppServer, socket: AppSocket): void
       if ('error' in result) return cb(err(result.error));
       broadcastState(io, matchId);
       if (result.match.status === 'finished') { clearTimers(matchId); broadcastList(io); }
+      cb(ok(null));
+    } catch (e: any) { cb(err(e.message)); }
+  });
+
+  socket.on('blackout:sabotage' as any, (data: { matchId: string }, cb: (r: any) => void) => {
+    try {
+      const matchId = String(data?.matchId);
+      const result = sabotage(matchId, uid());
+      if ('error' in result) return cb(err(result.error));
+      broadcastState(io, matchId);
+      scheduleLights(io, matchId); // lightsChangeAt moved — reschedule with the new token
+      cb(ok(null));
+    } catch (e: any) { cb(err(e.message)); }
+  });
+
+  socket.on('blackout:emergency' as any, (data: { matchId: string }, cb: (r: any) => void) => {
+    try {
+      const matchId = String(data?.matchId);
+      const result = emergency(matchId, uid());
+      if ('error' in result) return cb(err(result.error));
+      const lt = lightsTimers.get(matchId);
+      if (lt) { clearTimeout(lt); lightsTimers.delete(matchId); }
+      broadcastState(io, matchId);
+      scheduleMeetingEnd(io, matchId);
+      cb(ok(null));
+    } catch (e: any) { cb(err(e.message)); }
+  });
+
+  socket.on('blackout:hack-door' as any, (data: { matchId: string; doorId: string }, cb: (r: any) => void) => {
+    try {
+      const matchId = String(data?.matchId);
+      const result = hackDoor(matchId, uid(), String(data?.doorId));
+      if ('error' in result) return cb(err(result.error));
+      broadcastState(io, matchId);
       cb(ok(null));
     } catch (e: any) { cb(err(e.message)); }
   });
