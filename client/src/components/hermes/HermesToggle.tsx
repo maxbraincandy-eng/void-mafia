@@ -1,14 +1,17 @@
 import { motion } from 'framer-motion';
 import { useHermesStore } from '@/store/hermesStore';
 import { useAuthStore } from '@/store/authStore';
+import { useGameStore } from '@/store/gameStore';
 import { HermesGlyph } from './HermesGlyph';
 
 export function HermesToggle() {
   const isAuthed = useAuthStore(s => s.isAuthed);
+  const inRoom = useGameStore(s => !!s.room);
   const { isOpen, open } = useHermesStore();
 
-  // Not logged in or panel already open → hide the button
-  if (!isAuthed || isOpen) return null;
+  // Only in the main menu: hide when logged out, when the panel is already
+  // open, or while inside a room (mafia lobby/game).
+  if (!isAuthed || isOpen || inRoom) return null;
 
   return (
     <motion.button
