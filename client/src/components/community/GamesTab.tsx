@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 
 const NeoBandicoot = lazy(() => import('@/components/platformer/NeoBandicoot').then(m => ({ default: m.NeoBandicoot })));
 const AristocracyTest = lazy(() => import('@/components/quiz/AristocracyTest').then(m => ({ default: m.AristocracyTest })));
+const GanabSimulator = lazy(() => import('@/components/ganab/GanabSimulator').then(m => ({ default: m.GanabSimulator })));
 import { useT } from '@/store/langStore';
 import { useAuthStore } from '@/store/authStore';
 import { useCheckersStore } from '@/store/checkersStore';
@@ -24,6 +25,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   const playerName = profile?.username ?? 'Player';
   const [bandicootOpen, setBandicootOpen] = useState(false);
   const [aristocracyOpen, setAristocracyOpen] = useState(false);
+  const [ganabOpen, setGanabOpen] = useState(false);
 
   // ── Checkers ────────────────────────────────────────────────────────
   const {
@@ -194,6 +196,33 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
             <span style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 1, color: '#fff', background: 'rgba(124,58,237,0.9)', borderRadius: 8, padding: '3px 8px' }}>NEW</span>
           </div>
         </button>
+      )}
+
+      {/* ── განაბ სიმულატორი card (text roguelike) ──────────────────────── */}
+      <div className="rounded-2xl overflow-hidden"
+        style={{ background: 'linear-gradient(135deg, rgba(26,20,8,0.9), rgba(10,8,5,0.9))', border: '1px solid rgba(217,162,74,0.35)' }}>
+        <div className="px-4 py-3 flex items-center gap-3"
+          style={{ background: 'rgba(217,162,74,0.05)' }}>
+          <span className="text-2xl">🃏</span>
+          <div className="flex-1 min-w-0">
+            <p className="font-display font-bold text-sm leading-tight" style={{ color: '#d9a24a' }}>
+              {t.games.ganab.title}
+              <span style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 1, color: '#fff', background: 'rgba(124,58,237,0.9)', borderRadius: 8, padding: '3px 8px', marginLeft: 8, verticalAlign: 'middle' }}>NEW</span>
+            </p>
+            <p className="font-mono text-[12px] text-white/35">{t.games.ganab.subtitle}</p>
+          </div>
+          <button
+            onClick={() => setGanabOpen(true)}
+            className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95"
+            style={{ background: 'rgba(217,162,74,0.12)', border: '1px solid rgba(217,162,74,0.5)', color: '#d9a24a' }}>
+            {t.games.ganab.play}
+          </button>
+        </div>
+      </div>
+      {ganabOpen && (
+        <Suspense fallback={null}>
+          <GanabSimulator onClose={() => setGanabOpen(false)} />
+        </Suspense>
       )}
 
       {/* ── Virtual Space card ──────────────────────────────────────────── */}

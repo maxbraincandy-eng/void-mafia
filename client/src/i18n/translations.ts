@@ -329,6 +329,11 @@ export const TRANSLATIONS = {
         spectate: 'Watch',
         waitingForHost: 'Waiting for host to start…',
       },
+      ganab: {
+        title: 'განაბ სიმულატორი',
+        subtitle: 'Text roguelike · street logic · 18+ · permadeath',
+        play: 'Play',
+      },
       blackout: {
         title: 'Blackout',
         subtitle: 'Social deduction · lights out · 4-12 players',
@@ -2510,6 +2515,11 @@ export const TRANSLATIONS = {
         spectate: 'დაყოლება',
         waitingForHost: 'ჰოსტს ელოდებით…',
       },
+      ganab: {
+        title: 'განაბ სიმულატორი',
+        subtitle: 'ტექსტური roguelike · ქუჩური ლოგიკა · 18+',
+        play: 'თამაში',
+      },
       blackout: {
         title: 'Blackout',
         subtitle: 'სოციალური დედუქცია · სიბნელეში · 4-12 მოთ.',
@@ -4689,6 +4699,11 @@ export const TRANSLATIONS = {
         join: 'Войти',
         spectate: 'Смотреть',
         waitingForHost: 'Ожидание старта от хоста…',
+      },
+      ganab: {
+        title: 'განაბ სიმულატორი',
+        subtitle: 'Текстовый roguelike · уличная логика · 18+',
+        play: 'Играть',
       },
       blackout: {
         title: 'Blackout',
