@@ -1,13 +1,16 @@
 // განაბ სიმულატორი — pure game engine. No React, no DOM (except storage helpers).
 import type { GanabState, GanabScene, GanabChoice, GraveyardEntry, GanabStatKey } from './types';
 import { PHASE1_SCENES, PHASE1_START } from './content/phase1';
+import { PHASE2_SCENES, PHASE2_START } from './content/phase2';
 
 const SAVE_KEY = 'vm_ganab_save';
 const GRAVE_KEY = 'vm_ganab_graveyard';
 
-// All shipped content, one registry. Later steps append PHASE2_SCENES etc.
+// All shipped content, one registry. Later steps append PHASE3_SCENES etc.
 const SCENES = new Map<string, GanabScene>();
-for (const s of PHASE1_SCENES) SCENES.set(s.id, s);
+for (const s of [...PHASE1_SCENES, ...PHASE2_SCENES]) SCENES.set(s.id, s);
+
+const PHASE_STARTS: Record<number, string> = { 1: PHASE1_START, 2: PHASE2_START };
 
 export function newGame(nickname: string): GanabState {
   return {
@@ -28,15 +31,35 @@ export function getScene(state: GanabState): GanabScene | null {
   return SCENES.get(state.sceneId) ?? null;
 }
 
-/** Choices actually visible for this state (hidden `requires` gates applied). */
+const flagOk = (state: GanabState, ifFlag?: string, unlessFlag?: string): boolean => {
+  if (ifFlag && !state.flags[ifFlag]) return false;
+  if (unlessFlag && state.flags[unlessFlag]) return false;
+  return true;
+};
+
+/** Choices actually visible for this state (hidden `requires` + flag gates applied). */
 export function visibleChoices(state: GanabState, scene: GanabScene): GanabChoice[] {
   return scene.choices.filter(c => {
+    if (!flagOk(state, c.ifFlag, c.unlessFlag)) return false;
     if (!c.requires) return true;
     return (Object.entries(c.requires) as [GanabStatKey, number][]).every(([k, min]) => state.stats[k] >= min);
   });
 }
 
 const clampStat = (v: number) => Math.max(0, Math.min(10, v));
+
+/** Follow routing pseudo-scenes until a real scene (or dead-end guard). */
+function resolveRoutes(state: GanabState, sceneId: string): string {
+  let id = sceneId;
+  for (let hops = 0; hops < 10; hops++) {
+    const scene = SCENES.get(id);
+    if (!scene?.route) return id;
+    const rule = scene.route.find(r => flagOk(state, r.ifFlag, r.unlessFlag));
+    if (!rule) return id;
+    id = rule.goto;
+  }
+  return id;
+}
 
 export function applyChoice(state: GanabState, choice: GanabChoice): GanabState {
   if (state.dead || state.won) return state;
@@ -53,6 +76,7 @@ export function applyChoice(state: GanabState, choice: GanabChoice): GanabState 
     }
   }
   if (choice.setFlags) Object.assign(next.flags, choice.setFlags);
+  if (choice.setRank) next.rank = choice.setRank;
 
   // Visible stat check: below min → the fail branch.
   let dest = choice.next;
@@ -67,12 +91,24 @@ export function applyChoice(state: GanabState, choice: GanabChoice): GanabState 
     clearSave();
     return next;
   }
+  if (dest.startsWith('@phase:')) {
+    const phase = Number(dest.slice('@phase:'.length)) as GanabState['phase'];
+    const start = PHASE_STARTS[phase];
+    if (start) {
+      next.phase = phase;
+      next.sceneId = resolveRoutes(next, start);
+    } else {
+      next.sceneId = '@end_step'; // phase not shipped yet
+    }
+    saveGame(next);
+    return next;
+  }
   if (dest === '@end_step') {
     next.sceneId = '@end_step';
     saveGame(next);
     return next;
   }
-  next.sceneId = dest;
+  next.sceneId = resolveRoutes(next, dest);
   saveGame(next);
   return next;
 }
@@ -92,6 +128,14 @@ export function loadGame(): GanabState | null {
     if (!raw) return null;
     const s = JSON.parse(raw) as GanabState;
     if (s.dead || s.won) return null;
+    // Migration: a save parked at the old end-of-content marker continues
+    // into the newly shipped phase.
+    if (s.sceneId === '@end_step' && PHASE_STARTS[s.phase + 1]) {
+      s.phase = (s.phase + 1) as GanabState['phase'];
+      if (s.phase === 2 && s.rank === 'birzhis_bichi') s.rank = 'ubnis_bichi';
+      s.sceneId = resolveRoutes(s, PHASE_STARTS[s.phase]!);
+      saveGame(s);
+    }
     if (s.sceneId !== '@end_step' && !SCENES.has(s.sceneId)) return null; // content changed under the save
     return s;
   } catch { return null; }

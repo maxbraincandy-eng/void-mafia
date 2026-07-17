@@ -59,17 +59,29 @@ export interface GanabChoice {
   text: string;
   /** Hidden option — shown only when the stat is high enough (you wouldn't even think of it otherwise). */
   requires?: Partial<Record<GanabStatKey, number>>;
+  /** Shown only when this flag is truthy / falsy. */
+  ifFlag?: string;
+  unlessFlag?: string;
   /** Visible attempt that can fail: below min → failNext instead of next. */
   check?: { stat: GanabStatKey; min: number; failNext: string };
   /** Stat deltas applied on pick (before check resolution). */
   effects?: Partial<Record<GanabStatKey, number>>;
   setFlags?: Record<string, string | number | boolean>;
+  /** Promotion (or demotion) applied on pick. */
+  setRank?: GanabRank;
   /**
    * Next scene id, or a directive:
    *  '@death:<reason>' — permadeath
+   *  '@phase:<n>'      — advance to phase n (content start scene)
    *  '@end_step'       — end of currently shipped content (cliffhanger)
    */
   next: string;
+}
+
+export interface GanabRouteRule {
+  ifFlag?: string;
+  unlessFlag?: string;
+  goto: string;
 }
 
 export interface GanabScene {
@@ -80,6 +92,8 @@ export interface GanabScene {
   speaker?: string;
   text: string;
   choices: GanabChoice[];
+  /** Routing pseudo-scene: first matching rule wins (a rule with no condition = default). Text/choices ignored. */
+  route?: GanabRouteRule[];
 }
 
 export interface GraveyardEntry {
