@@ -3,15 +3,17 @@ import type { GanabState, GanabScene, GanabChoice, GraveyardEntry, GanabStatKey 
 import { PHASE1_SCENES, PHASE1_START } from './content/phase1';
 import { PHASE2_SCENES, PHASE2_START } from './content/phase2';
 import { PHASE3_SCENES, PHASE3_START } from './content/phase3';
+import { PHASE4_SCENES, PHASE4_START } from './content/phase4';
 
 const SAVE_KEY = 'vm_ganab_save';
 const GRAVE_KEY = 'vm_ganab_graveyard';
+const CROWN_KEY = 'vm_ganab_crowned';
 
-// All shipped content, one registry. Later steps append PHASE4_SCENES etc.
+// All shipped content, one registry.
 const SCENES = new Map<string, GanabScene>();
-for (const s of [...PHASE1_SCENES, ...PHASE2_SCENES, ...PHASE3_SCENES]) SCENES.set(s.id, s);
+for (const s of [...PHASE1_SCENES, ...PHASE2_SCENES, ...PHASE3_SCENES, ...PHASE4_SCENES]) SCENES.set(s.id, s);
 
-const PHASE_STARTS: Record<number, string> = { 1: PHASE1_START, 2: PHASE2_START, 3: PHASE3_START };
+const PHASE_STARTS: Record<number, string> = { 1: PHASE1_START, 2: PHASE2_START, 3: PHASE3_START, 4: PHASE4_START };
 
 export function newGame(nickname: string): GanabState {
   return {
@@ -92,6 +94,13 @@ export function applyChoice(state: GanabState, choice: GanabChoice): GanabState 
     clearSave();
     return next;
   }
+  if (dest === '@win') {
+    next.won = true;
+    next.rank = 'kanonieri';
+    crownCharacter(next);
+    clearSave();
+    return next;
+  }
   if (dest.startsWith('@phase:')) {
     const phase = Number(dest.slice('@phase:'.length)) as GanabState['phase'];
     const start = PHASE_STARTS[phase];
@@ -135,6 +144,7 @@ export function loadGame(): GanabState | null {
       s.phase = (s.phase + 1) as GanabState['phase'];
       if (s.phase === 2 && s.rank === 'birzhis_bichi') s.rank = 'ubnis_bichi';
       if (s.phase === 3 && (s.rank === 'birzhis_bichi' || s.rank === 'ubnis_bichi')) s.rank = 'dzveli_bichi';
+      if (s.phase === 4 && s.rank !== 'zonis_makurebeli' && s.rank !== 'kandidati') s.rank = 'makurebeli';
       s.sceneId = resolveRoutes(s, PHASE_STARTS[s.phase]!);
       saveGame(s);
     }
@@ -156,5 +166,17 @@ function buryCharacter(state: GanabState): void {
     const grave = getGraveyard();
     grave.unshift({ nickname: state.nickname, rank: state.rank, phase: state.phase, reason: state.deathReason ?? '?', ts: Date.now() });
     localStorage.setItem(GRAVE_KEY, JSON.stringify(grave.slice(0, 30)));
+  } catch { /* ignore */ }
+}
+
+export function getCrowned(): { nickname: string; ts: number }[] {
+  try { return JSON.parse(localStorage.getItem(CROWN_KEY) ?? '[]') as { nickname: string; ts: number }[]; } catch { return []; }
+}
+
+function crownCharacter(state: GanabState): void {
+  try {
+    const crowned = getCrowned();
+    crowned.unshift({ nickname: state.nickname, ts: Date.now() });
+    localStorage.setItem(CROWN_KEY, JSON.stringify(crowned.slice(0, 20)));
   } catch { /* ignore */ }
 }

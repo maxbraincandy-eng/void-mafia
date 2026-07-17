@@ -5,7 +5,7 @@ import type { GanabState, GanabChoice } from './types';
 import { RANK_LABELS } from './types';
 import {
   newGame, getScene, visibleChoices, applyChoice, fillText,
-  loadGame, saveGame, clearSave, getGraveyard,
+  loadGame, saveGame, clearSave, getGraveyard, getCrowned,
 } from './engine';
 
 /**
@@ -41,6 +41,7 @@ export function GanabSimulator({ onClose }: { onClose: () => void }) {
     SFX.click();
     const next = applyChoice(state, choice);
     if (next.dead) SFX.eliminate();
+    else if (next.won) SFX.join();
     setState(next);
   };
 
@@ -52,6 +53,7 @@ export function GanabSimulator({ onClose }: { onClose: () => void }) {
   };
 
   const grave = getGraveyard();
+  const crowned = getCrowned();
 
   return createPortal(
     <div className="fixed inset-0 z-[500] flex flex-col select-none" style={{ background: '#0a0805', fontFamily: '"Share Tech Mono", monospace' }}>
@@ -89,6 +91,14 @@ export function GanabSimulator({ onClose }: { onClose: () => void }) {
                 >
                   ქუჩაში გასვლა →
                 </button>
+                {crowned.length > 0 && (
+                  <div className="mb-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${AMBER}44`, background: `${AMBER}0e` }}>
+                    <p className="text-[11px] mb-1 text-center font-bold tracking-wider" style={{ color: AMBER }}>👑 კურთხეულები</p>
+                    <p className="text-[12px] text-center leading-relaxed" style={{ color: `${AMBER}aa` }}>
+                      {crowned.map(c => c.nickname).join(' · ')}
+                    </p>
+                  </div>
+                )}
                 {grave.length > 0 && (
                   <button onClick={() => setShowGrave(true)} className="w-full py-2.5 rounded-xl text-[12px]" style={{ color: `${AMBER}66`, border: `1px solid ${AMBER}22` }}>
                     ⚰ სასაფლაო ({grave.length})
@@ -130,7 +140,20 @@ export function GanabSimulator({ onClose }: { onClose: () => void }) {
 
           <div className="flex-1 overflow-y-auto p-5">
             <div className="max-w-xl mx-auto">
-              {state.dead ? (
+              {state.won ? (
+                <div className="text-center pt-10">
+                  <p className="text-6xl mb-4">👑</p>
+                  <p className="text-2xl font-bold mb-2" style={{ color: AMBER, textShadow: `0 0 18px ${AMBER}88` }}>კანონიერი ქურდი</p>
+                  <p className="text-base font-bold mb-4" style={{ color: '#e8dcc8' }}>{state.nickname}</p>
+                  <p className="text-[13px] leading-relaxed mb-8" style={{ color: `${AMBER}aa` }}>
+                    ბირჟიდან ტახტამდე. არც ერთ გზაჯვარედინზე არ გაყიდე სული — და შვიდმა კანონიერმა ძმად გცნო. შენი სახელი ახლა იმ ხალხშია, ვის სახელსაც ხმადაბლა ამბობენ.
+                  </p>
+                  <p className="text-[11px] mb-6" style={{ color: `${AMBER}55` }}>თამაში დასრულდა. შენ გაიმარჯვე — ეს ცოტას თუ ხვდება.</p>
+                  <button onClick={restart} className="px-8 py-3 rounded-xl font-bold text-[14px]" style={{ background: `${AMBER}1a`, border: `1px solid ${AMBER}66`, color: AMBER }}>
+                    ახალი ცხოვრება →
+                  </button>
+                </div>
+              ) : state.dead ? (
                 <div className="text-center pt-10">
                   <p className="text-5xl mb-4">⚰</p>
                   <p className="text-lg font-bold mb-3" style={{ color: '#ff2d55' }}>გაფუჭდი.</p>
