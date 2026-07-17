@@ -145,12 +145,14 @@ export function GanabSimulator({ onClose }: { onClose: () => void }) {
                   <p className="text-5xl mb-4">🌒</p>
                   <p className="text-lg font-bold mb-3" style={{ color: AMBER }}>ფაზა {state.phase} დასრულდა.</p>
                   <p className="text-[13px] leading-relaxed mb-2" style={{ color: `${AMBER}99` }}>
-                    {state.phase >= 2
-                      ? `${state.nickname} სხოდკებმა კაცად აღიარეს — მაგრამ ღამის დაჭერებმა ყველაფერი შეცვალა. წინ ზონაა: რკინის კარები, ასონიაკები და კითხვები, რომლებზეც პასუხი სიცოცხლის ფასია.`
+                    {state.phase >= 3
+                      ? `${state.nickname} ზონაში მეორედ დაიბადა — მუჟიკიდან ავიდა და ხატამ კაცად აღიარა. ახლა კანონიერები კითხულობენ მასზე. წინ უმაღლესი ეტაპია: კურთხევა, სადაც მთელი წარსული განისჯება.`
+                      : state.phase >= 2
+                      ? `${state.nickname} სხოდკებმა კაცად აღიარეს — მაგრამ ღამის დაჭერებმა ყველაფერი შეცვალა. წინ ზონაა: რკინის კარები, ასობნიაკები და კითხვები, რომლებზეც პასუხი სიცოცხლის ფასია.`
                       : `${state.nickname} გადაურჩა უბანს და სახელი დაიმკვიდრა. ხუთშაბათს სხოდკაა — ოფშიაკი, სერიოზული ხალხი, სერიოზული ბაზარი.`}
                   </p>
                   <p className="text-[12px] mb-8" style={{ color: `${AMBER}55` }}>
-                    {state.phase >= 2 ? 'ფაზა 3: ზონა და ასონიაკები — მალე.' : 'ფაზა 2: სხოდკები და ოფშიაკი — მალე.'} შენი პროგრესი შენახულია.
+                    {state.phase >= 3 ? 'ფაზა 4: კურთხევა (The Coronation) — მალე.' : state.phase >= 2 ? 'ფაზა 3: ზონა და ასობნიაკები — მალე.' : 'ფაზა 2: სხოდკები და ოფშიაკი — მალე.'} შენი პროგრესი შენახულია.
                   </p>
                   <button onClick={onClose} className="px-8 py-3 rounded-xl font-bold text-[13px]" style={{ border: `1px solid ${AMBER}44`, color: `${AMBER}bb` }}>
                     გამოსვლა

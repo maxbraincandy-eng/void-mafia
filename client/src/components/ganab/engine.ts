@@ -2,15 +2,16 @@
 import type { GanabState, GanabScene, GanabChoice, GraveyardEntry, GanabStatKey } from './types';
 import { PHASE1_SCENES, PHASE1_START } from './content/phase1';
 import { PHASE2_SCENES, PHASE2_START } from './content/phase2';
+import { PHASE3_SCENES, PHASE3_START } from './content/phase3';
 
 const SAVE_KEY = 'vm_ganab_save';
 const GRAVE_KEY = 'vm_ganab_graveyard';
 
-// All shipped content, one registry. Later steps append PHASE3_SCENES etc.
+// All shipped content, one registry. Later steps append PHASE4_SCENES etc.
 const SCENES = new Map<string, GanabScene>();
-for (const s of [...PHASE1_SCENES, ...PHASE2_SCENES]) SCENES.set(s.id, s);
+for (const s of [...PHASE1_SCENES, ...PHASE2_SCENES, ...PHASE3_SCENES]) SCENES.set(s.id, s);
 
-const PHASE_STARTS: Record<number, string> = { 1: PHASE1_START, 2: PHASE2_START };
+const PHASE_STARTS: Record<number, string> = { 1: PHASE1_START, 2: PHASE2_START, 3: PHASE3_START };
 
 export function newGame(nickname: string): GanabState {
   return {
@@ -133,6 +134,7 @@ export function loadGame(): GanabState | null {
     if (s.sceneId === '@end_step' && PHASE_STARTS[s.phase + 1]) {
       s.phase = (s.phase + 1) as GanabState['phase'];
       if (s.phase === 2 && s.rank === 'birzhis_bichi') s.rank = 'ubnis_bichi';
+      if (s.phase === 3 && (s.rank === 'birzhis_bichi' || s.rank === 'ubnis_bichi')) s.rank = 'dzveli_bichi';
       s.sceneId = resolveRoutes(s, PHASE_STARTS[s.phase]!);
       saveGame(s);
     }
