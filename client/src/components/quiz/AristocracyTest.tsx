@@ -80,7 +80,9 @@ export function AristocracyTest({ onClose }: { onClose: () => void }) {
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[500] flex flex-col" style={{ background: 'radial-gradient(ellipse 90% 60% at 50% 0%, #241a08, #0a0714 60%)' }}>
+    // stopPropagation: keep in-game swipes from reaching the app's tab nav
+    // (React portal events bubble through the component tree, not the DOM).
+    <div className="fixed inset-0 z-[500] flex flex-col" style={{ background: 'radial-gradient(ellipse 90% 60% at 50% 0%, #241a08, #0a0714 60%)' }} onTouchStart={e => e.stopPropagation()} onTouchEnd={e => e.stopPropagation()}>
       {/* header */}
       <div className="flex items-center justify-between px-4 pt-[calc(env(safe-area-inset-top,0px)+14px)] pb-3">
         <div className="flex items-center gap-2">

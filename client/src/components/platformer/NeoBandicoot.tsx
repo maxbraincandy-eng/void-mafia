@@ -483,7 +483,9 @@ export function NeoBandicoot({ onClose }: { onClose: () => void }) {
   const playFromStart = () => { totalCoinsRef.current = 0; setLevelIdx(0); restartRef.current++; };
 
   return createPortal(
-    <div className="fixed inset-0 z-[500]" style={{ background: '#0a0620' }}>
+    // stopPropagation: keep in-game swipes from reaching the app's tab nav
+    // (React portal events bubble through the component tree, not the DOM).
+    <div className="fixed inset-0 z-[500]" style={{ background: '#0a0620' }} onTouchStart={e => e.stopPropagation()} onTouchEnd={e => e.stopPropagation()}>
       <canvas ref={canvasRef} className="w-full h-full block" style={{ touchAction: 'none' }} />
 
       <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 pt-[calc(env(safe-area-inset-top,0px)+10px)] pointer-events-none font-mono">

@@ -56,7 +56,14 @@ export function GanabSimulator({ onClose }: { onClose: () => void }) {
   const crowned = getCrowned();
 
   return createPortal(
-    <div className="fixed inset-0 z-[500] flex flex-col select-none" style={{ background: '#0a0805', fontFamily: '"Share Tech Mono", monospace' }}>
+    // Stop touch events from bubbling (through the React tree) to the app's
+    // swipe-navigation handler, which would unmount this overlay mid-game.
+    <div
+      className="fixed inset-0 z-[500] flex flex-col select-none"
+      style={{ background: '#0a0805', fontFamily: '"Share Tech Mono", monospace' }}
+      onTouchStart={e => e.stopPropagation()}
+      onTouchEnd={e => e.stopPropagation()}
+    >
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 pt-[calc(env(safe-area-inset-top,0px)+10px)] pb-2 flex-shrink-0" style={{ borderBottom: `1px solid ${AMBER}22` }}>
         <span className="text-[13px] font-bold tracking-[0.2em]" style={{ color: AMBER }}>🃏 განაბ სიმულატორი</span>
