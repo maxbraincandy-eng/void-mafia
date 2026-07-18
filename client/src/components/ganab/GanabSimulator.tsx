@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { SFX } from '@/lib/audioEngine';
 import { haptic } from '@/lib/haptics';
@@ -36,19 +36,6 @@ export function GanabSimulator({ onClose }: { onClose: () => void }) {
   const [shareState, setShareState] = useState<'idle' | 'posting' | 'done'>('idle');
   const createPostV2 = useCommunityStore(s => s.createPostV2);
 
-  // Typewriter reveal for the current scene text.
-  const [typed, setTyped] = useState(0);
-  const fullText = state && !state.dead && !state.won && state.sceneId !== '@end_step'
-    ? fillText(getScene(state)?.text ?? '', state) : '';
-
-  useEffect(() => { setTyped(0); }, [state?.sceneId]);
-  useEffect(() => {
-    if (!fullText || typed >= fullText.length) return;
-    const id = setTimeout(() => setTyped(t => Math.min(fullText.length, t + 2)), 16);
-    return () => clearTimeout(id);
-  }, [typed, fullText]);
-  const textDone = typed >= fullText.length;
-
   useEffect(() => { if (state && !state.dead) saveGame(state); }, [state]);
 
   // Ambient audio — enable flag + per-phase tune; stop on unmount.
@@ -71,6 +58,7 @@ export function GanabSimulator({ onClose }: { onClose: () => void }) {
 
   const pick = (choice: GanabChoice) => {
     if (!state) return;
+    startAmbient(state.phase); // resume audio within the tap gesture (iOS)
     SFX.click();
     const next = applyChoice(state, choice);
     if (next.dead) { SFX.eliminate(); haptic('heavy'); }
@@ -267,30 +255,21 @@ export function GanabSimulator({ onClose }: { onClose: () => void }) {
                     {scene.speaker && (
                       <p className="text-[13px] font-bold mb-2" style={{ color: AMBER }}>{scene.speaker}:</p>
                     )}
-                    <p
-                      className="text-[15px] leading-[1.75] whitespace-pre-wrap mb-8 cursor-pointer"
-                      style={{ color: '#e8dcc8' }}
-                      onClick={() => { if (!textDone) setTyped(fullText.length); }}
-                    >
-                      {textDone ? fullText : fullText.slice(0, typed)}
-                      {!textDone && <span style={{ color: AMBER }}>▊</span>}
+                    <p className="text-[15px] leading-[1.75] whitespace-pre-wrap mb-8" style={{ color: '#e8dcc8' }}>
+                      {fillText(scene.text, state)}
                     </p>
-                    {textDone ? (
-                      <div className="space-y-2.5">
-                        {visibleChoices(state, scene).map((c, i) => (
-                          <button
-                            key={i}
-                            onClick={() => pick(c)}
-                            className="w-full text-left px-4 py-3 rounded-xl text-[13.5px] leading-relaxed transition-all active:scale-[0.99]"
-                            style={{ color: AMBER, border: `1px solid ${AMBER}3a`, background: `${AMBER}0a` }}
-                          >
-                            <span style={{ color: `${AMBER}66` }}>{i + 1}. </span>{fillText(c.text, state)}
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-center text-[11px]" style={{ color: `${AMBER}44` }}>შეეხე გამოსატოვებლად…</p>
-                    )}
+                    <div className="space-y-2.5">
+                      {visibleChoices(state, scene).map((c, i) => (
+                        <button
+                          key={i}
+                          onClick={() => pick(c)}
+                          className="w-full text-left px-4 py-3 rounded-xl text-[13.5px] leading-relaxed transition-all active:scale-[0.99]"
+                          style={{ color: AMBER, border: `1px solid ${AMBER}3a`, background: `${AMBER}0a` }}
+                        >
+                          <span style={{ color: `${AMBER}66` }}>{i + 1}. </span>{fillText(c.text, state)}
+                        </button>
+                      ))}
+                    </div>
                   </>
                 );
               })()}
