@@ -50,6 +50,7 @@ import { useBlackoutStore } from '@/store/blackoutStore';
 import { VirtualSpace } from '@/components/space/VirtualSpace';
 // Backrooms (3D horror mode) is lazy-loaded so Three.js stays out of the main bundle.
 const Backrooms = lazy(() => import('@/components/backrooms/Backrooms'));
+const GanabSimulator = lazy(() => import('@/components/ganab/GanabSimulator').then(m => ({ default: m.GanabSimulator })));
 // Premium Worlds (flagship 3D social spaces) — also lazy-loaded.
 const PremiumWorlds = lazy(() => import('@/components/worlds/PremiumWorlds'));
 // Character Creator (3D avatar) — lazy-loaded.
@@ -354,6 +355,7 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
   const [spaceOpen, setSpaceOpen] = useState(false);
   const [spaceCode, setSpaceCode] = useState<string | null>(null);
   const [backroomsOpen, setBackroomsOpen] = useState(false);
+  const [ganabGlobalOpen, setGanabGlobalOpen] = useState(false);
   const [premiumOpen, setPremiumOpen] = useState(false);
   const [premiumWorldId, setPremiumWorldId] = useState<string | null>(null);
   const [worldInvite, setWorldInvite] = useState<{ worldId: string; fromName: string } | null>(null);
@@ -410,6 +412,15 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
     setSpaceOpen(true);
     clearOpenSpace();
   }, [openSpaceRequested, clearOpenSpace]);
+
+  // @ganabsimulator mention → open the Ganab Simulator from anywhere.
+  const openGanabRequested = useSocialStore(s => s.openGanabRequested);
+  const clearOpenGanab = useSocialStore(s => s.clearOpenGanab);
+  useEffect(() => {
+    if (!openGanabRequested) return;
+    setGanabGlobalOpen(true);
+    clearOpenGanab();
+  }, [openGanabRequested, clearOpenGanab]);
 
   // Auto-dismiss the invite after 15 seconds if unanswered.
   useEffect(() => {
@@ -489,6 +500,11 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
       {backroomsOpen && (
         <Suspense fallback={<div style={{ position: 'fixed', inset: 0, zIndex: 2000, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,245,210,0.6)', fontFamily: 'monospace', letterSpacing: 3, fontSize: 13 }}>{tNow().misc.loading}</div>}>
           <Backrooms onClose={() => setBackroomsOpen(false)} />
+        </Suspense>
+      )}
+      {ganabGlobalOpen && (
+        <Suspense fallback={null}>
+          <GanabSimulator onClose={() => setGanabGlobalOpen(false)} />
         </Suspense>
       )}
       {premiumOpen && (

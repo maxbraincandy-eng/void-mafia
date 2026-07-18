@@ -48,6 +48,11 @@ interface SocialStore {
   requestOpenSpace: () => void;
   clearOpenSpace: () => void;
 
+  // Request the app to open the Ganab Simulator (from a feed @mention).
+  openGanabRequested: boolean;
+  requestOpenGanab: () => void;
+  clearOpenGanab: () => void;
+
   onlineCount: number;
   unreadDmCount: number;
   setUnreadDmCount: (n: number) => void;
@@ -176,6 +181,10 @@ export const useSocialStore = create<SocialStore>((set, get) => {
     openSpaceRequested: false,
     requestOpenSpace: () => set({ openSpaceRequested: true }),
     clearOpenSpace: () => set({ openSpaceRequested: false }),
+
+    openGanabRequested: false,
+    requestOpenGanab: () => set({ openGanabRequested: true }),
+    clearOpenGanab: () => set({ openGanabRequested: false }),
     closeDm: () => set({ dmPanelOpen: false, activeDmUserId: null }),
 
     onlineCount: 0,

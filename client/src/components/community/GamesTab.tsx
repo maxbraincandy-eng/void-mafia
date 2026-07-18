@@ -3,7 +3,6 @@ import { AnimatePresence, motion } from 'framer-motion';
 
 const NeoBandicoot = lazy(() => import('@/components/platformer/NeoBandicoot').then(m => ({ default: m.NeoBandicoot })));
 const AristocracyTest = lazy(() => import('@/components/quiz/AristocracyTest').then(m => ({ default: m.AristocracyTest })));
-const GanabSimulator = lazy(() => import('@/components/ganab/GanabSimulator').then(m => ({ default: m.GanabSimulator })));
 import { useT } from '@/store/langStore';
 import { useAuthStore } from '@/store/authStore';
 import { useCheckersStore } from '@/store/checkersStore';
@@ -12,6 +11,7 @@ import { useLudoStore } from '@/store/ludoStore';
 import { useWWWStore } from '@/store/wwwStore';
 import { useUnoStore } from '@/store/unoStore';
 import { useBlackoutStore } from '@/store/blackoutStore';
+import { useSocialStore } from '@/store/socialStore';
 import type { BlackoutListItem } from '@/types/blackout';
 import type { CheckersMatchListItem } from '@/types/checkers';
 import type { JokerMatchListItem } from '@/types/joker';
@@ -25,7 +25,6 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   const playerName = profile?.username ?? 'Player';
   const [bandicootOpen, setBandicootOpen] = useState(false);
   const [aristocracyOpen, setAristocracyOpen] = useState(false);
-  const [ganabOpen, setGanabOpen] = useState(false);
 
   // ── Checkers ────────────────────────────────────────────────────────
   const {
@@ -212,18 +211,13 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
             <p className="font-mono text-[12px] text-white/35">{t.games.ganab.subtitle}</p>
           </div>
           <button
-            onClick={() => setGanabOpen(true)}
+            onClick={() => useSocialStore.getState().requestOpenGanab()}
             className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95"
             style={{ background: 'rgba(217,162,74,0.12)', border: '1px solid rgba(217,162,74,0.5)', color: '#d9a24a' }}>
             {t.games.ganab.play}
           </button>
         </div>
       </div>
-      {ganabOpen && (
-        <Suspense fallback={null}>
-          <GanabSimulator onClose={() => setGanabOpen(false)} />
-        </Suspense>
-      )}
 
       {/* ── Virtual Space card ──────────────────────────────────────────── */}
       {onOpenSpace && (

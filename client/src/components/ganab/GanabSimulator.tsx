@@ -10,7 +10,6 @@ import {
   loadGame, saveGame, clearSave, getGraveyard, getCrowned,
 } from './engine';
 import { renderGanabCard } from './ganabShare';
-import { startAmbient, updateAmbientPhase, stopAmbient, setAmbientEnabled } from './ganabAmbient';
 
 const SOUND_KEY = 'vm_ganab_sound';
 
@@ -37,32 +36,29 @@ export function GanabSimulator({ onClose }: { onClose: () => void }) {
   const createPostV2 = useCommunityStore(s => s.createPostV2);
 
   useEffect(() => { if (state && !state.dead) saveGame(state); }, [state]);
+  useEffect(() => { try { localStorage.setItem(SOUND_KEY, soundOn ? '1' : '0'); } catch { /* noop */ } }, [soundOn]);
 
-  // Ambient audio — enable flag + per-phase tune; stop on unmount.
-  useEffect(() => { setAmbientEnabled(soundOn); try { localStorage.setItem(SOUND_KEY, soundOn ? '1' : '0'); } catch { /* noop */ } }, [soundOn]);
+  // A single clean cue when the chapter/phase changes (no continuous drone).
+  const prevPhase = state?.phase;
   useEffect(() => {
-    if (screen === 'game' && state && !state.dead && !state.won) updateAmbientPhase(state.phase);
-    else stopAmbient();
-  }, [screen, state?.phase, state?.dead, state?.won]);
-  useEffect(() => () => stopAmbient(), []);
+    if (soundOn && screen === 'game' && state && !state.dead && !state.won) SFX.phaseTransition();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prevPhase]);
 
   const start = () => {
     if (!nickname.trim()) return;
-    SFX.gameStart();
+    if (soundOn) SFX.gameStart();
     haptic('success');
-    const g = newGame(nickname);
-    setState(g);
+    setState(newGame(nickname));
     setScreen('game');
-    startAmbient(g.phase);
   };
 
   const pick = (choice: GanabChoice) => {
     if (!state) return;
-    startAmbient(state.phase); // resume audio within the tap gesture (iOS)
-    SFX.click();
+    if (soundOn) SFX.click();
     const next = applyChoice(state, choice);
-    if (next.dead) { SFX.eliminate(); haptic('heavy'); }
-    else if (next.won) { SFX.join(); haptic('success'); }
+    if (next.dead) { if (soundOn) SFX.eliminate(); haptic('heavy'); }
+    else if (next.won) { if (soundOn) SFX.join(); haptic('success'); }
     else haptic('selection');
     setShareState('idle');
     setState(next);
@@ -85,8 +81,8 @@ export function GanabSimulator({ onClose }: { onClose: () => void }) {
         : (state.deathReason ?? '');
       const img = renderGanabCard({ nickname: state.nickname, won: state.won, rankLabel: RANK_LABELS[state.rank], line });
       const caption = state.won
-        ? `👑 ${state.nickname} გახდა კანონიერი ქურდი! #განაბსიმულატორი`
-        : `💀 ${state.nickname} გაფუჭდა ფაზა ${state.phase}-ზე. #განაბსიმულატორი`;
+        ? `👑 ${state.nickname} გახდა კანონიერი ქურდი! @ganabsimulator`
+        : `💀 ${state.nickname} გაფუჭდა ფაზა ${state.phase}-ზე. @ganabsimulator`;
       await createPostV2({ postType: 'text', content: caption, imageUrl: img, visibility: 'public' });
       setShareState('done');
       haptic('success');

@@ -219,7 +219,9 @@ function CommentsSection({ postId, onOpenProfile, myProfileId }: { postId: strin
           )}
         </div>
         {c.content && <p className="font-mono text-xs text-white/70 break-words">{renderContent(c.content, [], () => {}, name => {
-            if (name.toLowerCase() === 'virtual-space') useSocialStore.getState().requestOpenSpace();
+            const n = name.toLowerCase();
+            if (n === 'virtual-space') useSocialStore.getState().requestOpenSpace();
+            else if (GANAB_MENTIONS.includes(n)) useSocialStore.getState().requestOpenGanab();
           })}</p>}
         {c.gifUrl && (
           <img src={c.gifUrl} alt="GIF" className="mt-1 rounded-lg max-w-[200px] max-h-[160px] object-cover border border-white/10" loading="lazy" />
@@ -331,8 +333,12 @@ function ReportModal({ postId, onClose }: { postId: string; onClose: () => void 
   );
 }
 
+// Mentions/hashtags may contain Georgian letters (U+10A0–U+10FF), so the
+// tokenizer includes that range alongside \w and the hyphen.
+const GANAB_MENTIONS = ['ganabsimulator', 'ganab-simulator', 'განაბ-სიმულატორი', 'განაბური-სიმულატორი', 'განაბსიმულატორი'];
+
 function renderContent(content: string, hashtags: string[], onHashtag: (tag: string) => void, onMention: (name: string) => void) {
-  const parts = content.split(/(#\w+|@[\w-]+|https?:\/\/[^\s]+)/g);
+  const parts = content.split(/(#[\wႠ-ჿ]+|@[\wႠ-ჿ-]+|https?:\/\/[^\s]+)/g);
   return parts.map((part, i) => {
     if (part.startsWith('#')) {
       const tag = part.slice(1);
@@ -345,10 +351,13 @@ function renderContent(content: string, hashtags: string[], onHashtag: (tag: str
     if (part.startsWith('@')) {
       const name = part.slice(1);
       const isSpace = name.toLowerCase() === 'virtual-space';
+      const isGanab = GANAB_MENTIONS.includes(name.toLowerCase());
       return (
         <button key={i} onClick={() => onMention(name)} className="font-mono text-xs transition-colors"
           style={isSpace
             ? { color: '#00d4ff', textShadow: '0 0 8px rgba(0,212,255,0.7), 0 0 16px rgba(0,212,255,0.4)' }
+            : isGanab
+            ? { color: '#4d9fff', fontWeight: 700, textShadow: '0 0 8px rgba(77,159,255,0.6)' }
             : { color: '#c084fc' }
           }>
           {part}
@@ -528,7 +537,9 @@ export function PostCardV2({
       ) : (
         <p className="font-mono text-sm text-white/80 whitespace-pre-wrap leading-relaxed">
           {renderContent(post.content, post.hashtags ?? [], tag => { setActiveHashtag(tag); setShowModMenu(false); }, name => {
-            if (name.toLowerCase() === 'virtual-space') useSocialStore.getState().requestOpenSpace();
+            const n = name.toLowerCase();
+            if (n === 'virtual-space') useSocialStore.getState().requestOpenSpace();
+            else if (GANAB_MENTIONS.includes(n)) useSocialStore.getState().requestOpenGanab();
           })}
         </p>
       )}
