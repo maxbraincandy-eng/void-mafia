@@ -3,6 +3,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 
 const NeoBandicoot = lazy(() => import('@/components/platformer/NeoBandicoot').then(m => ({ default: m.NeoBandicoot })));
 const AristocracyTest = lazy(() => import('@/components/quiz/AristocracyTest').then(m => ({ default: m.AristocracyTest })));
+const DilemmaPlayer = lazy(() => import('@/components/dilemmas/DilemmaPlayer').then(m => ({ default: m.DilemmaPlayer })));
+import { DILEMMAS } from '@/components/dilemmas/registry';
 import { useT } from '@/store/langStore';
 import { useAuthStore } from '@/store/authStore';
 import { useCheckersStore } from '@/store/checkersStore';
@@ -25,6 +27,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   const playerName = profile?.username ?? 'Player';
   const [bandicootOpen, setBandicootOpen] = useState(false);
   const [aristocracyOpen, setAristocracyOpen] = useState(false);
+  const [dilemmaId, setDilemmaId] = useState<string | null>(null);
 
   // ── Checkers ────────────────────────────────────────────────────────
   const {
@@ -218,6 +221,40 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
           </button>
         </div>
       </div>
+
+      {/* ── დილემები category (moral-philosophy games) ──────────────────── */}
+      <div>
+        <div className="flex items-center gap-2 mb-2 px-1">
+          <span className="text-base">⚖️</span>
+          <p className="font-display font-bold text-sm" style={{ color: '#a9b6ff' }}>დილემები</p>
+          <span className="font-mono text-[11px] text-white/25">მორალური არჩევანი · უპასუხე შენს სინდისს</span>
+        </div>
+        <div className="space-y-2">
+          {DILEMMAS.map(d => (
+            <div key={d.id} className="rounded-2xl overflow-hidden"
+              style={{ background: 'linear-gradient(135deg, rgba(18,19,46,0.9), rgba(8,9,20,0.9))', border: `1px solid ${d.accent}44` }}>
+              <div className="px-4 py-3 flex items-center gap-3" style={{ background: `${d.accent}0c` }}>
+                <span className="text-2xl">{d.emoji}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="font-display font-bold text-sm leading-tight" style={{ color: d.accent }}>{d.title}</p>
+                  <p className="font-mono text-[12px] text-white/35">{d.subtitle}</p>
+                </div>
+                <button
+                  onClick={() => setDilemmaId(d.id)}
+                  className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95"
+                  style={{ background: `${d.accent}1e`, border: `1px solid ${d.accent}66`, color: d.accent }}>
+                  თამაში
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      {dilemmaId && (
+        <Suspense fallback={null}>
+          <DilemmaPlayer scenario={DILEMMAS.find(d => d.id === dilemmaId)!} onClose={() => setDilemmaId(null)} />
+        </Suspense>
+      )}
 
       {/* ── Virtual Space card ──────────────────────────────────────────── */}
       {onOpenSpace && (
