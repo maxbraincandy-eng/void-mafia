@@ -29,6 +29,7 @@ import { registerLudoHandlers, handleLudoDisconnect } from './ludo.js';
 import { registerWWWHandlers, handleWWWDisconnect } from './www.js';
 import { registerUnoHandlers, handleUnoDisconnect } from './uno.js';
 import { registerBlackoutHandlers, handleBlackoutDisconnect } from './blackout.js';
+import { addCrown as ganabAddCrown, listCrowned as ganabListCrowned } from './services/ganabService.js';
 import { timerService } from './services/timerService.js';
 import { getRole } from './services/roleService.js';
 import {
@@ -7152,6 +7153,21 @@ export function attachSocketHandlers(io: AppServer): void {
 
     // ── Blackout social-deduction game ───────────────────────────────
     registerBlackoutHandlers(io, socket);
+
+    // ── Ganab Simulator — global coronation hall of fame ─────────────
+    socket.on('ganab:crown' as any, async (data: { nickname?: string }, cb?: (r: any) => void) => {
+      try {
+        const pid = socket.data.profileId ?? socket.id;
+        await ganabAddCrown(pid, String(data?.nickname ?? ''));
+        const list = await ganabListCrowned();
+        io.emit('ganab:crowned_update' as any, list);
+        cb?.({ ok: true, data: list });
+      } catch (e: any) { cb?.({ ok: false, error: e.message }); }
+    });
+    socket.on('ganab:crowned' as any, async (cb: (r: any) => void) => {
+      try { cb({ ok: true, data: await ganabListCrowned() }); }
+      catch (e: any) { cb({ ok: false, error: e.message }); }
+    });
 
     // ── Disconnect ──────────────────────────────────────────────────
     // ── Virtual Space ─────────────────────────────────────────────────

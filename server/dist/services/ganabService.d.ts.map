@@ -1,0 +1,1 @@
+{"version":3,"file":"ganabService.d.ts","sourceRoot":"","sources":["../../src/services/ganabService.ts"],"names":[],"mappings":"AAMA,MAAM,WAAW,UAAU;IACzB,QAAQ,EAAE,MAAM,CAAC;IACjB,SAAS,EAAE,MAAM,CAAC;CACnB;AAED,kFAAkF;AAClF,wBAAsB,QAAQ,CAAC,QAAQ,EAAE,MAAM,EAAE,WAAW,EAAE,MAAM,GAAG,OAAO,CAAC,IAAI,CAAC,CAanF;AAED,wBAAsB,WAAW,CAAC,KAAK,SAAK,GAAG,OAAO,CAAC,UAAU,EAAE,CAAC,CAKnE"}

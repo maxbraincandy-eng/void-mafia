@@ -354,6 +354,19 @@ export async function initializeDatabase(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_auth_accounts_user_id ON auth_accounts(user_id)
   `;
 
+  // Ganab Simulator — global "coronation" hall of fame (who reached kanonieri).
+  await sql`
+    CREATE TABLE IF NOT EXISTS ganab_crowned (
+      id         TEXT PRIMARY KEY,
+      player_id  TEXT NOT NULL,
+      nickname   TEXT NOT NULL,
+      created_at BIGINT NOT NULL
+    )
+  `;
+  await sql`
+    CREATE INDEX IF NOT EXISTS idx_ganab_crowned_created ON ganab_crowned(created_at DESC)
+  `;
+
   // Seed achievement definitions
   for (const a of ACHIEVEMENTS) {
     await sql`

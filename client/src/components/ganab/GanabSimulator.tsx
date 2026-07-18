@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { SFX } from '@/lib/audioEngine';
 import { haptic } from '@/lib/haptics';
+import { socket, emitWithAck } from '@/lib/socket';
 import { useCommunityStore } from '@/store/communityStore';
 import type { GanabState, GanabChoice } from './types';
 import { RANK_LABELS } from './types';
@@ -33,7 +34,17 @@ export function GanabSimulator({ onClose }: { onClose: () => void }) {
   const [showGrave, setShowGrave] = useState(false);
   const [soundOn, setSoundOn] = useState(() => { try { return localStorage.getItem(SOUND_KEY) !== '0'; } catch { return true; } });
   const [shareState, setShareState] = useState<'idle' | 'posting' | 'done'>('idle');
+  const [globalCrowned, setGlobalCrowned] = useState<{ nickname: string; createdAt: number }[]>([]);
   const createPostV2 = useCommunityStore(s => s.createPostV2);
+
+  // Global coronation roster — fetched from the server, live-updated on new crownings.
+  useEffect(() => {
+    let alive = true;
+    emitWithAck<void, any>('ganab:crowned').then(r => { if (alive && r?.ok) setGlobalCrowned(r.data ?? []); }).catch(() => { /* offline */ });
+    const onUpdate = (list: { nickname: string; createdAt: number }[]) => setGlobalCrowned(list ?? []);
+    (socket as any).on('ganab:crowned_update', onUpdate);
+    return () => { alive = false; (socket as any).off('ganab:crowned_update', onUpdate); };
+  }, []);
 
   useEffect(() => { if (state && !state.dead) saveGame(state); }, [state]);
   useEffect(() => { try { localStorage.setItem(SOUND_KEY, soundOn ? '1' : '0'); } catch { /* noop */ } }, [soundOn]);
@@ -58,7 +69,11 @@ export function GanabSimulator({ onClose }: { onClose: () => void }) {
     if (soundOn) SFX.click();
     const next = applyChoice(state, choice);
     if (next.dead) { if (soundOn) SFX.eliminate(); haptic('heavy'); }
-    else if (next.won) { if (soundOn) SFX.join(); haptic('success'); }
+    else if (next.won) {
+      if (soundOn) SFX.join();
+      haptic('success');
+      try { (socket as any).emit('ganab:crown', { nickname: next.nickname }); } catch { /* offline */ }
+    }
     else haptic('selection');
     setShareState('idle');
     setState(next);
@@ -140,14 +155,24 @@ export function GanabSimulator({ onClose }: { onClose: () => void }) {
                 >
                   ქუჩაში გასვლა →
                 </button>
-                {crowned.length > 0 && (
-                  <div className="mb-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${AMBER}44`, background: `${AMBER}0e` }}>
-                    <p className="text-[11px] mb-1 text-center font-bold tracking-wider" style={{ color: AMBER }}>👑 კურთხეულები</p>
-                    <p className="text-[12px] text-center leading-relaxed" style={{ color: `${AMBER}aa` }}>
-                      {crowned.map(c => c.nickname).join(' · ')}
-                    </p>
-                  </div>
-                )}
+                {(() => {
+                  // Prefer the global roster; fall back to this device's crownings offline.
+                  const names = globalCrowned.length ? globalCrowned.map(c => c.nickname) : crowned.map(c => c.nickname);
+                  if (!names.length) return null;
+                  return (
+                    <div className="mb-2 px-3 py-2.5 rounded-xl" style={{ border: `1px solid ${AMBER}44`, background: `${AMBER}0e` }}>
+                      <p className="text-[11px] mb-1 text-center font-bold tracking-wider" style={{ color: AMBER }}>
+                        👑 კურთხეულები {globalCrowned.length ? `· ${globalCrowned.length}` : ''}
+                      </p>
+                      <p className="text-[11px] text-center mb-1.5" style={{ color: `${AMBER}55` }}>ვინც ბოლომდე გაიარა და გამოისყიდა გვირგვინი</p>
+                      <div className="max-h-28 overflow-y-auto">
+                        <p className="text-[12px] text-center leading-relaxed" style={{ color: `${AMBER}aa` }}>
+                          {names.join('  ·  ')}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })()}
                 {grave.length > 0 && (
                   <button onClick={() => setShowGrave(true)} className="w-full py-2.5 rounded-xl text-[12px]" style={{ color: `${AMBER}66`, border: `1px solid ${AMBER}22` }}>
                     ⚰ სასაფლაო ({grave.length})
