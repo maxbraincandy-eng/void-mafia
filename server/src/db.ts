@@ -366,6 +366,18 @@ export async function initializeDatabase(): Promise<void> {
   await sql`
     CREATE INDEX IF NOT EXISTS idx_ganab_crowned_created ON ganab_crowned(created_at DESC)
   `;
+  // Founding crowned — the first kanonieri, seeded so they always appear.
+  // Low created_at keeps them at the end of the (newest-first) roster.
+  await sql`
+    INSERT INTO ganab_crowned (id, player_id, nickname, created_at)
+    VALUES ('crown_seed_kaqtusa', 'seed', 'კაქტუსა', 2000)
+    ON CONFLICT (id) DO NOTHING
+  `;
+  await sql`
+    INSERT INTO ganab_crowned (id, player_id, nickname, created_at)
+    VALUES ('crown_seed_salius', 'seed', 'სალიუს მალადოი', 1000)
+    ON CONFLICT (id) DO NOTHING
+  `;
 
   // Seed achievement definitions
   for (const a of ACHIEVEMENTS) {
