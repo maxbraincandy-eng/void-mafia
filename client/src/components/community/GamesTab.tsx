@@ -28,6 +28,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   const [bandicootOpen, setBandicootOpen] = useState(false);
   const [aristocracyOpen, setAristocracyOpen] = useState(false);
   const [dilemmaId, setDilemmaId] = useState<string | null>(null);
+  const [showDilemmas, setShowDilemmas] = useState(false);
 
   // ── Checkers ────────────────────────────────────────────────────────
   const {
@@ -222,34 +223,49 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
         </div>
       </div>
 
-      {/* ── დილემები category (moral-philosophy games) ──────────────────── */}
-      <div>
-        <div className="flex items-center gap-2 mb-2 px-1">
-          <span className="text-base">⚖️</span>
-          <p className="font-display font-bold text-sm" style={{ color: '#a9b6ff' }}>დილემები</p>
-          <span className="font-mono text-[11px] text-white/25">მორალური არჩევანი · უპასუხე შენს სინდისს</span>
-        </div>
-        <div className="space-y-2">
-          {DILEMMAS.map(d => (
-            <div key={d.id} className="rounded-2xl overflow-hidden"
-              style={{ background: 'linear-gradient(135deg, rgba(18,19,46,0.9), rgba(8,9,20,0.9))', border: `1px solid ${d.accent}44` }}>
-              <div className="px-4 py-3 flex items-center gap-3" style={{ background: `${d.accent}0c` }}>
-                <span className="text-2xl">{d.emoji}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="font-display font-bold text-sm leading-tight" style={{ color: d.accent }}>{d.title}</p>
-                  <p className="font-mono text-[12px] text-white/35">{d.subtitle}</p>
-                </div>
-                <button
-                  onClick={() => setDilemmaId(d.id)}
-                  className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95"
-                  style={{ background: `${d.accent}1e`, border: `1px solid ${d.accent}66`, color: d.accent }}>
-                  თამაში
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+      {/* ── დილემები (collapsible category · moral-philosophy games) ─────── */}
+      <div className="rounded-2xl overflow-hidden"
+        style={{ background: 'linear-gradient(135deg, rgba(18,19,46,0.85), rgba(8,9,20,0.85))', border: '1px solid rgba(124,156,255,0.3)' }}>
+        <button onClick={() => setShowDilemmas(v => !v)}
+          className="w-full px-4 py-3 flex items-center gap-3 text-left transition-all active:scale-[0.99]"
+          style={{ background: 'rgba(124,156,255,0.05)' }}>
+          <span className="text-2xl">⚖️</span>
+          <div className="flex-1 min-w-0">
+            <p className="font-display font-bold text-sm leading-tight" style={{ color: '#a9b6ff' }}>
+              დილემები
+              <span style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 1, color: '#fff', background: 'rgba(124,58,237,0.9)', borderRadius: 8, padding: '3px 8px', marginLeft: 8, verticalAlign: 'middle' }}>NEW</span>
+            </p>
+            <p className="font-mono text-[12px] text-white/35">მორალური არჩევანი · {DILEMMAS.length} თამაში</p>
+          </div>
+          <span className="font-mono text-white/40 text-xs transition-transform duration-200"
+            style={{ transform: showDilemmas ? 'rotate(180deg)' : 'none' }}>▼</span>
+        </button>
       </div>
+
+      <AnimatePresence>
+        {showDilemmas && (
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="space-y-2">
+            {DILEMMAS.map(d => (
+              <div key={d.id} className="rounded-2xl overflow-hidden"
+                style={{ background: 'linear-gradient(135deg, rgba(18,19,46,0.9), rgba(8,9,20,0.9))', border: `1px solid ${d.accent}44` }}>
+                <div className="px-4 py-3 flex items-center gap-3" style={{ background: `${d.accent}0c` }}>
+                  <span className="text-2xl">{d.emoji}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-display font-bold text-sm leading-tight" style={{ color: d.accent }}>{d.title}</p>
+                    <p className="font-mono text-[12px] text-white/35">{d.subtitle}</p>
+                  </div>
+                  <button
+                    onClick={() => setDilemmaId(d.id)}
+                    className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95"
+                    style={{ background: `${d.accent}1e`, border: `1px solid ${d.accent}66`, color: d.accent }}>
+                    თამაში
+                  </button>
+                </div>
+              </div>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
       {dilemmaId && (
         <Suspense fallback={null}>
           <DilemmaPlayer scenario={DILEMMAS.find(d => d.id === dilemmaId)!} onClose={() => setDilemmaId(null)} />
