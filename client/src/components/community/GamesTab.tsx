@@ -202,7 +202,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
         style={{ background: 'linear-gradient(135deg, rgba(26,20,8,0.9), rgba(10,8,5,0.9))', border: '1px solid rgba(217,162,74,0.35)' }}>
         <div className="px-4 py-3 flex items-center gap-3"
           style={{ background: 'rgba(217,162,74,0.05)' }}>
-          <span className="text-2xl">🃏</span>
+          <img src="/ganab-star.png" alt="" className="w-8 h-8 object-contain flex-shrink-0" style={{ filter: 'drop-shadow(0 0 6px rgba(217,162,74,0.5))' }} />
           <div className="flex-1 min-w-0">
             <p className="font-display font-bold text-sm leading-tight" style={{ color: '#d9a24a' }}>
               {t.games.ganab.title}

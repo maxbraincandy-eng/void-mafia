@@ -118,7 +118,9 @@ export function GanabSimulator({ onClose }: { onClose: () => void }) {
     >
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 pt-[calc(env(safe-area-inset-top,0px)+10px)] pb-2 flex-shrink-0" style={{ borderBottom: `1px solid ${AMBER}22` }}>
-        <span className="text-[13px] font-bold tracking-[0.2em]" style={{ color: AMBER }}>🃏 განაბ სიმულატორი</span>
+        <span className="text-[13px] font-bold tracking-[0.2em] flex items-center gap-1.5" style={{ color: AMBER }}>
+          <img src="/ganab-star.png" alt="" className="w-4 h-4 object-contain" />განაბ სიმულატორი
+        </span>
         <div className="flex items-center gap-2">
           <button onClick={() => setSoundOn(v => !v)} className="w-8 h-8 rounded-full flex items-center justify-center text-[15px]" style={{ color: `${AMBER}99`, border: `1px solid ${AMBER}33` }} aria-label="sound">
             {soundOn ? '🔊' : '🔇'}
@@ -131,7 +133,7 @@ export function GanabSimulator({ onClose }: { onClose: () => void }) {
       {screen === 'menu' && (
         <div className="flex-1 overflow-y-auto flex items-center justify-center p-5">
           <div className="w-full max-w-sm">
-            <p className="text-center text-5xl mb-3">🃏</p>
+            <img src="/ganab-star.png" alt="" className="w-20 h-20 object-contain mx-auto mb-3" style={{ filter: 'drop-shadow(0 0 14px rgba(217,162,74,0.55))' }} />
             <h1 className="text-center text-xl font-bold mb-1" style={{ color: AMBER }}>განაბ სიმულატორი</h1>
             <p className="text-center text-[12px] mb-1" style={{ color: `${AMBER}77` }}>ბირჟიდან კურთხევამდე. ერთი არასწორი სიტყვა — და მორჩა.</p>
             <p className="text-center text-[11px] mb-6" style={{ color: '#ff2d5577' }}>18+ · მკაცრი ლექსიკა · permadeath</p>
