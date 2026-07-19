@@ -32,19 +32,23 @@ export function DrawGame() {
   useEffect(() => { const iv = setInterval(() => setNow(Date.now()), 250); return () => clearInterval(iv); }, []);
 
   // ── Canvas render loop: clear on new turn, drain incoming remote segments ──
+  // Re-attaches whenever we enter a canvas phase (the <canvas> only mounts for
+  // choosing/drawing/turnend, so a []-deps effect would bail during the lobby).
+  const canvasPhase = match && match.status !== 'waiting' && match.status !== 'finished';
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d')!;
+    if (!canvasPhase) return;
     let raf = 0, disposed = false;
-    const fit = () => {
+    const fit = (canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) => {
       const w = canvas.clientWidth, h = canvas.clientHeight;
-      if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; paintBg(ctx, canvas); }
+      if (w && h && (canvas.width !== w || canvas.height !== h)) { canvas.width = w; canvas.height = h; paintBg(ctx, canvas); }
     };
     const loop = () => {
       if (disposed) return;
       raf = requestAnimationFrame(loop);
-      fit();
+      const canvas = canvasRef.current;
+      if (!canvas) return; // canvas not mounted yet this frame
+      const ctx = canvas.getContext('2d')!;
+      fit(canvas, ctx);
       if (drawIncoming.clear) { drawIncoming.clear = false; paintBg(ctx, canvas); }
       if (drawIncoming.segs.length) {
         const batch = drawIncoming.segs.splice(0, drawIncoming.segs.length);
@@ -53,7 +57,7 @@ export function DrawGame() {
     };
     raf = requestAnimationFrame(loop);
     return () => { disposed = true; cancelAnimationFrame(raf); };
-  }, []);
+  }, [canvasPhase]);
 
   // Clear canvas whenever the turn changes (new drawer / round / phase).
   useEffect(() => {
