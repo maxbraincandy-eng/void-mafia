@@ -13,6 +13,8 @@ import { useLudoStore } from '@/store/ludoStore';
 import { useWWWStore } from '@/store/wwwStore';
 import { useUnoStore } from '@/store/unoStore';
 import { useBlackoutStore } from '@/store/blackoutStore';
+import { useAliasStore } from '@/store/aliasStore';
+import type { AliasListItem } from '@/types/alias';
 import { useSocialStore } from '@/store/socialStore';
 import type { BlackoutListItem } from '@/types/blackout';
 import type { CheckersMatchListItem } from '@/types/checkers';
@@ -84,20 +86,29 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   const [boShowJoin, setBoShowJoin] = useState(false);
   const [boJoinCode, setBoJoinCode] = useState('');
 
+  // ── Alias ───────────────────────────────────────────────────────────
+  const {
+    matchList: alList, isLoading: alLoading, error: alError,
+    fetchList: alFetch, createMatch: alCreate, joinMatch: alJoin, clearError: alClear,
+  } = useAliasStore();
+  const [alShowJoin, setAlShowJoin] = useState(false);
+  const [alJoinCode, setAlJoinCode] = useState('');
+
   // ── "Other games" collapsible group (Joker + UNO) ───────────────────
   const [showOther, setShowOther] = useState(false);
 
   const handleRefresh = useCallback(() => {
-    ckClear(); jkClear(); ldClear(); wwClear(); unoClear(); boClear();
+    ckClear(); jkClear(); ldClear(); wwClear(); unoClear(); boClear(); alClear();
     ckFetch();
     jkFetch();
     ldFetch();
     wwFetch();
     unoFetch();
     boFetch();
-  }, [ckFetch, jkFetch, ldFetch, wwFetch, unoFetch, boFetch, ckClear, jkClear, ldClear, wwClear, unoClear, boClear]);
+    alFetch();
+  }, [ckFetch, jkFetch, ldFetch, wwFetch, unoFetch, boFetch, alFetch, ckClear, jkClear, ldClear, wwClear, unoClear, boClear, alClear]);
 
-  useEffect(() => { ckFetch(); jkFetch(); ldFetch(); wwFetch(); unoFetch(); boFetch(); }, [ckFetch, jkFetch, ldFetch, wwFetch, unoFetch, boFetch]);
+  useEffect(() => { ckFetch(); jkFetch(); ldFetch(); wwFetch(); unoFetch(); boFetch(); alFetch(); }, [ckFetch, jkFetch, ldFetch, wwFetch, unoFetch, boFetch, alFetch]);
 
   // Refresh on visibility change
   useEffect(() => {
@@ -179,6 +190,14 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
     setBoShowJoin(false);
     await boJoin(boJoinCode.trim().toUpperCase(), playerName);
     setBoJoinCode('');
+  }
+
+  async function handleAlCreate() { await alCreate(playerName); }
+  async function handleAlJoin() {
+    if (!alJoinCode.trim()) return;
+    setAlShowJoin(false);
+    await alJoin(alJoinCode.trim().toUpperCase(), playerName);
+    setAlJoinCode('');
   }
 
   return (
@@ -423,6 +442,53 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
           <div className="px-4 pb-3 space-y-1">
             <p className="font-mono text-[12px] uppercase tracking-widest text-white/25">{t.games.blackout.openMatches}</p>
             {boList.map(m => <BlackoutRow key={m.id} match={m} onJoin={code => boJoin(code, playerName)} />)}
+          </div>
+        )}
+      </div>
+
+      {/* ── Alias card (team word game) ─────────────────────────────────── */}
+      <div className="rounded-2xl overflow-hidden"
+        style={{ background: 'rgba(10,10,24,0.7)', border: '1px solid rgba(77,159,255,0.25)' }}>
+        <div className="px-4 py-3 flex items-center gap-3 border-b"
+          style={{ borderColor: 'rgba(77,159,255,0.15)', background: 'rgba(77,159,255,0.04)' }}>
+          <span className="text-2xl">🗣</span>
+          <div className="flex-1 min-w-0">
+            <p className="font-display font-bold text-white text-sm leading-tight">
+              ალიასი
+              <span style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 1, color: '#fff', background: 'rgba(124,58,237,0.9)', borderRadius: 8, padding: '3px 8px', marginLeft: 8, verticalAlign: 'middle' }}>NEW</span>
+            </p>
+            <p className="font-mono text-[12px] text-white/35">გუნდური სიტყვების თამაში · 4-12 მოთ.</p>
+          </div>
+          <button onClick={handleRefresh}
+            className="w-7 h-7 flex items-center justify-center rounded-lg font-mono text-sm transition-all active:scale-95"
+            style={{ background: 'rgba(77,159,255,0.08)', border: '1px solid rgba(77,159,255,0.2)', color: 'rgba(150,190,255,0.6)' }} title="Refresh">↻</button>
+        </div>
+        <div className="px-4 py-3 flex flex-wrap gap-2">
+          {!alShowJoin ? (
+            <>
+              <ActionButton onClick={handleAlCreate} accent="cyan" loading={alLoading}>შექმნა</ActionButton>
+              <ActionButton onClick={() => setAlShowJoin(true)} accent="purple">შეუერთდი</ActionButton>
+            </>
+          ) : (
+            <div className="flex gap-2 w-full">
+              <input value={alJoinCode} onChange={e => setAlJoinCode(e.target.value.toUpperCase())} onKeyDown={e => { if (e.key === 'Enter') handleAlJoin(); }}
+                placeholder="XXXXXX" maxLength={6} autoFocus
+                className="flex-1 bg-transparent font-mono text-sm text-white placeholder-white/20 outline-none px-3 py-2 rounded-xl border border-white/15 focus:border-white/35 transition-colors tracking-widest" />
+              <button onClick={handleAlJoin} disabled={!alJoinCode.trim() || alLoading}
+                className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-40"
+                style={{ background: 'rgba(77,159,255,0.12)', border: '1px solid rgba(77,159,255,0.35)', color: '#4d9fff' }}>
+                {alLoading ? '…' : 'შეუერთდი'}
+              </button>
+              <button onClick={() => { setAlShowJoin(false); setAlJoinCode(''); }}
+                className="px-3 py-2 rounded-xl font-mono text-xs text-white/40 border border-white/10 hover:text-white/70 transition-colors">✕</button>
+            </div>
+          )}
+          {alError && <p className="w-full font-mono text-[12px] text-neon-red" onClick={alClear}>{alError}</p>}
+        </div>
+        {alList.length > 0 && (
+          <div className="px-4 pb-3 space-y-1">
+            <p className="font-mono text-[12px] uppercase tracking-widest text-white/25">ღია თამაშები</p>
+            {alList.map(m => <AliasRow key={m.id} match={m} onJoin={code => alJoin(code, playerName)} />)}
           </div>
         )}
       </div>
@@ -862,6 +928,25 @@ function LudoRow({ match, onJoin }: { match: LudoMatchListItem; onJoin: (code: s
           {t.games.ludo.spectate}
         </button>
       )}
+    </div>
+  );
+}
+
+function AliasRow({ match, onJoin }: { match: AliasListItem; onJoin: (code: string) => void }) {
+  return (
+    <div className="flex items-center gap-3 px-2 py-2 rounded-xl" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
+      <div className="flex-1 min-w-0">
+        <p className="font-mono text-xs text-white truncate">{match.hostName}</p>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="font-mono text-[12px] text-white/25 tracking-widest">{match.code}</span>
+          <span className="font-mono text-[12px] text-white/20">{match.playerCount}/{match.maxPlayers}</span>
+        </div>
+      </div>
+      <button onClick={() => onJoin(match.code)}
+        className="px-2.5 py-1 rounded-lg font-mono text-[12px] uppercase tracking-wider transition-all active:scale-95"
+        style={{ background: 'rgba(77,159,255,0.1)', border: '1px solid rgba(77,159,255,0.25)', color: '#4d9fff' }}>
+        შეუერთდი
+      </button>
     </div>
   );
 }

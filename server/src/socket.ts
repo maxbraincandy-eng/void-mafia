@@ -29,6 +29,7 @@ import { registerLudoHandlers, handleLudoDisconnect } from './ludo.js';
 import { registerWWWHandlers, handleWWWDisconnect } from './www.js';
 import { registerUnoHandlers, handleUnoDisconnect } from './uno.js';
 import { registerBlackoutHandlers, handleBlackoutDisconnect } from './blackout.js';
+import { registerAliasHandlers, handleAliasDisconnect } from './alias.js';
 import { addCrown as ganabAddCrown, listCrowned as ganabListCrowned } from './services/ganabService.js';
 import { timerService } from './services/timerService.js';
 import { getRole } from './services/roleService.js';
@@ -7154,6 +7155,9 @@ export function attachSocketHandlers(io: AppServer): void {
     // ── Blackout social-deduction game ───────────────────────────────
     registerBlackoutHandlers(io, socket);
 
+    // ── Alias word game ──────────────────────────────────────────────
+    registerAliasHandlers(io, socket);
+
     // ── Ganab Simulator — global coronation hall of fame ─────────────
     socket.on('ganab:crown' as any, async (data: { nickname?: string }, cb?: (r: any) => void) => {
       try {
@@ -8411,6 +8415,7 @@ export function attachSocketHandlers(io: AppServer): void {
       handleWWWDisconnect(io, socket.id);
       handleUnoDisconnect(io, socket.id);
       handleBlackoutDisconnect(io, socket.id);
+      handleAliasDisconnect(io, socket.id);
       // Remove from any spectate queues
       for (const [qRoomId, queue] of spectateQueues) {
         const idx = queue.indexOf(socket.id);
