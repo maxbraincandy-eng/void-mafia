@@ -17,6 +17,8 @@ import { useAliasStore } from '@/store/aliasStore';
 import type { AliasListItem } from '@/types/alias';
 import { useDrawStore } from '@/store/drawStore';
 import type { DrawListItem } from '@/types/draw';
+import { useCodenamesStore } from '@/store/codenamesStore';
+import type { CnListItem } from '@/types/codenames';
 import { useSocialStore } from '@/store/socialStore';
 import type { BlackoutListItem } from '@/types/blackout';
 import type { CheckersMatchListItem } from '@/types/checkers';
@@ -104,11 +106,19 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   const [drShowJoin, setDrShowJoin] = useState(false);
   const [drJoinCode, setDrJoinCode] = useState('');
 
+  // ── Codenames ───────────────────────────────────────────────────────
+  const {
+    matchList: cnList, isLoading: cnLoading, error: cnError,
+    fetchList: cnFetch, createMatch: cnCreate, joinMatch: cnJoin, clearError: cnClear,
+  } = useCodenamesStore();
+  const [cnShowJoin, setCnShowJoin] = useState(false);
+  const [cnJoinCode, setCnJoinCode] = useState('');
+
   // ── "Other games" collapsible group (Joker + UNO) ───────────────────
   const [showOther, setShowOther] = useState(false);
 
   const handleRefresh = useCallback(() => {
-    ckClear(); jkClear(); ldClear(); wwClear(); unoClear(); boClear(); alClear(); drClear();
+    ckClear(); jkClear(); ldClear(); wwClear(); unoClear(); boClear(); alClear(); drClear(); cnClear();
     ckFetch();
     jkFetch();
     ldFetch();
@@ -117,9 +127,10 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
     boFetch();
     alFetch();
     drFetch();
-  }, [ckFetch, jkFetch, ldFetch, wwFetch, unoFetch, boFetch, alFetch, drFetch, ckClear, jkClear, ldClear, wwClear, unoClear, boClear, alClear, drClear]);
+    cnFetch();
+  }, [ckFetch, jkFetch, ldFetch, wwFetch, unoFetch, boFetch, alFetch, drFetch, cnFetch, ckClear, jkClear, ldClear, wwClear, unoClear, boClear, alClear, drClear, cnClear]);
 
-  useEffect(() => { ckFetch(); jkFetch(); ldFetch(); wwFetch(); unoFetch(); boFetch(); alFetch(); drFetch(); }, [ckFetch, jkFetch, ldFetch, wwFetch, unoFetch, boFetch, alFetch, drFetch]);
+  useEffect(() => { ckFetch(); jkFetch(); ldFetch(); wwFetch(); unoFetch(); boFetch(); alFetch(); drFetch(); cnFetch(); }, [ckFetch, jkFetch, ldFetch, wwFetch, unoFetch, boFetch, alFetch, drFetch, cnFetch]);
 
   // Refresh on visibility change
   useEffect(() => {
@@ -217,6 +228,14 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
     setDrShowJoin(false);
     await drJoin(drJoinCode.trim().toUpperCase(), playerName);
     setDrJoinCode('');
+  }
+
+  async function handleCnCreate() { await cnCreate(playerName); }
+  async function handleCnJoin() {
+    if (!cnJoinCode.trim()) return;
+    setCnShowJoin(false);
+    await cnJoin(cnJoinCode.trim().toUpperCase(), playerName);
+    setCnJoinCode('');
   }
 
   return (
@@ -555,6 +574,53 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
           <div className="px-4 pb-3 space-y-1">
             <p className="font-mono text-[12px] uppercase tracking-widest text-white/25">ღია თამაშები</p>
             {drList.map(m => <DrawRow key={m.id} match={m} onJoin={code => drJoin(code, playerName)} />)}
+          </div>
+        )}
+      </div>
+
+      {/* ── Codenames card ──────────────────────────────────────────────── */}
+      <div className="rounded-2xl overflow-hidden"
+        style={{ background: 'rgba(10,9,20,0.7)', border: '1px solid rgba(155,0,255,0.28)' }}>
+        <div className="px-4 py-3 flex items-center gap-3 border-b"
+          style={{ borderColor: 'rgba(155,0,255,0.15)', background: 'rgba(155,0,255,0.04)' }}>
+          <span className="text-2xl">🕵️</span>
+          <div className="flex-1 min-w-0">
+            <p className="font-display font-bold text-white text-sm leading-tight">
+              Codenames
+              <span style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 1, color: '#fff', background: 'rgba(124,58,237,0.9)', borderRadius: 8, padding: '3px 8px', marginLeft: 8, verticalAlign: 'middle' }}>NEW</span>
+            </p>
+            <p className="font-mono text-[12px] text-white/35">2 გუნდი · მინიშნებები · 4-16 მოთ.</p>
+          </div>
+          <button onClick={handleRefresh}
+            className="w-7 h-7 flex items-center justify-center rounded-lg font-mono text-sm transition-all active:scale-95"
+            style={{ background: 'rgba(155,0,255,0.08)', border: '1px solid rgba(155,0,255,0.2)', color: 'rgba(192,132,252,0.6)' }} title="Refresh">↻</button>
+        </div>
+        <div className="px-4 py-3 flex flex-wrap gap-2">
+          {!cnShowJoin ? (
+            <>
+              <ActionButton onClick={handleCnCreate} accent="purple" loading={cnLoading}>შექმნა</ActionButton>
+              <ActionButton onClick={() => setCnShowJoin(true)} accent="cyan">შეუერთდი</ActionButton>
+            </>
+          ) : (
+            <div className="flex gap-2 w-full">
+              <input value={cnJoinCode} onChange={e => setCnJoinCode(e.target.value.toUpperCase())} onKeyDown={e => { if (e.key === 'Enter') handleCnJoin(); }}
+                placeholder="XXXXXX" maxLength={6} autoFocus
+                className="flex-1 bg-transparent font-mono text-sm text-white placeholder-white/20 outline-none px-3 py-2 rounded-xl border border-white/15 focus:border-white/35 transition-colors tracking-widest" />
+              <button onClick={handleCnJoin} disabled={!cnJoinCode.trim() || cnLoading}
+                className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-40"
+                style={{ background: 'rgba(155,0,255,0.12)', border: '1px solid rgba(155,0,255,0.35)', color: '#c084fc' }}>
+                {cnLoading ? '…' : 'შეუერთდი'}
+              </button>
+              <button onClick={() => { setCnShowJoin(false); setCnJoinCode(''); }}
+                className="px-3 py-2 rounded-xl font-mono text-xs text-white/40 border border-white/10 hover:text-white/70 transition-colors">✕</button>
+            </div>
+          )}
+          {cnError && <p className="w-full font-mono text-[12px] text-neon-red" onClick={cnClear}>{cnError}</p>}
+        </div>
+        {cnList.length > 0 && (
+          <div className="px-4 pb-3 space-y-1">
+            <p className="font-mono text-[12px] uppercase tracking-widest text-white/25">ღია თამაშები</p>
+            {cnList.map(m => <CodenamesRow key={m.id} match={m} onJoin={code => cnJoin(code, playerName)} />)}
           </div>
         )}
       </div>
@@ -994,6 +1060,25 @@ function LudoRow({ match, onJoin }: { match: LudoMatchListItem; onJoin: (code: s
           {t.games.ludo.spectate}
         </button>
       )}
+    </div>
+  );
+}
+
+function CodenamesRow({ match, onJoin }: { match: CnListItem; onJoin: (code: string) => void }) {
+  return (
+    <div className="flex items-center gap-3 px-2 py-2 rounded-xl" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
+      <div className="flex-1 min-w-0">
+        <p className="font-mono text-xs text-white truncate">{match.hostName}</p>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="font-mono text-[12px] text-white/25 tracking-widest">{match.code}</span>
+          <span className="font-mono text-[12px] text-white/20">{match.playerCount}/{match.maxPlayers}</span>
+        </div>
+      </div>
+      <button onClick={() => onJoin(match.code)}
+        className="px-2.5 py-1 rounded-lg font-mono text-[12px] uppercase tracking-wider transition-all active:scale-95"
+        style={{ background: 'rgba(155,0,255,0.1)', border: '1px solid rgba(155,0,255,0.25)', color: '#c084fc' }}>
+        შეუერთდი
+      </button>
     </div>
   );
 }
