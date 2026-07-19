@@ -49,6 +49,8 @@ import { BlackoutGame } from '@/components/blackout/BlackoutGame';
 import { useBlackoutStore } from '@/store/blackoutStore';
 import { AliasGame } from '@/components/alias/AliasGame';
 import { useAliasStore } from '@/store/aliasStore';
+import { DrawGame } from '@/components/draw/DrawGame';
+import { useDrawStore } from '@/store/drawStore';
 import { VirtualSpace } from '@/components/space/VirtualSpace';
 // Backrooms (3D horror mode) is lazy-loaded so Three.js stays out of the main bundle.
 const Backrooms = lazy(() => import('@/components/backrooms/Backrooms'));
@@ -354,7 +356,8 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
   const unoMatch      = useUnoStore(s => s.match);
   const blackoutMatch = useBlackoutStore(s => s.match);
   const aliasMatch    = useAliasStore(s => s.match);
-  const inGame = !!(checkersMatch || ludoMatch || jokerMatch || wwwMatch || unoMatch || blackoutMatch || aliasMatch);
+  const drawMatch     = useDrawStore(s => s.match);
+  const inGame = !!(checkersMatch || ludoMatch || jokerMatch || wwwMatch || unoMatch || blackoutMatch || aliasMatch || drawMatch);
   const [spaceOpen, setSpaceOpen] = useState(false);
   const [spaceCode, setSpaceCode] = useState<string | null>(null);
   const [backroomsOpen, setBackroomsOpen] = useState(false);
@@ -500,6 +503,7 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
       <AnimatePresence>{unoMatch      && <UnoGame />}</AnimatePresence>
       <AnimatePresence>{blackoutMatch && <BlackoutGame />}</AnimatePresence>
       <AnimatePresence>{aliasMatch    && <AliasGame />}</AnimatePresence>
+      <AnimatePresence>{drawMatch     && <DrawGame />}</AnimatePresence>
       <AnimatePresence>{spaceOpen    && <VirtualSpace initialSpaceCode={spaceCode} onClose={() => { setSpaceOpen(false); setSpaceCode(null); }} />}</AnimatePresence>
       {backroomsOpen && (
         <Suspense fallback={<div style={{ position: 'fixed', inset: 0, zIndex: 2000, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,245,210,0.6)', fontFamily: 'monospace', letterSpacing: 3, fontSize: 13 }}>{tNow().misc.loading}</div>}>
