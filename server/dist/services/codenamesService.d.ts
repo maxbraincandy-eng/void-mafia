@@ -37,6 +37,7 @@ export interface CnMatch {
     remaining: [number, number];
     winner: 0 | 1 | null;
     assassinFired: boolean;
+    dissolved: boolean;
     log: CnLogEntry[];
     createdAt: number;
 }
@@ -70,6 +71,7 @@ export interface CnPublicState {
     remaining: [number, number];
     winner: 0 | 1 | null;
     assassinFired: boolean;
+    dissolved: boolean;
     log: CnLogEntry[];
     myTeam: 0 | 1 | null;
     amSpymaster: boolean;
@@ -98,6 +100,8 @@ export declare function switchTeam(matchId: string, userId: string): CnMatch | n
 export declare function setSpymaster(matchId: string, userId: string): CnMatch | null;
 export declare function leaveMatch(matchId: string, userId: string): CnMatch | null;
 export declare function disconnectSocket(socketId: string): string | null;
+/** Explicit leave during active play — end the match for everyone. */
+export declare function dissolveMatch(matchId: string, leaverId: string): CnMatch | null;
 export declare function startMatch(matchId: string, byUserId: string): CnMatch | null;
 export declare function giveClue(matchId: string, userId: string, word: string, number: number): CnMatch | null;
 export declare function guessCard(matchId: string, userId: string, index: number): CnMatch | null;

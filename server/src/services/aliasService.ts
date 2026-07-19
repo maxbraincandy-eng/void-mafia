@@ -48,6 +48,7 @@ export interface AliasMatch {
   turn: AliasTurn | null;
   currentWord: string | null;
   winner: 0 | 1 | null;
+  dissolved: boolean;
   round: number;
   createdAt: number;
 }
@@ -71,6 +72,7 @@ export interface AliasPublicState {
   amDescriber: boolean;
   myTeam: 0 | 1 | null;
   winner: 0 | 1 | null;
+  dissolved: boolean;
   myUserId: string;
   round: number;
 }
@@ -99,7 +101,7 @@ export function createMatch(hostId: string, socketId: string, nickname: string, 
       roundSeconds: Math.min(120, Math.max(30, Number(opts.roundSeconds ?? 60))),
     },
     scores: [0, 0], deck: shuffle(ALIAS_WORDS), deckPos: 0,
-    describerIdx: [0, 0], activeTeam: 0, turn: null, currentWord: null, winner: null, round: 0, createdAt: Date.now(),
+    describerIdx: [0, 0], activeTeam: 0, turn: null, currentWord: null, winner: null, dissolved: false, round: 0, createdAt: Date.now(),
   };
   matches.set(id, m);
   playerMatch.set(hostId, id);
@@ -164,6 +166,20 @@ export function disconnectSocket(socketId: string): string | null {
   if (m.status === 'waiting' || m.status === 'finished') { leaveMatch(m.id, p.userId); return m.id; }
   p.connected = false;
   return m.id;
+}
+
+/** Explicit leave during active play — end the match for everyone. */
+export function dissolveMatch(matchId: string, leaverId: string): AliasMatch | null {
+  const m = matches.get(matchId);
+  if (!m) return null;
+  playerMatch.delete(leaverId);
+  m.players = m.players.filter(p => p.userId !== leaverId);
+  if (m.players.length === 0) { matches.delete(matchId); return null; }
+  if (m.hostId === leaverId) m.hostId = m.players[0]!.userId;
+  m.status = 'finished';
+  m.dissolved = true;
+  m.turn = null; m.currentWord = null;
+  return m;
 }
 
 function drawWord(m: AliasMatch): string {
@@ -243,7 +259,7 @@ export function rematch(matchId: string, byUserId: string): AliasMatch | null {
   if (m.players.length === 0) { matches.delete(matchId); return null; }
   if (!m.players.some(p => p.userId === m.hostId)) m.hostId = m.players[0]!.userId;
   m.scores = [0, 0]; m.deck = shuffle(ALIAS_WORDS); m.deckPos = 0;
-  m.describerIdx = [0, 0]; m.activeTeam = 0; m.turn = null; m.currentWord = null; m.winner = null; m.round = 0;
+  m.describerIdx = [0, 0]; m.activeTeam = 0; m.turn = null; m.currentWord = null; m.winner = null; m.dissolved = false; m.round = 0;
   (m as any)._lastTurnLog = null;
   return m;
 }
@@ -268,6 +284,7 @@ export function getSafeState(m: AliasMatch, viewerUserId: string): AliasPublicSt
     amDescriber,
     myTeam: viewer?.team ?? null,
     winner: m.winner,
+    dissolved: m.dissolved,
     myUserId: viewerUserId,
     round: m.round,
   };

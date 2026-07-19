@@ -7,7 +7,7 @@ import {
   ServerToClientEvents, ClientToServerEvents, InterServerEvents, SocketData, ok, err,
 } from './types/index.js';
 import {
-  createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch,
+  createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch, dissolveMatch,
   startMatch, chooseWord, autoChoose, guess, endTurn, nextTurn, rematch,
   disconnectSocket, getSafeState, addSeg, clearCanvas, type DrawSeg,
 } from './services/drawService.js';
@@ -87,9 +87,12 @@ export function registerDrawHandlers(io: AppServer, socket: AppSocket): void {
   socket.on('draw:leave' as any, (data: { matchId: string }, cb: (r: any) => void) => {
     try {
       const matchId = String(data?.matchId);
-      const m = leaveMatch(matchId, uid());
+      const cur = getMatch(matchId);
+      const active = cur && cur.status !== 'waiting' && cur.status !== 'finished';
+      const m = active ? dissolveMatch(matchId, uid()) : leaveMatch(matchId, uid());
       socket.leave(ROOM(matchId));
-      if (m) { broadcastState(io, matchId); schedule(io, matchId); } else clearT(matchId);
+      clearT(matchId);
+      if (m) { broadcastState(io, matchId); if (!active) schedule(io, matchId); }
       broadcastList(io); cb(ok(null));
     } catch (e: any) { cb(err(e.message)); }
   });

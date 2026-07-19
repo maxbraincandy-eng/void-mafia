@@ -41,6 +41,7 @@ export interface DrawMatch {
     segs: DrawSeg[];
     lastWord: string | null;
     winner: string | null;
+    dissolved: boolean;
     createdAt: number;
 }
 export interface DrawPublicPlayer {
@@ -75,6 +76,7 @@ export interface DrawPublicState {
     endsAt: number;
     iGuessed: boolean;
     winnerId: string | null;
+    dissolved: boolean;
     myUserId: string;
 }
 export interface DrawListItem {
@@ -99,6 +101,8 @@ export declare function joinMatch(matchId: string, userId: string, socketId: str
     isNew: boolean;
 } | null;
 export declare function leaveMatch(matchId: string, userId: string): DrawMatch | null;
+/** Explicit leave during active play — end the match for everyone. */
+export declare function dissolveMatch(matchId: string, leaverId: string): DrawMatch | null;
 export declare function disconnectSocket(socketId: string): string | null;
 export declare function startMatch(matchId: string, byUserId: string): DrawMatch | null;
 /** Enter the word-choice phase for the current turn's drawer. */

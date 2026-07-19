@@ -17,6 +17,7 @@ export interface CnPublicState {
   remaining: [number, number];
   winner: 0 | 1 | null;
   assassinFired: boolean;
+  dissolved: boolean;
   log: CnLogEntry[];
   myTeam: 0 | 1 | null;
   amSpymaster: boolean;

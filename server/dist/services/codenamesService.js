@@ -20,7 +20,7 @@ export function createMatch(hostId, socketId, nickname, opts) {
         id, code: code6(), status: 'waiting', hostId,
         maxPlayers: Math.min(16, Math.max(4, Number(opts.maxPlayers ?? 8))),
         players: [{ userId: hostId, socketId, nickname, seat: 0, connected: true, team: 0, isSpymaster: false }],
-        board: [], startingTeam: 0, turnTeam: 0, clue: null, guessesLeft: 0, remaining: [0, 0], winner: null, assassinFired: false, log: [], createdAt: Date.now(),
+        board: [], startingTeam: 0, turnTeam: 0, clue: null, guessesLeft: 0, remaining: [0, 0], winner: null, assassinFired: false, dissolved: false, log: [], createdAt: Date.now(),
     };
     matches.set(id, m);
     playerMatch.set(hostId, id);
@@ -109,6 +109,24 @@ export function disconnectSocket(socketId) {
     }
     p.connected = false;
     return m.id;
+}
+/** Explicit leave during active play — end the match for everyone. */
+export function dissolveMatch(matchId, leaverId) {
+    const m = matches.get(matchId);
+    if (!m)
+        return null;
+    playerMatch.delete(leaverId);
+    m.players = m.players.filter(p => p.userId !== leaverId);
+    if (m.players.length === 0) {
+        matches.delete(matchId);
+        return null;
+    }
+    if (m.hostId === leaverId)
+        m.hostId = m.players[0].userId;
+    m.status = 'finished';
+    m.dissolved = true;
+    m.winner = null;
+    return m;
 }
 function buildBoard(startingTeam) {
     const words = shuffle(CODENAMES_WORDS).slice(0, 25);
@@ -243,6 +261,7 @@ export function rematch(matchId, byUserId) {
     m.remaining = [0, 0];
     m.winner = null;
     m.assassinFired = false;
+    m.dissolved = false;
     m.log = [];
     return m;
 }
@@ -254,7 +273,7 @@ export function getSafeState(m, viewerUserId) {
         players: m.players.map(p => ({ userId: p.userId, nickname: p.nickname, seat: p.seat, connected: p.connected, team: p.team, isSpymaster: p.isSpymaster })),
         board: m.board.map(c => ({ word: c.word, revealed: c.revealed, color: (sees || c.revealed) ? c.color : null })),
         startingTeam: m.startingTeam, turnTeam: m.turnTeam, clue: m.clue, guessesLeft: m.guessesLeft, remaining: m.remaining,
-        winner: m.winner, assassinFired: m.assassinFired, log: m.log.slice(-30),
+        winner: m.winner, assassinFired: m.assassinFired, dissolved: m.dissolved, log: m.log.slice(-30),
         myTeam: viewer?.team ?? null, amSpymaster: !!viewer?.isSpymaster, myUserId: viewerUserId,
     };
 }

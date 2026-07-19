@@ -8,7 +8,7 @@ import {
 } from './types/index.js';
 import {
   createMatch, getMatch, getMatchByCode, listMatches, joinMatch, switchTeam, setSpymaster,
-  leaveMatch, startMatch, giveClue, guessCard, passTurn, rematch, disconnectSocket, getSafeState,
+  leaveMatch, dissolveMatch, startMatch, giveClue, guessCard, passTurn, rematch, disconnectSocket, getSafeState,
 } from './services/codenamesService.js';
 
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -70,7 +70,9 @@ export function registerCodenamesHandlers(io: AppServer, socket: AppSocket): voi
   socket.on('cn:leave' as any, (data: { matchId: string }, cb: (r: any) => void) => {
     try {
       const matchId = String(data?.matchId);
-      const m = leaveMatch(matchId, uid());
+      const cur = getMatch(matchId);
+      const active = cur && cur.status !== 'waiting' && cur.status !== 'finished';
+      const m = active ? dissolveMatch(matchId, uid()) : leaveMatch(matchId, uid());
       socket.leave(ROOM(matchId));
       if (m) broadcastState(io, matchId);
       broadcastList(io); cb(ok(null));

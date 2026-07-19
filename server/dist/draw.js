@@ -1,5 +1,5 @@
 import { ok, err, } from './types/index.js';
-import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch, startMatch, chooseWord, autoChoose, guess, endTurn, nextTurn, rematch, disconnectSocket, getSafeState, addSeg, clearCanvas, } from './services/drawService.js';
+import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch, dissolveMatch, startMatch, chooseWord, autoChoose, guess, endTurn, nextTurn, rematch, disconnectSocket, getSafeState, addSeg, clearCanvas, } from './services/drawService.js';
 const ROOM = (id) => `draw:${id}`;
 function userId(socket) { return socket.data.profileId ?? socket.id; }
 function broadcastState(io, matchId) {
@@ -100,14 +100,16 @@ export function registerDrawHandlers(io, socket) {
     socket.on('draw:leave', (data, cb) => {
         try {
             const matchId = String(data?.matchId);
-            const m = leaveMatch(matchId, uid());
+            const cur = getMatch(matchId);
+            const active = cur && cur.status !== 'waiting' && cur.status !== 'finished';
+            const m = active ? dissolveMatch(matchId, uid()) : leaveMatch(matchId, uid());
             socket.leave(ROOM(matchId));
+            clearT(matchId);
             if (m) {
                 broadcastState(io, matchId);
-                schedule(io, matchId);
+                if (!active)
+                    schedule(io, matchId);
             }
-            else
-                clearT(matchId);
             broadcastList(io);
             cb(ok(null));
         }

@@ -1,5 +1,5 @@
 import { ok, err, } from './types/index.js';
-import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, switchTeam, leaveMatch, startMatch, startTurn, markWord, endTurn, rematch, disconnectSocket, getSafeState, } from './services/aliasService.js';
+import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, switchTeam, leaveMatch, dissolveMatch, startMatch, startTurn, markWord, endTurn, rematch, disconnectSocket, getSafeState, } from './services/aliasService.js';
 const ROOM = (id) => `alias:${id}`;
 function userId(socket) { return socket.data.profileId ?? socket.id; }
 function broadcastState(io, matchId) {
@@ -89,11 +89,15 @@ export function registerAliasHandlers(io, socket) {
     socket.on('alias:leave', (data, cb) => {
         try {
             const matchId = String(data?.matchId);
-            const m = leaveMatch(matchId, uid());
+            const cur = getMatch(matchId);
+            const active = cur && cur.status !== 'waiting' && cur.status !== 'finished';
+            const m = active ? dissolveMatch(matchId, uid()) : leaveMatch(matchId, uid());
             socket.leave(ROOM(matchId));
+            if (active)
+                clearTurnTimer(matchId);
             if (m) {
                 broadcastState(io, matchId);
-                if (m.turn)
+                if (!active && m.turn)
                     scheduleTurnEnd(io, matchId);
             }
             else

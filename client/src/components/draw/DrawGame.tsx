@@ -28,6 +28,11 @@ export function DrawGame() {
   const prevStatus = useRef('');
   const turnKey = useRef('');
   const drawing = useRef<{ x: number; y: number } | null>(null);
+  // Full stroke history for THIS turn so a canvas resize (layout shift, keyboard,
+  // tools wrapping) can repaint instead of losing the drawing.
+  const segHistory = useRef<DrawSeg[]>([]);
+  const canvasDims = useRef({ w: 0, h: 0 });
+  const [confirmLeave, setConfirmLeave] = useState(false);
 
   useEffect(() => { const iv = setInterval(() => setNow(Date.now()), 250); return () => clearInterval(iv); }, []);
 
@@ -38,21 +43,24 @@ export function DrawGame() {
   useEffect(() => {
     if (!canvasPhase) return;
     let raf = 0, disposed = false;
-    const fit = (canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) => {
-      const w = canvas.clientWidth, h = canvas.clientHeight;
-      if (w && h && (canvas.width !== w || canvas.height !== h)) { canvas.width = w; canvas.height = h; paintBg(ctx, canvas); }
-    };
     const loop = () => {
       if (disposed) return;
       raf = requestAnimationFrame(loop);
       const canvas = canvasRef.current;
       if (!canvas) return; // canvas not mounted yet this frame
       const ctx = canvas.getContext('2d')!;
-      fit(canvas, ctx);
-      if (drawIncoming.clear) { drawIncoming.clear = false; paintBg(ctx, canvas); }
+      const w = canvas.clientWidth, h = canvas.clientHeight;
+      // On a real size change: re-size + repaint the whole turn from history
+      // (never lose strokes to a resize).
+      if (w && h && (canvasDims.current.w !== w || canvasDims.current.h !== h)) {
+        canvas.width = w; canvas.height = h; canvasDims.current = { w, h };
+        paintBg(ctx, canvas);
+        for (const s of segHistory.current) drawSeg(ctx, canvas, s);
+      }
+      if (drawIncoming.clear) { drawIncoming.clear = false; segHistory.current = []; paintBg(ctx, canvas); }
       if (drawIncoming.segs.length) {
         const batch = drawIncoming.segs.splice(0, drawIncoming.segs.length);
-        for (const s of batch) drawSeg(ctx, canvas, s);
+        for (const s of batch) { drawSeg(ctx, canvas, s); if (segHistory.current.length < 12000) segHistory.current.push(s); }
       }
     };
     raf = requestAnimationFrame(loop);
@@ -66,6 +74,7 @@ export function DrawGame() {
     if (key !== turnKey.current) {
       turnKey.current = key;
       drawIncoming.segs.length = 0;
+      segHistory.current = [];
       const c = canvasRef.current;
       if (c) { const ctx = c.getContext('2d')!; paintBg(ctx, c); }
     }
@@ -99,6 +108,7 @@ export function DrawGame() {
     if (Math.hypot(p.x - last.x, p.y - last.y) < 0.002) return;
     const seg: DrawSeg = { x0: last.x, y0: last.y, x1: p.x, y1: p.y, c: eraser ? CANVAS_BG : color, w: eraser ? 0.045 : SIZES[sizeI]! };
     const c = canvasRef.current!; drawSeg(c.getContext('2d')!, c, seg);
+    if (segHistory.current.length < 12000) segHistory.current.push(seg); // so my own strokes survive a resize
     sendSeg(seg);
     drawing.current = p;
   };
@@ -116,7 +126,7 @@ export function DrawGame() {
         <span className="text-[14px] font-display font-bold tracking-wide text-white">🎨 დახაზე & გამოიცანი</span>
         <div className="flex items-center gap-2">
           {match.status !== 'waiting' && match.status !== 'finished' && <span className="font-mono text-[12px] text-white/40">რაუნდი {Math.min(match.round, match.totalRounds)}/{match.totalRounds}</span>}
-          <button onClick={() => leaveMatch()} className="w-8 h-8 rounded-full flex items-center justify-center text-white/60" style={{ border: '1px solid rgba(255,255,255,0.15)' }}>✕</button>
+          <button onClick={() => (match.status === 'waiting' || match.status === 'finished') ? leaveMatch() : setConfirmLeave(true)} className="w-8 h-8 rounded-full flex items-center justify-center text-white/60" style={{ border: '1px solid rgba(255,255,255,0.15)' }}>✕</button>
         </div>
       </div>
 
@@ -239,8 +249,8 @@ export function DrawGame() {
       {match.status === 'finished' && (
         <div className="flex-1 overflow-y-auto p-4">
           <div className="max-w-md mx-auto text-center pt-6">
-            <p className="text-5xl mb-3">🏆</p>
-            <p className="font-display font-bold text-2xl text-white mb-5">{match.players.find(p => p.userId === match.winnerId)?.nickname ?? '—'} გაიმარჯვა!</p>
+            <p className="text-5xl mb-3">{match.dissolved ? '🚪' : '🏆'}</p>
+            <p className="font-display font-bold text-2xl text-white mb-5">{match.dissolved ? 'თამაში დასრულდა — მოთამაშემ დატოვა' : `${match.players.find(p => p.userId === match.winnerId)?.nickname ?? '—'} გაიმარჯვა!`}</p>
             <div className="space-y-1.5 mb-8">
               {ranked.map((p, i) => (
                 <div key={p.userId} className="flex items-center gap-3 px-3 py-2 rounded-xl" style={{ background: i === 0 ? 'rgba(255,211,77,0.12)' : 'rgba(255,255,255,0.04)' }}>
@@ -253,6 +263,21 @@ export function DrawGame() {
             <div className="flex flex-col gap-2.5 items-stretch max-w-[280px] mx-auto">
               {isHost && <button onClick={() => rematch()} className="py-3 rounded-xl font-display font-bold text-sm text-white" style={{ background: 'linear-gradient(135deg,#ff8c26,#c026d3)' }}>თავიდან</button>}
               <button onClick={() => leaveMatch()} className="py-3 rounded-xl font-mono text-sm text-white/50" style={{ border: '1px solid rgba(255,255,255,0.15)' }}>გასვლა</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Leave confirm */}
+      {confirmLeave && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center p-6" style={{ background: 'rgba(5,4,10,0.8)' }}>
+          <div className="w-full max-w-xs rounded-2xl p-5 text-center" style={{ background: 'rgba(18,14,28,0.98)', border: '1px solid rgba(255,140,38,0.35)' }}>
+            <p className="text-3xl mb-2">🚪</p>
+            <p className="font-display font-bold text-white text-base mb-1">დატოვებ თამაშს?</p>
+            <p className="font-mono text-[12px] text-white/50 mb-5">გასვლა ყველასთვის დაასრულებს მატჩს.</p>
+            <div className="flex gap-2.5">
+              <button onClick={() => setConfirmLeave(false)} className="flex-1 py-2.5 rounded-xl font-mono text-[13px] text-white/60" style={{ border: '1px solid rgba(255,255,255,0.15)' }}>არა</button>
+              <button onClick={() => { setConfirmLeave(false); leaveMatch(); }} className="flex-1 py-2.5 rounded-xl font-display font-bold text-[13px] text-white" style={{ background: 'rgba(255,45,85,0.25)', border: '1px solid rgba(255,45,85,0.5)' }}>დიახ, გავდივარ</button>
             </div>
           </div>
         </div>

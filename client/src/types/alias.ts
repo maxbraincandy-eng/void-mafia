@@ -20,6 +20,7 @@ export interface AliasPublicState {
   amDescriber: boolean;
   myTeam: 0 | 1 | null;
   winner: 0 | 1 | null;
+  dissolved: boolean;
   myUserId: string;
   round: number;
 }

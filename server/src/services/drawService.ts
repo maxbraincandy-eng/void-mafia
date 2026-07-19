@@ -30,6 +30,7 @@ export interface DrawMatch {
   segs: DrawSeg[];
   lastWord: string | null;
   winner: string | null; // userId or null (tie shows scoreboard)
+  dissolved: boolean;    // a player explicitly left mid-game → ended for all
   createdAt: number;
 }
 
@@ -50,6 +51,7 @@ export interface DrawPublicState {
   endsAt: number;
   iGuessed: boolean;
   winnerId: string | null;
+  dissolved: boolean;
   myUserId: string;
 }
 
@@ -71,7 +73,7 @@ export function createMatch(hostId: string, socketId: string, nickname: string, 
     settings: { rounds: Math.min(8, Math.max(1, Number(opts.rounds ?? 3))), drawSeconds: Math.min(120, Math.max(30, Number(opts.drawSeconds ?? 70))) },
     deck: shuffle(DRAW_WORDS), deckPos: 0,
     turnOrder: [], turnIdx: 0, round: 1,
-    drawerId: null, word: null, wordChoices: [], endsAt: 0, correctThisTurn: 0, segs: [], lastWord: null, winner: null, createdAt: Date.now(),
+    drawerId: null, word: null, wordChoices: [], endsAt: 0, correctThisTurn: 0, segs: [], lastWord: null, winner: null, dissolved: false, createdAt: Date.now(),
   };
   matches.set(id, m);
   playerMatch.set(hostId, id);
@@ -111,6 +113,20 @@ export function leaveMatch(matchId: string, userId: string): DrawMatch | null {
   const p = m.players.find(pl => pl.userId === userId);
   if (p) p.connected = false;
   if (m.drawerId === userId) m.endsAt = Date.now(); // drawer bailed → end turn
+  return m;
+}
+
+/** Explicit leave during active play — end the match for everyone. */
+export function dissolveMatch(matchId: string, leaverId: string): DrawMatch | null {
+  const m = matches.get(matchId);
+  if (!m) return null;
+  playerMatch.delete(leaverId);
+  m.players = m.players.filter(p => p.userId !== leaverId);
+  if (m.players.length === 0) { matches.delete(matchId); return null; }
+  if (m.hostId === leaverId) m.hostId = m.players[0]!.userId;
+  m.status = 'finished';
+  m.dissolved = true;
+  m.winner = null;
   return m;
 }
 
@@ -242,7 +258,7 @@ export function rematch(matchId: string, byUserId: string): DrawMatch | null {
   m.players.forEach((p, i) => { p.seat = i; p.score = 0; p.guessedThisTurn = false; });
   if (m.players.length === 0) { matches.delete(matchId); return null; }
   if (!m.players.some(p => p.userId === m.hostId)) m.hostId = m.players[0]!.userId;
-  m.turnOrder = []; m.turnIdx = 0; m.round = 1; m.drawerId = null; m.word = null; m.wordChoices = []; m.segs = []; m.lastWord = null; m.winner = null;
+  m.turnOrder = []; m.turnIdx = 0; m.round = 1; m.drawerId = null; m.word = null; m.wordChoices = []; m.segs = []; m.lastWord = null; m.winner = null; m.dissolved = false;
   return m;
 }
 
@@ -283,6 +299,7 @@ export function getSafeState(m: DrawMatch, viewerUserId: string): DrawPublicStat
     endsAt: m.endsAt,
     iGuessed: viewer?.guessedThisTurn ?? false,
     winnerId: m.winner,
+    dissolved: m.dissolved,
     myUserId: viewerUserId,
   };
 }

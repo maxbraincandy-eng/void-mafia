@@ -32,6 +32,7 @@ export function CodenamesGame() {
   const { match, leaveMatch, switchTeam, toggleSpymaster, startMatch, giveClue, guess, pass, rematch, error, clearError } = useCodenamesStore();
   const [clueWord, setClueWord] = useState('');
   const [clueNum, setClueNum] = useState(2);
+  const [confirmLeave, setConfirmLeave] = useState(false);
 
   if (!match) return null;
   const myId = match.myUserId;
@@ -54,7 +55,7 @@ export function CodenamesGame() {
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 pt-[calc(env(safe-area-inset-top,0px)+10px)] pb-2 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
         <span className="text-[14px] font-display font-bold tracking-wide text-white">🕵️ Codenames</span>
-        <button onClick={() => leaveMatch()} className="w-8 h-8 rounded-full flex items-center justify-center text-white/60" style={{ border: '1px solid rgba(255,255,255,0.15)' }}>✕</button>
+        <button onClick={() => match.status === 'play' ? setConfirmLeave(true) : leaveMatch()} className="w-8 h-8 rounded-full flex items-center justify-center text-white/60" style={{ border: '1px solid rgba(255,255,255,0.15)' }}>✕</button>
       </div>
 
       <div className="flex-1 overflow-y-auto p-3">
@@ -98,7 +99,9 @@ export function CodenamesGame() {
                 <span className="font-display font-bold text-lg" style={{ color: TEAM[0]!.color }}>{match.remaining[0]}</span>
                 <div className="text-center">
                   {match.status === 'finished'
-                    ? <span className="font-display font-bold text-sm" style={{ color: TEAM[match.winner ?? 0]!.color }}>{TEAM[match.winner ?? 0]!.name}მა მოიგო!</span>
+                    ? (match.dissolved
+                        ? <span className="font-display font-bold text-sm text-white/80">დასრულდა — მოთამაშემ დატოვა</span>
+                        : <span className="font-display font-bold text-sm" style={{ color: TEAM[match.winner ?? 0]!.color }}>{TEAM[match.winner ?? 0]!.name}მა მოიგო!</span>)
                     : <span className="font-mono text-[13px]" style={{ color: TEAM[match.turnTeam]!.color }}>{TEAM[match.turnTeam]!.name}ის ჯერი</span>}
                 </div>
                 <span className="font-display font-bold text-lg" style={{ color: TEAM[1]!.color }}>{match.remaining[1]}</span>
@@ -170,6 +173,20 @@ export function CodenamesGame() {
           )}
         </div>
       </div>
+
+      {confirmLeave && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center p-6" style={{ background: 'rgba(5,4,10,0.8)' }}>
+          <div className="w-full max-w-xs rounded-2xl p-5 text-center" style={{ background: 'rgba(14,12,26,0.98)', border: '1px solid rgba(155,0,255,0.35)' }}>
+            <p className="text-3xl mb-2">🚪</p>
+            <p className="font-display font-bold text-white text-base mb-1">დატოვებ თამაშს?</p>
+            <p className="font-mono text-[12px] text-white/50 mb-5">გასვლა ყველასთვის დაასრულებს მატჩს.</p>
+            <div className="flex gap-2.5">
+              <button onClick={() => setConfirmLeave(false)} className="flex-1 py-2.5 rounded-xl font-mono text-[13px] text-white/60" style={{ border: '1px solid rgba(255,255,255,0.15)' }}>არა</button>
+              <button onClick={() => { setConfirmLeave(false); leaveMatch(); }} className="flex-1 py-2.5 rounded-xl font-display font-bold text-[13px] text-white" style={{ background: 'rgba(255,45,85,0.25)', border: '1px solid rgba(255,45,85,0.5)' }}>დიახ, გავდივარ</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>,
     document.body,
   );

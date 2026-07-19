@@ -30,7 +30,7 @@ export function createMatch(hostId, socketId, nickname, opts) {
             roundSeconds: Math.min(120, Math.max(30, Number(opts.roundSeconds ?? 60))),
         },
         scores: [0, 0], deck: shuffle(ALIAS_WORDS), deckPos: 0,
-        describerIdx: [0, 0], activeTeam: 0, turn: null, currentWord: null, winner: null, round: 0, createdAt: Date.now(),
+        describerIdx: [0, 0], activeTeam: 0, turn: null, currentWord: null, winner: null, dissolved: false, round: 0, createdAt: Date.now(),
     };
     matches.set(id, m);
     playerMatch.set(hostId, id);
@@ -114,6 +114,25 @@ export function disconnectSocket(socketId) {
     }
     p.connected = false;
     return m.id;
+}
+/** Explicit leave during active play — end the match for everyone. */
+export function dissolveMatch(matchId, leaverId) {
+    const m = matches.get(matchId);
+    if (!m)
+        return null;
+    playerMatch.delete(leaverId);
+    m.players = m.players.filter(p => p.userId !== leaverId);
+    if (m.players.length === 0) {
+        matches.delete(matchId);
+        return null;
+    }
+    if (m.hostId === leaverId)
+        m.hostId = m.players[0].userId;
+    m.status = 'finished';
+    m.dissolved = true;
+    m.turn = null;
+    m.currentWord = null;
+    return m;
 }
 function drawWord(m) {
     if (m.deckPos >= m.deck.length) {
@@ -217,6 +236,7 @@ export function rematch(matchId, byUserId) {
     m.turn = null;
     m.currentWord = null;
     m.winner = null;
+    m.dissolved = false;
     m.round = 0;
     m._lastTurnLog = null;
     return m;
@@ -242,6 +262,7 @@ export function getSafeState(m, viewerUserId) {
         amDescriber,
         myTeam: viewer?.team ?? null,
         winner: m.winner,
+        dissolved: m.dissolved,
         myUserId: viewerUserId,
         round: m.round,
     };

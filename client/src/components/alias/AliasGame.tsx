@@ -22,6 +22,7 @@ export function AliasGame() {
 
   const [now, setNow] = useState(Date.now());
   const [guessText, setGuessText] = useState('');
+  const [confirmLeave, setConfirmLeave] = useState(false);
   const prevStatus = useRef<string>('');
 
   useEffect(() => { const iv = setInterval(() => setNow(Date.now()), 250); return () => clearInterval(iv); }, []);
@@ -60,7 +61,7 @@ export function AliasGame() {
         <span className="text-[14px] font-display font-bold tracking-wide text-white">🗣 ალიასი</span>
         <div className="flex items-center gap-2">
           {match.status === 'play' && <span className="font-mono text-[12px] text-white/40">{match.settings.targetScore}-მდე</span>}
-          <button onClick={() => leaveMatch()} className="w-8 h-8 rounded-full flex items-center justify-center text-white/60" style={{ border: '1px solid rgba(255,255,255,0.15)' }}>✕</button>
+          <button onClick={() => match.status === 'play' ? setConfirmLeave(true) : leaveMatch()} className="w-8 h-8 rounded-full flex items-center justify-center text-white/60" style={{ border: '1px solid rgba(255,255,255,0.15)' }}>✕</button>
         </div>
       </div>
 
@@ -199,8 +200,10 @@ export function AliasGame() {
           {/* ══ FINISHED ══ */}
           {match.status === 'finished' && (
             <div className="text-center pt-10">
-              <p className="text-5xl mb-3">🏆</p>
-              <p className="font-display font-bold text-2xl mb-2" style={{ color: TEAM[match.winner ?? 0]!.color }}>{TEAM[match.winner ?? 0]!.name}მა მოიგო!</p>
+              <p className="text-5xl mb-3">{match.dissolved ? '🚪' : '🏆'}</p>
+              {match.dissolved
+                ? <p className="font-display font-bold text-xl mb-2 text-white">თამაში დასრულდა — მოთამაშემ დატოვა</p>
+                : <p className="font-display font-bold text-2xl mb-2" style={{ color: TEAM[match.winner ?? 0]!.color }}>{TEAM[match.winner ?? 0]!.name}მა მოიგო!</p>}
               <p className="font-mono text-[14px] text-white/50 mb-8">{match.scores[0]} : {match.scores[1]}</p>
               <div className="flex flex-col gap-2.5 items-stretch max-w-[280px] mx-auto">
                 {isHost && <button onClick={() => rematch()} className="py-3 rounded-xl font-display font-bold text-sm text-white" style={{ background: 'linear-gradient(135deg,#4d9fff,#7c3aed)' }}>თავიდან</button>}
@@ -210,6 +213,20 @@ export function AliasGame() {
           )}
         </div>
       </div>
+
+      {confirmLeave && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center p-6" style={{ background: 'rgba(5,4,10,0.8)' }}>
+          <div className="w-full max-w-xs rounded-2xl p-5 text-center" style={{ background: 'rgba(14,12,26,0.98)', border: '1px solid rgba(77,159,255,0.35)' }}>
+            <p className="text-3xl mb-2">🚪</p>
+            <p className="font-display font-bold text-white text-base mb-1">დატოვებ თამაშს?</p>
+            <p className="font-mono text-[12px] text-white/50 mb-5">გასვლა ყველასთვის დაასრულებს მატჩს.</p>
+            <div className="flex gap-2.5">
+              <button onClick={() => setConfirmLeave(false)} className="flex-1 py-2.5 rounded-xl font-mono text-[13px] text-white/60" style={{ border: '1px solid rgba(255,255,255,0.15)' }}>არა</button>
+              <button onClick={() => { setConfirmLeave(false); leaveMatch(); }} className="flex-1 py-2.5 rounded-xl font-display font-bold text-[13px] text-white" style={{ background: 'rgba(255,45,85,0.25)', border: '1px solid rgba(255,45,85,0.5)' }}>დიახ, გავდივარ</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>,
     document.body,
   );

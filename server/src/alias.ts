@@ -7,7 +7,7 @@ import {
 } from './types/index.js';
 import {
   createMatch, getMatch, getMatchByCode, listMatches, joinMatch, switchTeam,
-  leaveMatch, startMatch, startTurn, markWord, endTurn, rematch, disconnectSocket, getSafeState,
+  leaveMatch, dissolveMatch, startMatch, startTurn, markWord, endTurn, rematch, disconnectSocket, getSafeState,
 } from './services/aliasService.js';
 
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -82,9 +82,12 @@ export function registerAliasHandlers(io: AppServer, socket: AppSocket): void {
   socket.on('alias:leave' as any, (data: { matchId: string }, cb: (r: any) => void) => {
     try {
       const matchId = String(data?.matchId);
-      const m = leaveMatch(matchId, uid());
+      const cur = getMatch(matchId);
+      const active = cur && cur.status !== 'waiting' && cur.status !== 'finished';
+      const m = active ? dissolveMatch(matchId, uid()) : leaveMatch(matchId, uid());
       socket.leave(ROOM(matchId));
-      if (m) { broadcastState(io, matchId); if (m.turn) scheduleTurnEnd(io, matchId); } else clearTurnTimer(matchId);
+      if (active) clearTurnTimer(matchId);
+      if (m) { broadcastState(io, matchId); if (!active && m.turn) scheduleTurnEnd(io, matchId); } else clearTurnTimer(matchId);
       broadcastList(io);
       cb(ok(null));
     } catch (e: any) { cb(err(e.message)); }

@@ -18,6 +18,7 @@ export interface DrawPublicState {
   endsAt: number;
   iGuessed: boolean;
   winnerId: string | null;
+  dissolved: boolean;
   myUserId: string;
 }
 

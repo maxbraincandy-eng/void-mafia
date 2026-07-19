@@ -39,6 +39,7 @@ export interface AliasMatch {
     turn: AliasTurn | null;
     currentWord: string | null;
     winner: 0 | 1 | null;
+    dissolved: boolean;
     round: number;
     createdAt: number;
 }
@@ -80,6 +81,7 @@ export interface AliasPublicState {
     amDescriber: boolean;
     myTeam: 0 | 1 | null;
     winner: 0 | 1 | null;
+    dissolved: boolean;
     myUserId: string;
     round: number;
 }
@@ -107,6 +109,8 @@ export declare function joinMatch(matchId: string, userId: string, socketId: str
 export declare function switchTeam(matchId: string, userId: string): AliasMatch | null;
 export declare function leaveMatch(matchId: string, userId: string): AliasMatch | null;
 export declare function disconnectSocket(socketId: string): string | null;
+/** Explicit leave during active play — end the match for everyone. */
+export declare function dissolveMatch(matchId: string, leaverId: string): AliasMatch | null;
 export declare function startMatch(matchId: string, byUserId: string): AliasMatch | null;
 /** The next describer of the active team starts their timed turn. */
 export declare function startTurn(matchId: string, byUserId: string): AliasMatch | null;

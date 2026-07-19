@@ -1,5 +1,5 @@
 import { ok, err, } from './types/index.js';
-import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, switchTeam, setSpymaster, leaveMatch, startMatch, giveClue, guessCard, passTurn, rematch, disconnectSocket, getSafeState, } from './services/codenamesService.js';
+import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, switchTeam, setSpymaster, leaveMatch, dissolveMatch, startMatch, giveClue, guessCard, passTurn, rematch, disconnectSocket, getSafeState, } from './services/codenamesService.js';
 const ROOM = (id) => `cn:${id}`;
 function userId(socket) { return socket.data.profileId ?? socket.id; }
 function broadcastState(io, matchId) {
@@ -74,7 +74,9 @@ export function registerCodenamesHandlers(io, socket) {
     socket.on('cn:leave', (data, cb) => {
         try {
             const matchId = String(data?.matchId);
-            const m = leaveMatch(matchId, uid());
+            const cur = getMatch(matchId);
+            const active = cur && cur.status !== 'waiting' && cur.status !== 'finished';
+            const m = active ? dissolveMatch(matchId, uid()) : leaveMatch(matchId, uid());
             socket.leave(ROOM(matchId));
             if (m)
                 broadcastState(io, matchId);

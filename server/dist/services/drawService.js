@@ -23,7 +23,7 @@ export function createMatch(hostId, socketId, nickname, opts) {
         settings: { rounds: Math.min(8, Math.max(1, Number(opts.rounds ?? 3))), drawSeconds: Math.min(120, Math.max(30, Number(opts.drawSeconds ?? 70))) },
         deck: shuffle(DRAW_WORDS), deckPos: 0,
         turnOrder: [], turnIdx: 0, round: 1,
-        drawerId: null, word: null, wordChoices: [], endsAt: 0, correctThisTurn: 0, segs: [], lastWord: null, winner: null, createdAt: Date.now(),
+        drawerId: null, word: null, wordChoices: [], endsAt: 0, correctThisTurn: 0, segs: [], lastWord: null, winner: null, dissolved: false, createdAt: Date.now(),
     };
     matches.set(id, m);
     playerMatch.set(hostId, id);
@@ -78,6 +78,24 @@ export function leaveMatch(matchId, userId) {
         p.connected = false;
     if (m.drawerId === userId)
         m.endsAt = Date.now(); // drawer bailed → end turn
+    return m;
+}
+/** Explicit leave during active play — end the match for everyone. */
+export function dissolveMatch(matchId, leaverId) {
+    const m = matches.get(matchId);
+    if (!m)
+        return null;
+    playerMatch.delete(leaverId);
+    m.players = m.players.filter(p => p.userId !== leaverId);
+    if (m.players.length === 0) {
+        matches.delete(matchId);
+        return null;
+    }
+    if (m.hostId === leaverId)
+        m.hostId = m.players[0].userId;
+    m.status = 'finished';
+    m.dissolved = true;
+    m.winner = null;
     return m;
 }
 export function disconnectSocket(socketId) {
@@ -234,6 +252,7 @@ export function rematch(matchId, byUserId) {
     m.segs = [];
     m.lastWord = null;
     m.winner = null;
+    m.dissolved = false;
     return m;
 }
 // Drawing ops (relayed by socket layer; accumulated for late joiners).
@@ -275,6 +294,7 @@ export function getSafeState(m, viewerUserId) {
         endsAt: m.endsAt,
         iGuessed: viewer?.guessedThisTurn ?? false,
         winnerId: m.winner,
+        dissolved: m.dissolved,
         myUserId: viewerUserId,
     };
 }
