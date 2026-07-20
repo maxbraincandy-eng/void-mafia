@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 const NeoBandicoot = lazy(() => import('@/components/platformer/NeoBandicoot').then(m => ({ default: m.NeoBandicoot })));
 const AristocracyTest = lazy(() => import('@/components/quiz/AristocracyTest').then(m => ({ default: m.AristocracyTest })));
 const DilemmasHub = lazy(() => import('@/components/dilemmas/DilemmasHub').then(m => ({ default: m.DilemmasHub })));
+const PhilosophyHub = lazy(() => import('@/components/philosophy/PhilosophyHub').then(m => ({ default: m.PhilosophyHub })));
 const VoidIQHub = lazy(() => import('@/components/iq/VoidIQHub').then(m => ({ default: m.VoidIQHub })));
 import { IQLogo } from '@/components/iq/IQLogo';
 import { VRBustIcon } from '@/components/ui/VRBustIcon';
@@ -73,6 +74,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   const [bandicootOpen, setBandicootOpen] = useState(false);
   const [aristocracyOpen, setAristocracyOpen] = useState(false);
   const [dilemmasHubOpen, setDilemmasHubOpen] = useState(false);
+  const [philoHubOpen, setPhiloHubOpen] = useState(false);
   const [voidIqOpen, setVoidIqOpen] = useState(false);
 
   // ── Checkers ────────────────────────────────────────────────────────
@@ -270,6 +272,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
     { id: 'voidiq', title: 'VOID IQ', sub: 'გაზომე შენი გონება · ლიდერბორდი', cat: 'mind', kind: 'launch', accent: '#4fb8ff', logo: 'iq', badge: true, keywords: 'iq ინტელექტი ტესტი leaderboard', launch: () => setVoidIqOpen(true) },
     { id: 'www', title: t.games.www.title, sub: t.games.www.subtitle, cat: 'mind', kind: 'match', accent: '#c084fc', emoji: '🧠', keywords: 'www ვიქტორინა quiz რა სად როდის' },
     { id: 'dilemmas', title: 'დილემები', sub: `მორალური არჩევანი`, cat: 'mind', kind: 'launch', accent: '#7c9cff', emoji: '⚖️', badge: true, keywords: 'dilemma მორალი ეთიკა', launch: () => setDilemmasHubOpen(true) },
+    { id: 'philosophy', title: 'ფილოსოფიური ცდები', sub: `ტვინის-მომჭიმავი ცდები`, cat: 'mind', kind: 'launch', accent: '#a88cff', emoji: '🌀', badge: true, keywords: 'philosophy ფილოსოფია ცდა thought experiment ცნობიერება', launch: () => setPhiloHubOpen(true) },
     { id: 'aristocracy', title: t.games.aristocracy.title, sub: t.games.aristocracy.subtitle, cat: 'mind', kind: 'launch', accent: '#e8cf7a', emoji: '👑', keywords: 'aristocracy ტესტი quiz', launch: () => setAristocracyOpen(true) },
 
     { id: 'spyfall', title: 'ჯაშუში', sub: 'იპოვე ჯაშუში ხმით · 3-10 მოთ.', cat: 'deduction', kind: 'match', accent: '#ff5d6c', emoji: '🕵️', badge: true, keywords: 'spyfall ჯაშუში დედუქცია' },
@@ -455,6 +458,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
       {/* Overlays */}
       {voidIqOpen && <Suspense fallback={null}><VoidIQHub onClose={() => setVoidIqOpen(false)} /></Suspense>}
       {dilemmasHubOpen && <Suspense fallback={null}><DilemmasHub onClose={() => setDilemmasHubOpen(false)} /></Suspense>}
+      {philoHubOpen && <Suspense fallback={null}><PhilosophyHub onClose={() => setPhiloHubOpen(false)} /></Suspense>}
       {bandicootOpen && <Suspense fallback={null}><NeoBandicoot onClose={() => setBandicootOpen(false)} /></Suspense>}
       {aristocracyOpen && <Suspense fallback={null}><AristocracyTest onClose={() => setAristocracyOpen(false)} /></Suspense>}
     </div>
