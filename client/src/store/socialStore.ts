@@ -52,6 +52,9 @@ interface SocialStore {
   openGanabRequested: boolean;
   requestOpenGanab: () => void;
   clearOpenGanab: () => void;
+  openVoidIQRequested: boolean;
+  requestOpenVoidIQ: () => void;
+  clearOpenVoidIQ: () => void;
 
   onlineCount: number;
   unreadDmCount: number;
@@ -185,6 +188,9 @@ export const useSocialStore = create<SocialStore>((set, get) => {
     openGanabRequested: false,
     requestOpenGanab: () => set({ openGanabRequested: true }),
     clearOpenGanab: () => set({ openGanabRequested: false }),
+    openVoidIQRequested: false,
+    requestOpenVoidIQ: () => set({ openVoidIQRequested: true }),
+    clearOpenVoidIQ: () => set({ openVoidIQRequested: false }),
     closeDm: () => set({ dmPanelOpen: false, activeDmUserId: null }),
 
     onlineCount: 0,

@@ -59,6 +59,7 @@ import { VirtualSpace } from '@/components/space/VirtualSpace';
 // Backrooms (3D horror mode) is lazy-loaded so Three.js stays out of the main bundle.
 const Backrooms = lazy(() => import('@/components/backrooms/Backrooms'));
 const GanabSimulator = lazy(() => import('@/components/ganab/GanabSimulator').then(m => ({ default: m.GanabSimulator })));
+const VoidIQHubGlobal = lazy(() => import('@/components/iq/VoidIQHub').then(m => ({ default: m.VoidIQHub })));
 // Premium Worlds (flagship 3D social spaces) — also lazy-loaded.
 const PremiumWorlds = lazy(() => import('@/components/worlds/PremiumWorlds'));
 // Character Creator (3D avatar) — lazy-loaded.
@@ -368,6 +369,7 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
   const [spaceCode, setSpaceCode] = useState<string | null>(null);
   const [backroomsOpen, setBackroomsOpen] = useState(false);
   const [ganabGlobalOpen, setGanabGlobalOpen] = useState(false);
+  const [voidIqGlobalOpen, setVoidIqGlobalOpen] = useState(false);
   const [premiumOpen, setPremiumOpen] = useState(false);
   const [premiumWorldId, setPremiumWorldId] = useState<string | null>(null);
   const [worldInvite, setWorldInvite] = useState<{ worldId: string; fromName: string } | null>(null);
@@ -433,6 +435,15 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
     setGanabGlobalOpen(true);
     clearOpenGanab();
   }, [openGanabRequested, clearOpenGanab]);
+
+  // Void-IQ / IQ-test link in community text → open VOID IQ from anywhere.
+  const openVoidIQRequested = useSocialStore(s => s.openVoidIQRequested);
+  const clearOpenVoidIQ = useSocialStore(s => s.clearOpenVoidIQ);
+  useEffect(() => {
+    if (!openVoidIQRequested) return;
+    setVoidIqGlobalOpen(true);
+    clearOpenVoidIQ();
+  }, [openVoidIQRequested, clearOpenVoidIQ]);
 
   // Auto-dismiss the invite after 15 seconds if unanswered.
   useEffect(() => {
@@ -521,6 +532,11 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
       {ganabGlobalOpen && (
         <Suspense fallback={null}>
           <GanabSimulator onClose={() => setGanabGlobalOpen(false)} />
+        </Suspense>
+      )}
+      {voidIqGlobalOpen && (
+        <Suspense fallback={null}>
+          <VoidIQHubGlobal onClose={() => setVoidIqGlobalOpen(false)} />
         </Suspense>
       )}
       {premiumOpen && (

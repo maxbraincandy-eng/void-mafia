@@ -337,9 +337,21 @@ function ReportModal({ postId, onClose }: { postId: string; onClose: () => void 
 // tokenizer includes that range alongside \w and the hyphen.
 const GANAB_MENTIONS = ['ganabsimulator', 'ganab-simulator', 'განაბ-სიმულატორი', 'განაბური-სიმულატორი', 'განაბსიმულატორი'];
 
+// "Void-IQ" / "VoidIQ" / "IQ test" / "IQtest" → blue link that opens VOID IQ.
+const IQ_LINK_RE = /^(void[\s-]?iq|iq[\s-]?test)$/i;
+
 function renderContent(content: string, hashtags: string[], onHashtag: (tag: string) => void, onMention: (name: string) => void) {
-  const parts = content.split(/(#[\wႠ-ჿ]+|@[\wႠ-ჿ-]+|https?:\/\/[^\s]+)/g);
+  const parts = content.split(/(#[\wႠ-ჿ]+|@[\wႠ-ჿ-]+|https?:\/\/[^\s]+|void[\s-]?iq|iq[\s-]?test)/gi);
   return parts.map((part, i) => {
+    if (part && IQ_LINK_RE.test(part)) {
+      return (
+        <button key={i} onClick={() => useSocialStore.getState().requestOpenVoidIQ()}
+          className="font-mono text-xs font-bold transition-colors"
+          style={{ color: '#4d9fff', textShadow: '0 0 8px rgba(77,159,255,0.55)' }}>
+          {part}
+        </button>
+      );
+    }
     if (part.startsWith('#')) {
       const tag = part.slice(1);
       return (
