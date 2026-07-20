@@ -27,10 +27,12 @@ export interface IQHistoryEntry {
     percentile: number;
     band: string;
     correct: number;
+    answered: number | null;
     total: number;
     durationMs: number;
     verified: boolean;
     isHighest: boolean;
+    completed: boolean;
     createdAt: number;
     domainScores: Record<string, number>;
 }

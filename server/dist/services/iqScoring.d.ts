@@ -23,6 +23,7 @@ export interface IQScoreResult {
     band: string;
     bandKa: string;
     correct: number;
+    answered: number;
     total: number;
     rawScore: number;
     maxScore: number;

@@ -22,6 +22,7 @@ export interface IQScoreResult {
   band: string;           // e.g. 'ABOVE AVERAGE'
   bandKa: string;         // Georgian band label
   correct: number;
+  answered: number;       // questions actually answered (for completion gating)
   total: number;
   rawScore: number;
   maxScore: number;
@@ -87,6 +88,7 @@ export function scoreTest(answers: IQAnswer[], meta: IQMeta): IQScoreResult {
   }
 
   const total = IQ_POOL.length;
+  const answered = answers.filter(a => a.optionId != null).length;
   const maxScore = maxWeight();
   const p = maxScore > 0 ? rawScore / maxScore : 0;
 
@@ -117,7 +119,7 @@ export function scoreTest(answers: IQAnswer[], meta: IQMeta): IQScoreResult {
 
   return {
     iq, percentile, band: bandInfo.band, bandKa: bandInfo.ka,
-    correct, total, rawScore, maxScore, domainScores,
+    correct, answered, total, rawScore, maxScore, domainScores,
     durationMs: meta.totalMs, verified, flags, interpretation,
   };
 }

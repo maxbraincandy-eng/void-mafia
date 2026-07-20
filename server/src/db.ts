@@ -1310,6 +1310,12 @@ export async function initializeDatabase(): Promise<void> {
   await sql`CREATE INDEX IF NOT EXISTS idx_iq_user ON iq_attempts(user_id, created_at DESC)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_iq_board ON iq_attempts(verified, is_highest, iq DESC)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_iq_window ON iq_attempts(verified, created_at, iq DESC)`;
+  // Completion gating: only tests where most questions were answered count on the
+  // leaderboard. `answered` is null for legacy rows (grandfathered as complete),
+  // except floor-score rows (iq<=60) which can only come from quitting early —
+  // mark those answered=0 so they drop off the board.
+  await sql`ALTER TABLE iq_attempts ADD COLUMN IF NOT EXISTS answered INTEGER`;
+  await sql`UPDATE iq_attempts SET answered = 0 WHERE answered IS NULL AND iq <= 60`;
 
   // Verify connection
   const [{ cnt }] = await sql`SELECT COUNT(*) as cnt FROM players` as any[];

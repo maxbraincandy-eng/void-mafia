@@ -44,6 +44,7 @@ export interface IQScoreResult {
   band: string;
   bandKa: string;
   correct: number;
+  answered: number;
   total: number;
   rawScore: number;
   maxScore: number;
@@ -68,8 +69,8 @@ export interface IQLeaderRow {
 
 export interface IQHistoryEntry {
   id: string; iq: number; percentile: number; band: string;
-  correct: number; total: number; durationMs: number;
-  verified: boolean; isHighest: boolean; createdAt: number;
+  correct: number; answered: number | null; total: number; durationMs: number;
+  verified: boolean; isHighest: boolean; completed: boolean; createdAt: number;
   domainScores: Record<string, number>;
 }
 

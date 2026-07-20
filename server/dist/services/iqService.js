@@ -80,41 +80,51 @@ export async function cooldownRemaining(userId, isModerator) {
 export async function recordAttempt(userId, r) {
     const id = 'iq_' + randomBytes(9).toString('hex');
     const now = Date.now();
+    const completed = r.answered >= r.total * 0.7;
     // Current best verified IQ for this user (pre-insert).
     const [best] = await sql `
     SELECT iq FROM iq_attempts WHERE user_id = ${userId} AND verified = true ORDER BY iq DESC LIMIT 1
   `;
     const prevBest = best ? Number(best.iq) : -1;
-    const isHighest = r.verified && r.iq > prevBest;
+    const isHighest = r.verified && completed && r.iq > prevBest;
     if (isHighest) {
         // Demote any previous highest — only one row per user carries the flag.
         await sql `UPDATE iq_attempts SET is_highest = false WHERE user_id = ${userId} AND is_highest = true`;
     }
     await sql `
     INSERT INTO iq_attempts (
-      id, user_id, iq, percentile, band, raw_score, max_score, correct, total,
+      id, user_id, iq, percentile, band, raw_score, max_score, correct, answered, total,
       domain_scores, duration_ms, verified, flags, is_highest, created_at
     ) VALUES (
       ${id}, ${userId}, ${r.iq}, ${r.percentile}, ${r.band}, ${r.rawScore}, ${r.maxScore},
-      ${r.correct}, ${r.total}, ${JSON.stringify(r.domainScores)}, ${r.durationMs},
+      ${r.correct}, ${r.answered}, ${r.total}, ${JSON.stringify(r.domainScores)}, ${r.durationMs},
       ${r.verified}, ${JSON.stringify(r.flags)}, ${isHighest}, ${now}
     )
   `;
-    const rank = await rankForIq(r.iq);
+    const rank = completed ? await rankForIq(r.iq) : null;
     return { id, isHighest, rank };
 }
-/** 1-based All-Time rank for an IQ — position among every player's best attempt. */
+// A test "counts" only if most questions were answered (finished, not quit).
+// Legacy rows have answered = null → treated as complete (grandfathered), except
+// floor-score rows already backfilled to answered = 0 in the schema migration.
+function isCompleted(answered, total) {
+    return (answered ?? total) >= total * 0.7;
+}
+/** 1-based All-Time rank for an IQ — position among every player's best COMPLETED attempt. */
 async function rankForIq(iq) {
     const [row] = await sql `
     SELECT COUNT(*) AS c FROM (
-      SELECT user_id, MAX(iq) AS m FROM iq_attempts GROUP BY user_id
+      SELECT user_id, MAX(iq) AS m FROM iq_attempts
+      WHERE COALESCE(answered, total) >= total * 0.7
+      GROUP BY user_id
     ) t WHERE t.m > ${iq}
   `;
     return Number(row?.c ?? 0) + 1;
 }
 async function userRank(userId) {
     const [me] = await sql `
-    SELECT MAX(iq) AS m FROM iq_attempts WHERE user_id = ${userId}
+    SELECT MAX(iq) AS m FROM iq_attempts
+    WHERE user_id = ${userId} AND COALESCE(answered, total) >= total * 0.7
   `;
     if (!me || me.m == null)
         return null;
@@ -147,7 +157,7 @@ export async function getLeaderboard(scope, viewerId, limit = 100) {
       SELECT DISTINCT ON (a.user_id) a.user_id, a.iq, a.percentile, a.created_at, a.verified,
              p.username, p.avatar, p.avatar_url
       FROM iq_attempts a JOIN players p ON p.id = a.user_id
-      WHERE a.created_at >= ${since}
+      WHERE a.created_at >= ${since} AND COALESCE(a.answered, a.total) >= a.total * 0.7
       ORDER BY a.user_id, a.iq DESC, a.created_at DESC
     `;
         rows.sort((x, y) => Number(y.iq) - Number(x.iq) || Number(x.created_at) - Number(y.created_at));
@@ -174,31 +184,38 @@ export async function getLeaderboard(scope, viewerId, limit = 100) {
         ? await sql `
         SELECT DISTINCT ON (a.user_id) a.user_id, a.iq, a.percentile, a.created_at, a.verified, p.username, p.avatar, p.avatar_url
         FROM iq_attempts a JOIN players p ON p.id = a.user_id
-        WHERE a.user_id = ANY(${idFilter})
+        WHERE a.user_id = ANY(${idFilter}) AND COALESCE(a.answered, a.total) >= a.total * 0.7
         ORDER BY a.user_id, a.iq DESC, a.created_at DESC
       `
         : await sql `
         SELECT DISTINCT ON (a.user_id) a.user_id, a.iq, a.percentile, a.created_at, a.verified, p.username, p.avatar, p.avatar_url
         FROM iq_attempts a JOIN players p ON p.id = a.user_id
+        WHERE COALESCE(a.answered, a.total) >= a.total * 0.7
         ORDER BY a.user_id, a.iq DESC, a.created_at DESC
       `;
     rows.sort((x, y) => Number(y.iq) - Number(x.iq) || Number(x.created_at) - Number(y.created_at));
     return mapRows(rows.slice(0, limit));
 }
 function mapHistory(rows) {
-    return rows.map(r => ({
-        id: r.id,
-        iq: Number(r.iq),
-        percentile: Number(r.percentile),
-        band: r.band ?? '',
-        correct: Number(r.correct),
-        total: Number(r.total),
-        durationMs: Number(r.duration_ms),
-        verified: !!r.verified,
-        isHighest: !!r.is_highest,
-        createdAt: Number(r.created_at),
-        domainScores: safeJson(r.domain_scores),
-    }));
+    return rows.map(r => {
+        const answered = r.answered == null ? null : Number(r.answered);
+        const total = Number(r.total);
+        return {
+            id: r.id,
+            iq: Number(r.iq),
+            percentile: Number(r.percentile),
+            band: r.band ?? '',
+            correct: Number(r.correct),
+            answered,
+            total,
+            durationMs: Number(r.duration_ms),
+            verified: !!r.verified,
+            isHighest: !!r.is_highest,
+            completed: isCompleted(answered, total),
+            createdAt: Number(r.created_at),
+            domainScores: safeJson(r.domain_scores),
+        };
+    });
 }
 function safeJson(s) { try {
     return JSON.parse(s ?? '{}');
@@ -215,12 +232,13 @@ export async function getMyStatus(userId, isModerator) {
     if (history.length === 0) {
         return { hasResult: false, bestIq: null, bestPercentile: null, latestIq: null, latestVerified: false, latestDate: null, rank: null, attempts: 0, cooldownUntil: null, history: [] };
     }
-    // Best attempt overall (prefer verified when tied on IQ so the badge stays clean).
-    const best = history.slice().sort((a, b) => b.iq - a.iq || (Number(b.verified) - Number(a.verified)))[0] ?? null;
+    // Best COMPLETED attempt (quitting after a few questions doesn't count).
+    const completedHistory = history.filter(h => h.completed);
+    const best = completedHistory.slice().sort((a, b) => b.iq - a.iq || (Number(b.verified) - Number(a.verified)))[0] ?? null;
     const latest = history[0];
     const remaining = await cooldownRemaining(userId, isModerator);
     return {
-        hasResult: history.length > 0,
+        hasResult: completedHistory.length > 0,
         bestIq: best?.iq ?? null,
         bestPercentile: best?.percentile ?? null,
         latestIq: latest.iq,
@@ -235,22 +253,24 @@ export async function getMyStatus(userId, isModerator) {
 /** Public IQ snapshot for another user's profile — no answers exposed. */
 export async function getPublicProfile(userId) {
     const rows = await sql `
-    SELECT iq, percentile, band, verified, is_highest, created_at
+    SELECT iq, percentile, band, verified, is_highest, answered, total, created_at
     FROM iq_attempts WHERE user_id = ${userId} ORDER BY created_at DESC
   `;
     if (rows.length === 0) {
         return { hasResult: false, bestIq: null, bestPercentile: null, band: null, latestDate: null, rank: null, attempts: 0, history: [] };
     }
-    const best = [...rows].sort((a, b) => Number(b.iq) - Number(a.iq) || (Number(!!b.verified) - Number(!!a.verified)))[0] ?? null;
+    // Only completed tests define the public IQ (quitting early doesn't count).
+    const completedRows = rows.filter(r => isCompleted(r.answered == null ? null : Number(r.answered), Number(r.total)));
+    const best = [...completedRows].sort((a, b) => Number(b.iq) - Number(a.iq) || (Number(!!b.verified) - Number(!!a.verified)))[0] ?? null;
     return {
-        hasResult: rows.length > 0,
+        hasResult: !!best,
         bestIq: best ? Number(best.iq) : null,
         bestPercentile: best ? Number(best.percentile) : null,
         band: best ? best.band : null,
         latestDate: Number(rows[0].created_at),
         rank: best ? await rankForIq(Number(best.iq)) : null,
-        attempts: rows.length,
-        history: rows.slice(0, 10).map(r => ({ iq: Number(r.iq), verified: !!r.verified, createdAt: Number(r.created_at) })),
+        attempts: completedRows.length,
+        history: completedRows.slice(0, 10).map(r => ({ iq: Number(r.iq), verified: !!r.verified, createdAt: Number(r.created_at) })),
     };
 }
 //# sourceMappingURL=iqService.js.map

@@ -56,6 +56,7 @@ export function scoreTest(answers, meta) {
         }
     }
     const total = IQ_POOL.length;
+    const answered = answers.filter(a => a.optionId != null).length;
     const maxScore = maxWeight();
     const p = maxScore > 0 ? rawScore / maxScore : 0;
     // Fixed calibration: weighted-fraction 0.5 → IQ 100; each 0.16 fraction ≈ 1 SD
@@ -84,7 +85,7 @@ export function scoreTest(answers, meta) {
     const interpretation = buildInterpretation(domainScores, iq);
     return {
         iq, percentile, band: bandInfo.band, bandKa: bandInfo.ka,
-        correct, total, rawScore, maxScore, domainScores,
+        correct, answered, total, rawScore, maxScore, domainScores,
         durationMs: meta.totalMs, verified, flags, interpretation,
     };
 }

@@ -64,6 +64,17 @@ export function IQResult({ result, onViewLeaderboard, onClose }: {
             </p>
           </div>
 
+          {/* Incomplete-test banner — didn't answer enough to count on the board */}
+          {result.answered < result.total * 0.7 && (
+            <div className="rounded-2xl px-4 py-3 mb-5 flex items-center gap-3" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.15)' }}>
+              <span className="text-xl">📋</span>
+              <div className="flex-1 min-w-0">
+                <p className="font-display font-bold text-sm text-white/80">ტესტი ბოლომდე არ დაასრულე</p>
+                <p className="font-mono text-[11px] text-white/45">{result.answered}/{result.total} კითხვა · ეს შედეგი ლიდერბორდზე არ ჩაითვლება</p>
+              </div>
+            </div>
+          )}
+
           {/* Verification banner */}
           <div className="rounded-2xl px-4 py-3 mb-5 flex items-center gap-3" style={{
             background: result.verified ? 'rgba(63,174,90,0.08)' : 'rgba(255,171,64,0.08)',
