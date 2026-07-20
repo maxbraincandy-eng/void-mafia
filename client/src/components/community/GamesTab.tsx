@@ -273,7 +273,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
 
     { id: 'spyfall', title: 'ჯაშუში', sub: 'იპოვე ჯაშუში ხმით · 3-10 მოთ.', cat: 'deduction', kind: 'match', accent: '#ff5d6c', emoji: '🕵️', badge: true, keywords: 'spyfall ჯაშუში დედუქცია' },
     { id: 'codenames', title: 'Codenames', sub: '2 გუნდი · მინიშნებები · 4-16 მოთ.', cat: 'deduction', kind: 'match', accent: '#c084fc', emoji: '🔤', badge: true, keywords: 'codenames კოდი გუნდი' },
-    { id: 'blackout', title: t.games.blackout.title, sub: t.games.blackout.subtitle, cat: 'deduction', kind: 'match', accent: '#ffd34d', emoji: '🔦', badge: true, keywords: 'blackout impostor დედუქცია' },
+    { id: 'blackout', title: t.games.blackout.title, sub: t.games.blackout.subtitle, cat: 'solo', kind: 'match', accent: '#ffd34d', emoji: '🔦', badge: true, keywords: 'blackout impostor დედუქცია' },
 
     { id: 'alias', title: 'ალიასი', sub: 'გუნდური სიტყვების თამაში · 4-12 მოთ.', cat: 'party', kind: 'match', accent: '#4d9fff', emoji: '🗣', badge: true, keywords: 'alias სიტყვები taboo' },
     { id: 'draw', title: 'დახაზე & გამოიცანი', sub: 'ხატავ და გამოიცნობ · 2-12 მოთ.', cat: 'party', kind: 'match', accent: '#ff8c26', emoji: '🎨', badge: true, keywords: 'draw ხატვა pictionary' },
@@ -283,12 +283,12 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
     { id: 'joker', title: t.games.joker.title, sub: t.games.joker.subtitle, cat: 'classic', kind: 'match', accent: '#fbbf24', emoji: '🃏', keywords: 'joker ჯოკერი კარტი' },
     { id: 'uno', title: t.games.uno.title, sub: t.games.uno.subtitle, cat: 'classic', kind: 'match', accent: '#fb923c', emoji: '🃠', keywords: 'uno უნო კარტი' },
 
-    { id: 'ganab', title: t.games.ganab.title, sub: t.games.ganab.subtitle, cat: 'solo', kind: 'launch', accent: '#d9a24a', logo: 'ganab', badge: true, keywords: 'ganab განაბ roguelike', launch: () => useSocialStore.getState().requestOpenGanab() },
+    { id: 'ganab', title: t.games.ganab.title, sub: t.games.ganab.subtitle, cat: 'mind', kind: 'launch', accent: '#d9a24a', logo: 'ganab', badge: true, keywords: 'ganab განაბ roguelike', launch: () => useSocialStore.getState().requestOpenGanab() },
     { id: 'bandicoot', title: t.games.bandicoot.title, sub: t.games.bandicoot.subtitle, cat: 'solo', kind: 'launch', accent: '#ffb46a', emoji: '🦊', keywords: 'bandicoot platformer', launch: () => setBandicootOpen(true) },
   ];
   if (onOpenPremium) defs.push({ id: 'premium', title: 'Premium Worlds', sub: 'Beach Camp 3D · ' + t.commB.premiumSub, cat: 'worlds', kind: 'launch', accent: '#ff8c3c', emoji: '🔥', badge: true, keywords: 'premium worlds 3d beach', launch: onOpenPremium });
   if (onOpenSpace) defs.push({ id: 'space', title: 'Virtual Space', sub: t.commB.spaceSub, cat: 'worlds', kind: 'launch', accent: '#00e5ff', emoji: '🌐', keywords: 'space virtual სივრცე', launch: onOpenSpace });
-  if (onOpenBackrooms) defs.push({ id: 'backrooms', title: 'Backrooms', sub: t.commB.backroomsSub, cat: 'worlds', kind: 'launch', accent: '#f5de80', emoji: '🟨', keywords: 'backrooms horror', launch: onOpenBackrooms });
+  if (onOpenBackrooms) defs.push({ id: 'backrooms', title: 'Backrooms', sub: t.commB.backroomsSub, cat: 'solo', kind: 'launch', accent: '#f5de80', emoji: '🟨', keywords: 'backrooms horror', launch: onOpenBackrooms });
 
   const byId = (id: string) => defs.find(d => d.id === id);
   const FEATURED = ['voidiq', ...(onOpenPremium ? ['premium'] : [])];
