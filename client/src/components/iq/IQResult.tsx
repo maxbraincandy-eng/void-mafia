@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { SFX } from '@/lib/audioEngine';
+import { IQLogo } from './IQLogo';
 import { IQ_DOMAIN_KA, type IQScoreResult, type IQDomain } from '@/types/iq';
 
 /** Premium result page for a completed VOID IQ assessment. */
@@ -40,7 +41,7 @@ export function IQResult({ result, onViewLeaderboard, onClose }: {
     <div className="fixed inset-0 z-[560] flex flex-col select-none" style={{ background: 'radial-gradient(ellipse at 50% -10%, #10203a 0%, #06070f 55%)' }}
       onTouchStart={e => e.stopPropagation()} onTouchEnd={e => e.stopPropagation()}>
       <div className="flex-shrink-0 px-4 pt-[calc(env(safe-area-inset-top,0px)+12px)] pb-2 flex items-center justify-between">
-        <span className="font-mono text-[11px] uppercase tracking-[0.3em] text-white/40">VOID IQ · შედეგი</span>
+        <span className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.3em] text-white/40"><IQLogo size={22} />VOID IQ · შედეგი</span>
         <button onClick={onClose} className="w-8 h-8 rounded-full flex items-center justify-center text-white/50" style={{ border: '1px solid rgba(255,255,255,0.15)' }}>✕</button>
       </div>
 

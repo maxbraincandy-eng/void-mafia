@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { emitWithAck } from '@/lib/socket';
 import { socket } from '@/lib/socket';
 import { ModBadge } from '@/components/ui/ModBadge';
+import { IQLogo } from '@/components/iq/IQLogo';
 import { ReportModal } from '@/components/ui/ReportModal';
 import { SendGiftModal } from '@/components/ui/SendGiftModal';
 import { ShareCardModal } from '@/components/ui/ShareCardModal';
@@ -829,7 +830,7 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                       {iqProfile?.hasResult && iqProfile.bestIq != null && (
                         <div className="rounded-xl px-3 py-2.5 flex items-center gap-3"
                           style={{ background: 'linear-gradient(135deg, rgba(0,229,255,0.08), rgba(139,92,255,0.08))', border: '1px solid rgba(120,200,255,0.3)' }}>
-                          <span className="text-xl">🧠</span>
+                          <IQLogo size={28} className="flex-shrink-0" />
                           <div className="flex-1 min-w-0">
                             <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">VOID IQ</p>
                             <p className="font-display font-black text-lg leading-none mt-0.5" style={{ color: '#8ee9ff', fontVariantNumeric: 'tabular-nums' }}>{iqProfile.bestIq}</p>

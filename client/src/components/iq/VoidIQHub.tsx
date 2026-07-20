@@ -4,6 +4,7 @@ import { useIQStore } from '@/store/iqStore';
 import { IQTest, type IQAnswerOut, type IQSubmitMeta } from './IQTest';
 import { IQResult } from './IQResult';
 import { IQLeaderboard } from './IQLeaderboard';
+import { IQLogo } from './IQLogo';
 import { IQ_DOMAIN_KA, type IQSafeQuestion, type IQScoreResult, type IQDomain } from '@/types/iq';
 
 /**
@@ -96,9 +97,12 @@ export function VoidIQHub({ onClose }: { onClose: () => void }) {
 
       {/* Header */}
       <div className="flex-shrink-0 px-5 pt-[calc(env(safe-area-inset-top,0px)+14px)] pb-2 flex items-center justify-between">
-        <div>
-          <p className="font-display font-black text-xl tracking-[0.15em]" style={{ background: 'linear-gradient(90deg,#eaffff,#4fb8ff,#8b5cff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>VOID IQ</p>
-          <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-white/30 mt-0.5">კოგნიტური შეფასება</p>
+        <div className="flex items-center gap-3">
+          <IQLogo size={40} className="flex-shrink-0" />
+          <div>
+            <p className="font-display font-black text-xl tracking-[0.15em]" style={{ background: 'linear-gradient(90deg,#eaffff,#4fb8ff,#8b5cff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>VOID IQ</p>
+            <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-white/30 mt-0.5">კოგნიტური შეფასება</p>
+          </div>
         </div>
         <button onClick={() => screen === 'intro' ? setScreen('home') : onClose()} className="w-9 h-9 rounded-full flex items-center justify-center text-white/55" style={{ border: '1px solid rgba(255,255,255,0.15)' }}>{screen === 'intro' ? '‹' : '✕'}</button>
       </div>
@@ -130,7 +134,7 @@ export function VoidIQHub({ onClose }: { onClose: () => void }) {
                 {/* TAKE TEST */}
                 <div className="rounded-3xl overflow-hidden" style={{ border: '1px solid rgba(0,229,255,0.35)', boxShadow: '0 8px 40px rgba(0,150,255,0.15)' }}>
                   <div className="p-6 text-center" style={{ background: 'linear-gradient(160deg, rgba(10,40,70,0.6), rgba(20,15,50,0.6))' }}>
-                    <p className="text-4xl mb-2">🧠</p>
+                    <div className="flex justify-center mb-2"><IQLogo size={56} /></div>
                     <p className="font-display font-black text-white text-lg tracking-wide">TAKE IQ TEST</p>
                     <p className="font-mono text-[12px] text-white/45 mt-1 mb-4">გაზომე შენი გონება</p>
                     {cooldownActive ? (
@@ -186,7 +190,7 @@ export function VoidIQHub({ onClose }: { onClose: () => void }) {
 
           {screen === 'intro' && (
             <div className="pt-2">
-              <p className="text-center text-5xl mb-3">🧠</p>
+              <div className="flex justify-center mb-3"><IQLogo size={72} /></div>
               <p className="text-center font-display font-black text-white text-xl tracking-wide mb-1">კოგნიტური შეფასება</p>
               <p className="text-center font-mono text-[12px] text-white/45 mb-6">6 დომენი · ~35 კითხვა · 30 წუთი</p>
 
