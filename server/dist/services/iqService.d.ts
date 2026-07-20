@@ -54,7 +54,12 @@ export declare function recordAttempt(userId: string, r: IQScoreResult): Promise
     isHighest: boolean;
     rank: number | null;
 }>;
-/** Leaderboard for a scope. `viewerId` is required for friends/clan filters. */
+/**
+ * Leaderboard for a scope. Shows EVERY player who completed a test — each
+ * user's single best attempt (highest IQ), regardless of verification — with a
+ * `verified` flag so the UI can badge suspicious results. `viewerId` is required
+ * for the friends/clan filters.
+ */
 export declare function getLeaderboard(scope: IQScope, viewerId: string | null, limit?: number): Promise<IQLeaderRow[]>;
 /** The caller's own full status + private history. */
 export declare function getMyStatus(userId: string, isModerator: boolean): Promise<IQMyStatus>;

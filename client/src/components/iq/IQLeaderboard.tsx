@@ -39,7 +39,12 @@ export function IQLeaderboard({ onBack }: { onBack: () => void }) {
         </div>
         <div className="flex-1 min-w-0 text-left">
           <p className="font-display font-bold text-white text-[14px] truncate">{r.username}{mine ? ' ●' : ''}</p>
-          <p className="font-mono text-[11px] text-white/40">{r.percentile}th პერცენტილი</p>
+          <div className="flex items-center gap-1.5">
+            <span className="font-mono text-[11px] text-white/40">{r.percentile}th პერცენტილი</span>
+            {!r.verified && (
+              <span className="font-mono text-[9px] px-1.5 py-[1px] rounded-full" style={{ background: 'rgba(255,171,64,0.14)', border: '1px solid rgba(255,171,64,0.35)', color: '#ffcf80' }}>ეჭვქვეშ</span>
+            )}
+          </div>
         </div>
         <div className="text-right flex-shrink-0">
           <p className="font-display font-black text-lg" style={{ color: '#8ee9ff', fontVariantNumeric: 'tabular-nums' }}>{r.iq}</p>

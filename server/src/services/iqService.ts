@@ -133,24 +133,26 @@ export async function recordAttempt(userId: string, r: IQScoreResult): Promise<{
     )
   `;
 
-  const rank = r.verified ? await rankForIq(r.iq) : null;
+  const rank = await rankForIq(r.iq);
   return { id, isHighest, rank };
 }
 
-/** 1-based rank on the All-Time board for a given IQ (ties broken by "at least as good"). */
+/** 1-based All-Time rank for an IQ — position among every player's best attempt. */
 async function rankForIq(iq: number): Promise<number> {
   const [row] = await sql`
-    SELECT COUNT(*) AS c FROM iq_attempts WHERE verified = true AND is_highest = true AND iq > ${iq}
+    SELECT COUNT(*) AS c FROM (
+      SELECT user_id, MAX(iq) AS m FROM iq_attempts GROUP BY user_id
+    ) t WHERE t.m > ${iq}
   ` as any[];
   return Number(row?.c ?? 0) + 1;
 }
 
 async function userRank(userId: string): Promise<number | null> {
   const [me] = await sql`
-    SELECT iq FROM iq_attempts WHERE user_id = ${userId} AND verified = true AND is_highest = true LIMIT 1
+    SELECT MAX(iq) AS m FROM iq_attempts WHERE user_id = ${userId}
   ` as any[];
-  if (!me) return null;
-  return rankForIq(Number(me.iq));
+  if (!me || me.m == null) return null;
+  return rankForIq(Number(me.m));
 }
 
 function mapRows(rows: any[]): IQLeaderRow[] {
@@ -167,7 +169,12 @@ function mapRows(rows: any[]): IQLeaderRow[] {
   }));
 }
 
-/** Leaderboard for a scope. `viewerId` is required for friends/clan filters. */
+/**
+ * Leaderboard for a scope. Shows EVERY player who completed a test — each
+ * user's single best attempt (highest IQ), regardless of verification — with a
+ * `verified` flag so the UI can badge suspicious results. `viewerId` is required
+ * for the friends/clan filters.
+ */
 export async function getLeaderboard(scope: IQScope, viewerId: string | null, limit = 100): Promise<IQLeaderRow[]> {
   const now = Date.now();
 
@@ -177,14 +184,14 @@ export async function getLeaderboard(scope: IQScope, viewerId: string | null, li
       SELECT DISTINCT ON (a.user_id) a.user_id, a.iq, a.percentile, a.created_at, a.verified,
              p.username, p.avatar, p.avatar_url
       FROM iq_attempts a JOIN players p ON p.id = a.user_id
-      WHERE a.verified = true AND a.created_at >= ${since}
-      ORDER BY a.user_id, a.iq DESC
+      WHERE a.created_at >= ${since}
+      ORDER BY a.user_id, a.iq DESC, a.created_at DESC
     ` as any[];
-    rows.sort((x, y) => Number(y.iq) - Number(x.iq) || Number(y.created_at) - Number(x.created_at));
+    rows.sort((x, y) => Number(y.iq) - Number(x.iq) || Number(x.created_at) - Number(y.created_at));
     return mapRows(rows.slice(0, limit));
   }
 
-  // all / global / friends / clan → highest verified per user
+  // all / global / friends / clan → best attempt per user (any verification)
   let idFilter: string[] | null = null;
   if (scope === 'friends') {
     if (!viewerId) return [];
@@ -200,20 +207,18 @@ export async function getLeaderboard(scope: IQScope, viewerId: string | null, li
 
   const rows = idFilter
     ? await sql`
-        SELECT a.user_id, a.iq, a.percentile, a.created_at, a.verified, p.username, p.avatar, p.avatar_url
+        SELECT DISTINCT ON (a.user_id) a.user_id, a.iq, a.percentile, a.created_at, a.verified, p.username, p.avatar, p.avatar_url
         FROM iq_attempts a JOIN players p ON p.id = a.user_id
-        WHERE a.verified = true AND a.is_highest = true AND a.user_id = ANY(${idFilter})
-        ORDER BY a.iq DESC, a.created_at ASC
-        LIMIT ${limit}
+        WHERE a.user_id = ANY(${idFilter})
+        ORDER BY a.user_id, a.iq DESC, a.created_at DESC
       ` as any[]
     : await sql`
-        SELECT a.user_id, a.iq, a.percentile, a.created_at, a.verified, p.username, p.avatar, p.avatar_url
+        SELECT DISTINCT ON (a.user_id) a.user_id, a.iq, a.percentile, a.created_at, a.verified, p.username, p.avatar, p.avatar_url
         FROM iq_attempts a JOIN players p ON p.id = a.user_id
-        WHERE a.verified = true AND a.is_highest = true
-        ORDER BY a.iq DESC, a.created_at ASC
-        LIMIT ${limit}
+        ORDER BY a.user_id, a.iq DESC, a.created_at DESC
       ` as any[];
-  return mapRows(rows);
+  rows.sort((x, y) => Number(y.iq) - Number(x.iq) || Number(x.created_at) - Number(y.created_at));
+  return mapRows(rows.slice(0, limit));
 }
 
 function mapHistory(rows: any[]): IQHistoryEntry[] {
@@ -242,12 +247,12 @@ export async function getMyStatus(userId: string, isModerator: boolean): Promise
   if (history.length === 0) {
     return { hasResult: false, bestIq: null, bestPercentile: null, latestIq: null, latestVerified: false, latestDate: null, rank: null, attempts: 0, cooldownUntil: null, history: [] };
   }
-  const verified = history.filter(h => h.verified);
-  const best = verified.slice().sort((a, b) => b.iq - a.iq)[0] ?? null;
+  // Best attempt overall (prefer verified when tied on IQ so the badge stays clean).
+  const best = history.slice().sort((a, b) => b.iq - a.iq || (Number(b.verified) - Number(a.verified)))[0] ?? null;
   const latest = history[0]!;
   const remaining = await cooldownRemaining(userId, isModerator);
   return {
-    hasResult: verified.length > 0,
+    hasResult: history.length > 0,
     bestIq: best?.iq ?? null,
     bestPercentile: best?.percentile ?? null,
     latestIq: latest.iq,
@@ -280,9 +285,9 @@ export async function getPublicProfile(userId: string): Promise<IQPublicProfile>
   if (rows.length === 0) {
     return { hasResult: false, bestIq: null, bestPercentile: null, band: null, latestDate: null, rank: null, attempts: 0, history: [] };
   }
-  const best = rows.filter(r => r.verified).sort((a, b) => Number(b.iq) - Number(a.iq))[0] ?? null;
+  const best = [...rows].sort((a, b) => Number(b.iq) - Number(a.iq) || (Number(!!b.verified) - Number(!!a.verified)))[0] ?? null;
   return {
-    hasResult: !!best,
+    hasResult: rows.length > 0,
     bestIq: best ? Number(best.iq) : null,
     bestPercentile: best ? Number(best.percentile) : null,
     band: best ? best.band : null,
