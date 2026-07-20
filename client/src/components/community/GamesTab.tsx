@@ -6,6 +6,7 @@ const AristocracyTest = lazy(() => import('@/components/quiz/AristocracyTest').t
 const DilemmasHub = lazy(() => import('@/components/dilemmas/DilemmasHub').then(m => ({ default: m.DilemmasHub })));
 const VoidIQHub = lazy(() => import('@/components/iq/VoidIQHub').then(m => ({ default: m.VoidIQHub })));
 import { IQLogo } from '@/components/iq/IQLogo';
+import { VRBustIcon } from '@/components/ui/VRBustIcon';
 import { useT } from '@/store/langStore';
 import { useAuthStore } from '@/store/authStore';
 import { useCheckersStore } from '@/store/checkersStore';
@@ -50,7 +51,7 @@ interface GameDef {
   kind: 'match' | 'launch';
   accent: string;
   emoji?: string;
-  logo?: 'iq' | 'ganab';
+  logo?: 'iq' | 'ganab' | 'vspace';
   badge?: boolean;
   keywords: string;
   launch?: () => void;
@@ -287,7 +288,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
     { id: 'bandicoot', title: t.games.bandicoot.title, sub: t.games.bandicoot.subtitle, cat: 'solo', kind: 'launch', accent: '#ffb46a', emoji: '🦊', keywords: 'bandicoot platformer', launch: () => setBandicootOpen(true) },
   ];
   if (onOpenPremium) defs.push({ id: 'premium', title: 'Premium Worlds', sub: 'Beach Camp 3D · ' + t.commB.premiumSub, cat: 'worlds', kind: 'launch', accent: '#ff8c3c', emoji: '🔥', badge: true, keywords: 'premium worlds 3d beach', launch: onOpenPremium });
-  if (onOpenSpace) defs.push({ id: 'space', title: 'Virtual Space', sub: t.commB.spaceSub, cat: 'worlds', kind: 'launch', accent: '#00e5ff', emoji: '🌐', keywords: 'space virtual სივრცე', launch: onOpenSpace });
+  if (onOpenSpace) defs.push({ id: 'space', title: 'Virtual Space', sub: t.commB.spaceSub, cat: 'worlds', kind: 'launch', accent: '#4a76c4', logo: 'vspace', emoji: '🌐', keywords: 'space virtual სივრცე vr', launch: onOpenSpace });
   if (onOpenBackrooms) defs.push({ id: 'backrooms', title: 'Backrooms', sub: t.commB.backroomsSub, cat: 'solo', kind: 'launch', accent: '#f5de80', emoji: '🟨', keywords: 'backrooms horror', launch: onOpenBackrooms });
 
   const byId = (id: string) => defs.find(d => d.id === id);
@@ -311,7 +312,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
         style={{ minHeight: 104, background: 'rgba(12,10,24,0.72)', border: `1px solid ${d.accent}40`, boxShadow: `0 4px 18px ${d.accent}12` }}>
         {d.badge && <span style={{ position: 'absolute', top: 8, right: 8, fontFamily: 'monospace', fontSize: 8, letterSpacing: 1, color: '#fff', background: 'rgba(124,58,237,0.9)', borderRadius: 6, padding: '2px 6px' }}>NEW</span>}
         <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-2" style={{ background: `${d.accent}1f` }}>
-          {d.logo === 'iq' ? <IQLogo size={34} /> : d.logo === 'ganab' ? <img src="/ganab-star.png" alt="" className="w-7 h-7 object-contain" /> : <span className="text-2xl leading-none">{d.emoji}</span>}
+          {d.logo === 'iq' ? <IQLogo size={34} /> : d.logo === 'vspace' ? <VRBustIcon size={36} /> : d.logo === 'ganab' ? <img src="/ganab-star.png" alt="" className="w-7 h-7 object-contain" /> : <span className="text-2xl leading-none">{d.emoji}</span>}
         </div>
         <div className="min-w-0">
           <p className="font-display font-bold text-white text-[13px] leading-tight truncate">{d.title}</p>
@@ -392,7 +393,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
               <button key={d!.id} onClick={() => openGame(d!)}
                 className="flex-shrink-0 flex flex-col items-center gap-1.5 w-[68px]" >
                 <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: `${d!.accent}1f`, border: `1px solid ${d!.accent}40` }}>
-                  {d!.logo === 'iq' ? <IQLogo size={38} /> : d!.logo === 'ganab' ? <img src="/ganab-star.png" alt="" className="w-7 h-7 object-contain" /> : <span className="text-2xl">{d!.emoji}</span>}
+                  {d!.logo === 'iq' ? <IQLogo size={38} /> : d!.logo === 'vspace' ? <VRBustIcon size={40} /> : d!.logo === 'ganab' ? <img src="/ganab-star.png" alt="" className="w-7 h-7 object-contain" /> : <span className="text-2xl">{d!.emoji}</span>}
                 </div>
                 <span className="font-mono text-[9px] text-white/50 text-center leading-tight truncate w-full">{d!.title}</span>
               </button>
