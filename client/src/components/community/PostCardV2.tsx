@@ -222,6 +222,7 @@ function CommentsSection({ postId, onOpenProfile, myProfileId }: { postId: strin
             const n = name.toLowerCase();
             if (n === 'virtual-space') useSocialStore.getState().requestOpenSpace();
             else if (GANAB_MENTIONS.includes(n)) useSocialStore.getState().requestOpenGanab();
+            else if (IQ_MENTIONS.includes(n)) useSocialStore.getState().requestOpenVoidIQ();
           })}</p>}
         {c.gifUrl && (
           <img src={c.gifUrl} alt="GIF" className="mt-1 rounded-lg max-w-[200px] max-h-[160px] object-cover border border-white/10" loading="lazy" />
@@ -336,6 +337,8 @@ function ReportModal({ postId, onClose }: { postId: string; onClose: () => void 
 // Mentions/hashtags may contain Georgian letters (U+10A0–U+10FF), so the
 // tokenizer includes that range alongside \w and the hyphen.
 const GANAB_MENTIONS = ['ganabsimulator', 'ganab-simulator', 'განაბ-სიმულატორი', 'განაბური-სიმულატორი', 'განაბსიმულატორი'];
+// @-mentions that open VOID IQ (typed like @ganabsimulator).
+const IQ_MENTIONS = ['voidiq', 'void-iq', 'iqtest', 'iq-test', 'iq', 'ვოიდ-იქ', 'აიქიუ'];
 
 // "Void-IQ" / "VoidIQ" / "IQ test" / "IQtest" → blue link that opens VOID IQ.
 const IQ_LINK_RE = /^(void[\s-]?iq|iq[\s-]?test)$/i;
@@ -364,12 +367,15 @@ function renderContent(content: string, hashtags: string[], onHashtag: (tag: str
       const name = part.slice(1);
       const isSpace = name.toLowerCase() === 'virtual-space';
       const isGanab = GANAB_MENTIONS.includes(name.toLowerCase());
+      const isIq = IQ_MENTIONS.includes(name.toLowerCase());
       return (
         <button key={i} onClick={() => onMention(name)} className="font-mono text-xs transition-colors"
           style={isSpace
             ? { color: '#00d4ff', textShadow: '0 0 8px rgba(0,212,255,0.7), 0 0 16px rgba(0,212,255,0.4)' }
             : isGanab
             ? { color: '#4d9fff', fontWeight: 700, textShadow: '0 0 8px rgba(77,159,255,0.6)' }
+            : isIq
+            ? { color: '#4fb8ff', fontWeight: 700, textShadow: '0 0 8px rgba(79,184,255,0.6)' }
             : { color: '#c084fc' }
           }>
           {part}
@@ -552,6 +558,7 @@ export function PostCardV2({
             const n = name.toLowerCase();
             if (n === 'virtual-space') useSocialStore.getState().requestOpenSpace();
             else if (GANAB_MENTIONS.includes(n)) useSocialStore.getState().requestOpenGanab();
+            else if (IQ_MENTIONS.includes(n)) useSocialStore.getState().requestOpenVoidIQ();
           })}
         </p>
       )}
