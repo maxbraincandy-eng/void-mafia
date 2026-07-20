@@ -6,7 +6,6 @@ const AristocracyTest = lazy(() => import('@/components/quiz/AristocracyTest').t
 const DilemmasHub = lazy(() => import('@/components/dilemmas/DilemmasHub').then(m => ({ default: m.DilemmasHub })));
 const VoidIQHub = lazy(() => import('@/components/iq/VoidIQHub').then(m => ({ default: m.VoidIQHub })));
 import { IQLogo } from '@/components/iq/IQLogo';
-import { DILEMMAS } from '@/components/dilemmas/registry';
 import { useT } from '@/store/langStore';
 import { useAuthStore } from '@/store/authStore';
 import { useCheckersStore } from '@/store/checkersStore';
@@ -31,6 +30,41 @@ import type { LudoMatchListItem } from '@/types/ludo';
 import type { WWWListItem } from '@/types/www';
 import type { UnoListItem } from '@/types/uno';
 
+// ── Categories ───────────────────────────────────────────────────────────────
+type GCat = 'mind' | 'deduction' | 'party' | 'classic' | 'worlds' | 'solo';
+const CAT_ORDER: GCat[] = ['mind', 'deduction', 'party', 'classic', 'worlds', 'solo'];
+const CAT_META: Record<GCat, { section: string; chip: string; emoji: string }> = {
+  mind:      { section: 'გონება & ცოდნა',     chip: 'ინტელექტი', emoji: '🧠' },
+  deduction: { section: 'სოციალური დედუქცია', chip: 'დედუქცია',  emoji: '🕵️' },
+  party:     { section: 'წვეულება & გუნდური', chip: 'წვეულება',  emoji: '🎉' },
+  classic:   { section: 'კლასიკა',            chip: 'კლასიკა',   emoji: '♟' },
+  worlds:    { section: 'სამყაროები',          chip: 'სამყაროები', emoji: '🌐' },
+  solo:      { section: 'სოლო',               chip: 'სოლო',      emoji: '🎮' },
+};
+
+interface GameDef {
+  id: string;
+  title: string;
+  sub: string;
+  cat: GCat;
+  kind: 'match' | 'launch';
+  accent: string;
+  emoji?: string;
+  logo?: 'iq' | 'ganab';
+  badge?: boolean;
+  keywords: string;
+  launch?: () => void;
+}
+
+// Recently-played (localStorage)
+const RECENT_KEY = 'vm-recent-games';
+function loadRecent(): string[] { try { return JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]'); } catch { return []; } }
+function pushRecent(id: string): string[] {
+  const next = [id, ...loadRecent().filter(x => x !== id)].slice(0, 6);
+  try { localStorage.setItem(RECENT_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+  return next;
+}
+
 export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOpenSpace?: () => void; onOpenBackrooms?: () => void; onOpenPremium?: () => void }) {
   const t = useT();
   const profile = useAuthStore(s => s.profile);
@@ -42,48 +76,40 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
 
   // ── Checkers ────────────────────────────────────────────────────────
   const {
-    match: ckMatch, matchList: ckList, isLoading: ckLoading, error: ckError,
+    matchList: ckList, isLoading: ckLoading, error: ckError,
     fetchList: ckFetch, createMatch: ckCreate, joinMatch: ckJoin, clearError: ckClear,
   } = useCheckersStore();
-
-  const [ckShowJoin, setCkShowJoin] = useState(false);
   const [ckJoinCode, setCkJoinCode] = useState('');
 
   // ── Joker ───────────────────────────────────────────────────────────
   const {
-    match: jkMatch, matchList: jkList, isLoading: jkLoading, error: jkError,
+    matchList: jkList, isLoading: jkLoading, error: jkError,
     fetchList: jkFetch, createMatch: jkCreate, joinMatch: jkJoin, clearError: jkClear,
   } = useJokerStore();
-
-  const [jkShowJoin, setJkShowJoin] = useState(false);
   const [jkJoinCode, setJkJoinCode] = useState('');
   const [jkMode, setJkMode] = useState<'classic' | 'nines_only'>('classic');
 
   // ── Ludo ────────────────────────────────────────────────────────────
   const {
-    match: ldMatch, matchList: ldList, isLoading: ldLoading, error: ldError,
+    matchList: ldList, isLoading: ldLoading, error: ldError,
     fetchList: ldFetch, createMatch: ldCreate, joinMatch: ldJoin, clearError: ldClear,
   } = useLudoStore();
-
-  const [ldShowJoin, setLdShowJoin] = useState(false);
   const [ldJoinCode, setLdJoinCode] = useState('');
   const [ldMaxPlayers, setLdMaxPlayers] = useState<2 | 3 | 4>(2);
 
   // ── What? Where? When? ───────────────────────────────────────────────
   const {
-    match: wwMatch, matchList: wwList, isLoading: wwLoading, error: wwError,
+    matchList: wwList, isLoading: wwLoading, error: wwError,
     fetchList: wwFetch, createMatch: wwCreate, joinMatch: wwJoin, clearError: wwClear,
   } = useWWWStore();
-  const [wwShowJoin, setWwShowJoin] = useState(false);
   const [wwJoinCode, setWwJoinCode] = useState('');
 
   // ── UNO ─────────────────────────────────────────────────────────────
   const {
-    match: unoMatch, matchList: unoList, isLoading: unoLoading, error: unoError,
+    matchList: unoList, isLoading: unoLoading, error: unoError,
     fetchList: unoFetch, createMatch: unoCreate, joinMatch: unoJoin,
     spectateMatch: unoSpectate, clearError: unoClear,
   } = useUnoStore();
-  const [unoShowJoin, setUnoShowJoin] = useState(false);
   const [unoJoinCode, setUnoJoinCode] = useState('');
   const [unoMaxPlayers, setUnoMaxPlayers] = useState(4);
 
@@ -92,7 +118,6 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
     matchList: boList, isLoading: boLoading, error: boError,
     fetchList: boFetch, createMatch: boCreate, joinMatch: boJoin, clearError: boClear,
   } = useBlackoutStore();
-  const [boShowJoin, setBoShowJoin] = useState(false);
   const [boJoinCode, setBoJoinCode] = useState('');
 
   // ── Alias ───────────────────────────────────────────────────────────
@@ -100,7 +125,6 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
     matchList: alList, isLoading: alLoading, error: alError,
     fetchList: alFetch, createMatch: alCreate, joinMatch: alJoin, clearError: alClear,
   } = useAliasStore();
-  const [alShowJoin, setAlShowJoin] = useState(false);
   const [alJoinCode, setAlJoinCode] = useState('');
 
   // ── ჯაშუში (Spyfall) ────────────────────────────────────────────────
@@ -108,7 +132,6 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
     matchList: spList, isLoading: spLoading, error: spError,
     fetchList: spFetch, createMatch: spCreate, joinMatch: spJoin, clearError: spClear,
   } = useSpyfallStore();
-  const [spShowJoin, setSpShowJoin] = useState(false);
   const [spJoinCode, setSpJoinCode] = useState('');
 
   // ── Draw & Guess ────────────────────────────────────────────────────
@@ -116,7 +139,6 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
     matchList: drList, isLoading: drLoading, error: drError,
     fetchList: drFetch, createMatch: drCreate, joinMatch: drJoin, clearError: drClear,
   } = useDrawStore();
-  const [drShowJoin, setDrShowJoin] = useState(false);
   const [drJoinCode, setDrJoinCode] = useState('');
 
   // ── Codenames ───────────────────────────────────────────────────────
@@ -124,36 +146,28 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
     matchList: cnList, isLoading: cnLoading, error: cnError,
     fetchList: cnFetch, createMatch: cnCreate, joinMatch: cnJoin, clearError: cnClear,
   } = useCodenamesStore();
-  const [cnShowJoin, setCnShowJoin] = useState(false);
   const [cnJoinCode, setCnJoinCode] = useState('');
 
-  // ── "Other games" collapsible group (Joker + UNO) ───────────────────
-  const [showOther, setShowOther] = useState(false);
+  // ── Hub UI state ─────────────────────────────────────────────────────
+  const [query, setQuery] = useState('');
+  const [cat, setCat] = useState<'all' | GCat>('all');
+  const [sheet, setSheet] = useState<string | null>(null); // open match-game launcher
+  const [recent, setRecent] = useState<string[]>(() => loadRecent());
+  const recordRecent = useCallback((id: string) => setRecent(pushRecent(id)), []);
 
   const handleRefresh = useCallback(() => {
     ckClear(); jkClear(); ldClear(); wwClear(); unoClear(); boClear(); alClear(); drClear(); cnClear(); spClear();
-    ckFetch();
-    jkFetch();
-    ldFetch();
-    wwFetch();
-    unoFetch();
-    boFetch();
-    alFetch();
-    drFetch();
-    cnFetch();
-    spFetch();
+    ckFetch(); jkFetch(); ldFetch(); wwFetch(); unoFetch(); boFetch(); alFetch(); drFetch(); cnFetch(); spFetch();
   }, [ckFetch, jkFetch, ldFetch, wwFetch, unoFetch, boFetch, alFetch, drFetch, cnFetch, spFetch, ckClear, jkClear, ldClear, wwClear, unoClear, boClear, alClear, drClear, cnClear, spClear]);
 
   useEffect(() => { ckFetch(); jkFetch(); ldFetch(); wwFetch(); unoFetch(); boFetch(); alFetch(); drFetch(); cnFetch(); spFetch(); }, [ckFetch, jkFetch, ldFetch, wwFetch, unoFetch, boFetch, alFetch, drFetch, cnFetch, spFetch]);
 
-  // Refresh on visibility change
   useEffect(() => {
     const handler = () => { if (!document.hidden) handleRefresh(); };
     document.addEventListener('visibilitychange', handler);
     return () => document.removeEventListener('visibilitychange', handler);
   }, [handleRefresh]);
 
-  // Auto-retry after auth restores (post-reconnect, after player:auth succeeds)
   useEffect(() => {
     const hasError = ckError || jkError || ldError || wwError || unoError;
     if (!hasError) return;
@@ -162,928 +176,360 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
     return () => window.removeEventListener('vm:auth-ready', onAuthReady);
   }, [ckError, jkError, ldError, wwError, unoError, handleRefresh]);
 
-  async function handleCkCreate() {
-    await ckCreate(playerName);
-  }
+  // ── Create/join handlers (behaviour preserved) ───────────────────────
+  const handleCkCreate = () => ckCreate(playerName);
+  const handleCkJoin = () => { if (ckJoinCode.trim()) { ckJoin(ckJoinCode.trim().toUpperCase(), playerName); setCkJoinCode(''); } };
+  const handleJkCreate = () => jkCreate(playerName, { mode: jkMode });
+  const handleJkJoin = () => { if (jkJoinCode.trim()) { jkJoin(jkJoinCode.trim().toUpperCase(), playerName); setJkJoinCode(''); } };
+  const handleLdCreate = () => ldCreate(playerName, ldMaxPlayers);
+  const handleLdJoin = () => { if (ldJoinCode.trim()) { ldJoin(ldJoinCode.trim().toUpperCase(), playerName); setLdJoinCode(''); } };
+  const handleWwCreate = () => wwCreate(playerName);
+  const handleWwJoin = () => { if (wwJoinCode.trim()) { wwJoin(wwJoinCode.trim().toUpperCase(), playerName); setWwJoinCode(''); } };
+  const handleUnoCreate = () => unoCreate(playerName, unoMaxPlayers);
+  const handleUnoJoin = () => { if (unoJoinCode.trim()) { unoJoin(unoJoinCode.trim().toUpperCase(), playerName); setUnoJoinCode(''); } };
+  const handleBoCreate = () => boCreate(playerName, 8);
+  const handleBoJoin = () => { if (boJoinCode.trim()) { boJoin(boJoinCode.trim().toUpperCase(), playerName); setBoJoinCode(''); } };
+  const handleAlCreate = () => alCreate(playerName);
+  const handleAlJoin = () => { if (alJoinCode.trim()) { alJoin(alJoinCode.trim().toUpperCase(), playerName); setAlJoinCode(''); } };
+  const handleSpCreate = () => spCreate(playerName);
+  const handleSpJoin = () => { if (spJoinCode.trim()) { spJoin(spJoinCode.trim().toUpperCase(), playerName); setSpJoinCode(''); } };
+  const handleDrCreate = () => drCreate(playerName);
+  const handleDrJoin = () => { if (drJoinCode.trim()) { drJoin(drJoinCode.trim().toUpperCase(), playerName); setDrJoinCode(''); } };
+  const handleCnCreate = () => cnCreate(playerName);
+  const handleCnJoin = () => { if (cnJoinCode.trim()) { cnJoin(cnJoinCode.trim().toUpperCase(), playerName); setCnJoinCode(''); } };
 
-  async function handleCkJoin() {
-    if (!ckJoinCode.trim()) return;
-    setCkShowJoin(false);
-    await ckJoin(ckJoinCode.trim().toUpperCase(), playerName);
-    setCkJoinCode('');
-  }
-
-  async function handleJkCreate() {
-    await jkCreate(playerName, { mode: jkMode });
-  }
-
-  async function handleJkJoin() {
-    if (!jkJoinCode.trim()) return;
-    setJkShowJoin(false);
-    await jkJoin(jkJoinCode.trim().toUpperCase(), playerName);
-    setJkJoinCode('');
-  }
-
-  async function handleLdCreate() {
-    await ldCreate(playerName, ldMaxPlayers);
-  }
-
-  async function handleLdJoin() {
-    if (!ldJoinCode.trim()) return;
-    setLdShowJoin(false);
-    await ldJoin(ldJoinCode.trim().toUpperCase(), playerName);
-    setLdJoinCode('');
-  }
-
-  async function handleWwCreate() {
-    await wwCreate(playerName);
-  }
-
-  async function handleWwJoin() {
-    if (!wwJoinCode.trim()) return;
-    setWwShowJoin(false);
-    await wwJoin(wwJoinCode.trim().toUpperCase(), playerName);
-    setWwJoinCode('');
-  }
-
-  async function handleUnoCreate() {
-    await unoCreate(playerName, unoMaxPlayers);
-  }
-
-  async function handleUnoJoin() {
-    if (!unoJoinCode.trim()) return;
-    setUnoShowJoin(false);
-    await unoJoin(unoJoinCode.trim().toUpperCase(), playerName);
-    setUnoJoinCode('');
-  }
-
-  async function handleBoCreate() {
-    await boCreate(playerName, 8);
-  }
-
-  async function handleBoJoin() {
-    if (!boJoinCode.trim()) return;
-    setBoShowJoin(false);
-    await boJoin(boJoinCode.trim().toUpperCase(), playerName);
-    setBoJoinCode('');
-  }
-
-  async function handleAlCreate() { await alCreate(playerName); }
-  async function handleAlJoin() {
-    if (!alJoinCode.trim()) return;
-    setAlShowJoin(false);
-    await alJoin(alJoinCode.trim().toUpperCase(), playerName);
-    setAlJoinCode('');
-  }
-
-  async function handleSpCreate() { await spCreate(playerName); }
-  async function handleSpJoin() {
-    if (!spJoinCode.trim()) return;
-    setSpShowJoin(false);
-    await spJoin(spJoinCode.trim().toUpperCase(), playerName);
-    setSpJoinCode('');
-  }
-
-  async function handleDrCreate() { await drCreate(playerName); }
-  async function handleDrJoin() {
-    if (!drJoinCode.trim()) return;
-    setDrShowJoin(false);
-    await drJoin(drJoinCode.trim().toUpperCase(), playerName);
-    setDrJoinCode('');
-  }
-
-  async function handleCnCreate() { await cnCreate(playerName); }
-  async function handleCnJoin() {
-    if (!cnJoinCode.trim()) return;
-    setCnShowJoin(false);
-    await cnJoin(cnJoinCode.trim().toUpperCase(), playerName);
-    setCnJoinCode('');
-  }
-
-  return (
-    <div className="space-y-4">
-
-      {/* ── VOID IQ (flagship cognitive lab — top-level) ─────────────────── */}
-      <button onClick={() => setVoidIqOpen(true)}
-        className="w-full text-left rounded-2xl overflow-hidden transition-all active:scale-[0.99]"
-        style={{ border: '1px solid rgba(79,184,255,0.45)', boxShadow: '0 6px 34px rgba(0,150,255,0.18)' }}>
-        <div style={{ height: 92, background: 'linear-gradient(135deg, #0a2a4a 0%, #1a1a4a 55%, #2a1a5a 100%)', display: 'flex', alignItems: 'center', gap: 14, padding: '0 18px', position: 'relative' }}>
-          <IQLogo size={58} className="flex-shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="font-display font-black text-white text-base leading-tight tracking-[0.12em]" style={{ background: 'linear-gradient(90deg,#eaffff,#4fb8ff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>VOID IQ</p>
-            <p className="font-mono text-[12px] text-white/55 mt-0.5">გაზომე შენი გონება · ლიდერბორდი</p>
-          </div>
-          <span style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 1, color: '#fff', background: 'rgba(0,150,255,0.9)', borderRadius: 8, padding: '3px 8px' }}>NEW</span>
-        </div>
-      </button>
-      {voidIqOpen && (
-        <Suspense fallback={null}>
-          <VoidIQHub onClose={() => setVoidIqOpen(false)} />
-        </Suspense>
-      )}
-
-      {/* ── Premium Worlds card (flagship 3D social worlds) ─────────────── */}
-      {onOpenPremium && (
-        <button onClick={onOpenPremium}
-          className="w-full text-left rounded-2xl overflow-hidden transition-all active:scale-[0.99]"
-          style={{ border: '1px solid rgba(192,132,252,0.4)', boxShadow: '0 6px 30px rgba(124,58,237,0.18)' }}>
-          <div style={{ height: 84, background: 'linear-gradient(135deg, #1a2b4a 0%, #4a2c1a 55%, #6b3a1a 100%)', display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px', position: 'relative' }}>
-            <span style={{ fontSize: 38, filter: 'drop-shadow(0 4px 14px rgba(255,140,60,0.6))' }}>🔥</span>
-            <div className="flex-1 min-w-0">
-              <p className="font-display font-bold text-white text-sm leading-tight">Premium Worlds ✨</p>
-              <p className="font-mono text-[12px] text-white/60">Beach Camp 3D · {t.commB.premiumSub}</p>
-            </div>
-            <span style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 1, color: '#fff', background: 'rgba(124,58,237,0.9)', borderRadius: 8, padding: '3px 8px' }}>NEW</span>
-          </div>
-        </button>
-      )}
-
-      {/* ── განაბ სიმულატორი card (text roguelike) ──────────────────────── */}
-      <div className="rounded-2xl overflow-hidden"
-        style={{ background: 'linear-gradient(135deg, rgba(26,20,8,0.9), rgba(10,8,5,0.9))', border: '1px solid rgba(217,162,74,0.35)' }}>
-        <div className="px-4 py-3 flex items-center gap-3"
-          style={{ background: 'rgba(217,162,74,0.05)' }}>
-          <img src="/ganab-star.png" alt="" className="w-8 h-8 object-contain flex-shrink-0" style={{ filter: 'drop-shadow(0 0 6px rgba(217,162,74,0.5))' }} />
-          <div className="flex-1 min-w-0">
-            <p className="font-display font-bold text-sm leading-tight" style={{ color: '#d9a24a' }}>
-              {t.games.ganab.title}
-              <span style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 1, color: '#fff', background: 'rgba(124,58,237,0.9)', borderRadius: 8, padding: '3px 8px', marginLeft: 8, verticalAlign: 'middle' }}>NEW</span>
-            </p>
-            <p className="font-mono text-[12px] text-white/35">{t.games.ganab.subtitle}</p>
-          </div>
-          <button
-            onClick={() => useSocialStore.getState().requestOpenGanab()}
-            className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95"
-            style={{ background: 'rgba(217,162,74,0.12)', border: '1px solid rgba(217,162,74,0.5)', color: '#d9a24a' }}>
-            {t.games.ganab.play}
-          </button>
-        </div>
-      </div>
-
-      {/* ── დილემები category — opens a full-screen hub (Premium-Worlds style) ── */}
-      <button onClick={() => setDilemmasHubOpen(true)}
-        className="w-full text-left rounded-2xl overflow-hidden transition-all active:scale-[0.99]"
-        style={{ border: '1px solid rgba(124,156,255,0.4)', boxShadow: '0 6px 30px rgba(124,156,255,0.14)' }}>
-        <div style={{ height: 84, background: 'linear-gradient(135deg, #1a1b3a 0%, #2a1a4a 55%, #3a2a6b 100%)', display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px', position: 'relative' }}>
-          <span style={{ fontSize: 38, filter: 'drop-shadow(0 4px 14px rgba(124,156,255,0.6))' }}>⚖️</span>
-          <div className="flex-1 min-w-0">
-            <p className="font-display font-bold text-white text-sm leading-tight">დილემები ⚖</p>
-            <p className="font-mono text-[12px] text-white/60">მორალური არჩევანი · {DILEMMAS.length} თამაში</p>
-          </div>
-          <span style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 1, color: '#fff', background: 'rgba(124,58,237,0.9)', borderRadius: 8, padding: '3px 8px' }}>NEW</span>
-        </div>
-      </button>
-      {dilemmasHubOpen && (
-        <Suspense fallback={null}>
-          <DilemmasHub onClose={() => setDilemmasHubOpen(false)} />
-        </Suspense>
-      )}
-
-      {/* ── Virtual Space card ──────────────────────────────────────────── */}
-      {onOpenSpace && (
-        <div className="rounded-2xl overflow-hidden"
-          style={{ background: 'rgba(10,6,28,0.7)', border: '1px solid rgba(0,229,255,0.2)' }}>
-          <div className="px-4 py-3 flex items-center gap-3"
-            style={{ background: 'rgba(0,229,255,0.04)' }}>
-            <span className="text-2xl">🌐</span>
-            <div className="flex-1 min-w-0">
-              <p className="font-display font-bold text-white text-sm leading-tight">Virtual Space</p>
-              <p className="font-mono text-[12px] text-white/35">{t.commB.spaceSub}</p>
-            </div>
-            <button
-              onClick={onOpenSpace}
-              className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95"
-              style={{ background: 'rgba(0,229,255,0.1)', border: '1px solid rgba(0,229,255,0.35)', color: '#00e5ff' }}>
-              {t.commB.enter}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {bandicootOpen && (
-        <Suspense fallback={null}>
-          <NeoBandicoot onClose={() => setBandicootOpen(false)} />
-        </Suspense>
-      )}
-
-      {/* ── Aristocracy Test card (solo taste/etiquette quiz) ───────────── */}
-      <div className="rounded-2xl overflow-hidden"
-        style={{ background: 'rgba(10,6,28,0.7)', border: '1px solid rgba(212,175,55,0.3)' }}>
-        <div className="px-4 py-3 flex items-center gap-3"
-          style={{ background: 'rgba(212,175,55,0.05)' }}>
-          <span className="text-2xl">👑</span>
-          <div className="flex-1 min-w-0">
-            <p className="font-display font-bold text-white text-sm leading-tight">{t.games.aristocracy.title}</p>
-            <p className="font-mono text-[12px] text-white/35">{t.games.aristocracy.subtitle}</p>
-          </div>
-          <button
-            onClick={() => setAristocracyOpen(true)}
-            className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95"
-            style={{ background: 'rgba(212,175,55,0.14)', border: '1px solid rgba(212,175,55,0.5)', color: '#e8cf7a' }}>
-            {t.games.aristocracy.play}
-          </button>
-        </div>
-      </div>
-      {aristocracyOpen && (
-        <Suspense fallback={null}>
-          <AristocracyTest onClose={() => setAristocracyOpen(false)} />
-        </Suspense>
-      )}
-
-      {/* Consolidated connection error banner */}
-      <AnimatePresence>
-        {(ckError || jkError || ldError || wwError || unoError) && (
-          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-xl border"
-            style={{ background: 'rgba(255,45,85,0.08)', borderColor: 'rgba(255,45,85,0.3)', color: '#ff2d55' }}>
-            <span className="text-base">📡</span>
-            <span className="font-mono text-xs flex-1">{t.commB.listError}</span>
-            <button
-              onClick={handleRefresh}
-              className="font-mono text-xs px-2.5 py-1 rounded-lg transition-all active:scale-95"
-              style={{ background: 'rgba(255,45,85,0.15)', border: '1px solid rgba(255,45,85,0.4)' }}
-            >
-              {t.commB.retry}
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ── What? Where? When? card ───────────────────────────────────────── */}
-      <div className="rounded-2xl overflow-hidden"
-        style={{ background: 'rgba(10,6,28,0.7)', border: '1px solid rgba(168,85,247,0.2)' }}>
-        <div className="px-4 py-3 flex items-center gap-3 border-b"
-          style={{ borderColor: 'rgba(168,85,247,0.15)', background: 'rgba(168,85,247,0.05)' }}>
-          <span className="text-2xl">🧠</span>
-          <div className="flex-1 min-w-0">
-            <p className="font-display font-bold text-white text-sm leading-tight">{t.games.www.title}</p>
-            <p className="font-mono text-[12px] text-white/35">{t.games.www.subtitle}</p>
-          </div>
-          <button onClick={handleRefresh}
-            className="w-7 h-7 flex items-center justify-center rounded-lg font-mono text-sm transition-all active:scale-95"
-            style={{ background: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.2)', color: 'rgba(192,132,252,0.6)' }}
-            title="Refresh">
-            ↻
-          </button>
-        </div>
-        <div className="px-4 py-3 flex flex-wrap gap-2">
-          {!wwShowJoin ? (
-            <>
-              <ActionButton onClick={handleWwCreate} accent="purple" loading={wwLoading}>
-                {t.games.www.createMatch}
-              </ActionButton>
-              <ActionButton onClick={() => setWwShowJoin(true)} accent="cyan">
-                {t.games.www.joinMatch}
-              </ActionButton>
-            </>
-          ) : (
-            <div className="flex gap-2 w-full">
-              <input
-                value={wwJoinCode}
-                onChange={e => setWwJoinCode(e.target.value.toUpperCase())}
-                onKeyDown={e => { if (e.key === 'Enter') handleWwJoin(); }}
-                placeholder="XXXXXX"
-                maxLength={6}
-                autoFocus
-                className="flex-1 bg-transparent font-mono text-sm text-white placeholder-white/20 outline-none px-3 py-2 rounded-xl border border-white/15 focus:border-white/35 transition-colors tracking-widest"
-              />
-              <button onClick={handleWwJoin} disabled={!wwJoinCode.trim() || wwLoading}
-                className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-40"
-                style={{ background: 'rgba(168,85,247,0.12)', border: '1px solid rgba(168,85,247,0.35)', color: '#c084fc' }}>
-                {wwLoading ? '…' : t.games.www.joinMatch}
-              </button>
-              <button onClick={() => { setWwShowJoin(false); setWwJoinCode(''); }}
-                className="px-3 py-2 rounded-xl font-mono text-xs text-white/40 border border-white/10 hover:text-white/70 transition-colors">✕</button>
-            </div>
-          )}
-        </div>
-        {wwList.length > 0 && (
-          <div className="px-4 pb-3 space-y-1">
-            <p className="font-mono text-[12px] uppercase tracking-widest text-white/25">{t.games.www.openMatches}</p>
-            {wwList.map(m => <WWWRow key={m.id} match={m} onJoin={code => wwJoin(code, playerName)} />)}
-          </div>
-        )}
-      </div>
-
-      {/* ── Blackout card (social deduction · real-time) ─────────────────── */}
-      <div className="rounded-2xl overflow-hidden"
-        style={{ background: 'rgba(10,6,28,0.7)', border: '1px solid rgba(255,211,77,0.25)', boxShadow: '0 4px 24px rgba(155,0,255,0.10)' }}>
-        <div className="px-4 py-3 flex items-center gap-3 border-b"
-          style={{ borderColor: 'rgba(255,211,77,0.15)', background: 'rgba(255,211,77,0.04)' }}>
-          <span className="text-2xl">🔦</span>
-          <div className="flex-1 min-w-0">
-            <p className="font-display font-bold text-white text-sm leading-tight">
-              {t.games.blackout.title}
-              <span style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 1, color: '#fff', background: 'rgba(124,58,237,0.9)', borderRadius: 8, padding: '3px 8px', marginLeft: 8, verticalAlign: 'middle' }}>NEW</span>
-            </p>
-            <p className="font-mono text-[12px] text-white/35">{t.games.blackout.subtitle}</p>
-          </div>
-          <button onClick={handleRefresh}
-            className="w-7 h-7 flex items-center justify-center rounded-lg font-mono text-sm transition-all active:scale-95"
-            style={{ background: 'rgba(255,211,77,0.08)', border: '1px solid rgba(255,211,77,0.2)', color: 'rgba(255,224,138,0.6)' }}
-            title="Refresh">
-            ↻
-          </button>
-        </div>
-        <div className="px-4 py-3 flex flex-wrap gap-2">
-          {!boShowJoin ? (
-            <>
-              <ActionButton onClick={handleBoCreate} accent="purple" loading={boLoading}>
-                {t.games.blackout.createMatch}
-              </ActionButton>
-              <ActionButton onClick={() => setBoShowJoin(true)} accent="cyan">
-                {t.games.blackout.joinMatch}
-              </ActionButton>
-            </>
-          ) : (
-            <div className="flex gap-2 w-full">
-              <input
-                value={boJoinCode}
-                onChange={e => setBoJoinCode(e.target.value.toUpperCase())}
-                onKeyDown={e => { if (e.key === 'Enter') handleBoJoin(); }}
-                placeholder="XXXXXX"
-                maxLength={6}
-                autoFocus
-                className="flex-1 bg-transparent font-mono text-sm text-white placeholder-white/20 outline-none px-3 py-2 rounded-xl border border-white/15 focus:border-white/35 transition-colors tracking-widest"
-              />
-              <button onClick={handleBoJoin} disabled={!boJoinCode.trim() || boLoading}
-                className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-40"
-                style={{ background: 'rgba(255,211,77,0.12)', border: '1px solid rgba(255,211,77,0.35)', color: '#ffd34d' }}>
-                {boLoading ? '…' : t.games.blackout.joinMatch}
-              </button>
-              <button onClick={() => { setBoShowJoin(false); setBoJoinCode(''); }}
-                className="px-3 py-2 rounded-xl font-mono text-xs text-white/40 border border-white/10 hover:text-white/70 transition-colors">✕</button>
-            </div>
-          )}
-          {boError && <p className="w-full font-mono text-[12px] text-neon-red" onClick={boClear}>{boError}</p>}
-        </div>
-        {boList.length > 0 && (
-          <div className="px-4 pb-3 space-y-1">
-            <p className="font-mono text-[12px] uppercase tracking-widest text-white/25">{t.games.blackout.openMatches}</p>
-            {boList.map(m => <BlackoutRow key={m.id} match={m} onJoin={code => boJoin(code, playerName)} />)}
-          </div>
-        )}
-      </div>
-
-      {/* ── ჯაშუში (Spyfall) card — social deduction + voice ────────────── */}
-      <div className="rounded-2xl overflow-hidden"
-        style={{ background: 'rgba(16,8,14,0.75)', border: '1px solid rgba(255,45,85,0.3)', boxShadow: '0 4px 24px rgba(255,45,85,0.08)' }}>
-        <div className="px-4 py-3 flex items-center gap-3 border-b"
-          style={{ borderColor: 'rgba(255,45,85,0.15)', background: 'rgba(255,45,85,0.04)' }}>
-          <span className="text-2xl">🕵️</span>
-          <div className="flex-1 min-w-0">
-            <p className="font-display font-bold text-white text-sm leading-tight">
-              ჯაშუში
-              <span style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 1, color: '#fff', background: 'rgba(124,58,237,0.9)', borderRadius: 8, padding: '3px 8px', marginLeft: 8, verticalAlign: 'middle' }}>NEW</span>
-            </p>
-            <p className="font-mono text-[12px] text-white/35">იპოვე ჯაშუში ხმით 🎙 · 3-10 მოთ.</p>
-          </div>
-          <button onClick={handleRefresh}
-            className="w-7 h-7 flex items-center justify-center rounded-lg font-mono text-sm transition-all active:scale-95"
-            style={{ background: 'rgba(255,45,85,0.08)', border: '1px solid rgba(255,45,85,0.2)', color: 'rgba(255,140,163,0.6)' }} title="Refresh">↻</button>
-        </div>
-        <div className="px-4 py-3 flex flex-wrap gap-2">
-          {!spShowJoin ? (
-            <>
-              <ActionButton onClick={handleSpCreate} accent="purple" loading={spLoading}>შექმნა</ActionButton>
-              <ActionButton onClick={() => setSpShowJoin(true)} accent="cyan">შეუერთდი</ActionButton>
-            </>
-          ) : (
-            <div className="flex gap-2 w-full">
-              <input value={spJoinCode} onChange={e => setSpJoinCode(e.target.value.toUpperCase())} onKeyDown={e => { if (e.key === 'Enter') handleSpJoin(); }}
-                placeholder="XXXXXX" maxLength={6} autoFocus
-                className="flex-1 bg-transparent font-mono text-sm text-white placeholder-white/20 outline-none px-3 py-2 rounded-xl border border-white/15 focus:border-white/35 transition-colors tracking-widest" />
-              <button onClick={handleSpJoin} disabled={!spJoinCode.trim() || spLoading}
-                className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-40"
-                style={{ background: 'rgba(255,45,85,0.12)', border: '1px solid rgba(255,45,85,0.35)', color: '#ff5d6c' }}>
-                {spLoading ? '…' : 'შეუერთდი'}
-              </button>
-              <button onClick={() => { setSpShowJoin(false); setSpJoinCode(''); }}
-                className="px-3 py-2 rounded-xl font-mono text-xs text-white/40 border border-white/10 hover:text-white/70 transition-colors">✕</button>
-            </div>
-          )}
-          {spError && <p className="w-full font-mono text-[12px] text-neon-red" onClick={spClear}>{spError}</p>}
-        </div>
-        {spList.length > 0 && (
-          <div className="px-4 pb-3 space-y-1">
-            <p className="font-mono text-[12px] uppercase tracking-widest text-white/25">ღია თამაშები</p>
-            {spList.map(m => <SpyfallRow key={m.id} match={m} onJoin={code => spJoin(code, playerName)} />)}
-          </div>
-        )}
-      </div>
-
-      {/* ── Alias card (team word game) ─────────────────────────────────── */}
-      <div className="rounded-2xl overflow-hidden"
-        style={{ background: 'rgba(10,10,24,0.7)', border: '1px solid rgba(77,159,255,0.25)' }}>
-        <div className="px-4 py-3 flex items-center gap-3 border-b"
-          style={{ borderColor: 'rgba(77,159,255,0.15)', background: 'rgba(77,159,255,0.04)' }}>
-          <span className="text-2xl">🗣</span>
-          <div className="flex-1 min-w-0">
-            <p className="font-display font-bold text-white text-sm leading-tight">
-              ალიასი
-              <span style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 1, color: '#fff', background: 'rgba(124,58,237,0.9)', borderRadius: 8, padding: '3px 8px', marginLeft: 8, verticalAlign: 'middle' }}>NEW</span>
-            </p>
-            <p className="font-mono text-[12px] text-white/35">გუნდური სიტყვების თამაში · 4-12 მოთ.</p>
-          </div>
-          <button onClick={handleRefresh}
-            className="w-7 h-7 flex items-center justify-center rounded-lg font-mono text-sm transition-all active:scale-95"
-            style={{ background: 'rgba(77,159,255,0.08)', border: '1px solid rgba(77,159,255,0.2)', color: 'rgba(150,190,255,0.6)' }} title="Refresh">↻</button>
-        </div>
-        <div className="px-4 py-3 flex flex-wrap gap-2">
-          {!alShowJoin ? (
-            <>
-              <ActionButton onClick={handleAlCreate} accent="cyan" loading={alLoading}>შექმნა</ActionButton>
-              <ActionButton onClick={() => setAlShowJoin(true)} accent="purple">შეუერთდი</ActionButton>
-            </>
-          ) : (
-            <div className="flex gap-2 w-full">
-              <input value={alJoinCode} onChange={e => setAlJoinCode(e.target.value.toUpperCase())} onKeyDown={e => { if (e.key === 'Enter') handleAlJoin(); }}
-                placeholder="XXXXXX" maxLength={6} autoFocus
-                className="flex-1 bg-transparent font-mono text-sm text-white placeholder-white/20 outline-none px-3 py-2 rounded-xl border border-white/15 focus:border-white/35 transition-colors tracking-widest" />
-              <button onClick={handleAlJoin} disabled={!alJoinCode.trim() || alLoading}
-                className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-40"
-                style={{ background: 'rgba(77,159,255,0.12)', border: '1px solid rgba(77,159,255,0.35)', color: '#4d9fff' }}>
-                {alLoading ? '…' : 'შეუერთდი'}
-              </button>
-              <button onClick={() => { setAlShowJoin(false); setAlJoinCode(''); }}
-                className="px-3 py-2 rounded-xl font-mono text-xs text-white/40 border border-white/10 hover:text-white/70 transition-colors">✕</button>
-            </div>
-          )}
-          {alError && <p className="w-full font-mono text-[12px] text-neon-red" onClick={alClear}>{alError}</p>}
-        </div>
-        {alList.length > 0 && (
-          <div className="px-4 pb-3 space-y-1">
-            <p className="font-mono text-[12px] uppercase tracking-widest text-white/25">ღია თამაშები</p>
-            {alList.map(m => <AliasRow key={m.id} match={m} onJoin={code => alJoin(code, playerName)} />)}
-          </div>
-        )}
-      </div>
-
-      {/* ── Draw & Guess card ───────────────────────────────────────────── */}
-      <div className="rounded-2xl overflow-hidden"
-        style={{ background: 'rgba(10,8,22,0.7)', border: '1px solid rgba(255,140,38,0.28)' }}>
-        <div className="px-4 py-3 flex items-center gap-3 border-b"
-          style={{ borderColor: 'rgba(255,140,38,0.15)', background: 'rgba(255,140,38,0.04)' }}>
-          <span className="text-2xl">🎨</span>
-          <div className="flex-1 min-w-0">
-            <p className="font-display font-bold text-white text-sm leading-tight">
-              დახაზე & გამოიცანი
-              <span style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 1, color: '#fff', background: 'rgba(124,58,237,0.9)', borderRadius: 8, padding: '3px 8px', marginLeft: 8, verticalAlign: 'middle' }}>NEW</span>
-            </p>
-            <p className="font-mono text-[12px] text-white/35">ხატავ და გამოიცნობ · 2-12 მოთ.</p>
-          </div>
-          <button onClick={handleRefresh}
-            className="w-7 h-7 flex items-center justify-center rounded-lg font-mono text-sm transition-all active:scale-95"
-            style={{ background: 'rgba(255,140,38,0.08)', border: '1px solid rgba(255,140,38,0.2)', color: 'rgba(255,180,106,0.6)' }} title="Refresh">↻</button>
-        </div>
-        <div className="px-4 py-3 flex flex-wrap gap-2">
-          {!drShowJoin ? (
-            <>
-              <ActionButton onClick={handleDrCreate} accent="orange" loading={drLoading}>შექმნა</ActionButton>
-              <ActionButton onClick={() => setDrShowJoin(true)} accent="cyan">შეუერთდი</ActionButton>
-            </>
-          ) : (
-            <div className="flex gap-2 w-full">
-              <input value={drJoinCode} onChange={e => setDrJoinCode(e.target.value.toUpperCase())} onKeyDown={e => { if (e.key === 'Enter') handleDrJoin(); }}
-                placeholder="XXXXXX" maxLength={6} autoFocus
-                className="flex-1 bg-transparent font-mono text-sm text-white placeholder-white/20 outline-none px-3 py-2 rounded-xl border border-white/15 focus:border-white/35 transition-colors tracking-widest" />
-              <button onClick={handleDrJoin} disabled={!drJoinCode.trim() || drLoading}
-                className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-40"
-                style={{ background: 'rgba(255,140,38,0.12)', border: '1px solid rgba(255,140,38,0.35)', color: '#ff8c26' }}>
-                {drLoading ? '…' : 'შეუერთდი'}
-              </button>
-              <button onClick={() => { setDrShowJoin(false); setDrJoinCode(''); }}
-                className="px-3 py-2 rounded-xl font-mono text-xs text-white/40 border border-white/10 hover:text-white/70 transition-colors">✕</button>
-            </div>
-          )}
-          {drError && <p className="w-full font-mono text-[12px] text-neon-red" onClick={drClear}>{drError}</p>}
-        </div>
-        {drList.length > 0 && (
-          <div className="px-4 pb-3 space-y-1">
-            <p className="font-mono text-[12px] uppercase tracking-widest text-white/25">ღია თამაშები</p>
-            {drList.map(m => <DrawRow key={m.id} match={m} onJoin={code => drJoin(code, playerName)} />)}
-          </div>
-        )}
-      </div>
-
-      {/* ── Codenames card ──────────────────────────────────────────────── */}
-      <div className="rounded-2xl overflow-hidden"
-        style={{ background: 'rgba(10,9,20,0.7)', border: '1px solid rgba(155,0,255,0.28)' }}>
-        <div className="px-4 py-3 flex items-center gap-3 border-b"
-          style={{ borderColor: 'rgba(155,0,255,0.15)', background: 'rgba(155,0,255,0.04)' }}>
-          <span className="text-2xl">🕵️</span>
-          <div className="flex-1 min-w-0">
-            <p className="font-display font-bold text-white text-sm leading-tight">
-              Codenames
-              <span style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 1, color: '#fff', background: 'rgba(124,58,237,0.9)', borderRadius: 8, padding: '3px 8px', marginLeft: 8, verticalAlign: 'middle' }}>NEW</span>
-            </p>
-            <p className="font-mono text-[12px] text-white/35">2 გუნდი · მინიშნებები · 4-16 მოთ.</p>
-          </div>
-          <button onClick={handleRefresh}
-            className="w-7 h-7 flex items-center justify-center rounded-lg font-mono text-sm transition-all active:scale-95"
-            style={{ background: 'rgba(155,0,255,0.08)', border: '1px solid rgba(155,0,255,0.2)', color: 'rgba(192,132,252,0.6)' }} title="Refresh">↻</button>
-        </div>
-        <div className="px-4 py-3 flex flex-wrap gap-2">
-          {!cnShowJoin ? (
-            <>
-              <ActionButton onClick={handleCnCreate} accent="purple" loading={cnLoading}>შექმნა</ActionButton>
-              <ActionButton onClick={() => setCnShowJoin(true)} accent="cyan">შეუერთდი</ActionButton>
-            </>
-          ) : (
-            <div className="flex gap-2 w-full">
-              <input value={cnJoinCode} onChange={e => setCnJoinCode(e.target.value.toUpperCase())} onKeyDown={e => { if (e.key === 'Enter') handleCnJoin(); }}
-                placeholder="XXXXXX" maxLength={6} autoFocus
-                className="flex-1 bg-transparent font-mono text-sm text-white placeholder-white/20 outline-none px-3 py-2 rounded-xl border border-white/15 focus:border-white/35 transition-colors tracking-widest" />
-              <button onClick={handleCnJoin} disabled={!cnJoinCode.trim() || cnLoading}
-                className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-40"
-                style={{ background: 'rgba(155,0,255,0.12)', border: '1px solid rgba(155,0,255,0.35)', color: '#c084fc' }}>
-                {cnLoading ? '…' : 'შეუერთდი'}
-              </button>
-              <button onClick={() => { setCnShowJoin(false); setCnJoinCode(''); }}
-                className="px-3 py-2 rounded-xl font-mono text-xs text-white/40 border border-white/10 hover:text-white/70 transition-colors">✕</button>
-            </div>
-          )}
-          {cnError && <p className="w-full font-mono text-[12px] text-neon-red" onClick={cnClear}>{cnError}</p>}
-        </div>
-        {cnList.length > 0 && (
-          <div className="px-4 pb-3 space-y-1">
-            <p className="font-mono text-[12px] uppercase tracking-widest text-white/25">ღია თამაშები</p>
-            {cnList.map(m => <CodenamesRow key={m.id} match={m} onJoin={code => cnJoin(code, playerName)} />)}
-          </div>
-        )}
-      </div>
-
-      {/* ── Checkers card ─────────────────────────────────────────────── */}
-      <div className="rounded-2xl overflow-hidden"
-        style={{ background: 'rgba(10,6,28,0.7)', border: '1px solid rgba(155,0,255,0.2)' }}>
-        <div className="px-4 py-3 flex items-center gap-3 border-b"
-          style={{ borderColor: 'rgba(155,0,255,0.15)', background: 'rgba(155,0,255,0.05)' }}>
-          <span className="text-2xl">♟</span>
-          <div className="flex-1 min-w-0">
-            <p className="font-display font-bold text-white text-sm leading-tight">{t.games.checkers.title}</p>
-            <p className="font-mono text-[12px] text-white/35">{t.games.checkers.subtitle}</p>
-          </div>
-          <button onClick={handleRefresh}
-            className="w-7 h-7 flex items-center justify-center rounded-lg font-mono text-sm transition-all active:scale-95"
-            style={{ background: 'rgba(155,0,255,0.08)', border: '1px solid rgba(155,0,255,0.2)', color: 'rgba(192,132,252,0.6)' }}
-            title="Refresh">
-            ↻
-          </button>
-        </div>
-        <div className="px-4 py-3 flex flex-wrap gap-2">
-          {!ckShowJoin ? (
-            <>
-              <ActionButton onClick={handleCkCreate} accent="purple" loading={ckLoading}>
-                {t.games.checkers.createMatch}
-              </ActionButton>
-              <ActionButton onClick={() => setCkShowJoin(true)} accent="cyan">
-                {t.games.checkers.joinMatch}
-              </ActionButton>
-            </>
-          ) : (
-            <div className="flex gap-2 w-full">
-              <input
-                value={ckJoinCode}
-                onChange={e => setCkJoinCode(e.target.value.toUpperCase())}
-                onKeyDown={e => { if (e.key === 'Enter') handleCkJoin(); }}
-                placeholder="CK-0000"
-                maxLength={7}
-                autoFocus
-                className="flex-1 bg-transparent font-mono text-sm text-white placeholder-white/20 outline-none px-3 py-2 rounded-xl border border-white/15 focus:border-white/35 transition-colors tracking-widest"
-              />
-              <button onClick={handleCkJoin} disabled={!ckJoinCode.trim() || ckLoading}
-                className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-40"
-                style={{ background: 'rgba(0,245,255,0.12)', border: '1px solid rgba(0,245,255,0.3)', color: '#00f5ff' }}>
-                {ckLoading ? '…' : t.games.checkers.joinMatch}
-              </button>
-              <button onClick={() => { setCkShowJoin(false); setCkJoinCode(''); }}
-                className="px-3 py-2 rounded-xl font-mono text-xs text-white/40 border border-white/10 hover:text-white/70 transition-colors">✕</button>
-            </div>
-          )}
-        </div>
-        {/* Open checkers matches */}
-        {ckList.length > 0 && (
-          <div className="px-4 pb-3 space-y-1">
-            <p className="font-mono text-[12px] uppercase tracking-widest text-white/25">{t.games.checkers.openMatches}</p>
-            {ckList.map(m => <CheckersRow key={m.id} match={m} onJoin={code => ckJoin(code, playerName)} />)}
-          </div>
-        )}
-      </div>
-
-      {/* ── Other games (collapsible: Joker · UNO · Ludo · Bandicoot · Backrooms) ── */}
-      <div className="rounded-2xl overflow-hidden"
-        style={{ background: 'rgba(10,6,28,0.7)', border: '1px solid rgba(255,255,255,0.1)' }}>
-        <button onClick={() => setShowOther(v => !v)}
-          className="w-full px-4 py-3 flex items-center gap-3 text-left transition-all active:scale-[0.99]"
-          style={{ background: 'rgba(255,255,255,0.03)' }}>
-          <span className="text-2xl">🎮</span>
-          <div className="flex-1 min-w-0">
-            <p className="font-display font-bold text-white text-sm leading-tight">{t.commB.otherGames}</p>
-            <p className="font-mono text-[12px] text-white/35">{t.commB.jokerUno}</p>
-          </div>
-          <span className="font-mono text-white/40 text-xs transition-transform duration-200"
-            style={{ transform: showOther ? 'rotate(180deg)' : 'none' }}>▼</span>
-        </button>
-      </div>
-
-      <AnimatePresence>
-      {showOther && (
-      <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="space-y-4">
-
-      {/* ── Joker card ─────────────────────────────────────────────────── */}
-      <div className="rounded-2xl overflow-hidden"
-        style={{ background: 'rgba(10,6,28,0.7)', border: '1px solid rgba(255,165,0,0.2)' }}>
-        <div className="px-4 py-3 flex items-center gap-3 border-b"
-          style={{ borderColor: 'rgba(255,165,0,0.15)', background: 'rgba(255,165,0,0.04)' }}>
-          <span className="text-2xl">🃏</span>
-          <div className="flex-1 min-w-0">
-            <p className="font-display font-bold text-white text-sm leading-tight">{t.games.joker.title}</p>
-            <p className="font-mono text-[12px] text-white/35">{t.games.joker.subtitle}</p>
-          </div>
-          <button onClick={handleRefresh}
-            className="w-7 h-7 flex items-center justify-center rounded-lg font-mono text-sm transition-all active:scale-95"
-            style={{ background: 'rgba(255,165,0,0.08)', border: '1px solid rgba(255,165,0,0.2)', color: 'rgba(251,191,36,0.6)' }}
-            title="Refresh">
-            ↻
-          </button>
-        </div>
-
-        {/* Mode selector */}
-        <div className="px-4 pt-3 flex gap-2">
+  // ── Launcher configs for match games ─────────────────────────────────
+  const MATCH: Record<string, LauncherCfg> = {
+    checkers: {
+      accent: '#b06cff', onCreate: handleCkCreate, loading: ckLoading, joinCode: ckJoinCode, setJoinCode: setCkJoinCode,
+      onJoin: handleCkJoin, codeMax: 7, codePh: 'CK-0000', list: ckList, error: ckError, clearError: ckClear,
+      renderRow: m => <CheckersRow key={m.id} match={m} onJoin={code => { recordRecent('checkers'); ckJoin(code, playerName); }} />,
+    },
+    ludo: {
+      accent: '#22c55e', onCreate: handleLdCreate, loading: ldLoading, joinCode: ldJoinCode, setJoinCode: setLdJoinCode,
+      onJoin: handleLdJoin, codeMax: 7, codePh: 'LD-0000', list: ldList, error: ldError, clearError: ldClear,
+      renderRow: m => <LudoRow key={m.id} match={m} onJoin={code => { recordRecent('ludo'); ldJoin(code, playerName); }} />,
+      extra: <NumPicker label="Max" accent="#22c55e" values={[2, 3, 4]} value={ldMaxPlayers} onChange={n => setLdMaxPlayers(n as 2 | 3 | 4)} />,
+    },
+    joker: {
+      accent: '#fbbf24', onCreate: handleJkCreate, loading: jkLoading, joinCode: jkJoinCode, setJoinCode: setJkJoinCode,
+      onJoin: handleJkJoin, codeMax: 7, codePh: 'JK-0000', list: jkList, error: jkError, clearError: jkClear,
+      renderRow: m => <JokerRow key={m.id} match={m} onJoin={code => { recordRecent('joker'); jkJoin(code, playerName); }} />,
+      extra: (
+        <div className="flex gap-2">
           {(['classic', 'nines_only'] as const).map(m => (
-            <button
-              key={m}
-              onClick={() => setJkMode(m)}
-              className="px-3 py-1 rounded-full font-mono text-[12px] uppercase tracking-wider transition-all"
-              style={{
-                background: jkMode === m ? 'rgba(255,165,0,0.2)' : 'rgba(255,255,255,0.03)',
-                border: `1px solid ${jkMode === m ? 'rgba(255,165,0,0.5)' : 'rgba(255,255,255,0.08)'}`,
-                color: jkMode === m ? '#fbbf24' : 'rgba(255,255,255,0.35)',
-              }}
-            >
+            <button key={m} onClick={() => setJkMode(m)} className="px-3 py-1 rounded-full font-mono text-[12px] uppercase tracking-wider transition-all"
+              style={{ background: jkMode === m ? 'rgba(255,165,0,0.2)' : 'rgba(255,255,255,0.03)', border: `1px solid ${jkMode === m ? 'rgba(255,165,0,0.5)' : 'rgba(255,255,255,0.08)'}`, color: jkMode === m ? '#fbbf24' : 'rgba(255,255,255,0.35)' }}>
               {m === 'classic' ? t.games.joker.modeClassic : t.games.joker.modeNines}
             </button>
           ))}
         </div>
+      ),
+    },
+    uno: {
+      accent: '#fb923c', onCreate: handleUnoCreate, loading: unoLoading, joinCode: unoJoinCode, setJoinCode: setUnoJoinCode,
+      onJoin: handleUnoJoin, codeMax: 7, codePh: 'UN-0000', list: unoList, error: unoError, clearError: unoClear,
+      renderRow: m => <UnoRow key={m.id} match={m} onJoin={code => { recordRecent('uno'); unoJoin(code, playerName); }} onSpectate={code => unoSpectate(code)} />,
+      extra: <NumPicker label={t.games.uno.maxPlayers} accent="#fb923c" values={[2, 3, 4, 6, 8, 10]} value={unoMaxPlayers} onChange={setUnoMaxPlayers} />,
+    },
+    www: {
+      accent: '#c084fc', onCreate: handleWwCreate, loading: wwLoading, joinCode: wwJoinCode, setJoinCode: setWwJoinCode,
+      onJoin: handleWwJoin, codeMax: 6, codePh: 'XXXXXX', list: wwList, error: wwError, clearError: wwClear,
+      renderRow: m => <WWWRow key={m.id} match={m} onJoin={code => { recordRecent('www'); wwJoin(code, playerName); }} />,
+    },
+    blackout: {
+      accent: '#ffd34d', onCreate: handleBoCreate, loading: boLoading, joinCode: boJoinCode, setJoinCode: setBoJoinCode,
+      onJoin: handleBoJoin, codeMax: 6, codePh: 'XXXXXX', list: boList, error: boError, clearError: boClear,
+      renderRow: m => <BlackoutRow key={m.id} match={m} onJoin={code => { recordRecent('blackout'); boJoin(code, playerName); }} />,
+    },
+    spyfall: {
+      accent: '#ff5d6c', onCreate: handleSpCreate, loading: spLoading, joinCode: spJoinCode, setJoinCode: setSpJoinCode,
+      onJoin: handleSpJoin, codeMax: 6, codePh: 'XXXXXX', list: spList, error: spError, clearError: spClear,
+      renderRow: m => <SpyfallRow key={m.id} match={m} onJoin={code => { recordRecent('spyfall'); spJoin(code, playerName); }} />,
+    },
+    alias: {
+      accent: '#4d9fff', onCreate: handleAlCreate, loading: alLoading, joinCode: alJoinCode, setJoinCode: setAlJoinCode,
+      onJoin: handleAlJoin, codeMax: 6, codePh: 'XXXXXX', list: alList, error: alError, clearError: alClear,
+      renderRow: m => <AliasRow key={m.id} match={m} onJoin={code => { recordRecent('alias'); alJoin(code, playerName); }} />,
+    },
+    draw: {
+      accent: '#ff8c26', onCreate: handleDrCreate, loading: drLoading, joinCode: drJoinCode, setJoinCode: setDrJoinCode,
+      onJoin: handleDrJoin, codeMax: 6, codePh: 'XXXXXX', list: drList, error: drError, clearError: drClear,
+      renderRow: m => <DrawRow key={m.id} match={m} onJoin={code => { recordRecent('draw'); drJoin(code, playerName); }} />,
+    },
+    codenames: {
+      accent: '#c084fc', onCreate: handleCnCreate, loading: cnLoading, joinCode: cnJoinCode, setJoinCode: setCnJoinCode,
+      onJoin: handleCnJoin, codeMax: 6, codePh: 'XXXXXX', list: cnList, error: cnError, clearError: cnClear,
+      renderRow: m => <CodenamesRow key={m.id} match={m} onJoin={code => { recordRecent('codenames'); cnJoin(code, playerName); }} />,
+    },
+  };
 
-        <div className="px-4 py-3 flex flex-wrap gap-2">
-          {!jkShowJoin ? (
-            <>
-              <ActionButton onClick={handleJkCreate} accent="gold" loading={jkLoading}>
-                {t.games.joker.createTable}
-              </ActionButton>
-              <ActionButton onClick={() => setJkShowJoin(true)} accent="cyan">
-                {t.games.joker.joinTable}
-              </ActionButton>
-            </>
-          ) : (
-            <div className="flex gap-2 w-full">
-              <input
-                value={jkJoinCode}
-                onChange={e => setJkJoinCode(e.target.value.toUpperCase())}
-                onKeyDown={e => { if (e.key === 'Enter') handleJkJoin(); }}
-                placeholder="JK-0000"
-                maxLength={7}
-                autoFocus
-                className="flex-1 bg-transparent font-mono text-sm text-white placeholder-white/20 outline-none px-3 py-2 rounded-xl border border-white/15 focus:border-white/35 transition-colors tracking-widest"
-              />
-              <button onClick={handleJkJoin} disabled={!jkJoinCode.trim() || jkLoading}
-                className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-40"
-                style={{ background: 'rgba(255,165,0,0.15)', border: '1px solid rgba(255,165,0,0.4)', color: '#fbbf24' }}>
-                {jkLoading ? '…' : t.games.joker.joinTable}
-              </button>
-              <button onClick={() => { setJkShowJoin(false); setJkJoinCode(''); }}
-                className="px-3 py-2 rounded-xl font-mono text-xs text-white/40 border border-white/10 hover:text-white/70 transition-colors">✕</button>
-            </div>
-          )}
+  // ── Catalog ──────────────────────────────────────────────────────────
+  const defs: GameDef[] = [
+    { id: 'voidiq', title: 'VOID IQ', sub: 'გაზომე შენი გონება · ლიდერბორდი', cat: 'mind', kind: 'launch', accent: '#4fb8ff', logo: 'iq', badge: true, keywords: 'iq ინტელექტი ტესტი leaderboard', launch: () => setVoidIqOpen(true) },
+    { id: 'www', title: t.games.www.title, sub: t.games.www.subtitle, cat: 'mind', kind: 'match', accent: '#c084fc', emoji: '🧠', keywords: 'www ვიქტორინა quiz რა სად როდის' },
+    { id: 'dilemmas', title: 'დილემები', sub: `მორალური არჩევანი`, cat: 'mind', kind: 'launch', accent: '#7c9cff', emoji: '⚖️', badge: true, keywords: 'dilemma მორალი ეთიკა', launch: () => setDilemmasHubOpen(true) },
+    { id: 'aristocracy', title: t.games.aristocracy.title, sub: t.games.aristocracy.subtitle, cat: 'mind', kind: 'launch', accent: '#e8cf7a', emoji: '👑', keywords: 'aristocracy ტესტი quiz', launch: () => setAristocracyOpen(true) },
+
+    { id: 'spyfall', title: 'ჯაშუში', sub: 'იპოვე ჯაშუში ხმით · 3-10 მოთ.', cat: 'deduction', kind: 'match', accent: '#ff5d6c', emoji: '🕵️', badge: true, keywords: 'spyfall ჯაშუში დედუქცია' },
+    { id: 'codenames', title: 'Codenames', sub: '2 გუნდი · მინიშნებები · 4-16 მოთ.', cat: 'deduction', kind: 'match', accent: '#c084fc', emoji: '🔤', badge: true, keywords: 'codenames კოდი გუნდი' },
+    { id: 'blackout', title: t.games.blackout.title, sub: t.games.blackout.subtitle, cat: 'deduction', kind: 'match', accent: '#ffd34d', emoji: '🔦', badge: true, keywords: 'blackout impostor დედუქცია' },
+
+    { id: 'alias', title: 'ალიასი', sub: 'გუნდური სიტყვების თამაში · 4-12 მოთ.', cat: 'party', kind: 'match', accent: '#4d9fff', emoji: '🗣', badge: true, keywords: 'alias სიტყვები taboo' },
+    { id: 'draw', title: 'დახაზე & გამოიცანი', sub: 'ხატავ და გამოიცნობ · 2-12 მოთ.', cat: 'party', kind: 'match', accent: '#ff8c26', emoji: '🎨', badge: true, keywords: 'draw ხატვა pictionary' },
+
+    { id: 'checkers', title: t.games.checkers.title, sub: t.games.checkers.subtitle, cat: 'classic', kind: 'match', accent: '#b06cff', emoji: '♟', keywords: 'checkers დამკა' },
+    { id: 'ludo', title: t.games.ludo.title, sub: t.games.ludo.subtitle, cat: 'classic', kind: 'match', accent: '#22c55e', emoji: '🎲', keywords: 'ludo ლუდო' },
+    { id: 'joker', title: t.games.joker.title, sub: t.games.joker.subtitle, cat: 'classic', kind: 'match', accent: '#fbbf24', emoji: '🃏', keywords: 'joker ჯოკერი კარტი' },
+    { id: 'uno', title: t.games.uno.title, sub: t.games.uno.subtitle, cat: 'classic', kind: 'match', accent: '#fb923c', emoji: '🃠', keywords: 'uno უნო კარტი' },
+
+    { id: 'ganab', title: t.games.ganab.title, sub: t.games.ganab.subtitle, cat: 'solo', kind: 'launch', accent: '#d9a24a', logo: 'ganab', badge: true, keywords: 'ganab განაბ roguelike', launch: () => useSocialStore.getState().requestOpenGanab() },
+    { id: 'bandicoot', title: t.games.bandicoot.title, sub: t.games.bandicoot.subtitle, cat: 'solo', kind: 'launch', accent: '#ffb46a', emoji: '🦊', keywords: 'bandicoot platformer', launch: () => setBandicootOpen(true) },
+  ];
+  if (onOpenPremium) defs.push({ id: 'premium', title: 'Premium Worlds', sub: 'Beach Camp 3D · ' + t.commB.premiumSub, cat: 'worlds', kind: 'launch', accent: '#ff8c3c', emoji: '🔥', badge: true, keywords: 'premium worlds 3d beach', launch: onOpenPremium });
+  if (onOpenSpace) defs.push({ id: 'space', title: 'Virtual Space', sub: t.commB.spaceSub, cat: 'worlds', kind: 'launch', accent: '#00e5ff', emoji: '🌐', keywords: 'space virtual სივრცე', launch: onOpenSpace });
+  if (onOpenBackrooms) defs.push({ id: 'backrooms', title: 'Backrooms', sub: t.commB.backroomsSub, cat: 'worlds', kind: 'launch', accent: '#f5de80', emoji: '🟨', keywords: 'backrooms horror', launch: onOpenBackrooms });
+
+  const byId = (id: string) => defs.find(d => d.id === id);
+  const FEATURED = ['voidiq', ...(onOpenPremium ? ['premium'] : [])];
+
+  const q = query.trim().toLowerCase();
+  const matchesQ = (d: GameDef) => !q || d.title.toLowerCase().includes(q) || d.keywords.toLowerCase().includes(q) || d.sub.toLowerCase().includes(q);
+  const liveCount = (d: GameDef) => d.kind === 'match' ? (MATCH[d.id]?.list.length ?? 0) : 0;
+
+  const openGame = (d: GameDef) => {
+    recordRecent(d.id);
+    if (d.kind === 'launch') d.launch?.();
+    else setSheet(d.id);
+  };
+
+  const Tile = ({ d }: { d: GameDef }) => {
+    const live = liveCount(d);
+    return (
+      <button onClick={() => openGame(d)}
+        className="relative flex flex-col justify-between rounded-2xl p-3 text-left overflow-hidden transition-all active:scale-[0.97]"
+        style={{ minHeight: 104, background: 'rgba(12,10,24,0.72)', border: `1px solid ${d.accent}40`, boxShadow: `0 4px 18px ${d.accent}12` }}>
+        {d.badge && <span style={{ position: 'absolute', top: 8, right: 8, fontFamily: 'monospace', fontSize: 8, letterSpacing: 1, color: '#fff', background: 'rgba(124,58,237,0.9)', borderRadius: 6, padding: '2px 6px' }}>NEW</span>}
+        <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-2" style={{ background: `${d.accent}1f` }}>
+          {d.logo === 'iq' ? <IQLogo size={34} /> : d.logo === 'ganab' ? <img src="/ganab-star.png" alt="" className="w-7 h-7 object-contain" /> : <span className="text-2xl leading-none">{d.emoji}</span>}
         </div>
+        <div className="min-w-0">
+          <p className="font-display font-bold text-white text-[13px] leading-tight truncate">{d.title}</p>
+          <p className="font-mono text-[10px] text-white/35 leading-tight mt-0.5 truncate">{d.sub}</p>
+          {live > 0 && <p className="font-mono text-[9px] mt-1" style={{ color: '#7fe0a0' }}>🔴 {live} ღია</p>}
+        </div>
+      </button>
+    );
+  };
 
-        {/* Open joker tables */}
-        {jkList.length > 0 && (
-          <div className="px-4 pb-3 space-y-1">
-            <p className="font-mono text-[12px] uppercase tracking-widest text-white/25">{t.games.joker.openTables}</p>
-            {jkList.map(m => <JokerRow key={m.id} match={m} onJoin={code => jkJoin(code, playerName)} />)}
-          </div>
-        )}
+  const Grid = ({ items }: { items: GameDef[] }) => (
+    <div className="grid grid-cols-2 gap-2.5">{items.map(d => <Tile key={d.id} d={d} />)}</div>
+  );
+
+  return (
+    <div className="space-y-4">
+
+      {/* Flagship banners — only in the default view */}
+      {cat === 'all' && !q && (
+        <>
+          <button onClick={() => openGame(byId('voidiq')!)} className="w-full text-left rounded-2xl overflow-hidden transition-all active:scale-[0.99]"
+            style={{ border: '1px solid rgba(79,184,255,0.45)', boxShadow: '0 6px 34px rgba(0,150,255,0.18)' }}>
+            <div style={{ height: 92, background: 'linear-gradient(135deg, #0a2a4a 0%, #1a1a4a 55%, #2a1a5a 100%)', display: 'flex', alignItems: 'center', gap: 14, padding: '0 18px', position: 'relative' }}>
+              <IQLogo size={58} className="flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="font-display font-black text-white text-base leading-tight tracking-[0.12em]" style={{ background: 'linear-gradient(90deg,#eaffff,#4fb8ff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>VOID IQ</p>
+                <p className="font-mono text-[12px] text-white/55 mt-0.5">გაზომე შენი გონება · ლიდერბორდი</p>
+              </div>
+              <span style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 1, color: '#fff', background: 'rgba(0,150,255,0.9)', borderRadius: 8, padding: '3px 8px' }}>NEW</span>
+            </div>
+          </button>
+
+          {onOpenPremium && (
+            <button onClick={() => openGame(byId('premium')!)} className="w-full text-left rounded-2xl overflow-hidden transition-all active:scale-[0.99]"
+              style={{ border: '1px solid rgba(192,132,252,0.4)', boxShadow: '0 6px 30px rgba(124,58,237,0.18)' }}>
+              <div style={{ height: 84, background: 'linear-gradient(135deg, #1a2b4a 0%, #4a2c1a 55%, #6b3a1a 100%)', display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px', position: 'relative' }}>
+                <span style={{ fontSize: 38, filter: 'drop-shadow(0 4px 14px rgba(255,140,60,0.6))' }}>🔥</span>
+                <div className="flex-1 min-w-0">
+                  <p className="font-display font-bold text-white text-sm leading-tight">Premium Worlds ✨</p>
+                  <p className="font-mono text-[12px] text-white/60">Beach Camp 3D · {t.commB.premiumSub}</p>
+                </div>
+                <span style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 1, color: '#fff', background: 'rgba(124,58,237,0.9)', borderRadius: 8, padding: '3px 8px' }}>NEW</span>
+              </div>
+            </button>
+          )}
+        </>
+      )}
+
+      {/* Search + refresh */}
+      <div className="flex gap-2 items-center">
+        <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}>
+          <span className="text-white/30 text-sm">🔍</span>
+          <input value={query} onChange={e => setQuery(e.target.value)} placeholder="მოძებნე თამაში…"
+            className="flex-1 bg-transparent font-mono text-sm text-white placeholder-white/25 outline-none" />
+          {query && <button onClick={() => setQuery('')} className="text-white/40 text-sm">✕</button>}
+        </div>
+        <button onClick={handleRefresh} title="Refresh"
+          className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-xl font-mono text-sm transition-all active:scale-95"
+          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)' }}>↻</button>
       </div>
 
-
-      {/* ── UNO card ─────────────────────────────────────────────────── */}
-      <div className="rounded-2xl overflow-hidden"
-        style={{ background: 'rgba(10,6,28,0.7)', border: '1px solid rgba(255,100,0,0.2)' }}>
-        <div className="px-4 py-3 flex items-center gap-3 border-b"
-          style={{ borderColor: 'rgba(255,100,0,0.15)', background: 'rgba(255,100,0,0.04)' }}>
-          <span className="text-2xl">🃠</span>
-          <div className="flex-1 min-w-0">
-            <p className="font-display font-bold text-white text-sm leading-tight">{t.games.uno.title}</p>
-            <p className="font-mono text-[12px] text-white/35">{t.games.uno.subtitle}</p>
-          </div>
-          <button onClick={handleRefresh}
-            className="w-7 h-7 flex items-center justify-center rounded-lg font-mono text-sm transition-all active:scale-95"
-            style={{ background: 'rgba(255,100,0,0.08)', border: '1px solid rgba(255,100,0,0.2)', color: 'rgba(251,146,60,0.6)' }}
-            title="Refresh">
-            ↻
-          </button>
-        </div>
-
-        {/* Max players selector */}
-        <div className="px-4 pt-3 flex items-center gap-2">
-          <span className="font-mono text-[12px] text-white/30 uppercase tracking-wider">{t.games.uno.maxPlayers}:</span>
-          {([2, 3, 4, 6, 8, 10] as const).map(n => (
-            <button key={n} onClick={() => setUnoMaxPlayers(n)}
-              className="px-2 py-0.5 rounded-full font-mono text-[12px] transition-all"
-              style={{
-                background: unoMaxPlayers === n ? 'rgba(255,100,0,0.2)' : 'rgba(255,255,255,0.03)',
-                border: `1px solid ${unoMaxPlayers === n ? 'rgba(255,100,0,0.5)' : 'rgba(255,255,255,0.08)'}`,
-                color: unoMaxPlayers === n ? '#fb923c' : 'rgba(255,255,255,0.35)',
-              }}>
-              {n}
-            </button>
+      {/* Filter chips */}
+      {!q && (
+        <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1" style={{ scrollbarWidth: 'none' }}>
+          <Chip active={cat === 'all'} onClick={() => setCat('all')}>ყველა</Chip>
+          {CAT_ORDER.map(c => (
+            <Chip key={c} active={cat === c} onClick={() => setCat(c)}>{CAT_META[c].emoji} {CAT_META[c].chip}</Chip>
           ))}
         </div>
+      )}
 
-        <div className="px-4 py-3 flex flex-wrap gap-2">
-          {!unoShowJoin ? (
-            <>
-              <ActionButton onClick={handleUnoCreate} accent="orange" loading={unoLoading}>
-                {t.games.uno.createMatch}
-              </ActionButton>
-              <ActionButton onClick={() => setUnoShowJoin(true)} accent="cyan">
-                {t.games.uno.joinMatch}
-              </ActionButton>
-            </>
-          ) : (
-            <div className="flex gap-2 w-full">
-              <input
-                value={unoJoinCode}
-                onChange={e => setUnoJoinCode(e.target.value.toUpperCase())}
-                onKeyDown={e => { if (e.key === 'Enter') handleUnoJoin(); }}
-                placeholder="UN-0000"
-                maxLength={7}
-                autoFocus
-                className="flex-1 bg-transparent font-mono text-sm text-white placeholder-white/20 outline-none px-3 py-2 rounded-xl border border-white/15 focus:border-white/35 transition-colors tracking-widest"
-              />
-              <button onClick={handleUnoJoin} disabled={!unoJoinCode.trim() || unoLoading}
-                className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-40"
-                style={{ background: 'rgba(255,100,0,0.15)', border: '1px solid rgba(255,100,0,0.4)', color: '#fb923c' }}>
-                {unoLoading ? '…' : t.games.uno.joinMatch}
+      {/* Recently played */}
+      {cat === 'all' && !q && recent.length > 0 && (
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-white/30 mb-2">🕹 ბოლოს ნათამაშები</p>
+          <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1" style={{ scrollbarWidth: 'none' }}>
+            {recent.map(id => byId(id)).filter(Boolean).map(d => (
+              <button key={d!.id} onClick={() => openGame(d!)}
+                className="flex-shrink-0 flex flex-col items-center gap-1.5 w-[68px]" >
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: `${d!.accent}1f`, border: `1px solid ${d!.accent}40` }}>
+                  {d!.logo === 'iq' ? <IQLogo size={38} /> : d!.logo === 'ganab' ? <img src="/ganab-star.png" alt="" className="w-7 h-7 object-contain" /> : <span className="text-2xl">{d!.emoji}</span>}
+                </div>
+                <span className="font-mono text-[9px] text-white/50 text-center leading-tight truncate w-full">{d!.title}</span>
               </button>
-              <button onClick={() => { setUnoShowJoin(false); setUnoJoinCode(''); }}
-                className="px-3 py-2 rounded-xl font-mono text-xs text-white/40 border border-white/10 hover:text-white/70 transition-colors">✕</button>
-            </div>
-          )}
-        </div>
-
-        {unoList.length > 0 && (
-          <div className="px-4 pb-3 space-y-1">
-            <p className="font-mono text-[12px] uppercase tracking-widest text-white/25">{t.games.uno.openMatches}</p>
-            {unoList.map(m => (
-              <UnoRow key={m.id} match={m}
-                onJoin={code => unoJoin(code, playerName)}
-                onSpectate={code => unoSpectate(code)} />
             ))}
           </div>
-        )}
-      </div>
-
-      {/* ── Ludo card ─────────────────────────────────────────────────── */}
-      <div className="rounded-2xl overflow-hidden"
-        style={{ background: 'rgba(10,6,28,0.7)', border: '1px solid rgba(34,197,94,0.2)' }}>
-        <div className="px-4 py-3 flex items-center gap-3 border-b"
-          style={{ borderColor: 'rgba(34,197,94,0.15)', background: 'rgba(34,197,94,0.04)' }}>
-          <span className="text-2xl">🎲</span>
-          <div className="flex-1 min-w-0">
-            <p className="font-display font-bold text-white text-sm leading-tight">{t.games.ludo.title}</p>
-            <p className="font-mono text-[12px] text-white/35">{t.games.ludo.subtitle}</p>
-          </div>
-          <button onClick={handleRefresh}
-            className="w-7 h-7 flex items-center justify-center rounded-lg font-mono text-sm transition-all active:scale-95"
-            style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', color: 'rgba(34,197,94,0.6)' }}
-            title={t.games.ludo.refresh}>
-            ↻
-          </button>
-        </div>
-        <div className="px-4 py-3 flex flex-wrap gap-2">
-          {!ldShowJoin ? (
-            <>
-              <div className="w-full flex items-center gap-2 mb-1">
-                <span className="font-mono text-[12px] text-white/30 uppercase tracking-wider">Max Players:</span>
-                {([2, 3, 4] as const).map(n => (
-                  <button key={n} onClick={() => setLdMaxPlayers(n)}
-                    className="px-2 py-0.5 rounded-full font-mono text-[12px] transition-all"
-                    style={{
-                      background: ldMaxPlayers === n ? 'rgba(34,197,94,0.2)' : 'rgba(255,255,255,0.03)',
-                      border: `1px solid ${ldMaxPlayers === n ? 'rgba(34,197,94,0.5)' : 'rgba(255,255,255,0.08)'}`,
-                      color: ldMaxPlayers === n ? '#22c55e' : 'rgba(255,255,255,0.35)',
-                    }}>
-                    {n}
-                  </button>
-                ))}
-              </div>
-              <ActionButton onClick={handleLdCreate} accent="green" loading={ldLoading}>
-                {t.games.ludo.createMatch}
-              </ActionButton>
-              <ActionButton onClick={() => setLdShowJoin(true)} accent="cyan">
-                {t.games.ludo.joinMatch}
-              </ActionButton>
-            </>
-          ) : (
-            <div className="flex gap-2 w-full">
-              <input
-                value={ldJoinCode}
-                onChange={e => setLdJoinCode(e.target.value.toUpperCase())}
-                onKeyDown={e => { if (e.key === 'Enter') handleLdJoin(); }}
-                placeholder="LD-0000"
-                maxLength={7}
-                autoFocus
-                className="flex-1 bg-transparent font-mono text-sm text-white placeholder-white/20 outline-none px-3 py-2 rounded-xl border border-white/15 focus:border-white/35 transition-colors tracking-widest"
-              />
-              <button onClick={handleLdJoin} disabled={!ldJoinCode.trim() || ldLoading}
-                className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-40"
-                style={{ background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.3)', color: '#22c55e' }}>
-                {ldLoading ? '…' : t.games.ludo.joinMatch}
-              </button>
-              <button onClick={() => { setLdShowJoin(false); setLdJoinCode(''); }}
-                className="px-3 py-2 rounded-xl font-mono text-xs text-white/40 border border-white/10 hover:text-white/70 transition-colors">✕</button>
-            </div>
-          )}
-        </div>
-        {ldList.length > 0 && (
-          <div className="px-4 pb-3 space-y-1">
-            <p className="font-mono text-[12px] uppercase tracking-widest text-white/25">{t.games.ludo.openMatches}</p>
-            {ldList.map(m => <LudoRow key={m.id} match={m} onJoin={code => ldJoin(code, playerName)} />)}
-          </div>
-        )}
-      </div>
-
-      {/* ── Neo Bandicoot card (solo 2D platformer) ─────────────────────── */}
-      <div className="rounded-2xl overflow-hidden"
-        style={{ background: 'rgba(10,6,28,0.7)', border: '1px solid rgba(255,140,38,0.3)' }}>
-        <div className="px-4 py-3 flex items-center gap-3"
-          style={{ background: 'rgba(255,140,38,0.05)' }}>
-          <span className="text-2xl">🦊</span>
-          <div className="flex-1 min-w-0">
-            <p className="font-display font-bold text-white text-sm leading-tight">{t.games.bandicoot.title}</p>
-            <p className="font-mono text-[12px] text-white/35">{t.games.bandicoot.subtitle}</p>
-          </div>
-          <button
-            onClick={() => setBandicootOpen(true)}
-            className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95"
-            style={{ background: 'rgba(255,140,38,0.12)', border: '1px solid rgba(255,140,38,0.45)', color: '#ffb46a' }}>
-            {t.games.bandicoot.play}
-          </button>
-        </div>
-      </div>
-
-      {/* ── Backrooms card (3D horror mode) ─────────────────────────────── */}
-      {onOpenBackrooms && (
-        <div className="rounded-2xl overflow-hidden"
-          style={{ background: 'linear-gradient(135deg, rgba(20,16,4,0.85), rgba(8,6,2,0.85))', border: '1px solid rgba(255,214,90,0.25)' }}>
-          <div className="px-4 py-3 flex items-center gap-3"
-            style={{ background: 'rgba(255,214,90,0.04)' }}>
-            <span className="text-2xl">🟨</span>
-            <div className="flex-1 min-w-0">
-              <p className="font-display font-bold text-sm leading-tight" style={{ color: '#f5de80' }}>Backrooms</p>
-              <p className="font-mono text-[12px] text-white/35">{t.commB.backroomsSub}</p>
-            </div>
-            <button
-              onClick={onOpenBackrooms}
-              className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95"
-              style={{ background: 'rgba(255,214,90,0.1)', border: '1px solid rgba(255,214,90,0.4)', color: '#f5de80' }}>
-              {t.commB.enter}
-            </button>
-          </div>
         </div>
       )}
 
-      </motion.div>
+      {/* Grid */}
+      {q ? (
+        (() => { const items = defs.filter(matchesQ); return items.length ? <Grid items={items} /> : <p className="text-center font-mono text-[12px] text-white/30 py-10">ვერაფერი მოიძებნა „{query}"</p>; })()
+      ) : cat === 'all' ? (
+        CAT_ORDER.map(c => {
+          const items = defs.filter(d => d.cat === c && !FEATURED.includes(d.id));
+          if (!items.length) return null;
+          return (
+            <div key={c}>
+              <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-white/35 mb-2">{CAT_META[c].emoji} {CAT_META[c].section}</p>
+              <Grid items={items} />
+            </div>
+          );
+        })
+      ) : (
+        <Grid items={defs.filter(d => d.cat === cat)} />
       )}
+
+      {/* ── Bottom-sheet launcher for match games ─────────────────────── */}
+      <AnimatePresence>
+        {sheet && MATCH[sheet] && (
+          <motion.div className="fixed inset-0 z-[520] flex items-end justify-center" style={{ background: 'rgba(4,4,10,0.72)' }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSheet(null)}
+            onTouchStart={e => e.stopPropagation()} onTouchEnd={e => e.stopPropagation()}>
+            <motion.div className="w-full max-w-lg rounded-t-3xl p-5 pb-[calc(env(safe-area-inset-bottom,0px)+20px)]" onClick={e => e.stopPropagation()}
+              initial={{ y: 40 }} animate={{ y: 0 }} exit={{ y: 40 }}
+              style={{ background: 'rgba(12,10,24,0.99)', border: `1px solid ${MATCH[sheet].accent}55`, borderBottom: 'none' }}>
+              {(() => {
+                const d = byId(sheet)!; const cfg = MATCH[sheet];
+                return (
+                  <>
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ background: `${cfg.accent}1f` }}>
+                        <span className="text-2xl">{d.emoji}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-display font-bold text-white text-base leading-tight">{d.title}</p>
+                        <p className="font-mono text-[11px] text-white/40 truncate">{d.sub}</p>
+                      </div>
+                      <button onClick={() => setSheet(null)} className="w-8 h-8 rounded-full flex items-center justify-center text-white/50" style={{ border: '1px solid rgba(255,255,255,0.15)' }}>✕</button>
+                    </div>
+                    <MatchLauncher cfg={cfg} onDone={() => setSheet(null)} onRecord={() => recordRecent(sheet)} />
+                  </>
+                );
+              })()}
+            </motion.div>
+          </motion.div>
+        )}
       </AnimatePresence>
 
+      {/* Overlays */}
+      {voidIqOpen && <Suspense fallback={null}><VoidIQHub onClose={() => setVoidIqOpen(false)} /></Suspense>}
+      {dilemmasHubOpen && <Suspense fallback={null}><DilemmasHub onClose={() => setDilemmasHubOpen(false)} /></Suspense>}
+      {bandicootOpen && <Suspense fallback={null}><NeoBandicoot onClose={() => setBandicootOpen(false)} /></Suspense>}
+      {aristocracyOpen && <Suspense fallback={null}><AristocracyTest onClose={() => setAristocracyOpen(false)} /></Suspense>}
     </div>
   );
 }
 
-function ActionButton({ children, onClick, accent = 'purple', loading }: {
-  children: React.ReactNode;
-  onClick: () => void;
-  accent?: 'purple' | 'cyan' | 'gold' | 'green' | 'orange';
-  loading?: boolean;
-}) {
-  const colors = {
-    purple: { bg: 'rgba(155,0,255,0.12)', border: 'rgba(155,0,255,0.35)', color: '#c084fc' },
-    cyan:   { bg: 'rgba(0,245,255,0.08)', border: 'rgba(0,245,255,0.25)', color: '#00f5ff' },
-    gold:   { bg: 'rgba(255,165,0,0.12)', border: 'rgba(255,165,0,0.35)',  color: '#fbbf24' },
-    green:  { bg: 'rgba(34,197,94,0.12)', border: 'rgba(34,197,94,0.35)',  color: '#22c55e' },
-    orange: { bg: 'rgba(255,100,0,0.12)', border: 'rgba(255,100,0,0.35)',  color: '#fb923c' },
-  };
-  const c = colors[accent];
+// ── Shared bits ──────────────────────────────────────────────────────────────
+interface LauncherCfg {
+  accent: string;
+  onCreate: () => void;
+  loading: boolean;
+  joinCode: string;
+  setJoinCode: (v: string) => void;
+  onJoin: () => void;
+  codeMax: number;
+  codePh: string;
+  list: any[];
+  error: any;
+  clearError: () => void;
+  renderRow: (m: any) => JSX.Element;
+  extra?: JSX.Element;
+}
+
+function MatchLauncher({ cfg, onDone, onRecord }: { cfg: LauncherCfg; onDone: () => void; onRecord: () => void }) {
+  const create = () => { onRecord(); cfg.onCreate(); onDone(); };
+  const join = () => { if (!cfg.joinCode.trim()) return; onRecord(); cfg.onJoin(); onDone(); };
   return (
-    <button onClick={onClick} disabled={loading}
-      className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-40"
-      style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.color }}>
-      {loading ? '…' : children}
+    <div className="space-y-3">
+      {cfg.extra}
+      <button onClick={create} disabled={cfg.loading}
+        className="w-full py-3 rounded-2xl font-display font-bold text-white text-sm disabled:opacity-50"
+        style={{ background: `linear-gradient(135deg, ${cfg.accent}, #5e5ce6)` }}>
+        {cfg.loading ? '…' : '＋ შექმნა'}
+      </button>
+      <div className="flex gap-2">
+        <input value={cfg.joinCode} onChange={e => cfg.setJoinCode(e.target.value.toUpperCase())} onKeyDown={e => { if (e.key === 'Enter') join(); }}
+          placeholder={cfg.codePh} maxLength={cfg.codeMax}
+          className="flex-1 bg-transparent font-mono text-sm text-white placeholder-white/20 outline-none px-3 py-2.5 rounded-xl border border-white/15 focus:border-white/35 transition-colors tracking-widest" />
+        <button onClick={join} disabled={!cfg.joinCode.trim() || cfg.loading}
+          className="px-5 py-2.5 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-40"
+          style={{ background: `${cfg.accent}22`, border: `1px solid ${cfg.accent}66`, color: cfg.accent }}>
+          შეუერთდი
+        </button>
+      </div>
+      {cfg.error && <p className="font-mono text-[12px] text-neon-red" onClick={cfg.clearError}>{cfg.error}</p>}
+      {cfg.list.length > 0 && (
+        <div className="space-y-1 max-h-56 overflow-y-auto pt-1">
+          <p className="font-mono text-[11px] uppercase tracking-widest text-white/25">ღია თამაშები</p>
+          {cfg.list.map(cfg.renderRow)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Chip({ children, active, onClick }: { children: React.ReactNode; active: boolean; onClick: () => void }) {
+  return (
+    <button onClick={onClick}
+      className="px-3 py-1.5 rounded-full font-mono text-[11px] uppercase tracking-wider whitespace-nowrap transition-all flex-shrink-0"
+      style={{ background: active ? 'rgba(0,229,255,0.15)' : 'rgba(255,255,255,0.04)', border: active ? '1px solid rgba(0,229,255,0.5)' : '1px solid rgba(255,255,255,0.1)', color: active ? '#8ee9ff' : 'rgba(255,255,255,0.45)' }}>
+      {children}
     </button>
+  );
+}
+
+function NumPicker({ label, values, value, onChange, accent }: { label: string; values: number[]; value: number; onChange: (n: number) => void; accent: string }) {
+  return (
+    <div className="flex items-center gap-2 flex-wrap">
+      <span className="font-mono text-[12px] text-white/30 uppercase tracking-wider">{label}:</span>
+      {values.map(n => (
+        <button key={n} onClick={() => onChange(n)} className="px-2.5 py-0.5 rounded-full font-mono text-[12px] transition-all"
+          style={{ background: value === n ? `${accent}33` : 'rgba(255,255,255,0.03)', border: `1px solid ${value === n ? accent : 'rgba(255,255,255,0.08)'}`, color: value === n ? accent : 'rgba(255,255,255,0.35)' }}>
+          {n}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -1129,9 +575,7 @@ function LudoRow({ match, onJoin }: { match: LudoMatchListItem; onJoin: (code: s
         <div className="flex items-center gap-2 mt-0.5">
           <span className="font-mono text-[12px] text-white/25 tracking-widest">{match.code}</span>
           <span className="font-mono text-[12px] text-white/20">{match.playerCount}/{match.maxPlayers}</span>
-          {match.status === 'waiting' && (
-            <span className="font-mono text-[12px] text-white/20">{t.games.ludo.waiting}</span>
-          )}
+          {match.status === 'waiting' && <span className="font-mono text-[12px] text-white/20">{t.games.ludo.waiting}</span>}
         </div>
       </div>
       {canJoin && (
@@ -1256,23 +700,20 @@ function WWWRow({ match, onJoin }: { match: WWWListItem; onJoin: (code: string) 
     <div className="flex items-center gap-3 px-2 py-2 rounded-xl"
       style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
       <div className="flex-1 min-w-0">
-        <p className="font-mono text-xs text-white truncate">
-          {match.hostNickname}
-        </p>
+        <p className="font-mono text-xs text-white truncate">{match.hostNickname}</p>
         <div className="flex items-center gap-2 mt-0.5">
           <span className="font-mono text-[12px] text-white/25 tracking-widest">{match.code}</span>
           <span className="font-mono text-[12px] text-white/20">{match.playerCount} {t.commB.plAbbr}</span>
           <span className="font-mono text-[12px] text-white/20">{match.questionsCount} {t.commB.qAbbr}</span>
         </div>
       </div>
-      {isWaiting && (
+      {isWaiting ? (
         <button onClick={() => onJoin(match.code)}
           className="px-2.5 py-1 rounded-lg font-mono text-[12px] uppercase tracking-wider transition-all active:scale-95"
           style={{ background: 'rgba(168,85,247,0.1)', border: '1px solid rgba(168,85,247,0.25)', color: '#c084fc' }}>
           {t.games.www.join}
         </button>
-      )}
-      {!isWaiting && (
+      ) : (
         <button onClick={() => onJoin(match.code)}
           className="px-2.5 py-1 rounded-lg font-mono text-[12px] uppercase tracking-wider transition-all active:scale-95"
           style={{ background: 'rgba(168,85,247,0.06)', border: '1px solid rgba(168,85,247,0.15)', color: 'rgba(192,132,252,0.6)' }}>
@@ -1297,9 +738,7 @@ function UnoRow({ match, onJoin, onSpectate }: { match: UnoListItem; onJoin: (co
         <div className="flex items-center gap-2 mt-0.5">
           <span className="font-mono text-[12px] text-white/25 tracking-widest">{match.code}</span>
           <span className="font-mono text-[12px] text-white/20">{match.playerCount}/{match.maxPlayers}</span>
-          {match.status === 'waiting' && (
-            <span className="font-mono text-[12px] text-white/20">{t.games.uno.waitingForPlayers}</span>
-          )}
+          {match.status === 'waiting' && <span className="font-mono text-[12px] text-white/20">{t.games.uno.waitingForPlayers}</span>}
         </div>
       </div>
       {canJoin && (
@@ -1323,20 +762,16 @@ function UnoRow({ match, onJoin, onSpectate }: { match: UnoListItem; onJoin: (co
 function JokerRow({ match, onJoin }: { match: JokerMatchListItem; onJoin: (code: string) => void }) {
   const t = useT();
   const isWaiting = match.status === 'waiting';
-  const isActive  = ['declaration', 'playing', 'round_end'].includes(match.status);
+  const isActive = ['declaration', 'playing', 'round_end'].includes(match.status);
   return (
     <div className="flex items-center gap-3 px-2 py-2 rounded-xl"
       style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
       <div className="flex-1 min-w-0">
-        <p className="font-mono text-xs text-white truncate">
-          {match.playerNames.join(', ') || '—'}
-        </p>
+        <p className="font-mono text-xs text-white truncate">{match.playerNames.join(', ') || '—'}</p>
         <div className="flex items-center gap-2 mt-0.5">
           <span className="font-mono text-[12px] text-white/25 tracking-widest">{match.code}</span>
           <span className="font-mono text-[12px] text-white/20">{match.playerCount}/4</span>
-          <span className="font-mono text-[12px] text-white/20">
-            {match.mode === 'classic' ? t.games.joker.modeClassic : t.games.joker.modeNines}
-          </span>
+          <span className="font-mono text-[12px] text-white/20">{match.mode === 'classic' ? t.games.joker.modeClassic : t.games.joker.modeNines}</span>
         </div>
       </div>
       {isWaiting && match.playerCount < 4 && (
