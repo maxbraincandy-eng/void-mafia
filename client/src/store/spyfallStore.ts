@@ -17,6 +17,8 @@ interface SpyfallStore {
   startMatch: () => Promise<void>;
   beginVote: () => Promise<void>;
   vote: (targetId: string) => Promise<void>;
+  accuse: (targetId: string) => Promise<void>;
+  respondAccusation: (agree: boolean) => Promise<void>;
   guessLocation: (location: string) => Promise<void>;
   nextRound: () => Promise<void>;
   rematch: () => Promise<void>;
@@ -33,6 +35,8 @@ export const useSpyfallStore = create<SpyfallStore>((set, get) => ({
   startMatch: async () => { const { match } = get(); if (!match) return; try { const r = await emitWithAck<any, any>('spy:start', { matchId: match.id }); if (!r.ok) set({ error: r.error }); } catch (e: any) { set({ error: e.message }); } },
   beginVote: async () => { const { match } = get(); if (!match) return; try { await emitWithAck<any, any>('spy:begin_vote', { matchId: match.id }); } catch { /* ignore */ } },
   vote: async (targetId) => { const { match } = get(); if (!match) return; try { await emitWithAck<any, any>('spy:vote', { matchId: match.id, targetId }); } catch { /* ignore */ } },
+  accuse: async (targetId) => { const { match } = get(); if (!match) return; try { const r = await emitWithAck<any, any>('spy:accuse', { matchId: match.id, targetId }); if (!r.ok) set({ error: r.error }); } catch (e: any) { set({ error: e.message }); } },
+  respondAccusation: async (agree) => { const { match } = get(); if (!match) return; try { await emitWithAck<any, any>('spy:accuse_respond', { matchId: match.id, agree }); } catch { /* ignore */ } },
   guessLocation: async (location) => { const { match } = get(); if (!match) return; try { await emitWithAck<any, any>('spy:guess', { matchId: match.id, location }); } catch { /* ignore */ } },
   nextRound: async () => { const { match } = get(); if (!match) return; try { await emitWithAck<any, any>('spy:next', { matchId: match.id }); } catch { /* ignore */ } },
   rematch: async () => { const { match } = get(); if (!match) return; try { const r = await emitWithAck<any, any>('spy:rematch', { matchId: match.id }); if (!r.ok) set({ error: r.error }); } catch (e: any) { set({ error: e.message }); } },

@@ -1,6 +1,6 @@
 /**
- * ჯაშუში (Spyfall) socket handlers + discussion timer + per-match voice.
- * Follows the UNO/Alias socket-module pattern.
+ * ჯაშუში (Spyfall) socket handlers + discussion timer + accusation timer
+ * + per-match voice. Follows the UNO/Alias socket-module pattern.
  */
 import { Server, Socket } from 'socket.io';
 import { ServerToClientEvents, ClientToServerEvents, InterServerEvents, SocketData } from './types/index.js';

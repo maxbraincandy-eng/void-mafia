@@ -31,15 +31,17 @@ function fmtTime(totalSec: number): string {
 
 export function SpyfallGame() {
   const profile = useAuthStore(s => s.profile);
-  const { match, leaveMatch, startMatch, beginVote, vote, guessLocation, nextRound, rematch, error, clearError } = useSpyfallStore();
+  const { match, leaveMatch, startMatch, beginVote, vote, accuse, respondAccusation, guessLocation, nextRound, rematch, error, clearError } = useSpyfallStore();
 
   const [now, setNow] = useState(Date.now());
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [roleHidden, setRoleHidden] = useState(false);
   const [guessTarget, setGuessTarget] = useState<string | null>(null);   // spy: location pending confirmation
   const [voteTarget, setVoteTarget] = useState<SpyfallPublicPlayer | null>(null);
+  const [accuseTarget, setAccuseTarget] = useState<SpyfallPublicPlayer | null>(null); // pending accusation confirm
   const prevStatus = useRef<string>('');
   const prevRound = useRef<number>(0);
+  const prevAccusing = useRef<boolean>(false);
 
   const voice = useSpyfallVoice();
 
@@ -83,32 +85,47 @@ export function SpyfallGame() {
     prevRound.current = match.round;
   }, [match?.status, match?.round]);
 
+  // SFX when an accusation appears / clear stale confirm dialogs
+  useEffect(() => {
+    const accusing = !!match?.accusation;
+    if (accusing && !prevAccusing.current) { SFX.nomination(); haptic('heavy'); setAccuseTarget(null); setVoteTarget(null); setGuessTarget(null); }
+    prevAccusing.current = accusing;
+  }, [match?.accusation]);
+
   if (!match) return null;
   const myId = match.myUserId;
   const isHost = match.hostId === myId;
   const inRound = match.status === 'play' || match.status === 'voting';
-  const secondsLeft = match.status === 'play' ? Math.max(0, Math.ceil((match.endsAt - now) / 1000)) : 0;
+  // While an accusation is live the discussion clock is frozen.
+  const paused = match.status === 'play' && !!match.accusation && match.pausedMsLeft != null;
+  const secondsLeft = paused
+    ? Math.max(0, Math.ceil((match.pausedMsLeft ?? 0) / 1000))
+    : match.status === 'play' ? Math.max(0, Math.ceil((match.endsAt - now) / 1000)) : 0;
 
   const meshVoiceOn = !livekitEnabled && voice.joined;
 
-  const PlayerChips = ({ votable }: { votable: boolean }) => (
+  // 'none' → read-only, 'vote' → tap to vote (final ballot), 'accuse' → tap to accuse (mid-round)
+  type ChipMode = 'none' | 'vote' | 'accuse';
+  const PlayerChips = ({ mode }: { mode: ChipMode }) => (
     <div className="flex flex-wrap gap-2 justify-center">
       {match.players.map(p => {
         const speaking = meshVoiceOn && voice.speakingSocketIds.includes(p.socketId);
         const isMe = p.userId === myId;
         const myPick = match.myVote === p.userId;
+        const tappable = mode !== 'none' && !isMe && p.connected;
         return (
-          <button key={p.userId} disabled={!votable || isMe}
-            onClick={() => { if (votable && !isMe) setVoteTarget(p); }}
+          <button key={p.userId} disabled={!tappable}
+            onClick={() => { if (!tappable) return; if (mode === 'vote') setVoteTarget(p); else if (mode === 'accuse') setAccuseTarget(p); }}
             className="px-3 py-1.5 rounded-xl font-mono text-[13px] transition-all"
             style={{
               background: myPick ? 'rgba(255,45,85,0.2)' : 'rgba(255,255,255,0.04)',
               border: speaking ? '1px solid rgba(63,174,90,0.9)' : myPick ? '1px solid rgba(255,45,85,0.7)' : '1px solid rgba(255,255,255,0.1)',
               boxShadow: speaking ? '0 0 10px rgba(63,174,90,0.4)' : 'none',
               color: p.connected ? '#fff' : 'rgba(255,255,255,0.3)',
-              opacity: votable && isMe ? 0.4 : 1,
+              opacity: mode !== 'none' && isMe ? 0.4 : 1,
             }}>
             {p.nickname}{isMe ? ' ●' : ''}
+            {mode === 'accuse' && tappable && <span className="ml-1 text-white/40">⚖️</span>}
             {inRound && match.status === 'voting' && p.hasVoted && <span className="ml-1" style={{ color: '#7fe0a0' }}>✓</span>}
             {match.status !== 'waiting' && <span className="ml-1.5 text-white/35">{p.score}</span>}
           </button>
@@ -160,7 +177,7 @@ export function SpyfallGame() {
         <div className="flex items-center gap-2">
           {inRound && <span className="font-mono text-[12px] text-white/40">რაუნდი {match.round}/{match.settings.rounds}</span>}
           {match.status === 'play' && (
-            <span className="font-display font-bold text-[15px]" style={{ color: secondsLeft <= 30 ? '#ff5d6c' : '#fff' }}>⏱ {fmtTime(secondsLeft)}</span>
+            <span className="font-display font-bold text-[15px]" style={{ color: paused ? '#ffd34d' : secondsLeft <= 30 ? '#ff5d6c' : '#fff' }}>{paused ? '⏸' : '⏱'} {fmtTime(secondsLeft)}</span>
           )}
           <button onClick={() => inRound || match.status === 'reveal' ? setConfirmLeave(true) : leaveMatch()}
             className="w-8 h-8 rounded-full flex items-center justify-center text-white/60" style={{ border: '1px solid rgba(255,255,255,0.15)' }}>✕</button>
@@ -202,13 +219,17 @@ export function SpyfallGame() {
 
               <div className="rounded-xl p-3 mb-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
                 <p className="font-mono text-[11px] text-white/30 mb-2 text-center">მოთამაშეები · {match.players.length}/{match.maxPlayers}</p>
-                <PlayerChips votable={false} />
+                <PlayerChips mode="none" />
               </div>
 
               <div className="rounded-xl p-3 mb-4" style={{ background: 'rgba(255,211,77,0.05)', border: '1px solid rgba(255,211,77,0.2)' }}>
                 <p className="font-mono text-[12px] leading-relaxed" style={{ color: 'rgba(255,224,138,0.85)' }}>
                   🎭 ერთი მოთამაშე <b>ჯაშუშია</b> — დანარჩენებმა იციან ლოკაცია. დაუსვით ერთმანეთს კითხვები ხმით:
                   ჯაშუშმა უნდა გამოიცნოს ლოკაცია, თქვენ კი — ჯაშუში. ფრთხილად, ზუსტი კითხვა ლოკაციას გასცემს!
+                </p>
+                <p className="font-mono text-[12px] leading-relaxed mt-2" style={{ color: 'rgba(255,140,163,0.85)' }}>
+                  ⚖️ ეჭვი თუ მიგაქვს — <b>დაადანაშაულე</b> მოთამაშე (რაუნდში ერთხელ). თუ ყველა დანარჩენი დაგეთანხმა,
+                  ის მაშინვე გაიხსნება. თუ ერთმა მაინც უარი თქვა — თამაში გრძელდება. ბოლოს, დროის ამოწურვისას, ყველა ერთად აძლევს ხმას.
                 </p>
               </div>
 
@@ -264,11 +285,17 @@ export function SpyfallGame() {
                 <p className="font-mono text-[11px] uppercase tracking-widest text-white/25 mb-2 text-center">
                   {match.status === 'voting' ? '🗳 ვინ არის ჯაშუში? — აირჩიე' : 'მოთამაშეები'}
                 </p>
-                <PlayerChips votable={match.status === 'voting'} />
-                {match.status === 'voting' && (
+                <PlayerChips mode={match.status === 'voting' ? 'vote' : (!match.myAccusationUsed ? 'accuse' : 'none')} />
+                {match.status === 'voting' ? (
                   <p className="text-center font-mono text-[12px] text-white/35 mt-2">
                     ხმა მისცა {match.players.filter(p => p.hasVoted).length}/{match.players.filter(p => p.connected).length}-მა
                     {match.myVote && ' · შენი ხმა შეგიძლია შეცვალო'}
+                  </p>
+                ) : (
+                  <p className="text-center font-mono text-[12px] text-white/35 mt-2">
+                    {match.myAccusationUsed
+                      ? '⚖️ ბრალდება ამ რაუნდში უკვე გამოიყენე'
+                      : '⚖️ დააჭირე მოთამაშეს, რომ ჯაშუშობაში დაადანაშაულო'}
                   </p>
                 )}
               </div>
@@ -278,7 +305,7 @@ export function SpyfallGame() {
                 <button onClick={() => beginVote()}
                   className="w-full py-2.5 rounded-xl font-mono text-[13px] text-white/70"
                   style={{ border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.03)' }}>
-                  🗳 განხილვის დასრულება — კენჭისყრა
+                  🗳 განხილვის დასრულება — საერთო კენჭისყრა
                 </button>
               )}
 
@@ -370,6 +397,23 @@ export function SpyfallGame() {
         </div>
       )}
 
+      {/* Accuse confirm — start a mid-round accusation */}
+      {accuseTarget && match.status === 'play' && !match.accusation && !match.myAccusationUsed && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center p-6" style={{ background: 'rgba(5,4,10,0.8)' }}>
+          <div className="w-full max-w-xs rounded-2xl p-5 text-center" style={{ background: 'rgba(14,12,26,0.98)', border: '1px solid rgba(255,45,85,0.4)' }}>
+            <p className="text-3xl mb-2">⚖️</p>
+            <p className="font-display font-bold text-white text-base mb-1">ადანაშაულებ ჯაშუშობაში?</p>
+            <p className="font-mono text-[15px] mb-2" style={{ color: '#ff8ca3' }}>{accuseTarget.nickname}</p>
+            <p className="font-mono text-[11px] text-white/40 mb-5">ყველა დანარჩენი უნდა დაგეთანხმოს. რაუნდში მხოლოდ ერთი ბრალდება გაქვს.</p>
+            <div className="flex gap-2.5">
+              <button onClick={() => setAccuseTarget(null)} className="flex-1 py-2.5 rounded-xl font-mono text-[13px] text-white/60" style={{ border: '1px solid rgba(255,255,255,0.15)' }}>არა</button>
+              <button onClick={() => { const t = accuseTarget; setAccuseTarget(null); accuse(t.userId); haptic('heavy'); }}
+                className="flex-1 py-2.5 rounded-xl font-display font-bold text-[13px] text-white" style={{ background: 'rgba(255,45,85,0.25)', border: '1px solid rgba(255,45,85,0.5)' }}>დიახ, ვადანაშაულებ</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Spy guess confirm */}
       {guessTarget && match.amSpy && inRound && (
         <div className="absolute inset-0 z-10 flex items-center justify-center p-6" style={{ background: 'rgba(5,4,10,0.8)' }}>
@@ -401,6 +445,62 @@ export function SpyfallGame() {
           </div>
         </div>
       )}
+
+      {/* ══ LIVE ACCUSATION — full takeover ══ */}
+      {match.accusation && inRound && (() => {
+        const a = match.accusation;
+        const amAccuser = a.accuserId === myId;
+        const amTarget = a.targetId === myId;
+        const amJuror = !amAccuser && !amTarget;
+        const iAgreed = a.agreeIds.includes(myId);
+        const iRefused = a.disagreeIds.includes(myId);
+        const iResponded = iAgreed || iRefused;
+        const answered = a.agreeIds.length + a.disagreeIds.length;
+        const accSecondsLeft = Math.max(0, Math.ceil((a.deadline - now) / 1000));
+        return (
+          <div className="absolute inset-0 z-20 flex items-center justify-center p-6" style={{ background: 'rgba(6,3,8,0.92)' }}>
+            <div className="w-full max-w-sm rounded-2xl p-5 text-center" style={{ background: 'rgba(18,10,16,0.99)', border: '2px solid rgba(255,45,85,0.55)', boxShadow: '0 0 40px rgba(255,45,85,0.25)' }}>
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <p className="text-3xl">⚖️</p>
+                <span className="font-display font-bold text-lg tracking-wide" style={{ color: '#ff5d6c' }}>ბრალდება</span>
+              </div>
+              <p className="font-mono text-[14px] text-white/85 mb-1">
+                <b style={{ color: '#fff' }}>{a.accuserName}</b> ადანაშაულებს <b style={{ color: '#ff8ca3' }}>{a.targetName}</b>-ს ჯაშუშობაში!
+              </p>
+              <p className="font-mono text-[12px] mb-4" style={{ color: accSecondsLeft <= 8 ? '#ff5d6c' : 'rgba(255,255,255,0.4)' }}>⏱ {accSecondsLeft}წმ · უპასუხა {answered}/{a.jurorCount}</p>
+
+              {/* Tally bar */}
+              <div className="flex items-center justify-center gap-4 mb-5">
+                <span className="font-mono text-[13px]" style={{ color: '#7fe0a0' }}>👍 {a.agreeIds.length}</span>
+                <span className="font-mono text-[13px]" style={{ color: '#ff8ca3' }}>👎 {a.disagreeIds.length}</span>
+              </div>
+
+              {amJuror && !iResponded && (
+                <>
+                  <p className="font-mono text-[12px] text-white/50 mb-3">ეთანხმები, რომ {a.targetName} ჯაშუშია?</p>
+                  <div className="flex gap-2.5">
+                    <button onClick={() => { respondAccusation(false); haptic('tap'); }}
+                      className="flex-1 py-3.5 rounded-xl font-display font-bold text-[15px]" style={{ background: 'rgba(255,45,85,0.16)', border: '1px solid rgba(255,45,85,0.5)', color: '#ff8ca3' }}>👎 არა</button>
+                    <button onClick={() => { respondAccusation(true); SFX.voteConfirm(); haptic('success'); }}
+                      className="flex-1 py-3.5 rounded-xl font-display font-bold text-[15px]" style={{ background: 'rgba(63,174,90,0.2)', border: '1px solid rgba(63,174,90,0.6)', color: '#7fe0a0' }}>👍 დიახ</button>
+                  </div>
+                </>
+              )}
+              {amJuror && iResponded && (
+                <p className="font-mono text-[13px]" style={{ color: iAgreed ? '#7fe0a0' : '#ff8ca3' }}>
+                  შენ უპასუხე: {iAgreed ? '👍 დიახ' : '👎 არა'} — ელოდები დანარჩენებს…
+                </p>
+              )}
+              {amAccuser && (
+                <p className="font-mono text-[12px] text-white/50">შენ დააყენე ბრალდება — საჭიროა <b style={{ color: '#7fe0a0' }}>ყველას</b> თანხმობა. ერთი „არა"-ც კმარა ჩასაშლელად.</p>
+              )}
+              {amTarget && (
+                <p className="font-mono text-[13px]" style={{ color: '#ff8ca3' }}>🎯 შენ გადანაშაულებენ! დაიცავი თავი — ილაპარაკე ხმით.</p>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </div>,
     document.body,
   );

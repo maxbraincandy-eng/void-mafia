@@ -6,6 +6,17 @@ export interface SpyfallPublicPlayer {
   userId: string; socketId: string; nickname: string; seat: number; connected: boolean; score: number; hasVoted: boolean;
 }
 
+export interface SpyfallAccusationView {
+  accuserId: string;
+  accuserName: string;
+  targetId: string;
+  targetName: string;
+  agreeIds: string[];
+  disagreeIds: string[];
+  jurorCount: number;
+  deadline: number;
+}
+
 export interface SpyfallReveal {
   spyId: string;
   spyName: string;
@@ -23,12 +34,15 @@ export interface SpyfallPublicState {
   settings: { rounds: number; discussSeconds: number };
   round: number;
   endsAt: number;
+  pausedMsLeft: number | null;
   locations: { name: string; emoji: string }[];
   amSpy: boolean;
   myLocation: string | null;
   myLocationEmoji: string | null;
   myRole: string | null;
   myVote: string | null;
+  accusation: SpyfallAccusationView | null;
+  myAccusationUsed: boolean;
   reveal: SpyfallReveal | null;
   winnerIds: string[];
   dissolved: boolean;

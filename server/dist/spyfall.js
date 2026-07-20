@@ -1,5 +1,5 @@
 import { ok, err, } from './types/index.js';
-import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch, dissolveMatch, startMatch, beginVoting, castVote, spyGuess, nextRound, rematch, disconnectSocket, getSafeState, } from './services/spyfallService.js';
+import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch, dissolveMatch, startMatch, beginVoting, castVote, spyGuess, startAccusation, respondAccusation, forceResolveAccusation, nextRound, rematch, disconnectSocket, getSafeState, } from './services/spyfallService.js';
 import { voiceJoin as spyVoiceJoin, voiceLeave as spyVoiceLeave, voiceGetMatchId as spyVoiceGetMatchId, } from './services/spyfallVoiceService.js';
 import { buildIceConfig } from './lib/iceConfig.js';
 const ROOM = (id) => `spyfall:${id}`;
@@ -16,26 +16,70 @@ function broadcastState(io, matchId) {
 }
 function broadcastList(io) { io.emit('spy:list_update', listMatches()); }
 const discussTimers = new Map();
+const accuseTimers = new Map();
 function clearDiscussTimer(id) { const t = discussTimers.get(id); if (t) {
     clearTimeout(t);
     discussTimers.delete(id);
+} }
+function clearAccuseTimer(id) { const t = accuseTimers.get(id); if (t) {
+    clearTimeout(t);
+    accuseTimers.delete(id);
 } }
 /** When the discussion clock runs out, the round moves to voting. */
 function scheduleDiscussEnd(io, matchId) {
     clearDiscussTimer(matchId);
     const m = getMatch(matchId);
-    if (!m || m.status !== 'play')
+    if (!m || m.status !== 'play' || m.accusation)
         return;
     const token = m.endsAt;
     const t = setTimeout(() => {
         discussTimers.delete(matchId);
         const cur = getMatch(matchId);
-        if (!cur || cur.status !== 'play' || cur.endsAt !== token)
+        if (!cur || cur.status !== 'play' || cur.accusation || cur.endsAt !== token)
             return; // stale
         beginVoting(matchId, null);
         broadcastState(io, matchId);
     }, Math.max(0, token - Date.now()));
     discussTimers.set(matchId, t);
+}
+/** A live accusation lapses after its deadline — silent jurors count as refusals. */
+function scheduleAccuseTimeout(io, matchId) {
+    clearAccuseTimer(matchId);
+    const m = getMatch(matchId);
+    if (!m || !m.accusation)
+        return;
+    const token = m.accusation.deadline;
+    const t = setTimeout(() => {
+        accuseTimers.delete(matchId);
+        const cur = getMatch(matchId);
+        if (!cur || !cur.accusation || cur.accusation.deadline !== token)
+            return; // stale
+        forceResolveAccusation(matchId);
+        broadcastState(io, matchId);
+        syncTimers(io, matchId);
+    }, Math.max(0, token - Date.now()));
+    accuseTimers.set(matchId, t);
+}
+/** Keep the discussion / accusation timers in step with the current match state. */
+function syncTimers(io, matchId) {
+    const m = getMatch(matchId);
+    if (!m) {
+        clearDiscussTimer(matchId);
+        clearAccuseTimer(matchId);
+        return;
+    }
+    if (m.status === 'play' && m.accusation) {
+        clearDiscussTimer(matchId);
+        scheduleAccuseTimeout(io, matchId);
+    }
+    else if (m.status === 'play') {
+        clearAccuseTimer(matchId);
+        scheduleDiscussEnd(io, matchId);
+    }
+    else {
+        clearDiscussTimer(matchId);
+        clearAccuseTimer(matchId);
+    }
 }
 export function registerSpyfallHandlers(io, socket) {
     const uid = () => userId(socket);
@@ -84,12 +128,9 @@ export function registerSpyfallHandlers(io, socket) {
             const active = cur && cur.status !== 'waiting' && cur.status !== 'finished';
             const m = active ? dissolveMatch(matchId, uid()) : leaveMatch(matchId, uid());
             socket.leave(ROOM(matchId));
-            if (active)
-                clearDiscussTimer(matchId);
             if (m)
                 broadcastState(io, matchId);
-            else
-                clearDiscussTimer(matchId);
+            syncTimers(io, matchId);
             broadcastList(io);
             cb(ok(null));
         }
@@ -104,7 +145,7 @@ export function registerSpyfallHandlers(io, socket) {
             if (!m)
                 return cb(err('Cannot start — need at least 3 players'));
             broadcastState(io, matchId);
-            scheduleDiscussEnd(io, matchId);
+            syncTimers(io, matchId);
             broadcastList(io);
             cb(ok(null));
         }
@@ -118,7 +159,7 @@ export function registerSpyfallHandlers(io, socket) {
             const m = beginVoting(matchId, uid());
             if (!m)
                 return cb(err('Cannot start the vote'));
-            clearDiscussTimer(matchId);
+            syncTimers(io, matchId);
             broadcastState(io, matchId);
             cb(ok(null));
         }
@@ -139,14 +180,43 @@ export function registerSpyfallHandlers(io, socket) {
             cb(err(e.message));
         }
     });
+    // ── Mid-round accusation ────────────────────────────────────────────────
+    socket.on('spy:accuse', (data, cb) => {
+        try {
+            const matchId = String(data?.matchId);
+            const m = startAccusation(matchId, uid(), String(data?.targetId));
+            if (!m)
+                return cb(err('Cannot accuse right now'));
+            broadcastState(io, matchId);
+            syncTimers(io, matchId);
+            cb(ok(null));
+        }
+        catch (e) {
+            cb(err(e.message));
+        }
+    });
+    socket.on('spy:accuse_respond', (data, cb) => {
+        try {
+            const matchId = String(data?.matchId);
+            const m = respondAccusation(matchId, uid(), !!data?.agree);
+            if (!m)
+                return cb(err('Cannot respond'));
+            broadcastState(io, matchId);
+            syncTimers(io, matchId);
+            cb(ok(null));
+        }
+        catch (e) {
+            cb(err(e.message));
+        }
+    });
     socket.on('spy:guess', (data, cb) => {
         try {
             const matchId = String(data?.matchId);
             const m = spyGuess(matchId, uid(), String(data?.location ?? ''));
             if (!m)
                 return cb(err('Cannot guess'));
-            clearDiscussTimer(matchId);
             broadcastState(io, matchId);
+            syncTimers(io, matchId);
             cb(ok(null));
         }
         catch (e) {
@@ -160,9 +230,8 @@ export function registerSpyfallHandlers(io, socket) {
             if (!m)
                 return cb(err('Cannot advance'));
             broadcastState(io, matchId);
-            if (m.status === 'play')
-                scheduleDiscussEnd(io, matchId);
-            else
+            syncTimers(io, matchId);
+            if (m.status === 'finished')
                 broadcastList(io);
             cb(ok(null));
         }
@@ -253,6 +322,7 @@ export function handleSpyfallDisconnect(io, socketId) {
     const m = getMatch(matchId);
     if (m)
         broadcastState(io, matchId);
+    syncTimers(io, matchId);
     broadcastList(io);
 }
 //# sourceMappingURL=spyfall.js.map
