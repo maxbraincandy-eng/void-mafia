@@ -45,7 +45,7 @@ const PORT = Number(process.env.PORT ?? 3000);
 const CLIENT_URL = process.env.CLIENT_URL ?? 'http://localhost:5173';
 const IS_PROD = process.env.NODE_ENV === 'production';
 
-const CLIENT_BUILD = '2026-07-11-v457';
+const CLIENT_BUILD = '2026-07-11-v458';
 console.log('[Startup] Void Mafia server starting');
 console.log(`[Startup] Client build: ${CLIENT_BUILD}`);
 console.log(`[Startup] NODE_ENV=${process.env.NODE_ENV ?? 'development'}`);
@@ -384,6 +384,11 @@ async function tryInitDb(attempt = 1): Promise<void> {
     dbReady = true;
     setDbReady(true);
     console.log('[Startup] Database ready.');
+    // Rescue legitimate IQ attempts wrongly flagged unverified by older builds.
+    import('./services/iqService.js')
+      .then(m => m.reconcileVerification())
+      .then(n => { if (n > 0) console.log(`[VOID IQ] reconciled ${n} attempt(s) → verified`); })
+      .catch(e => console.warn('[VOID IQ] reconcile failed:', e.message));
     initPushService().catch(e => console.warn('[Push] init failed:', e.message));
     setInterval(() => { computeTrending().catch(e => console.error('[Trending] compute failed:', e)); }, 10 * 60 * 1000);
 

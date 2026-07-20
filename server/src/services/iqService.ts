@@ -17,6 +17,42 @@ import type { IQScoreResult } from './iqScoring.js';
 
 export const IQ_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 
+/**
+ * One-time reconciliation: earlier builds over-flagged legitimate attempts as
+ * unverified (too-strict anti-cheat). Re-evaluate stored unverified attempts
+ * against the current lenient time-based rules and rescue the genuine ones so
+ * they appear on the leaderboard without a retake. Idempotent — safe every boot.
+ * Tab-switch flags can't be recomputed (count isn't stored), so those stay.
+ */
+export async function reconcileVerification(): Promise<number> {
+  const rows = await sql`SELECT id, user_id, iq, total, duration_ms, flags FROM iq_attempts WHERE verified = false` as any[];
+  let rescued = 0;
+  const affected = new Set<string>();
+  for (const r of rows) {
+    const iq = Number(r.iq), total = Number(r.total), dur = Number(r.duration_ms);
+    let old: string[] = [];
+    try { old = JSON.parse(r.flags ?? '[]'); } catch { /* ignore */ }
+    const newFlags: string[] = [];
+    if (dur < 60_000) newFlags.push('too_fast_total');
+    if (total > 0 && dur / total < 1200) newFlags.push('too_fast_per_question');
+    if (iq >= 140 && dur < 90_000) newFlags.push('high_score_low_time');
+    if (old.includes('excessive_tab_switching')) newFlags.push('excessive_tab_switching');
+    if (newFlags.length === 0) {
+      await sql`UPDATE iq_attempts SET verified = true, flags = '[]' WHERE id = ${r.id}`;
+      rescued++;
+      affected.add(r.user_id);
+    }
+  }
+  // Recompute is_highest for every user whose verification changed.
+  for (const uid of affected) {
+    const vr = await sql`SELECT id FROM iq_attempts WHERE user_id = ${uid} AND verified = true ORDER BY iq DESC, created_at ASC LIMIT 1` as any[];
+    if (!vr.length) continue;
+    await sql`UPDATE iq_attempts SET is_highest = false WHERE user_id = ${uid}`;
+    await sql`UPDATE iq_attempts SET is_highest = true WHERE id = ${vr[0].id}`;
+  }
+  return rescued;
+}
+
 export async function isModerator(userId: string): Promise<boolean> {
   const [r] = await sql`SELECT is_moderator, moderator_level FROM players WHERE id = ${userId}` as any[];
   if (!r) return false;

@@ -1,5 +1,13 @@
 import type { IQScoreResult } from './iqScoring.js';
 export declare const IQ_COOLDOWN_MS: number;
+/**
+ * One-time reconciliation: earlier builds over-flagged legitimate attempts as
+ * unverified (too-strict anti-cheat). Re-evaluate stored unverified attempts
+ * against the current lenient time-based rules and rescue the genuine ones so
+ * they appear on the leaderboard without a retake. Idempotent — safe every boot.
+ * Tab-switch flags can't be recomputed (count isn't stored), so those stay.
+ */
+export declare function reconcileVerification(): Promise<number>;
 export declare function isModerator(userId: string): Promise<boolean>;
 export type IQScope = 'all' | 'global' | 'weekly' | 'monthly' | 'friends' | 'clan';
 export interface IQLeaderRow {
