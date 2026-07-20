@@ -26,7 +26,7 @@ export function PhilosophyHub({ onClose }: { onClose: () => void }) {
           <span className="text-3xl">🌀</span>
           <div className="min-w-0">
             <h1 className="font-display font-bold tracking-wide text-xl" style={{ color: '#c3b8ff' }}>ფილოსოფიური ცდები</h1>
-            <p className="font-mono text-[12px] text-white/40 leading-tight">ტვინის-მომჭიმავი ცდები · აღმოაჩინე შენი პოზიცია</p>
+            <p className="font-mono text-[12px] text-white/40 leading-tight">აზროვნების ექსპერიმენტები · აღმოაჩინე შენი პოზიცია</p>
           </div>
         </div>
         <button onClick={onClose} className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 text-xl" style={{ color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.2)' }}>✕</button>

@@ -272,7 +272,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
     { id: 'voidiq', title: 'VOID IQ', sub: 'გაზომე შენი გონება · ლიდერბორდი', cat: 'mind', kind: 'launch', accent: '#4fb8ff', logo: 'iq', badge: true, keywords: 'iq ინტელექტი ტესტი leaderboard', launch: () => setVoidIqOpen(true) },
     { id: 'www', title: t.games.www.title, sub: t.games.www.subtitle, cat: 'mind', kind: 'match', accent: '#c084fc', emoji: '🧠', keywords: 'www ვიქტორინა quiz რა სად როდის' },
     { id: 'dilemmas', title: 'დილემები', sub: `მორალური არჩევანი`, cat: 'mind', kind: 'launch', accent: '#7c9cff', emoji: '⚖️', badge: true, keywords: 'dilemma მორალი ეთიკა', launch: () => setDilemmasHubOpen(true) },
-    { id: 'philosophy', title: 'ფილოსოფიური ცდები', sub: `ტვინის-მომჭიმავი ცდები`, cat: 'mind', kind: 'launch', accent: '#a88cff', emoji: '🌀', badge: true, keywords: 'philosophy ფილოსოფია ცდა thought experiment ცნობიერება', launch: () => setPhiloHubOpen(true) },
+    { id: 'philosophy', title: 'ფილოსოფიური ცდები', sub: `აზროვნების ექსპერიმენტები`, cat: 'mind', kind: 'launch', accent: '#a88cff', emoji: '🌀', badge: true, keywords: 'philosophy ფილოსოფია ცდა thought experiment ცნობიერება', launch: () => setPhiloHubOpen(true) },
     { id: 'aristocracy', title: t.games.aristocracy.title, sub: t.games.aristocracy.subtitle, cat: 'mind', kind: 'launch', accent: '#e8cf7a', emoji: '👑', keywords: 'aristocracy ტესტი quiz', launch: () => setAristocracyOpen(true) },
 
     { id: 'spyfall', title: 'ჯაშუში', sub: 'იპოვე ჯაშუში ხმით · 3-10 მოთ.', cat: 'deduction', kind: 'match', accent: '#ff5d6c', emoji: '🕵️', badge: true, keywords: 'spyfall ჯაშუში დედუქცია' },
