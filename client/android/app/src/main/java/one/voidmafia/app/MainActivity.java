@@ -4,6 +4,8 @@ import android.Manifest;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.view.WindowManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
@@ -52,6 +54,12 @@ public class MainActivity extends BridgeActivity {
         // Hardware acceleration is set in manifest; also enable in WebView
         webView.setLayerType(WebView.LAYER_TYPE_HARDWARE, null);
 
+        // Expose a screenshot/recording guard the web app can toggle. Used by the
+        // VOID IQ test to blank the screen (FLAG_SECURE) so questions can't be
+        // captured for an AI. Only present in the native build — the web falls
+        // back to a no-op when this interface is absent.
+        webView.addJavascriptInterface(new ScreenSecurity(), "AndroidScreenSecurity");
+
         // Override WebChromeClient to auto-grant camera/mic requests from the page.
         // Android requires the runtime permissions to already be granted (handled below)
         // before the WebView can use them.
@@ -89,5 +97,27 @@ public class MainActivity extends BridgeActivity {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         // Permissions have been responded to — the WebView will retry getUserMedia
         // on the next call from the page.  No additional action needed here.
+    }
+
+    /**
+     * JS bridge: window.AndroidScreenSecurity.setSecure(true/false).
+     * FLAG_SECURE blanks screenshots + screen recording and hides the app in the
+     * recent-apps preview. Toggled on only while a proctored screen (VOID IQ test)
+     * is on-screen, so the rest of the app can still be screenshotted normally.
+     */
+    public class ScreenSecurity {
+        @JavascriptInterface
+        public void setSecure(final boolean enabled) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    if (enabled) {
+                        getWindow().setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE);
+                    } else {
+                        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
+                    }
+                }
+            });
+        }
     }
 }

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { haptic } from '@/lib/haptics';
+import { setScreenSecure } from '@/lib/screenSecurity';
 import { IQGlyph, IQStimulus } from './IQGlyph';
 import { IQ_DOMAIN_KA, type IQSafeQuestion } from '@/types/iq';
 
@@ -85,6 +86,13 @@ export function IQTest({ test, durationSec = 1800, onComplete, onAbort }: {
     window.addEventListener('pagehide', onHide);
     return () => { document.removeEventListener('visibilitychange', onHide); window.removeEventListener('pagehide', onHide); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Native screenshot / screen-recording guard (FLAG_SECURE) while the test
+  // is on-screen — screenshots come out black on the Android app. No-op on web. ──
+  useEffect(() => {
+    setScreenSecure(true);
+    return () => setScreenSecure(false);
   }, []);
 
   // ── Anti-copy: block selection, copy/cut, right-click/long-press, and the
