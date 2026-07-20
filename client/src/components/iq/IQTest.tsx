@@ -29,12 +29,14 @@ export function IQTest({ test, durationSec = 1800, onComplete, onAbort }: {
   const [remaining, setRemaining] = useState(durationSec);
   const [confirmFinish, setConfirmFinish] = useState(false);
   const [confirmAbort, setConfirmAbort] = useState(false);
+  const [leftApp, setLeftApp] = useState(false); // test terminated because the app was backgrounded
 
   const startedAt = useRef(Date.now());
   const tabBlurs = useRef(0);
   const timeByQid = useRef<Record<string, number>>({});
   const shownSince = useRef(Date.now());
   const submitted = useRef(false);
+  const answersRef = useRef<Record<string, string>>({}); // mirror of `answers` for timer/background submit
 
   const q = test[idx]!;
   const total = test.length;
@@ -53,7 +55,7 @@ export function IQTest({ test, durationSec = 1800, onComplete, onAbort }: {
     flushTime();
     const out: IQAnswerOut[] = test.map(tq => ({
       questionId: tq.id,
-      optionId: answers[tq.id] ?? null,
+      optionId: answersRef.current[tq.id] ?? null,
       timeMs: Math.round(timeByQid.current[tq.id] ?? 0),
     }));
     onComplete(out, { totalMs: Date.now() - startedAt.current, tabBlurs: tabBlurs.current, startedAt: startedAt.current });
@@ -71,13 +73,43 @@ export function IQTest({ test, durationSec = 1800, onComplete, onAbort }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Anti-cheat: count tab/window focus losses.
+  // ── Proctoring: leaving/minimizing the app ENDS the test (announced up front) ──
   useEffect(() => {
-    const onHide = () => { if (document.hidden) tabBlurs.current += 1; };
-    const onBlur = () => { tabBlurs.current += 1; };
+    const onHide = () => {
+      if (!document.hidden || submitted.current) return;
+      tabBlurs.current += 1;
+      setLeftApp(true);
+      buildAndComplete(); // score whatever was answered; leaving is a hard stop
+    };
     document.addEventListener('visibilitychange', onHide);
-    window.addEventListener('blur', onBlur);
-    return () => { document.removeEventListener('visibilitychange', onHide); window.removeEventListener('blur', onBlur); };
+    window.addEventListener('pagehide', onHide);
+    return () => { document.removeEventListener('visibilitychange', onHide); window.removeEventListener('pagehide', onHide); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Anti-copy: block selection, copy/cut, right-click/long-press, and the
+  // usual copy/save/print shortcuts so question text can't be lifted into an AI. ──
+  useEffect(() => {
+    const block = (e: Event) => { e.preventDefault(); };
+    const onKey = (e: KeyboardEvent) => {
+      const k = e.key.toLowerCase();
+      if ((e.ctrlKey || e.metaKey) && ['c', 'x', 's', 'p', 'a'].includes(k)) e.preventDefault();
+      if (k === 'printscreen') { try { navigator.clipboard?.writeText(''); } catch { /* ignore */ } }
+    };
+    document.addEventListener('copy', block);
+    document.addEventListener('cut', block);
+    document.addEventListener('contextmenu', block);
+    document.addEventListener('selectstart', block);
+    document.addEventListener('dragstart', block);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('copy', block);
+      document.removeEventListener('cut', block);
+      document.removeEventListener('contextmenu', block);
+      document.removeEventListener('selectstart', block);
+      document.removeEventListener('dragstart', block);
+      document.removeEventListener('keydown', onKey);
+    };
   }, []);
 
   const go = (next: number) => {
@@ -87,7 +119,7 @@ export function IQTest({ test, durationSec = 1800, onComplete, onAbort }: {
   };
 
   const choose = (optionId: string) => {
-    setAnswers(a => ({ ...a, [q.id]: optionId }));
+    setAnswers(a => { const next = { ...a, [q.id]: optionId }; answersRef.current = next; return next; });
     haptic('selection');
   };
 
@@ -101,7 +133,9 @@ export function IQTest({ test, durationSec = 1800, onComplete, onAbort }: {
   }, [q]);
 
   return (
-    <div className="fixed inset-0 z-[560] flex flex-col select-none" style={{ background: 'radial-gradient(ellipse at 50% 0%, #0d1424 0%, #06070f 60%)' }}
+    <div className="fixed inset-0 z-[560] flex flex-col select-none"
+      style={{ background: 'radial-gradient(ellipse at 50% 0%, #0d1424 0%, #06070f 60%)', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' } as any}
+      onContextMenu={e => e.preventDefault()} onCopy={e => e.preventDefault()} onCut={e => e.preventDefault()} onDragStart={e => e.preventDefault()}
       onTouchStart={e => e.stopPropagation()} onTouchEnd={e => e.stopPropagation()}>
 
       {/* Top bar */}
@@ -234,6 +268,17 @@ export function IQTest({ test, durationSec = 1800, onComplete, onAbort }: {
               <button onClick={() => { submitted.current = true; onAbort(); }} className="flex-1 py-2.5 rounded-xl font-display font-bold text-[13px] text-white" style={{ background: 'rgba(255,45,85,0.25)', border: '1px solid rgba(255,45,85,0.5)' }}>გასვლა</button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Terminated because the app was left/minimized — also blanks content from any late screenshot */}
+      {leftApp && (
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center p-8 text-center" style={{ background: '#06070f' }}>
+          <p className="text-5xl mb-4">🚫</p>
+          <p className="font-display font-bold text-white text-lg mb-2">ტესტი დასრულდა</p>
+          <p className="font-mono text-[13px] text-white/55 leading-relaxed max-w-[280px]">
+            აპლიკაცია დატოვე ტესტის მიმდინარეობისას. წესების თანახმად, შედეგი დაფიქსირდა მიმდინარე პასუხებით.
+          </p>
         </div>
       )}
     </div>

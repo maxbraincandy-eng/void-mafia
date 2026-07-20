@@ -203,13 +203,22 @@ export function VoidIQHub({ onClose }: { onClose: () => void }) {
                 ))}
               </div>
 
-              <div className="rounded-2xl p-4 mb-5 space-y-2" style={{ background: 'rgba(255,171,64,0.05)', border: '1px solid rgba(255,171,64,0.2)' }}>
+              <div className="rounded-2xl p-4 mb-4 space-y-2" style={{ background: 'rgba(255,171,64,0.05)', border: '1px solid rgba(255,171,64,0.2)' }}>
                 {[
                   '⏱ ტაიმერი ერთხელ იწყება — 30 წუთი მთელ ტესტზე',
-                  '📵 არ დატოვო აპლიკაცია ტესტის დროს — დაფიქსირდება',
                   '↔ კითხვების გამოტოვება და დაბრუნება შესაძლებელია',
                   '🎯 კითხვები თანდათან რთულდება',
                 ].map((t, i) => <p key={i} className="font-mono text-[12px] leading-relaxed" style={{ color: 'rgba(255,224,138,0.85)' }}>{t}</p>)}
+              </div>
+
+              {/* Proctoring warning — the hard rules */}
+              <div className="rounded-2xl p-4 mb-5 space-y-2" style={{ background: 'rgba(255,45,85,0.06)', border: '1px solid rgba(255,45,85,0.3)' }}>
+                <p className="font-display font-bold text-[13px] mb-1" style={{ color: '#ff8ca3' }}>⚠️ პატიოსნების წესები</p>
+                {[
+                  '🚫 აპლიკაციის დატოვება ან ჩაკეცვა ავტომატურად დაასრულებს ტესტს',
+                  '📋 ტექსტის კოპირება და მონიშვნა გამორთულია',
+                  '🤖 AI-ს ან სხვა დახმარების გამოყენება აკრძალულია',
+                ].map((t, i) => <p key={i} className="font-mono text-[12px] leading-relaxed" style={{ color: 'rgba(255,190,200,0.9)' }}>{t}</p>)}
               </div>
 
               <button onClick={beginTest} disabled={starting} className="w-full py-4 rounded-2xl font-display font-bold text-white disabled:opacity-50" style={{ background: 'linear-gradient(135deg,#00b8ff,#5e5ce6)' }}>
