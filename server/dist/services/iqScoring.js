@@ -34,9 +34,12 @@ const DOMAIN_KA = {
     spatial: 'სივრცითი მსჯელობა',
     verbal: 'ვერბალური მსჯელობა',
 };
-const MIN_REASONABLE_MS = 4 * 60 * 1000; // finishing 35 items faster than 4 min is implausible
-const MIN_PER_Q_MS = 2500; // avg under 2.5s/question is implausible
-const MAX_TAB_BLURS = 6; // leaving the tab repeatedly
+// Verification thresholds are deliberately lenient — they exist to catch blatant
+// automation / answer-key runs, NOT fast legitimate solvers. A sharp player can
+// finish 35 abstract items in a few minutes and must still count as VERIFIED.
+const MIN_REASONABLE_MS = 60 * 1000; // under 1 min for 35 items is not a real sitting
+const MIN_PER_Q_MS = 1200; // avg under 1.2s/question is not real reading
+const MAX_TAB_BLURS = 12; // occasional focus loss is normal on mobile
 export function scoreTest(answers, meta) {
     const byId = new Map(answers.map(a => [a.questionId, a]));
     let rawScore = 0;
@@ -73,8 +76,8 @@ export function scoreTest(answers, meta) {
         flags.push('too_fast_per_question');
     if (meta.tabBlurs > MAX_TAB_BLURS)
         flags.push('excessive_tab_switching');
-    // Very high score achieved suspiciously quickly.
-    if (iq >= 125 && meta.totalMs < 6 * 60 * 1000)
+    // A near-perfect score achieved implausibly fast (only catches automation).
+    if (iq >= 140 && meta.totalMs < 90 * 1000)
         flags.push('high_score_low_time');
     const verified = flags.length === 0;
     const bandInfo = bandFor(iq);

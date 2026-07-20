@@ -15,8 +15,11 @@ import { getFriendIds } from './friendService.js';
 import { getClanMembers, getClanMembershipByPlayer } from './clanService.js';
 export const IQ_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 export async function isModerator(userId) {
-    const [r] = await sql `SELECT is_moderator FROM players WHERE id = ${userId}`;
-    return !!r && Number(r.is_moderator) === 1;
+    const [r] = await sql `SELECT is_moderator, moderator_level FROM players WHERE id = ${userId}`;
+    if (!r)
+        return false;
+    const lvl = r.moderator_level;
+    return Number(r.is_moderator) === 1 || (lvl != null && String(lvl).trim() !== '');
 }
 /** How long until this user may retake (0 = available now). Moderators bypass. */
 export async function cooldownRemaining(userId, isModerator) {

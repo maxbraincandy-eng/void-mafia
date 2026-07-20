@@ -18,8 +18,10 @@ import type { IQScoreResult } from './iqScoring.js';
 export const IQ_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 
 export async function isModerator(userId: string): Promise<boolean> {
-  const [r] = await sql`SELECT is_moderator FROM players WHERE id = ${userId}` as any[];
-  return !!r && Number(r.is_moderator) === 1;
+  const [r] = await sql`SELECT is_moderator, moderator_level FROM players WHERE id = ${userId}` as any[];
+  if (!r) return false;
+  const lvl = r.moderator_level;
+  return Number(r.is_moderator) === 1 || (lvl != null && String(lvl).trim() !== '');
 }
 
 export type IQScope = 'all' | 'global' | 'weekly' | 'monthly' | 'friends' | 'clan';
