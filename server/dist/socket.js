@@ -14,6 +14,7 @@ import { registerAliasHandlers, handleAliasDisconnect } from './alias.js';
 import { registerDrawHandlers, handleDrawDisconnect } from './draw.js';
 import { registerCodenamesHandlers, handleCodenamesDisconnect } from './codenames.js';
 import { registerSpyfallHandlers, handleSpyfallDisconnect } from './spyfall.js';
+import { registerIQHandlers } from './iq.js';
 import { addCrown as ganabAddCrown, listCrowned as ganabListCrowned } from './services/ganabService.js';
 import { timerService } from './services/timerService.js';
 import { getRole } from './services/roleService.js';
@@ -8210,6 +8211,8 @@ export function attachSocketHandlers(io) {
         registerCodenamesHandlers(io, socket);
         // ── ჯაშუში (Spyfall) ─────────────────────────────────────────────
         registerSpyfallHandlers(io, socket);
+        // ── VOID IQ ──────────────────────────────────────────────────────
+        registerIQHandlers(io, socket);
         // ── Ganab Simulator — global coronation hall of fame ─────────────
         socket.on('ganab:crown', async (data, cb) => {
             try {

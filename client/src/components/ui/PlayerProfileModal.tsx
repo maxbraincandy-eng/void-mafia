@@ -420,6 +420,7 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
   const [clanModPanel, setClanModPanel] = useState<null | 'warn' | 'kick'>(null);
   const [clanModReason, setClanModReason] = useState('');
   const [clanModLoading, setClanModLoading] = useState(false);
+  const [iqProfile, setIqProfile] = useState<import('@/types/iq').IQPublicProfile | null>(null);
 
   const isClanRoom = !!(room?.clanRoom && room?.clanId);
   const hasClanModPower = isClanRoom && room?.clanId === myClanId &&
@@ -440,6 +441,11 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
     emitWithAck<{ profileId: string }, Res<CommunityProfileV2 | null>>('community:profile', { profileId: playerId })
       .then(res => { if (res.ok && res.data) setV2(res.data); })
       .catch(() => {});
+  }, [playerId]);
+
+  useEffect(() => {
+    if (!playerId) { setIqProfile(null); return; }
+    import('@/store/iqStore').then(({ fetchIQProfile }) => fetchIQProfile(playerId)).then(setIqProfile).catch(() => setIqProfile(null));
   }, [playerId]);
 
   useEffect(() => {
@@ -818,6 +824,22 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                           </div>
                         ))}
                       </div>
+
+                      {/* ── VOID IQ badge ─────────────────────── */}
+                      {iqProfile?.hasResult && iqProfile.bestIq != null && (
+                        <div className="rounded-xl px-3 py-2.5 flex items-center gap-3"
+                          style={{ background: 'linear-gradient(135deg, rgba(0,229,255,0.08), rgba(139,92,255,0.08))', border: '1px solid rgba(120,200,255,0.3)' }}>
+                          <span className="text-xl">🧠</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">VOID IQ</p>
+                            <p className="font-display font-black text-lg leading-none mt-0.5" style={{ color: '#8ee9ff', fontVariantNumeric: 'tabular-nums' }}>{iqProfile.bestIq}</p>
+                          </div>
+                          <div className="text-right">
+                            {iqProfile.rank && <p className="font-display font-bold text-white text-sm">#{iqProfile.rank}</p>}
+                            <p className="font-mono text-[11px] text-white/45">{iqProfile.bestPercentile}th %</p>
+                          </div>
+                        </div>
+                      )}
 
                       {/* ── Gift carousel ─────────────────────── */}
                       {(carouselLoading || aggGifts.length > 0) && (

@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 const NeoBandicoot = lazy(() => import('@/components/platformer/NeoBandicoot').then(m => ({ default: m.NeoBandicoot })));
 const AristocracyTest = lazy(() => import('@/components/quiz/AristocracyTest').then(m => ({ default: m.AristocracyTest })));
 const DilemmasHub = lazy(() => import('@/components/dilemmas/DilemmasHub').then(m => ({ default: m.DilemmasHub })));
+const VoidIQHub = lazy(() => import('@/components/iq/VoidIQHub').then(m => ({ default: m.VoidIQHub })));
 import { DILEMMAS } from '@/components/dilemmas/registry';
 import { useT } from '@/store/langStore';
 import { useAuthStore } from '@/store/authStore';
@@ -36,6 +37,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   const [bandicootOpen, setBandicootOpen] = useState(false);
   const [aristocracyOpen, setAristocracyOpen] = useState(false);
   const [dilemmasHubOpen, setDilemmasHubOpen] = useState(false);
+  const [voidIqOpen, setVoidIqOpen] = useState(false);
 
   // ── Checkers ────────────────────────────────────────────────────────
   const {
@@ -259,6 +261,25 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
 
   return (
     <div className="space-y-4">
+
+      {/* ── VOID IQ (flagship cognitive lab — top-level) ─────────────────── */}
+      <button onClick={() => setVoidIqOpen(true)}
+        className="w-full text-left rounded-2xl overflow-hidden transition-all active:scale-[0.99]"
+        style={{ border: '1px solid rgba(79,184,255,0.45)', boxShadow: '0 6px 34px rgba(0,150,255,0.18)' }}>
+        <div style={{ height: 92, background: 'linear-gradient(135deg, #0a2a4a 0%, #1a1a4a 55%, #2a1a5a 100%)', display: 'flex', alignItems: 'center', gap: 14, padding: '0 18px', position: 'relative' }}>
+          <span style={{ fontSize: 42, filter: 'drop-shadow(0 4px 16px rgba(79,184,255,0.6))' }}>🧠</span>
+          <div className="flex-1 min-w-0">
+            <p className="font-display font-black text-white text-base leading-tight tracking-[0.12em]" style={{ background: 'linear-gradient(90deg,#eaffff,#4fb8ff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>VOID IQ</p>
+            <p className="font-mono text-[12px] text-white/55 mt-0.5">გაზომე შენი გონება · ლიდერბორდი</p>
+          </div>
+          <span style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 1, color: '#fff', background: 'rgba(0,150,255,0.9)', borderRadius: 8, padding: '3px 8px' }}>NEW</span>
+        </div>
+      </button>
+      {voidIqOpen && (
+        <Suspense fallback={null}>
+          <VoidIQHub onClose={() => setVoidIqOpen(false)} />
+        </Suspense>
+      )}
 
       {/* ── Premium Worlds card (flagship 3D social worlds) ─────────────── */}
       {onOpenPremium && (

@@ -1190,6 +1190,29 @@ export async function initializeDatabase() {
       PRIMARY KEY (tournament_id, player_id)
     )
   `;
+    // VOID IQ — cognitive test attempts + public leaderboard
+    await sql `
+    CREATE TABLE IF NOT EXISTS iq_attempts (
+      id            TEXT PRIMARY KEY,
+      user_id       TEXT NOT NULL,
+      iq            INTEGER NOT NULL,
+      percentile    INTEGER NOT NULL,
+      band          TEXT NOT NULL DEFAULT '',
+      raw_score     REAL NOT NULL DEFAULT 0,
+      max_score     REAL NOT NULL DEFAULT 0,
+      correct       INTEGER NOT NULL DEFAULT 0,
+      total         INTEGER NOT NULL DEFAULT 0,
+      domain_scores TEXT NOT NULL DEFAULT '{}',
+      duration_ms   BIGINT NOT NULL DEFAULT 0,
+      verified      BOOLEAN NOT NULL DEFAULT true,
+      flags         TEXT NOT NULL DEFAULT '[]',
+      is_highest    BOOLEAN NOT NULL DEFAULT false,
+      created_at    BIGINT NOT NULL
+    )
+  `;
+    await sql `CREATE INDEX IF NOT EXISTS idx_iq_user ON iq_attempts(user_id, created_at DESC)`;
+    await sql `CREATE INDEX IF NOT EXISTS idx_iq_board ON iq_attempts(verified, is_highest, iq DESC)`;
+    await sql `CREATE INDEX IF NOT EXISTS idx_iq_window ON iq_attempts(verified, created_at, iq DESC)`;
     // Verify connection
     const [{ cnt }] = await sql `SELECT COUNT(*) as cnt FROM players`;
     console.log(`[Database] connected successfully`);
