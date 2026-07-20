@@ -1311,11 +1311,19 @@ export async function initializeDatabase(): Promise<void> {
   await sql`CREATE INDEX IF NOT EXISTS idx_iq_board ON iq_attempts(verified, is_highest, iq DESC)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_iq_window ON iq_attempts(verified, created_at, iq DESC)`;
   // Completion gating: only tests where most questions were answered count on the
-  // leaderboard. `answered` is null for legacy rows (grandfathered as complete),
-  // except floor-score rows (iq<=60) which can only come from quitting early —
-  // mark those answered=0 so they drop off the board.
+  // leaderboard. `answered` is null for legacy rows (grandfathered as complete);
+  // new attempts store the real count so quits are excluded going forward.
   await sql`ALTER TABLE iq_attempts ADD COLUMN IF NOT EXISTS answered INTEGER`;
-  await sql`UPDATE iq_attempts SET answered = 0 WHERE answered IS NULL AND iq <= 60`;
+  // One-time repair: an earlier build set answered=0 for every legacy iq<=60 row,
+  // which wrongly hid legitimate low-scoring finishers (not just quitters).
+  // Restore them (answered=0 → NULL = grandfathered complete). Runs once.
+  {
+    const [done] = await sql`SELECT value FROM app_settings WHERE key = 'iq_answered_revert'` as any[];
+    if (!done) {
+      await sql`UPDATE iq_attempts SET answered = NULL WHERE answered = 0`;
+      await sql`INSERT INTO app_settings (key, value) VALUES ('iq_answered_revert', 'done') ON CONFLICT (key) DO NOTHING`;
+    }
+  }
 
   // Verify connection
   const [{ cnt }] = await sql`SELECT COUNT(*) as cnt FROM players` as any[];

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useIQStore } from '@/store/iqStore';
 import { useAuthStore } from '@/store/authStore';
 import { useSocialStore } from '@/store/socialStore';
@@ -16,9 +16,11 @@ const SCOPES: { key: IQScope; label: string }[] = [
 function medal(rank: number): string { return rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : ''; }
 
 export function IQLeaderboard({ onBack }: { onBack: () => void }) {
-  const { board, myRow, scope, loadingBoard, fetchBoard } = useIQStore();
+  const { board, myRow, scope, loadingBoard, fetchBoard, modRemove } = useIQStore();
   const myId = useAuthStore(s => s.profile?.id ?? s.uid);
+  const isMod = useAuthStore(s => !!s.profile?.isModerator);
   const openProfile = useSocialStore(s => s.openProfile);
+  const [removeTarget, setRemoveTarget] = useState<IQLeaderRow | null>(null);
 
   useEffect(() => { fetchBoard('all'); }, [fetchBoard]);
 
@@ -50,6 +52,13 @@ export function IQLeaderboard({ onBack }: { onBack: () => void }) {
           <p className="font-display font-black text-lg" style={{ color: '#8ee9ff', fontVariantNumeric: 'tabular-nums' }}>{r.iq}</p>
           <p className="font-mono text-[9px] uppercase tracking-widest text-white/30">IQ</p>
         </div>
+        {isMod && (
+          <span role="button" tabIndex={0}
+            onClick={(e) => { e.stopPropagation(); setRemoveTarget(r); }}
+            className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-[13px]"
+            style={{ background: 'rgba(255,45,85,0.1)', border: '1px solid rgba(255,45,85,0.3)', color: '#ff8ca3' }}
+            title="ლიდერბორდიდან მოხსნა">✕</span>
+        )}
       </button>
     );
   };
@@ -88,7 +97,7 @@ export function IQLeaderboard({ onBack }: { onBack: () => void }) {
             <div className="text-center py-16">
               <p className="text-4xl mb-3">🧠</p>
               <p className="font-mono text-[13px] text-white/45">
-                {scope === 'friends' ? 'შენს მეგობრებს ჯერ არ გაუვლიათ ტესტი' : scope === 'clan' ? 'კლანის წევრებს ჯერ არ გაუვლიათ ტესტი' : 'ჯერ არავის გაუვლია ვერიფიცირებული ტესტი'}
+                {scope === 'friends' ? 'შენს მეგობრებს ჯერ არ გაუვლიათ ტესტი' : scope === 'clan' ? 'კლანის წევრებს ჯერ არ გაუვლიათ ტესტი' : 'ჯერ არავის დაუსრულებია ტესტი'}
               </p>
               <p className="font-mono text-[11px] text-white/30 mt-1">იყავი პირველი!</p>
             </div>
@@ -104,6 +113,22 @@ export function IQLeaderboard({ onBack }: { onBack: () => void }) {
           )}
         </div>
       </div>
+
+      {/* Moderator: confirm removing a player from the board */}
+      {removeTarget && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center p-6" style={{ background: 'rgba(4,6,12,0.85)' }}>
+          <div className="w-full max-w-xs rounded-2xl p-5 text-center" style={{ background: 'rgba(12,16,28,0.99)', border: '1px solid rgba(255,45,85,0.35)' }}>
+            <p className="text-3xl mb-2">🗑</p>
+            <p className="font-display font-bold text-white text-base mb-1">ლიდერბორდიდან მოხსნა?</p>
+            <p className="font-mono text-[12px] text-white/50 mb-5"><b className="text-white/80">{removeTarget.username}</b> (IQ {removeTarget.iq}) — მისი შედეგები წაიშლება ლიდერბორდიდან.</p>
+            <div className="flex gap-2.5">
+              <button onClick={() => setRemoveTarget(null)} className="flex-1 py-2.5 rounded-xl font-mono text-[13px] text-white/60" style={{ border: '1px solid rgba(255,255,255,0.15)' }}>არა</button>
+              <button onClick={() => { const t = removeTarget; setRemoveTarget(null); modRemove(t.userId); }}
+                className="flex-1 py-2.5 rounded-xl font-display font-bold text-[13px] text-white" style={{ background: 'rgba(255,45,85,0.25)', border: '1px solid rgba(255,45,85,0.5)' }}>დიახ, მოხსენი</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

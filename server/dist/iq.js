@@ -1,7 +1,7 @@
 import { ok, err, } from './types/index.js';
 import { assembleTest, totalQuestions } from './services/iqBank.js';
 import { scoreTest } from './services/iqScoring.js';
-import { cooldownRemaining, recordAttempt, getLeaderboard, getMyStatus, getPublicProfile, isModerator, IQ_COOLDOWN_MS, } from './services/iqService.js';
+import { cooldownRemaining, recordAttempt, getLeaderboard, getMyStatus, getPublicProfile, isModerator, modRemoveUser, IQ_COOLDOWN_MS, } from './services/iqService.js';
 function userId(socket) { return socket.data.profileId ?? socket.id; }
 const DISCLAIMER = 'ეს ონლაინ შეფასება იძლევა კოგნიტური შესაძლებლობების სავარაუდო შეფასებას ლოგიკის, ' +
     'პატერნების ამოცნობის, რიცხვითი, სივრცითი და ვერბალური ამოცანების საფუძველზე. ' +
@@ -81,6 +81,16 @@ export function registerIQHandlers(io, socket) {
             if (!targetId)
                 return cb(err('No user'));
             cb(ok(await getPublicProfile(targetId)));
+        }
+        catch (e) {
+            cb(err(e.message));
+        }
+    });
+    // Moderator: remove a player from the IQ leaderboard (deletes their attempts).
+    socket.on('iq:mod_remove', async (data, cb) => {
+        try {
+            const res = await modRemoveUser(uid(), String(data?.userId ?? ''));
+            cb(ok(res));
         }
         catch (e) {
             cb(err(e.message));

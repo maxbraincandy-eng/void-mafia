@@ -53,6 +53,14 @@ export async function reconcileVerification(): Promise<number> {
   return rescued;
 }
 
+/** Moderator action: wipe a user's IQ attempts so they leave the leaderboard. */
+export async function modRemoveUser(modId: string, targetUserId: string): Promise<{ removed: number }> {
+  if (!(await isModerator(modId))) throw new Error('Not authorized');
+  if (!targetUserId) throw new Error('No target');
+  const rows = await sql`DELETE FROM iq_attempts WHERE user_id = ${targetUserId} RETURNING id` as any[];
+  return { removed: rows.length };
+}
+
 export async function isModerator(userId: string): Promise<boolean> {
   const [r] = await sql`SELECT is_moderator, moderator_level FROM players WHERE id = ${userId}` as any[];
   if (!r) return false;

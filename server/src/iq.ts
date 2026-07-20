@@ -11,7 +11,7 @@ import { assembleTest, totalQuestions } from './services/iqBank.js';
 import { scoreTest, type IQAnswer } from './services/iqScoring.js';
 import {
   cooldownRemaining, recordAttempt, getLeaderboard, getMyStatus, getPublicProfile,
-  isModerator, IQ_COOLDOWN_MS, type IQScope,
+  isModerator, modRemoveUser, IQ_COOLDOWN_MS, type IQScope,
 } from './services/iqService.js';
 
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -94,6 +94,14 @@ export function registerIQHandlers(io: AppServer, socket: AppSocket): void {
       const targetId = String(data?.userId ?? '');
       if (!targetId) return cb(err('No user'));
       cb(ok(await getPublicProfile(targetId)));
+    } catch (e: any) { cb(err(e.message)); }
+  });
+
+  // Moderator: remove a player from the IQ leaderboard (deletes their attempts).
+  socket.on('iq:mod_remove' as any, async (data: any, cb: (r: any) => void) => {
+    try {
+      const res = await modRemoveUser(uid(), String(data?.userId ?? ''));
+      cb(ok(res));
     } catch (e: any) { cb(err(e.message)); }
   });
 }

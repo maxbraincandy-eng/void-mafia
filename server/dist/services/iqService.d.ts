@@ -8,6 +8,10 @@ export declare const IQ_COOLDOWN_MS: number;
  * Tab-switch flags can't be recomputed (count isn't stored), so those stay.
  */
 export declare function reconcileVerification(): Promise<number>;
+/** Moderator action: wipe a user's IQ attempts so they leave the leaderboard. */
+export declare function modRemoveUser(modId: string, targetUserId: string): Promise<{
+    removed: number;
+}>;
 export declare function isModerator(userId: string): Promise<boolean>;
 export type IQScope = 'all' | 'global' | 'weekly' | 'monthly' | 'friends' | 'clan';
 export interface IQLeaderRow {

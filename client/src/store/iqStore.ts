@@ -19,6 +19,7 @@ interface IQStore {
   startTest: () => Promise<IQStartResponse>;
   submitTest: (answers: { questionId: string; optionId: string | null; timeMs: number }[], meta: { totalMs: number; tabBlurs: number; startedAt: number }) => Promise<IQScoreResult>;
   fetchBoard: (scope: IQScope) => Promise<void>;
+  modRemove: (userId: string) => Promise<void>;
   clearError: () => void;
 }
 
@@ -51,6 +52,14 @@ export const useIQStore = create<IQStore>((set, get) => ({
       const data = unwrap<{ scope: IQScope; rows: IQLeaderRow[]; myRow: IQLeaderRow | null }>(r);
       set({ board: data.rows, myRow: data.myRow, loadingBoard: false });
     } catch (e: any) { set({ error: e.message, loadingBoard: false }); }
+  },
+
+  modRemove: async (userId) => {
+    try {
+      const r = await emitWithAck<{ userId: string }, any>('iq:mod_remove', { userId });
+      if (!r?.ok) { set({ error: r?.error ?? 'ვერ წაიშალა' }); return; }
+      await get().fetchBoard(get().scope);
+    } catch (e: any) { set({ error: e.message }); }
   },
 
   clearError: () => set({ error: null }),
