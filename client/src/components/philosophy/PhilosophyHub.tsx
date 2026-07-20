@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { PhilosophyPlayer } from './PhilosophyPlayer';
+import { PhilosopherIcon } from './PhilosopherIcon';
 import { PHILOSOPHIES, PHILO_TEASERS } from './registry';
 
 /**
@@ -23,7 +24,7 @@ export function PhilosophyHub({ onClose }: { onClose: () => void }) {
       {/* Header */}
       <div className="flex items-start justify-between px-5 pt-[calc(env(safe-area-inset-top,0px)+16px)] pb-3 flex-shrink-0">
         <div className="flex items-center gap-3 min-w-0">
-          <span className="text-3xl">🌀</span>
+          <PhilosopherIcon size={44} className="flex-shrink-0" />
           <div className="min-w-0">
             <h1 className="font-display font-bold tracking-wide text-xl" style={{ color: '#c3b8ff' }}>ფილოსოფიური ცდები</h1>
             <p className="font-mono text-[12px] text-white/40 leading-tight">აზროვნების ექსპერიმენტები · აღმოაჩინე შენი პოზიცია</p>

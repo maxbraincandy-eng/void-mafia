@@ -8,6 +8,7 @@ const PhilosophyHub = lazy(() => import('@/components/philosophy/PhilosophyHub')
 const VoidIQHub = lazy(() => import('@/components/iq/VoidIQHub').then(m => ({ default: m.VoidIQHub })));
 import { IQLogo } from '@/components/iq/IQLogo';
 import { VRBustIcon } from '@/components/ui/VRBustIcon';
+import { PhilosopherIcon } from '@/components/philosophy/PhilosopherIcon';
 import { useT } from '@/store/langStore';
 import { useAuthStore } from '@/store/authStore';
 import { useCheckersStore } from '@/store/checkersStore';
@@ -52,7 +53,7 @@ interface GameDef {
   kind: 'match' | 'launch';
   accent: string;
   emoji?: string;
-  logo?: 'iq' | 'ganab' | 'vspace';
+  logo?: 'iq' | 'ganab' | 'vspace' | 'philosophy';
   badge?: boolean;
   keywords: string;
   launch?: () => void;
@@ -272,7 +273,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
     { id: 'voidiq', title: 'VOID IQ', sub: 'გაზომე შენი გონება · ლიდერბორდი', cat: 'mind', kind: 'launch', accent: '#4fb8ff', logo: 'iq', badge: true, keywords: 'iq ინტელექტი ტესტი leaderboard', launch: () => setVoidIqOpen(true) },
     { id: 'www', title: t.games.www.title, sub: t.games.www.subtitle, cat: 'mind', kind: 'match', accent: '#c084fc', emoji: '🧠', keywords: 'www ვიქტორინა quiz რა სად როდის' },
     { id: 'dilemmas', title: 'დილემები', sub: `მორალური არჩევანი`, cat: 'mind', kind: 'launch', accent: '#7c9cff', emoji: '⚖️', badge: true, keywords: 'dilemma მორალი ეთიკა', launch: () => setDilemmasHubOpen(true) },
-    { id: 'philosophy', title: 'ფილოსოფიური ცდები', sub: `აზროვნების ექსპერიმენტები`, cat: 'mind', kind: 'launch', accent: '#a88cff', emoji: '🌀', badge: true, keywords: 'philosophy ფილოსოფია ცდა thought experiment ცნობიერება', launch: () => setPhiloHubOpen(true) },
+    { id: 'philosophy', title: 'ფილოსოფიური ცდები', sub: `აზროვნების ექსპერიმენტები`, cat: 'mind', kind: 'launch', accent: '#a88cff', logo: 'philosophy', emoji: '🌀', badge: true, keywords: 'philosophy ფილოსოფია ცდა thought experiment ცნობიერება', launch: () => setPhiloHubOpen(true) },
     { id: 'aristocracy', title: t.games.aristocracy.title, sub: t.games.aristocracy.subtitle, cat: 'mind', kind: 'launch', accent: '#e8cf7a', emoji: '👑', keywords: 'aristocracy ტესტი quiz', launch: () => setAristocracyOpen(true) },
 
     { id: 'spyfall', title: 'ჯაშუში', sub: 'იპოვე ჯაშუში ხმით · 3-10 მოთ.', cat: 'deduction', kind: 'match', accent: '#ff5d6c', emoji: '🕵️', badge: true, keywords: 'spyfall ჯაშუში დედუქცია' },
@@ -315,7 +316,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
         style={{ minHeight: 104, background: 'rgba(12,10,24,0.72)', border: `1px solid ${d.accent}40`, boxShadow: `0 4px 18px ${d.accent}12` }}>
         {d.badge && <span style={{ position: 'absolute', top: 8, right: 8, fontFamily: 'monospace', fontSize: 8, letterSpacing: 1, color: '#fff', background: 'rgba(124,58,237,0.9)', borderRadius: 6, padding: '2px 6px' }}>NEW</span>}
         <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-2" style={{ background: `${d.accent}1f` }}>
-          {d.logo === 'iq' ? <IQLogo size={34} /> : d.logo === 'vspace' ? <VRBustIcon size={36} /> : d.logo === 'ganab' ? <img src="/ganab-star.png" alt="" className="w-7 h-7 object-contain" /> : <span className="text-2xl leading-none">{d.emoji}</span>}
+          {d.logo === 'iq' ? <IQLogo size={34} /> : d.logo === 'vspace' ? <VRBustIcon size={36} /> : d.logo === 'philosophy' ? <PhilosopherIcon size={34} /> : d.logo === 'ganab' ? <img src="/ganab-star.png" alt="" className="w-7 h-7 object-contain" /> : <span className="text-2xl leading-none">{d.emoji}</span>}
         </div>
         <div className="min-w-0">
           <p className="font-display font-bold text-white text-[13px] leading-tight truncate">{d.title}</p>
@@ -396,7 +397,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
               <button key={d!.id} onClick={() => openGame(d!)}
                 className="flex-shrink-0 flex flex-col items-center gap-1.5 w-[68px]" >
                 <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: `${d!.accent}1f`, border: `1px solid ${d!.accent}40` }}>
-                  {d!.logo === 'iq' ? <IQLogo size={38} /> : d!.logo === 'vspace' ? <VRBustIcon size={40} /> : d!.logo === 'ganab' ? <img src="/ganab-star.png" alt="" className="w-7 h-7 object-contain" /> : <span className="text-2xl">{d!.emoji}</span>}
+                  {d!.logo === 'iq' ? <IQLogo size={38} /> : d!.logo === 'vspace' ? <VRBustIcon size={40} /> : d!.logo === 'philosophy' ? <PhilosopherIcon size={38} /> : d!.logo === 'ganab' ? <img src="/ganab-star.png" alt="" className="w-7 h-7 object-contain" /> : <span className="text-2xl">{d!.emoji}</span>}
                 </div>
                 <span className="font-mono text-[9px] text-white/50 text-center leading-tight truncate w-full">{d!.title}</span>
               </button>
