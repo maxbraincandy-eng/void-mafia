@@ -13,6 +13,7 @@ import { registerBlackoutHandlers, handleBlackoutDisconnect } from './blackout.j
 import { registerAliasHandlers, handleAliasDisconnect } from './alias.js';
 import { registerDrawHandlers, handleDrawDisconnect } from './draw.js';
 import { registerCodenamesHandlers, handleCodenamesDisconnect } from './codenames.js';
+import { registerSpyfallHandlers, handleSpyfallDisconnect } from './spyfall.js';
 import { addCrown as ganabAddCrown, listCrowned as ganabListCrowned } from './services/ganabService.js';
 import { timerService } from './services/timerService.js';
 import { getRole } from './services/roleService.js';
@@ -8207,6 +8208,8 @@ export function attachSocketHandlers(io) {
         registerDrawHandlers(io, socket);
         // ── Codenames ────────────────────────────────────────────────────
         registerCodenamesHandlers(io, socket);
+        // ── ჯაშუში (Spyfall) ─────────────────────────────────────────────
+        registerSpyfallHandlers(io, socket);
         // ── Ganab Simulator — global coronation hall of fame ─────────────
         socket.on('ganab:crown', async (data, cb) => {
             try {
@@ -9726,6 +9729,7 @@ export function attachSocketHandlers(io) {
             handleAliasDisconnect(io, socket.id);
             handleDrawDisconnect(io, socket.id);
             handleCodenamesDisconnect(io, socket.id);
+            handleSpyfallDisconnect(io, socket.id);
             // Remove from any spectate queues
             for (const [qRoomId, queue] of spectateQueues) {
                 const idx = queue.indexOf(socket.id);

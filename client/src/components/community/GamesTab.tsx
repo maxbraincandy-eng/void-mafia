@@ -15,6 +15,8 @@ import { useUnoStore } from '@/store/unoStore';
 import { useBlackoutStore } from '@/store/blackoutStore';
 import { useAliasStore } from '@/store/aliasStore';
 import type { AliasListItem } from '@/types/alias';
+import { useSpyfallStore } from '@/store/spyfallStore';
+import type { SpyfallListItem } from '@/types/spyfall';
 import { useDrawStore } from '@/store/drawStore';
 import type { DrawListItem } from '@/types/draw';
 import { useCodenamesStore } from '@/store/codenamesStore';
@@ -98,6 +100,14 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   const [alShowJoin, setAlShowJoin] = useState(false);
   const [alJoinCode, setAlJoinCode] = useState('');
 
+  // ── ჯაშუში (Spyfall) ────────────────────────────────────────────────
+  const {
+    matchList: spList, isLoading: spLoading, error: spError,
+    fetchList: spFetch, createMatch: spCreate, joinMatch: spJoin, clearError: spClear,
+  } = useSpyfallStore();
+  const [spShowJoin, setSpShowJoin] = useState(false);
+  const [spJoinCode, setSpJoinCode] = useState('');
+
   // ── Draw & Guess ────────────────────────────────────────────────────
   const {
     matchList: drList, isLoading: drLoading, error: drError,
@@ -118,7 +128,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   const [showOther, setShowOther] = useState(false);
 
   const handleRefresh = useCallback(() => {
-    ckClear(); jkClear(); ldClear(); wwClear(); unoClear(); boClear(); alClear(); drClear(); cnClear();
+    ckClear(); jkClear(); ldClear(); wwClear(); unoClear(); boClear(); alClear(); drClear(); cnClear(); spClear();
     ckFetch();
     jkFetch();
     ldFetch();
@@ -128,9 +138,10 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
     alFetch();
     drFetch();
     cnFetch();
-  }, [ckFetch, jkFetch, ldFetch, wwFetch, unoFetch, boFetch, alFetch, drFetch, cnFetch, ckClear, jkClear, ldClear, wwClear, unoClear, boClear, alClear, drClear, cnClear]);
+    spFetch();
+  }, [ckFetch, jkFetch, ldFetch, wwFetch, unoFetch, boFetch, alFetch, drFetch, cnFetch, spFetch, ckClear, jkClear, ldClear, wwClear, unoClear, boClear, alClear, drClear, cnClear, spClear]);
 
-  useEffect(() => { ckFetch(); jkFetch(); ldFetch(); wwFetch(); unoFetch(); boFetch(); alFetch(); drFetch(); cnFetch(); }, [ckFetch, jkFetch, ldFetch, wwFetch, unoFetch, boFetch, alFetch, drFetch, cnFetch]);
+  useEffect(() => { ckFetch(); jkFetch(); ldFetch(); wwFetch(); unoFetch(); boFetch(); alFetch(); drFetch(); cnFetch(); spFetch(); }, [ckFetch, jkFetch, ldFetch, wwFetch, unoFetch, boFetch, alFetch, drFetch, cnFetch, spFetch]);
 
   // Refresh on visibility change
   useEffect(() => {
@@ -220,6 +231,14 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
     setAlShowJoin(false);
     await alJoin(alJoinCode.trim().toUpperCase(), playerName);
     setAlJoinCode('');
+  }
+
+  async function handleSpCreate() { await spCreate(playerName); }
+  async function handleSpJoin() {
+    if (!spJoinCode.trim()) return;
+    setSpShowJoin(false);
+    await spJoin(spJoinCode.trim().toUpperCase(), playerName);
+    setSpJoinCode('');
   }
 
   async function handleDrCreate() { await drCreate(playerName); }
@@ -480,6 +499,53 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
           <div className="px-4 pb-3 space-y-1">
             <p className="font-mono text-[12px] uppercase tracking-widest text-white/25">{t.games.blackout.openMatches}</p>
             {boList.map(m => <BlackoutRow key={m.id} match={m} onJoin={code => boJoin(code, playerName)} />)}
+          </div>
+        )}
+      </div>
+
+      {/* ── ჯაშუში (Spyfall) card — social deduction + voice ────────────── */}
+      <div className="rounded-2xl overflow-hidden"
+        style={{ background: 'rgba(16,8,14,0.75)', border: '1px solid rgba(255,45,85,0.3)', boxShadow: '0 4px 24px rgba(255,45,85,0.08)' }}>
+        <div className="px-4 py-3 flex items-center gap-3 border-b"
+          style={{ borderColor: 'rgba(255,45,85,0.15)', background: 'rgba(255,45,85,0.04)' }}>
+          <span className="text-2xl">🕵️</span>
+          <div className="flex-1 min-w-0">
+            <p className="font-display font-bold text-white text-sm leading-tight">
+              ჯაშუში
+              <span style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 1, color: '#fff', background: 'rgba(124,58,237,0.9)', borderRadius: 8, padding: '3px 8px', marginLeft: 8, verticalAlign: 'middle' }}>NEW</span>
+            </p>
+            <p className="font-mono text-[12px] text-white/35">იპოვე ჯაშუში ხმით 🎙 · 3-10 მოთ.</p>
+          </div>
+          <button onClick={handleRefresh}
+            className="w-7 h-7 flex items-center justify-center rounded-lg font-mono text-sm transition-all active:scale-95"
+            style={{ background: 'rgba(255,45,85,0.08)', border: '1px solid rgba(255,45,85,0.2)', color: 'rgba(255,140,163,0.6)' }} title="Refresh">↻</button>
+        </div>
+        <div className="px-4 py-3 flex flex-wrap gap-2">
+          {!spShowJoin ? (
+            <>
+              <ActionButton onClick={handleSpCreate} accent="purple" loading={spLoading}>შექმნა</ActionButton>
+              <ActionButton onClick={() => setSpShowJoin(true)} accent="cyan">შეუერთდი</ActionButton>
+            </>
+          ) : (
+            <div className="flex gap-2 w-full">
+              <input value={spJoinCode} onChange={e => setSpJoinCode(e.target.value.toUpperCase())} onKeyDown={e => { if (e.key === 'Enter') handleSpJoin(); }}
+                placeholder="XXXXXX" maxLength={6} autoFocus
+                className="flex-1 bg-transparent font-mono text-sm text-white placeholder-white/20 outline-none px-3 py-2 rounded-xl border border-white/15 focus:border-white/35 transition-colors tracking-widest" />
+              <button onClick={handleSpJoin} disabled={!spJoinCode.trim() || spLoading}
+                className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95 disabled:opacity-40"
+                style={{ background: 'rgba(255,45,85,0.12)', border: '1px solid rgba(255,45,85,0.35)', color: '#ff5d6c' }}>
+                {spLoading ? '…' : 'შეუერთდი'}
+              </button>
+              <button onClick={() => { setSpShowJoin(false); setSpJoinCode(''); }}
+                className="px-3 py-2 rounded-xl font-mono text-xs text-white/40 border border-white/10 hover:text-white/70 transition-colors">✕</button>
+            </div>
+          )}
+          {spError && <p className="w-full font-mono text-[12px] text-neon-red" onClick={spClear}>{spError}</p>}
+        </div>
+        {spList.length > 0 && (
+          <div className="px-4 pb-3 space-y-1">
+            <p className="font-mono text-[12px] uppercase tracking-widest text-white/25">ღია თამაშები</p>
+            {spList.map(m => <SpyfallRow key={m.id} match={m} onJoin={code => spJoin(code, playerName)} />)}
           </div>
         )}
       </div>
@@ -1096,6 +1162,25 @@ function DrawRow({ match, onJoin }: { match: DrawListItem; onJoin: (code: string
       <button onClick={() => onJoin(match.code)}
         className="px-2.5 py-1 rounded-lg font-mono text-[12px] uppercase tracking-wider transition-all active:scale-95"
         style={{ background: 'rgba(255,140,38,0.1)', border: '1px solid rgba(255,140,38,0.25)', color: '#ff8c26' }}>
+        შეუერთდი
+      </button>
+    </div>
+  );
+}
+
+function SpyfallRow({ match, onJoin }: { match: SpyfallListItem; onJoin: (code: string) => void }) {
+  return (
+    <div className="flex items-center gap-3 px-2 py-2 rounded-xl" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
+      <div className="flex-1 min-w-0">
+        <p className="font-mono text-xs text-white truncate">{match.hostName}</p>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="font-mono text-[12px] text-white/25 tracking-widest">{match.code}</span>
+          <span className="font-mono text-[12px] text-white/20">{match.playerCount}/{match.maxPlayers}</span>
+        </div>
+      </div>
+      <button onClick={() => onJoin(match.code)}
+        className="px-2.5 py-1 rounded-lg font-mono text-[12px] uppercase tracking-wider transition-all active:scale-95"
+        style={{ background: 'rgba(255,45,85,0.1)', border: '1px solid rgba(255,45,85,0.25)', color: '#ff5d6c' }}>
         შეუერთდი
       </button>
     </div>
