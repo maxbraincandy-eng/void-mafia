@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 
 const NeoBandicoot = lazy(() => import('@/components/platformer/NeoBandicoot').then(m => ({ default: m.NeoBandicoot })));
@@ -448,15 +449,18 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
         <Grid items={defs.filter(d => d.cat === cat)} />
       )}
 
-      {/* ── Bottom-sheet launcher for match games ─────────────────────── */}
+      {/* ── Centered launcher modal for match games ───────────────────── */}
+      {/* Portaled to <body>: an ancestor transform would otherwise re-anchor
+          the fixed overlay to the page (forcing the user to scroll to it). */}
+      {createPortal(
       <AnimatePresence>
         {sheet && MATCH[sheet] && (
-          <motion.div className="fixed inset-0 z-[520] flex items-end justify-center" style={{ background: 'rgba(4,4,10,0.72)' }}
+          <motion.div className="fixed inset-0 z-[520] flex items-center justify-center px-4 py-6 overflow-y-auto" style={{ background: 'rgba(4,4,10,0.72)' }}
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSheet(null)}
             onTouchStart={e => e.stopPropagation()} onTouchEnd={e => e.stopPropagation()}>
-            <motion.div className="w-full max-w-lg rounded-t-3xl p-5 pb-[calc(env(safe-area-inset-bottom,0px)+20px)]" onClick={e => e.stopPropagation()}
-              initial={{ y: 40 }} animate={{ y: 0 }} exit={{ y: 40 }}
-              style={{ background: 'rgba(12,10,24,0.99)', border: `1px solid ${MATCH[sheet].accent}55`, borderBottom: 'none' }}>
+            <motion.div className="w-full max-w-lg rounded-3xl p-5 my-auto max-h-[calc(100vh-48px)] overflow-y-auto" onClick={e => e.stopPropagation()}
+              initial={{ y: 24, scale: 0.96, opacity: 0 }} animate={{ y: 0, scale: 1, opacity: 1 }} exit={{ y: 24, scale: 0.96, opacity: 0 }}
+              style={{ background: 'rgba(12,10,24,0.99)', border: `1px solid ${MATCH[sheet].accent}55`, boxShadow: `0 18px 60px rgba(0,0,0,0.6), 0 0 40px ${MATCH[sheet].accent}18` }}>
               {(() => {
                 const d = byId(sheet)!; const cfg = MATCH[sheet];
                 return (
@@ -478,7 +482,8 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+      document.body)}
 
       {/* Overlays */}
       {voidIqOpen && <Suspense fallback={null}><VoidIQHub onClose={() => setVoidIqOpen(false)} /></Suspense>}
