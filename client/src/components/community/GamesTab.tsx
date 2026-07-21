@@ -16,6 +16,7 @@ import { PhilosopherIcon } from '@/components/philosophy/PhilosopherIcon';
 import { UnoLogo } from '@/components/ui/UnoLogo';
 import { NinjaEmblem } from '@/components/ui/NinjaEmblem';
 import { SageIcon } from '@/components/philotest/SageIcon';
+import { CrossedFingersIcon } from '@/components/lies/CrossedFingersIcon';
 import { useT } from '@/store/langStore';
 import { useAuthStore } from '@/store/authStore';
 import { useCheckersStore } from '@/store/checkersStore';
@@ -63,7 +64,7 @@ interface GameDef {
   kind: 'match' | 'launch';
   accent: string;
   emoji?: string;
-  logo?: 'iq' | 'ganab' | 'vspace' | 'philosophy' | 'uno' | 'codenames' | 'sage' | 'maxseal';
+  logo?: 'iq' | 'ganab' | 'vspace' | 'philosophy' | 'uno' | 'codenames' | 'sage' | 'maxseal' | 'liar';
   badge?: boolean;
   keywords: string;
   launch?: () => void;
@@ -309,7 +310,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
     { id: 'codenames', title: 'Codenames', sub: '2 გუნდი · მინიშნებები · 4-16 მოთ.', cat: 'deduction', kind: 'match', accent: '#25c8f2', logo: 'codenames', emoji: '🔤', badge: true, keywords: 'codenames კოდი გუნდი' },
     { id: 'blackout', title: t.games.blackout.title, sub: t.games.blackout.subtitle, cat: 'solo', kind: 'match', accent: '#ffd34d', emoji: '🔦', badge: true, keywords: 'blackout impostor დედუქცია' },
 
-    { id: 'lies', title: 'ტყუილების ოსტატი', sub: 'მოატყუე ან იპოვე სიმართლე · 3-12 მოთ.', cat: 'party', kind: 'match', accent: '#a855f7', emoji: '🎭', badge: true, keywords: 'lies ტყუილი fibbage ბლეფი bluff სიმართლე' },
+    { id: 'lies', title: 'ტყუილების ოსტატი', sub: 'მოატყუე ან იპოვე სიმართლე · 3-12 მოთ.', cat: 'party', kind: 'match', accent: '#a855f7', logo: 'liar', emoji: '🎭', badge: true, keywords: 'lies ტყუილი fibbage ბლეფი bluff სიმართლე' },
     { id: 'alias', title: 'ალიასი', sub: 'გუნდური სიტყვების თამაში · 4-12 მოთ.', cat: 'party', kind: 'match', accent: '#4d9fff', emoji: '🗣', badge: true, keywords: 'alias სიტყვები taboo' },
     { id: 'draw', title: 'დახაზე & გამოიცანი', sub: 'ხატავ და გამოიცნობ · 2-12 მოთ.', cat: 'party', kind: 'match', accent: '#ff8c26', emoji: '🎨', badge: true, keywords: 'draw ხატვა pictionary' },
 
@@ -346,7 +347,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
         style={{ minHeight: 104, background: 'rgba(12,10,24,0.72)', border: `1px solid ${d.accent}40`, boxShadow: `0 4px 18px ${d.accent}12` }}>
         {d.badge && <span style={{ position: 'absolute', top: 8, right: 8, fontFamily: 'monospace', fontSize: 8, letterSpacing: 1, color: '#fff', background: 'rgba(124,58,237,0.9)', borderRadius: 6, padding: '2px 6px' }}>NEW</span>}
         <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-2" style={{ background: `${d.accent}1f` }}>
-          {d.logo === 'iq' ? <IQLogo size={34} /> : d.logo === 'vspace' ? <VRBustIcon size={36} /> : d.logo === 'philosophy' ? <PhilosopherIcon size={34} /> : d.logo === 'uno' ? <UnoLogo size={36} /> : d.logo === 'codenames' ? <NinjaEmblem size={36} /> : d.logo === 'sage' ? <SageIcon size={36} /> : d.logo === 'maxseal' ? <MaxSeal size={36} /> : d.logo === 'ganab' ? <img src="/ganab-star.png" alt="" className="w-7 h-7 object-contain" /> : <span className="text-2xl leading-none">{d.emoji}</span>}
+          {d.logo === 'iq' ? <IQLogo size={34} /> : d.logo === 'vspace' ? <VRBustIcon size={36} /> : d.logo === 'philosophy' ? <PhilosopherIcon size={34} /> : d.logo === 'uno' ? <UnoLogo size={36} /> : d.logo === 'codenames' ? <NinjaEmblem size={36} /> : d.logo === 'sage' ? <SageIcon size={36} /> : d.logo === 'maxseal' ? <MaxSeal size={36} /> : d.logo === 'liar' ? <CrossedFingersIcon size={34} mask="#181026" /> : d.logo === 'ganab' ? <img src="/ganab-star.png" alt="" className="w-7 h-7 object-contain" /> : <span className="text-2xl leading-none">{d.emoji}</span>}
         </div>
         <div className="min-w-0">
           <p className="font-display font-bold text-white text-[13px] leading-tight truncate">{d.title}</p>
@@ -439,7 +440,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
               <button key={d!.id} onClick={() => openGame(d!)}
                 className="flex-shrink-0 flex flex-col items-center gap-1.5 w-[68px]" >
                 <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: `${d!.accent}1f`, border: `1px solid ${d!.accent}40` }}>
-                  {d!.logo === 'iq' ? <IQLogo size={38} /> : d!.logo === 'vspace' ? <VRBustIcon size={40} /> : d!.logo === 'philosophy' ? <PhilosopherIcon size={38} /> : d!.logo === 'uno' ? <UnoLogo size={40} /> : d!.logo === 'codenames' ? <NinjaEmblem size={40} /> : d!.logo === 'sage' ? <SageIcon size={40} /> : d!.logo === 'maxseal' ? <MaxSeal size={40} /> : d!.logo === 'ganab' ? <img src="/ganab-star.png" alt="" className="w-7 h-7 object-contain" /> : <span className="text-2xl">{d!.emoji}</span>}
+                  {d!.logo === 'iq' ? <IQLogo size={38} /> : d!.logo === 'vspace' ? <VRBustIcon size={40} /> : d!.logo === 'philosophy' ? <PhilosopherIcon size={38} /> : d!.logo === 'uno' ? <UnoLogo size={40} /> : d!.logo === 'codenames' ? <NinjaEmblem size={40} /> : d!.logo === 'sage' ? <SageIcon size={40} /> : d!.logo === 'maxseal' ? <MaxSeal size={40} /> : d!.logo === 'liar' ? <CrossedFingersIcon size={38} mask="#181026" /> : d!.logo === 'ganab' ? <img src="/ganab-star.png" alt="" className="w-7 h-7 object-contain" /> : <span className="text-2xl">{d!.emoji}</span>}
                 </div>
                 <span className="font-mono text-[9px] text-white/50 text-center leading-tight truncate w-full">{d!.title}</span>
               </button>
