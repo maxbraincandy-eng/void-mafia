@@ -139,15 +139,27 @@ export function dissolveMatch(matchId, leaverId) {
     m.reveal = null;
     return m;
 }
+// Questions used recently across ALL matches, so consecutive games (and
+// rematches) don't reopen with the same prompt. Ring buffer of ~60% of the bank.
+const recentQuestionIds = [];
+const RECENT_CAP = Math.max(8, Math.floor(LIES_QUESTIONS.length * 0.6));
 function setupRound(m) {
-    let pool = LIES_QUESTIONS.filter(q => !m.usedQuestionIds.includes(q.id));
+    // Never repeat within a match (primary). When possible, also skip anything
+    // used recently server-wide, so a fresh game feels genuinely fresh.
+    const notInMatch = LIES_QUESTIONS.filter(q => !m.usedQuestionIds.includes(q.id));
+    let pool = notInMatch.filter(q => !recentQuestionIds.includes(q.id));
+    if (pool.length === 0)
+        pool = notInMatch; // recent filter too tight
     if (pool.length === 0) {
         m.usedQuestionIds = [];
-        pool = LIES_QUESTIONS;
-    }
+        pool = [...LIES_QUESTIONS];
+    } // match exhausted the bank
     const q = pool[Math.floor(Math.random() * pool.length)];
     m.question = q;
     m.usedQuestionIds.push(q.id);
+    recentQuestionIds.push(q.id);
+    while (recentQuestionIds.length > RECENT_CAP)
+        recentQuestionIds.shift();
     m.options = null;
     m.reveal = null;
     for (const p of m.players) {
