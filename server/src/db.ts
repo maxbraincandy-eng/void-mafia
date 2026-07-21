@@ -1325,6 +1325,26 @@ export async function initializeDatabase(): Promise<void> {
     }
   }
 
+  // ბატონი მაქსის თავსატეხი — psychological profile results + trait leaderboard
+  await sql`
+    CREATE TABLE IF NOT EXISTS max_puzzle_results (
+      user_id       TEXT PRIMARY KEY,
+      archetype     TEXT NOT NULL,
+      archetype_ka  TEXT NOT NULL DEFAULT '',
+      independence  INTEGER NOT NULL DEFAULT 0,
+      rationality   INTEGER NOT NULL DEFAULT 0,
+      conformity    INTEGER NOT NULL DEFAULT 0,
+      ambition      INTEGER NOT NULL DEFAULT 0,
+      risk          INTEGER NOT NULL DEFAULT 0,
+      status_desire INTEGER NOT NULL DEFAULT 0,
+      skepticism    INTEGER NOT NULL DEFAULT 0,
+      moral_flex    INTEGER NOT NULL DEFAULT 0,
+      completions   INTEGER NOT NULL DEFAULT 1,
+      created_at    BIGINT NOT NULL,
+      updated_at    BIGINT NOT NULL
+    )
+  `;
+
   // Verify connection
   const [{ cnt }] = await sql`SELECT COUNT(*) as cnt FROM players` as any[];
   console.log(`[Database] connected successfully`);

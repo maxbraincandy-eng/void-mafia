@@ -34,6 +34,7 @@ import { registerDrawHandlers, handleDrawDisconnect } from './draw.js';
 import { registerCodenamesHandlers, handleCodenamesDisconnect } from './codenames.js';
 import { registerSpyfallHandlers, handleSpyfallDisconnect } from './spyfall.js';
 import { registerIQHandlers } from './iq.js';
+import { registerMaxPuzzleHandlers } from './maxpuzzle.js';
 import { addCrown as ganabAddCrown, listCrowned as ganabListCrowned } from './services/ganabService.js';
 import { timerService } from './services/timerService.js';
 import { getRole } from './services/roleService.js';
@@ -7173,6 +7174,9 @@ export function attachSocketHandlers(io: AppServer): void {
 
     // ── VOID IQ ──────────────────────────────────────────────────────
     registerIQHandlers(io, socket);
+
+    // ── ბატონი მაქსის თავსატეხი ──────────────────────────────────────
+    registerMaxPuzzleHandlers(io, socket);
 
     // ── Ganab Simulator — global coronation hall of fame ─────────────
     socket.on('ganab:crown' as any, async (data: { nickname?: string }, cb?: (r: any) => void) => {

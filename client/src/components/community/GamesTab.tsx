@@ -7,7 +7,9 @@ const DilemmasHub = lazy(() => import('@/components/dilemmas/DilemmasHub').then(
 const PhilosophyHub = lazy(() => import('@/components/philosophy/PhilosophyHub').then(m => ({ default: m.PhilosophyHub })));
 const PhiloTestExperience = lazy(() => import('@/components/philotest/PhiloTestExperience').then(m => ({ default: m.PhiloTestExperience })));
 const VoidIQHub = lazy(() => import('@/components/iq/VoidIQHub').then(m => ({ default: m.VoidIQHub })));
+const MaxPuzzleExperience = lazy(() => import('@/components/maxpuzzle/MaxPuzzleExperience').then(m => ({ default: m.MaxPuzzleExperience })));
 import { IQLogo } from '@/components/iq/IQLogo';
+import { MaxSeal } from '@/components/maxpuzzle/MaxSeal';
 import { VRBustIcon } from '@/components/ui/VRBustIcon';
 import { PhilosopherIcon } from '@/components/philosophy/PhilosopherIcon';
 import { UnoLogo } from '@/components/ui/UnoLogo';
@@ -38,10 +40,11 @@ import type { WWWListItem } from '@/types/www';
 import type { UnoListItem } from '@/types/uno';
 
 // ── Categories ───────────────────────────────────────────────────────────────
-type GCat = 'mind' | 'deduction' | 'party' | 'classic' | 'worlds' | 'solo';
-const CAT_ORDER: GCat[] = ['mind', 'deduction', 'party', 'classic', 'worlds', 'solo'];
+type GCat = 'mind' | 'maxpuzzle' | 'deduction' | 'party' | 'classic' | 'worlds' | 'solo';
+const CAT_ORDER: GCat[] = ['mind', 'maxpuzzle', 'deduction', 'party', 'classic', 'worlds', 'solo'];
 const CAT_META: Record<GCat, { section: string; chip: string; emoji: string }> = {
   mind:      { section: 'გონება & ცოდნა',     chip: 'ინტელექტი', emoji: '🧠' },
+  maxpuzzle: { section: 'ბატონი მაქსის თავსატეხი', chip: 'ბ. მაქსი', emoji: '🎩' },
   deduction: { section: 'სოციალური დედუქცია', chip: 'დედუქცია',  emoji: '🕵️' },
   party:     { section: 'წვეულება & გუნდური', chip: 'წვეულება',  emoji: '🎉' },
   classic:   { section: 'კლასიკა',            chip: 'კლასიკა',   emoji: '♟' },
@@ -57,7 +60,7 @@ interface GameDef {
   kind: 'match' | 'launch';
   accent: string;
   emoji?: string;
-  logo?: 'iq' | 'ganab' | 'vspace' | 'philosophy' | 'uno' | 'codenames' | 'sage';
+  logo?: 'iq' | 'ganab' | 'vspace' | 'philosophy' | 'uno' | 'codenames' | 'sage' | 'maxseal';
   badge?: boolean;
   keywords: string;
   launch?: () => void;
@@ -82,6 +85,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   const [philoHubOpen, setPhiloHubOpen] = useState(false);
   const [philoTestOpen, setPhiloTestOpen] = useState(false);
   const [voidIqOpen, setVoidIqOpen] = useState(false);
+  const [maxPuzzleOpen, setMaxPuzzleOpen] = useState(false);
 
   // ── Checkers ────────────────────────────────────────────────────────
   const {
@@ -282,6 +286,8 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
     { id: 'philotest', title: 'ფილოსოფიური პიროვნების ტესტი', sub: 'ვინ ხარ, როცა ირჩევ', cat: 'mind', kind: 'launch', accent: '#8b5cff', logo: 'sage', emoji: '🎭', badge: true, keywords: 'personality პიროვნება ტესტი ფილოსოფია არქეტიპი profile', launch: () => setPhiloTestOpen(true) },
     { id: 'aristocracy', title: t.games.aristocracy.title, sub: t.games.aristocracy.subtitle, cat: 'mind', kind: 'launch', accent: '#e8cf7a', emoji: '👑', keywords: 'aristocracy ტესტი quiz', launch: () => setAristocracyOpen(true) },
 
+    { id: 'maxpuzzle', title: 'ბატონი მაქსის თავსატეხი', sub: 'კითხვები სწორი პასუხების გარეშე', cat: 'maxpuzzle', kind: 'launch', accent: '#d9b45a', logo: 'maxseal', badge: true, keywords: 'max puzzle თავსატეხი დილემა ფსიქოლოგია პროფილი არქეტიპი mr max', launch: () => setMaxPuzzleOpen(true) },
+
     { id: 'spyfall', title: 'ჯაშუში', sub: 'იპოვე ჯაშუში ხმით · 3-10 მოთ.', cat: 'deduction', kind: 'match', accent: '#ff5d6c', emoji: '🕵️', badge: true, keywords: 'spyfall ჯაშუში დედუქცია' },
     { id: 'codenames', title: 'Codenames', sub: '2 გუნდი · მინიშნებები · 4-16 მოთ.', cat: 'deduction', kind: 'match', accent: '#25c8f2', logo: 'codenames', emoji: '🔤', badge: true, keywords: 'codenames კოდი გუნდი' },
     { id: 'blackout', title: t.games.blackout.title, sub: t.games.blackout.subtitle, cat: 'solo', kind: 'match', accent: '#ffd34d', emoji: '🔦', badge: true, keywords: 'blackout impostor დედუქცია' },
@@ -302,7 +308,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   if (onOpenBackrooms) defs.push({ id: 'backrooms', title: 'Backrooms', sub: t.commB.backroomsSub, cat: 'solo', kind: 'launch', accent: '#f5de80', emoji: '🟨', keywords: 'backrooms horror', launch: onOpenBackrooms });
 
   const byId = (id: string) => defs.find(d => d.id === id);
-  const FEATURED = ['voidiq', ...(onOpenPremium ? ['premium'] : [])];
+  const FEATURED = ['voidiq', ...(onOpenPremium ? ['premium'] : []), 'maxpuzzle'];
 
   const q = query.trim().toLowerCase();
   const matchesQ = (d: GameDef) => !q || d.title.toLowerCase().includes(q) || d.keywords.toLowerCase().includes(q) || d.sub.toLowerCase().includes(q);
@@ -322,7 +328,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
         style={{ minHeight: 104, background: 'rgba(12,10,24,0.72)', border: `1px solid ${d.accent}40`, boxShadow: `0 4px 18px ${d.accent}12` }}>
         {d.badge && <span style={{ position: 'absolute', top: 8, right: 8, fontFamily: 'monospace', fontSize: 8, letterSpacing: 1, color: '#fff', background: 'rgba(124,58,237,0.9)', borderRadius: 6, padding: '2px 6px' }}>NEW</span>}
         <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-2" style={{ background: `${d.accent}1f` }}>
-          {d.logo === 'iq' ? <IQLogo size={34} /> : d.logo === 'vspace' ? <VRBustIcon size={36} /> : d.logo === 'philosophy' ? <PhilosopherIcon size={34} /> : d.logo === 'uno' ? <UnoLogo size={36} /> : d.logo === 'codenames' ? <NinjaEmblem size={36} /> : d.logo === 'sage' ? <SageIcon size={36} /> : d.logo === 'ganab' ? <img src="/ganab-star.png" alt="" className="w-7 h-7 object-contain" /> : <span className="text-2xl leading-none">{d.emoji}</span>}
+          {d.logo === 'iq' ? <IQLogo size={34} /> : d.logo === 'vspace' ? <VRBustIcon size={36} /> : d.logo === 'philosophy' ? <PhilosopherIcon size={34} /> : d.logo === 'uno' ? <UnoLogo size={36} /> : d.logo === 'codenames' ? <NinjaEmblem size={36} /> : d.logo === 'sage' ? <SageIcon size={36} /> : d.logo === 'maxseal' ? <MaxSeal size={36} /> : d.logo === 'ganab' ? <img src="/ganab-star.png" alt="" className="w-7 h-7 object-contain" /> : <span className="text-2xl leading-none">{d.emoji}</span>}
         </div>
         <div className="min-w-0">
           <p className="font-display font-bold text-white text-[13px] leading-tight truncate">{d.title}</p>
@@ -368,6 +374,18 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
               </div>
             </button>
           )}
+
+          <button onClick={() => openGame(byId('maxpuzzle')!)} className="w-full text-left rounded-2xl overflow-hidden transition-all active:scale-[0.99]"
+            style={{ border: '1px solid rgba(217,180,90,0.45)', boxShadow: '0 6px 30px rgba(217,180,90,0.14)' }}>
+            <div style={{ height: 84, background: 'linear-gradient(135deg, #2a1f4a 0%, #1c1230 55%, #2e2410 100%)', display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px', position: 'relative' }}>
+              <MaxSeal size={52} className="flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="font-display font-bold text-sm leading-tight" style={{ background: 'linear-gradient(90deg,#f7ecd0,#d9b45a)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>ბატონი მაქსის თავსატეხი</p>
+                <p className="font-mono text-[12px] text-white/55 mt-0.5">კითხვები სწორი პასუხების გარეშე</p>
+              </div>
+              <span style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 1, color: '#1a1206', background: 'rgba(217,180,90,0.92)', borderRadius: 8, padding: '3px 8px' }}>NEW</span>
+            </div>
+          </button>
         </>
       )}
 
@@ -403,7 +421,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
               <button key={d!.id} onClick={() => openGame(d!)}
                 className="flex-shrink-0 flex flex-col items-center gap-1.5 w-[68px]" >
                 <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: `${d!.accent}1f`, border: `1px solid ${d!.accent}40` }}>
-                  {d!.logo === 'iq' ? <IQLogo size={38} /> : d!.logo === 'vspace' ? <VRBustIcon size={40} /> : d!.logo === 'philosophy' ? <PhilosopherIcon size={38} /> : d!.logo === 'uno' ? <UnoLogo size={40} /> : d!.logo === 'codenames' ? <NinjaEmblem size={40} /> : d!.logo === 'sage' ? <SageIcon size={40} /> : d!.logo === 'ganab' ? <img src="/ganab-star.png" alt="" className="w-7 h-7 object-contain" /> : <span className="text-2xl">{d!.emoji}</span>}
+                  {d!.logo === 'iq' ? <IQLogo size={38} /> : d!.logo === 'vspace' ? <VRBustIcon size={40} /> : d!.logo === 'philosophy' ? <PhilosopherIcon size={38} /> : d!.logo === 'uno' ? <UnoLogo size={40} /> : d!.logo === 'codenames' ? <NinjaEmblem size={40} /> : d!.logo === 'sage' ? <SageIcon size={40} /> : d!.logo === 'maxseal' ? <MaxSeal size={40} /> : d!.logo === 'ganab' ? <img src="/ganab-star.png" alt="" className="w-7 h-7 object-contain" /> : <span className="text-2xl">{d!.emoji}</span>}
                 </div>
                 <span className="font-mono text-[9px] text-white/50 text-center leading-tight truncate w-full">{d!.title}</span>
               </button>
@@ -464,6 +482,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
 
       {/* Overlays */}
       {voidIqOpen && <Suspense fallback={null}><VoidIQHub onClose={() => setVoidIqOpen(false)} /></Suspense>}
+      {maxPuzzleOpen && <Suspense fallback={null}><MaxPuzzleExperience onClose={() => setMaxPuzzleOpen(false)} /></Suspense>}
       {dilemmasHubOpen && <Suspense fallback={null}><DilemmasHub onClose={() => setDilemmasHubOpen(false)} /></Suspense>}
       {philoHubOpen && <Suspense fallback={null}><PhilosophyHub onClose={() => setPhiloHubOpen(false)} /></Suspense>}
       {philoTestOpen && <Suspense fallback={null}><PhiloTestExperience onClose={() => setPhiloTestOpen(false)} /></Suspense>}
