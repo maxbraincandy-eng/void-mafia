@@ -51,6 +51,8 @@ import { AliasGame } from '@/components/alias/AliasGame';
 import { useAliasStore } from '@/store/aliasStore';
 import { SpyfallGame } from '@/components/spyfall/SpyfallGame';
 import { useSpyfallStore } from '@/store/spyfallStore';
+import { LiesGame } from '@/components/lies/LiesGame';
+import { useLiesStore } from '@/store/liesStore';
 import { DrawGame } from '@/components/draw/DrawGame';
 import { useDrawStore } from '@/store/drawStore';
 import { CodenamesGame } from '@/components/codenames/CodenamesGame';
@@ -362,9 +364,10 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
   const blackoutMatch = useBlackoutStore(s => s.match);
   const aliasMatch    = useAliasStore(s => s.match);
   const spyfallMatch  = useSpyfallStore(s => s.match);
+  const liesMatch     = useLiesStore(s => s.match);
   const drawMatch     = useDrawStore(s => s.match);
   const cnMatch       = useCodenamesStore(s => s.match);
-  const inGame = !!(checkersMatch || ludoMatch || jokerMatch || wwwMatch || unoMatch || blackoutMatch || aliasMatch || spyfallMatch || drawMatch || cnMatch);
+  const inGame = !!(checkersMatch || ludoMatch || jokerMatch || wwwMatch || unoMatch || blackoutMatch || aliasMatch || spyfallMatch || liesMatch || drawMatch || cnMatch);
   const [spaceOpen, setSpaceOpen] = useState(false);
   const [spaceCode, setSpaceCode] = useState<string | null>(null);
   const [backroomsOpen, setBackroomsOpen] = useState(false);
@@ -521,6 +524,7 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
       <AnimatePresence>{blackoutMatch && <BlackoutGame />}</AnimatePresence>
       <AnimatePresence>{aliasMatch    && <AliasGame />}</AnimatePresence>
       <AnimatePresence>{spyfallMatch  && <SpyfallGame />}</AnimatePresence>
+      <AnimatePresence>{liesMatch     && <LiesGame />}</AnimatePresence>
       <AnimatePresence>{drawMatch     && <DrawGame />}</AnimatePresence>
       <AnimatePresence>{cnMatch       && <CodenamesGame />}</AnimatePresence>
       <AnimatePresence>{spaceOpen    && <VirtualSpace initialSpaceCode={spaceCode} onClose={() => { setSpaceOpen(false); setSpaceCode(null); }} />}</AnimatePresence>

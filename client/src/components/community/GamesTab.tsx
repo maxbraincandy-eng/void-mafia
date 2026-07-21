@@ -28,6 +28,8 @@ import { useAliasStore } from '@/store/aliasStore';
 import type { AliasListItem } from '@/types/alias';
 import { useSpyfallStore } from '@/store/spyfallStore';
 import type { SpyfallListItem } from '@/types/spyfall';
+import { useLiesStore } from '@/store/liesStore';
+import type { LiesListItem } from '@/types/lies';
 import { useDrawStore } from '@/store/drawStore';
 import type { DrawListItem } from '@/types/draw';
 import { useCodenamesStore } from '@/store/codenamesStore';
@@ -148,6 +150,13 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   } = useSpyfallStore();
   const [spJoinCode, setSpJoinCode] = useState('');
 
+  // ── ტყუილების ოსტატი (Master of Lies) ───────────────────────────────
+  const {
+    matchList: liList, isLoading: liLoading, error: liError,
+    fetchList: liFetch, createMatch: liCreate, joinMatch: liJoin, clearError: liClear,
+  } = useLiesStore();
+  const [liJoinCode, setLiJoinCode] = useState('');
+
   // ── Draw & Guess ────────────────────────────────────────────────────
   const {
     matchList: drList, isLoading: drLoading, error: drError,
@@ -170,11 +179,11 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   const recordRecent = useCallback((id: string) => setRecent(pushRecent(id)), []);
 
   const handleRefresh = useCallback(() => {
-    ckClear(); jkClear(); ldClear(); wwClear(); unoClear(); boClear(); alClear(); drClear(); cnClear(); spClear();
-    ckFetch(); jkFetch(); ldFetch(); wwFetch(); unoFetch(); boFetch(); alFetch(); drFetch(); cnFetch(); spFetch();
-  }, [ckFetch, jkFetch, ldFetch, wwFetch, unoFetch, boFetch, alFetch, drFetch, cnFetch, spFetch, ckClear, jkClear, ldClear, wwClear, unoClear, boClear, alClear, drClear, cnClear, spClear]);
+    ckClear(); jkClear(); ldClear(); wwClear(); unoClear(); boClear(); alClear(); drClear(); cnClear(); spClear(); liClear();
+    ckFetch(); jkFetch(); ldFetch(); wwFetch(); unoFetch(); boFetch(); alFetch(); drFetch(); cnFetch(); spFetch(); liFetch();
+  }, [ckFetch, jkFetch, ldFetch, wwFetch, unoFetch, boFetch, alFetch, drFetch, cnFetch, spFetch, liFetch, ckClear, jkClear, ldClear, wwClear, unoClear, boClear, alClear, drClear, cnClear, spClear, liClear]);
 
-  useEffect(() => { ckFetch(); jkFetch(); ldFetch(); wwFetch(); unoFetch(); boFetch(); alFetch(); drFetch(); cnFetch(); spFetch(); }, [ckFetch, jkFetch, ldFetch, wwFetch, unoFetch, boFetch, alFetch, drFetch, cnFetch, spFetch]);
+  useEffect(() => { ckFetch(); jkFetch(); ldFetch(); wwFetch(); unoFetch(); boFetch(); alFetch(); drFetch(); cnFetch(); spFetch(); liFetch(); }, [ckFetch, jkFetch, ldFetch, wwFetch, unoFetch, boFetch, alFetch, drFetch, cnFetch, spFetch, liFetch]);
 
   useEffect(() => {
     const handler = () => { if (!document.hidden) handleRefresh(); };
@@ -207,6 +216,8 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   const handleAlJoin = () => { if (alJoinCode.trim()) { alJoin(alJoinCode.trim().toUpperCase(), playerName); setAlJoinCode(''); } };
   const handleSpCreate = () => spCreate(playerName);
   const handleSpJoin = () => { if (spJoinCode.trim()) { spJoin(spJoinCode.trim().toUpperCase(), playerName); setSpJoinCode(''); } };
+  const handleLiCreate = () => liCreate(playerName);
+  const handleLiJoin = () => { if (liJoinCode.trim()) { liJoin(liJoinCode.trim().toUpperCase(), playerName); setLiJoinCode(''); } };
   const handleDrCreate = () => drCreate(playerName);
   const handleDrJoin = () => { if (drJoinCode.trim()) { drJoin(drJoinCode.trim().toUpperCase(), playerName); setDrJoinCode(''); } };
   const handleCnCreate = () => cnCreate(playerName);
@@ -261,6 +272,11 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
       onJoin: handleSpJoin, codeMax: 6, codePh: 'XXXXXX', list: spList, error: spError, clearError: spClear,
       renderRow: m => <SpyfallRow key={m.id} match={m} onJoin={code => { recordRecent('spyfall'); spJoin(code, playerName); }} />,
     },
+    lies: {
+      accent: '#a855f7', onCreate: handleLiCreate, loading: liLoading, joinCode: liJoinCode, setJoinCode: setLiJoinCode,
+      onJoin: handleLiJoin, codeMax: 6, codePh: 'XXXXXX', list: liList, error: liError, clearError: liClear,
+      renderRow: m => <LiesRow key={m.id} match={m} onJoin={code => { recordRecent('lies'); liJoin(code, playerName); }} />,
+    },
     alias: {
       accent: '#4d9fff', onCreate: handleAlCreate, loading: alLoading, joinCode: alJoinCode, setJoinCode: setAlJoinCode,
       onJoin: handleAlJoin, codeMax: 6, codePh: 'XXXXXX', list: alList, error: alError, clearError: alClear,
@@ -293,6 +309,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
     { id: 'codenames', title: 'Codenames', sub: '2 გუნდი · მინიშნებები · 4-16 მოთ.', cat: 'deduction', kind: 'match', accent: '#25c8f2', logo: 'codenames', emoji: '🔤', badge: true, keywords: 'codenames კოდი გუნდი' },
     { id: 'blackout', title: t.games.blackout.title, sub: t.games.blackout.subtitle, cat: 'solo', kind: 'match', accent: '#ffd34d', emoji: '🔦', badge: true, keywords: 'blackout impostor დედუქცია' },
 
+    { id: 'lies', title: 'ტყუილების ოსტატი', sub: 'მოატყუე ან იპოვე სიმართლე · 3-12 მოთ.', cat: 'party', kind: 'match', accent: '#a855f7', emoji: '🎭', badge: true, keywords: 'lies ტყუილი fibbage ბლეფი bluff სიმართლე' },
     { id: 'alias', title: 'ალიასი', sub: 'გუნდური სიტყვების თამაში · 4-12 მოთ.', cat: 'party', kind: 'match', accent: '#4d9fff', emoji: '🗣', badge: true, keywords: 'alias სიტყვები taboo' },
     { id: 'draw', title: 'დახაზე & გამოიცანი', sub: 'ხატავ და გამოიცნობ · 2-12 მოთ.', cat: 'party', kind: 'match', accent: '#ff8c26', emoji: '🎨', badge: true, keywords: 'draw ხატვა pictionary' },
 
@@ -684,6 +701,25 @@ function SpyfallRow({ match, onJoin }: { match: SpyfallListItem; onJoin: (code: 
       <button onClick={() => onJoin(match.code)}
         className="px-2.5 py-1 rounded-lg font-mono text-[12px] uppercase tracking-wider transition-all active:scale-95"
         style={{ background: 'rgba(255,45,85,0.1)', border: '1px solid rgba(255,45,85,0.25)', color: '#ff5d6c' }}>
+        შეუერთდი
+      </button>
+    </div>
+  );
+}
+
+function LiesRow({ match, onJoin }: { match: LiesListItem; onJoin: (code: string) => void }) {
+  return (
+    <div className="flex items-center gap-3 px-2 py-2 rounded-xl" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
+      <div className="flex-1 min-w-0">
+        <p className="font-mono text-xs text-white truncate">{match.hostName}</p>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="font-mono text-[12px] text-white/25 tracking-widest">{match.code}</span>
+          <span className="font-mono text-[12px] text-white/20">{match.playerCount}/{match.maxPlayers}</span>
+        </div>
+      </div>
+      <button onClick={() => onJoin(match.code)}
+        className="px-2.5 py-1 rounded-lg font-mono text-[12px] uppercase tracking-wider transition-all active:scale-95"
+        style={{ background: 'rgba(168,85,247,0.12)', border: '1px solid rgba(168,85,247,0.3)', color: '#c084fc' }}>
         შეუერთდი
       </button>
     </div>
