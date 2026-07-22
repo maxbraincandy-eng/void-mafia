@@ -81,6 +81,10 @@ export interface XmMatch {
     } | null;
     lastWordsUserId: string | null;
     lastWordsEndsAt: number;
+    floorGrab: {
+        userId: string;
+        until: number;
+    } | null;
     winner: XmWinner;
     reveal: {
         userId: string;
@@ -167,6 +171,8 @@ export interface XmSafeState {
     lastWordsUserId: string | null;
     lastWordsName: string | null;
     lastWordsEndsAt: number;
+    floorGrabUserId: string | null;
+    floorGrabUntil: number;
     log: XmLogEntry[];
     winner: XmWinner;
     reveal: XmMatch['reveal'];
@@ -255,6 +261,8 @@ export declare function castVote(matchId: string, byUserId: string, nomineeUserI
 /** Host closes the vote early (timer or manual). */
 export declare function endVote(matchId: string, byUserId: string | null): XmMatch | null;
 export declare function giveFoul(matchId: string, byUserId: string, targetUserId: string, delta: number): XmMatch | null;
+export declare const FLOOR_GRAB_MS = 6000;
+export declare function grabFloor(matchId: string, byUserId: string): XmMatch | null;
 /** Host (or timer) ends the farewell speech; flow returns to the day/night loop. */
 export declare function endLastWords(matchId: string, byUserId: string | null): XmMatch | null;
 export declare function rematch(matchId: string, byUserId: string): XmMatch | null;

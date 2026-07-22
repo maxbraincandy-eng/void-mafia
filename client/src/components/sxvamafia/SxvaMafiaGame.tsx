@@ -97,9 +97,9 @@ function VideoTile({ stream, mirror, muted }: { stream: MediaStream | null; mirr
 interface SeatTileProps {
   seat: XmSafeSeat | null; isHostTile?: boolean; fill?: boolean;
   match: XmSafeState; myId: string; stream: MediaStream | null; isSpeaking: boolean;
-  foulMode: boolean; isHost: boolean; speechLeft: number; onFoul: (uid: string) => void;
+  foulMode: boolean; isHost: boolean; speechLeft: number; onFoul: (uid: string) => void; grabbing?: boolean;
 }
-const SeatTile = memo(function SeatTile({ seat, isHostTile, fill, match, myId, stream, isSpeaking, foulMode, isHost, speechLeft, onFoul }: SeatTileProps) {
+const SeatTile = memo(function SeatTile({ seat, isHostTile, fill, match, myId, stream, isSpeaking, foulMode, isHost, speechLeft, onFoul, grabbing }: SeatTileProps) {
   const uid = isHostTile ? match.hostId : seat!.userId;
   const name = isHostTile ? match.hostName : seat!.nickname;
   const isMe = uid === myId;
@@ -108,7 +108,7 @@ const SeatTile = memo(function SeatTile({ seat, isHostTile, fill, match, myId, s
   const mate = !isHostTile && match.mateIds.includes(uid);
   const rm = seat?.role ? XM_ROLE_META[seat.role] : null;
   const conn = isHostTile ? match.hostConnected : seat!.connected;
-  const glow = turnSpeaking ? RED : isSpeaking ? '#39d98a' : mate ? '#ff6b6b' : 'transparent';
+  const glow = turnSpeaking ? RED : grabbing ? '#ffcc33' : isSpeaking ? '#39d98a' : mate ? '#ff6b6b' : 'transparent';
   const canFoul = isHost && foulMode && !isHostTile && seat!.alive;
 
   return (
@@ -117,7 +117,7 @@ const SeatTile = memo(function SeatTile({ seat, isHostTile, fill, match, myId, s
         aspectRatio: fill ? undefined : '4/3', width: fill ? '100%' : undefined, height: fill ? '100%' : undefined,
         background: '#0b0b12',
         border: `2px solid ${glow === 'transparent' ? 'rgba(255,255,255,0.08)' : glow}`,
-        boxShadow: turnSpeaking ? `0 0 22px ${RED}88` : isSpeaking ? '0 0 16px #39d98a66' : 'none',
+        boxShadow: turnSpeaking ? `0 0 22px ${RED}88` : grabbing ? '0 0 18px #ffcc3388' : isSpeaking ? '0 0 16px #39d98a66' : 'none',
         opacity: dead ? 0.5 : 1,
         cursor: canFoul ? 'pointer' : 'default',
       }}
@@ -135,6 +135,9 @@ const SeatTile = memo(function SeatTile({ seat, isHostTile, fill, match, myId, s
       {turnSpeaking && (
         <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded-md font-mono text-[11px] font-bold"
           style={{ background: RED, color: '#fff', fontVariantNumeric: 'tabular-nums' }}>{fmt(speechLeft)}</div>
+      )}
+      {grabbing && !turnSpeaking && (
+        <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded-md font-mono text-[10px] font-bold" style={{ background: '#ffcc33', color: '#000' }}>🎙 ფოლი</div>
       )}
       {!isHostTile && seat!.fouls > 0 && !dead && (
         <div className="absolute bottom-1 right-1 flex gap-0.5">
@@ -196,7 +199,9 @@ export function SxvaMafiaGame() {
     (match.phase === 'last_words' && match.lastWordsUserId === myId)
   );
   const amActiveTalker = !!match && (match.amHost || match.myAlive) && !match.amSpectator;
-  const listenOnly = !!match && (match.amSpectator || (!match.amHost && !match.myAlive) || (floorControl && !iHoldFloor && !match.amHost));
+  // A player's 6-second "foul" temporarily lifts their floor-control mute.
+  const iHaveFloor = !!match && match.floorGrabUserId === myId && match.floorGrabUntil > now;
+  const listenOnly = !!match && (match.amSpectator || (!match.amHost && !match.myAlive) || (floorControl && !iHoldFloor && !iHaveFloor && !match.amHost));
   const voice = useLivekitRoomVoice({
     roomId: match?.id ? `sxvamafia_${match.id}` : null,
     identity: myId || null,
@@ -211,6 +216,14 @@ export function SxvaMafiaGame() {
     prevFloor.current = iHoldFloor;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [iHoldFloor, listenOnly, voice.connected]);
+
+  // Auto-open the mic when a 6-second "foul" interjection begins.
+  const prevGrab = useRef(false);
+  useEffect(() => {
+    if (iHaveFloor && !prevGrab.current && voice.connected) voice.setMic(true);
+    prevGrab.current = iHaveFloor;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [iHaveFloor, voice.connected]);
 
   // Turn the camera on once we're connected (video-first game).
   useEffect(() => {
@@ -260,8 +273,9 @@ export function SxvaMafiaGame() {
   const onFoul = (uid: string) => { SFX.click?.(); haptic('error'); store.giveFoul(uid, 1); };
   const renderSeat = (seat: XmSafeSeat | null, extra: { isHostTile?: boolean; fill?: boolean } = {}) => {
     const uid = extra.isHostTile ? match!.hostId : seat!.userId;
+    const grabbing = !extra.isHostTile && match!.floorGrabUserId === uid && match!.floorGrabUntil > now;
     return <SeatTile key={extra.isHostTile ? 'host' : seat!.userId} seat={seat} match={match!} myId={myId}
-      stream={streamFor(uid)} isSpeaking={speaking.has(uid)} foulMode={foulMode} isHost={isHost} speechLeft={speechLeft} onFoul={onFoul} {...extra} />;
+      stream={streamFor(uid)} isSpeaking={speaking.has(uid)} grabbing={grabbing} foulMode={foulMode} isHost={isHost} speechLeft={speechLeft} onFoul={onFoul} {...extra} />;
   };
 
   // ── target chips for actions ────────────────────────────────────────────────
@@ -672,6 +686,20 @@ export function SxvaMafiaGame() {
       {match.phase !== 'finished' && (
         <div className="flex-shrink-0 px-4 pb-[calc(env(safe-area-inset-bottom,0px)+10px)] pt-2" style={{ borderTop: `1px solid ${RED}22`, background: 'rgba(0,0,0,0.3)' }}>
           <div className="max-w-2xl mx-auto">
+            {/* 6-second "foul": a muted player grabs the mic out of turn */}
+            {!isHost && !match.amSpectator && match.myAlive && floorControl && !iHoldFloor &&
+              (['speech', 'vote', 'last_words', 'day_announce'] as string[]).includes(match.phase) && (() => {
+                const someoneElse = !!match.floorGrabUserId && match.floorGrabUserId !== myId && match.floorGrabUntil > now;
+                const elseSeat = someoneElse ? match.seats.find(s => s.userId === match.floorGrabUserId) : null;
+                const left = Math.max(0, Math.ceil((match.floorGrabUntil - now) / 1000));
+                return (
+                  <button onClick={() => { if (!iHaveFloor && !someoneElse) { SFX.click?.(); haptic('selection'); store.grabFloor(); } }} disabled={someoneElse}
+                    className="w-full mb-2 py-2.5 rounded-xl font-display font-bold text-[13px] transition-all active:scale-[0.98] disabled:opacity-60"
+                    style={{ background: iHaveFloor ? '#ffcc33' : someoneElse ? 'rgba(255,255,255,0.05)' : `${RED}22`, color: iHaveFloor ? '#000' : '#fff', border: `1px solid ${iHaveFloor ? '#ffcc33' : someoneElse ? 'rgba(255,255,255,0.14)' : RED + '55'}` }}>
+                    {iHaveFloor ? `🎙 ლაპარაკობ — ${left}წმ` : someoneElse ? `🔇 #${elseSeat?.seat} ${elseSeat?.nickname} საუბრობს (${left}წმ)` : '🎙 ფოლი — რიგგარეშე 6 წამი'}
+                  </button>
+                );
+              })()}
             {isHost ? <HostBar /> : <PlayerPanel />}
             {isHost && match.phase !== 'lobby' && match.phase !== 'assign' && (
               <div className="mt-2 pt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}><PlayerPanelReadonly match={match} /></div>

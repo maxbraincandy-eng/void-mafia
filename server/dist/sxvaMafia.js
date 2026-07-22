@@ -1,5 +1,5 @@
 import { ok, err, } from './types/index.js';
-import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch, dissolveMatch, transferHost, startMatch, reshuffleRoles, setRoleConfig, setSettings, pickCard, beginMafiaMeet, endMafiaMeet, beginNight, mafiaVote, donCheck, sheriffCheck, endNight, beginDay, nextSpeaker, advanceSpeakerAuto, extendSpeech, nominate, castVote, endVote, giveFoul, endLastWords, rematch, disconnectSocket, getSafeState, } from './services/sxvaMafiaService.js';
+import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch, dissolveMatch, transferHost, startMatch, reshuffleRoles, setRoleConfig, setSettings, pickCard, beginMafiaMeet, endMafiaMeet, beginNight, mafiaVote, donCheck, sheriffCheck, endNight, beginDay, nextSpeaker, advanceSpeakerAuto, extendSpeech, nominate, grabFloor, castVote, endVote, giveFoul, endLastWords, rematch, disconnectSocket, getSafeState, } from './services/sxvaMafiaService.js';
 const ROOM = (id) => `xm:${id}`;
 function userId(socket) { return socket.data.profileId ?? socket.id; }
 function everyone(m) {
@@ -212,6 +212,19 @@ export function registerSxvaMafiaHandlers(io, socket) {
             after(matchId);
             if (m.phase === 'finished')
                 broadcastList(io);
+            cb(ok(null));
+        }
+        catch (e) {
+            cb(err(e.message));
+        }
+    });
+    socket.on('xm:grab_floor', (data, cb) => {
+        try {
+            const matchId = String(data?.matchId);
+            const m = grabFloor(matchId, uid());
+            if (!m)
+                return cb(err('ვერ აიღე სიტყვა'));
+            after(matchId);
             cb(ok(null));
         }
         catch (e) {

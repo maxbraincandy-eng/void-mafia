@@ -95,6 +95,8 @@ export interface XmMatch {
   // last words
   lastWordsUserId: string | null;
   lastWordsEndsAt: number;
+  // a player's 6-second "foul" — grabbing the mic out of turn
+  floorGrab: { userId: string; until: number } | null;
   // end
   winner: XmWinner;
   reveal: { userId: string; nickname: string; seat: number; role: XmRole }[] | null;
@@ -157,6 +159,8 @@ export interface XmSafeState {
   lastWordsUserId: string | null;
   lastWordsName: string | null;
   lastWordsEndsAt: number;
+  floorGrabUserId: string | null;   // who is currently interjecting (their 6s "foul")
+  floorGrabUntil: number;
   // end
   log: XmLogEntry[];
   winner: XmWinner;
@@ -230,7 +234,7 @@ export function createMatch(hostId: string, socketId: string, nickname: string, 
     nightEndsAt: 0,
     announce: null,
     votes: {}, voteEndsAt: 0, voteRevote: false, voteResult: null,
-    lastWordsUserId: null, lastWordsEndsAt: 0,
+    lastWordsUserId: null, lastWordsEndsAt: 0, floorGrab: null,
     winner: null, reveal: null, dissolved: false, createdAt: Date.now(),
   };
   matches.set(id, m);
@@ -442,6 +446,7 @@ function nightAllActed(m: XmMatch): boolean {
 }
 function startNight(m: XmMatch): void {
   resetNight(m);
+  m.floorGrab = null;
   m.phase = 'night';
   // Host-paced: the night ends when every role has acted (auto) or the host
   // closes it — NOT on a hard timer, which used to resolve a premature "peaceful
@@ -738,6 +743,19 @@ export function giveFoul(matchId: string, byUserId: string, targetUserId: string
   return m;
 }
 
+// ── Player "foul": grab the mic for 6 seconds out of turn ───────────────────────
+export const FLOOR_GRAB_MS = 6000;
+export function grabFloor(matchId: string, byUserId: string): XmMatch | null {
+  const m = matches.get(matchId);
+  if (!m) return null;
+  if (m.phase !== 'speech' && m.phase !== 'vote' && m.phase !== 'last_words' && m.phase !== 'day_announce') return null;
+  const seat = findByUser(m, byUserId);
+  if (!seat || !seat.alive) return null;
+  if (m.floorGrab && m.floorGrab.until > Date.now()) return null; // one interjection at a time
+  m.floorGrab = { userId: byUserId, until: Date.now() + FLOOR_GRAB_MS };
+  return m;
+}
+
 // ── Last words ──────────────────────────────────────────────────────────────────
 function startLastWords(m: XmMatch, userId: string): void {
   m.lastWordsUserId = userId;
@@ -796,7 +814,7 @@ export function rematch(matchId: string, byUserId: string): XmMatch | null {
   m.speechOrder = []; m.speechIdx = 0; m.speechEndsAt = 0; m.nominations = []; m.nominatedBy = {};
   resetNight(m); m.nightEndsAt = 0;
   m.announce = null; m.votes = {}; m.voteEndsAt = 0; m.voteRevote = false; m.voteResult = null;
-  m.lastWordsUserId = null; m.lastWordsEndsAt = 0; m.winner = null; m.reveal = null; m.dissolved = false;
+  m.lastWordsUserId = null; m.lastWordsEndsAt = 0; m.floorGrab = null; m.winner = null; m.reveal = null; m.dissolved = false;
   m.log = [];
   return m;
 }
@@ -897,6 +915,8 @@ export function getSafeState(m: XmMatch, viewerUserId: string): XmSafeState {
     lastWordsUserId: m.lastWordsUserId,
     lastWordsName: lastWordsSeat?.nickname ?? null,
     lastWordsEndsAt: m.phase === 'last_words' ? m.lastWordsEndsAt : 0,
+    floorGrabUserId: m.floorGrab?.userId ?? null,
+    floorGrabUntil: m.floorGrab?.until ?? 0,
     log: m.log.slice(-40),
     winner: m.winner,
     reveal: m.reveal,

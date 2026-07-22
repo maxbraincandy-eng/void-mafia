@@ -94,7 +94,7 @@ export function createMatch(hostId, socketId, nickname, opts) {
         nightEndsAt: 0,
         announce: null,
         votes: {}, voteEndsAt: 0, voteRevote: false, voteResult: null,
-        lastWordsUserId: null, lastWordsEndsAt: 0,
+        lastWordsUserId: null, lastWordsEndsAt: 0, floorGrab: null,
         winner: null, reveal: null, dissolved: false, createdAt: Date.now(),
     };
     matches.set(id, m);
@@ -360,6 +360,7 @@ function nightAllActed(m) {
 }
 function startNight(m) {
     resetNight(m);
+    m.floorGrab = null;
     m.phase = 'night';
     // Host-paced: the night ends when every role has acted (auto) or the host
     // closes it — NOT on a hard timer, which used to resolve a premature "peaceful
@@ -720,6 +721,22 @@ export function giveFoul(matchId, byUserId, targetUserId, delta) {
     }
     return m;
 }
+// ── Player "foul": grab the mic for 6 seconds out of turn ───────────────────────
+export const FLOOR_GRAB_MS = 6000;
+export function grabFloor(matchId, byUserId) {
+    const m = matches.get(matchId);
+    if (!m)
+        return null;
+    if (m.phase !== 'speech' && m.phase !== 'vote' && m.phase !== 'last_words' && m.phase !== 'day_announce')
+        return null;
+    const seat = findByUser(m, byUserId);
+    if (!seat || !seat.alive)
+        return null;
+    if (m.floorGrab && m.floorGrab.until > Date.now())
+        return null; // one interjection at a time
+    m.floorGrab = { userId: byUserId, until: Date.now() + FLOOR_GRAB_MS };
+    return m;
+}
 // ── Last words ──────────────────────────────────────────────────────────────────
 function startLastWords(m, userId) {
     m.lastWordsUserId = userId;
@@ -798,6 +815,7 @@ export function rematch(matchId, byUserId) {
     m.voteResult = null;
     m.lastWordsUserId = null;
     m.lastWordsEndsAt = 0;
+    m.floorGrab = null;
     m.winner = null;
     m.reveal = null;
     m.dissolved = false;
@@ -900,6 +918,8 @@ export function getSafeState(m, viewerUserId) {
         lastWordsUserId: m.lastWordsUserId,
         lastWordsName: lastWordsSeat?.nickname ?? null,
         lastWordsEndsAt: m.phase === 'last_words' ? m.lastWordsEndsAt : 0,
+        floorGrabUserId: m.floorGrab?.userId ?? null,
+        floorGrabUntil: m.floorGrab?.until ?? 0,
         log: m.log.slice(-40),
         winner: m.winner,
         reveal: m.reveal,

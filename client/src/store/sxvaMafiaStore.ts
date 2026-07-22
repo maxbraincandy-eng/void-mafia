@@ -32,6 +32,7 @@ interface XmStore {
   endVote: () => Promise<void>;
   endLastWords: () => Promise<void>;
   giveFoul: (targetId: string, delta?: number) => Promise<void>;
+  grabFloor: () => Promise<void>;
   rematch: () => Promise<void>;
 
   // player
@@ -75,6 +76,7 @@ export const useSxvaMafiaStore = create<XmStore>((set, get) => {
     endVote: hostEv('xm:end_vote'),
     endLastWords: hostEv('xm:end_last_words'),
     giveFoul: async (targetId, delta = 1) => { const id = mid(); if (!id) return; try { const r = await emit('xm:give_foul', { matchId: id, targetId, delta }); if (!r.ok) set({ error: r.error }); } catch (e: any) { set({ error: e.message }); } },
+    grabFloor: hostEv('xm:grab_floor'),
     rematch: hostEv('xm:rematch'),
 
     mafiaVote: targetEv('xm:mafia_vote'),

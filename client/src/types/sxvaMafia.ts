@@ -63,6 +63,8 @@ export interface XmSafeState {
   lastWordsUserId: string | null;
   lastWordsName: string | null;
   lastWordsEndsAt: number;
+  floorGrabUserId: string | null;
+  floorGrabUntil: number;
   log: XmLogEntry[];
   winner: XmWinner;
   reveal: { userId: string; nickname: string; seat: number; role: XmRole }[] | null;

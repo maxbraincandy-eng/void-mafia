@@ -14,7 +14,7 @@ import {
 import {
   createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch,
   dissolveMatch, transferHost, startMatch, reshuffleRoles, setRoleConfig, setSettings, pickCard, beginMafiaMeet, endMafiaMeet, beginNight, mafiaVote, donCheck, sheriffCheck,
-  endNight, beginDay, nextSpeaker, advanceSpeakerAuto, extendSpeech, nominate,
+  endNight, beginDay, nextSpeaker, advanceSpeakerAuto, extendSpeech, nominate, grabFloor,
   castVote, endVote, giveFoul, endLastWords, rematch, disconnectSocket, getSafeState,
 } from './services/sxvaMafiaService.js';
 
@@ -195,6 +195,16 @@ export function registerSxvaMafiaHandlers(io: AppServer, socket: AppSocket): voi
       if (!m) return cb(err('ვერ დასრულდა'));
       after(matchId);
       if (m.phase === 'finished') broadcastList(io);
+      cb(ok(null));
+    } catch (e: any) { cb(err(e.message)); }
+  });
+
+  socket.on('xm:grab_floor' as any, (data: { matchId: string }, cb: (r: any) => void) => {
+    try {
+      const matchId = String(data?.matchId);
+      const m = grabFloor(matchId, uid());
+      if (!m) return cb(err('ვერ აიღე სიტყვა'));
+      after(matchId);
       cb(ok(null));
     } catch (e: any) { cb(err(e.message)); }
   });
