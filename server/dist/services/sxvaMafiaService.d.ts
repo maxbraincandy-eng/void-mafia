@@ -14,6 +14,7 @@ export interface XmSeat {
     eliminatedRound: number | null;
     eliminatedBy: 'vote' | 'mafia' | 'fouls' | null;
     lastCheck: string | null;
+    cardIndex: number | null;
 }
 export interface XmLogEntry {
     round: number;
@@ -60,6 +61,7 @@ export interface XmMatch {
         mafia: number;
         sheriff: number;
     } | null;
+    deck: XmRole[];
     log: XmLogEntry[];
     round: number;
     speechOrder: string[];
@@ -129,6 +131,13 @@ export interface XmSafeState {
     myAlive: boolean;
     myFouls: number;
     mateIds: string[];
+    cards: {
+        index: number;
+        claimedById: string | null;
+        claimedByName: string | null;
+        claimedBySeat: number | null;
+    }[];
+    myCardIndex: number | null;
     speakingUserId: string | null;
     speechEndsAt: number;
     speechIdx: number;
@@ -202,8 +211,16 @@ export declare function joinMatch(matchId: string, userId: string, socketId: str
 export declare function leaveMatch(matchId: string, userId: string): XmMatch | null;
 export declare function disconnectSocket(socketId: string): string | null;
 export declare function dissolveMatch(matchId: string, _byUserId: string): XmMatch | null;
-export declare function assignRoles(m: XmMatch): void;
+/** Lobby only: the host hands the moderator role to a seated player and takes
+ * that player's seat in return (a straight swap). */
+export declare function transferHost(matchId: string, byUserId: string, targetUserId: string): XmMatch | null;
+/** Shuffle the role composition into a face-down deck. Roles aren't assigned to
+ * seats yet — each player claims a card during the assign phase, and the card's
+ * hidden role becomes theirs. */
+export declare function dealCards(m: XmMatch): void;
 export declare function startMatch(matchId: string, byUserId: string): XmMatch | null;
+/** A player takes one of the face-down cards; its hidden role becomes theirs. */
+export declare function pickCard(matchId: string, byUserId: string, cardIndex: number): XmMatch | null;
 /** Host configures the role composition (lobby or assign). Pass null to reset to auto. */
 export declare function setRoleConfig(matchId: string, byUserId: string, cfg: {
     don: number;
@@ -212,7 +229,7 @@ export declare function setRoleConfig(matchId: string, byUserId: string, cfg: {
 } | null): XmMatch | null;
 /** Host tweaks timers / floor control. Durations only editable before play starts. */
 export declare function setSettings(matchId: string, byUserId: string, patch: Partial<XmMatch['settings']>): XmMatch | null;
-/** Host re-rolls the secret roles while still on the assign screen. */
+/** Host re-deals the cards while still on the assign screen (everyone re-picks). */
 export declare function reshuffleRoles(matchId: string, byUserId: string): XmMatch | null;
 /** First night only: the mafia open their eyes and get to know each other. */
 export declare function beginMafiaMeet(matchId: string, byUserId: string): XmMatch | null;

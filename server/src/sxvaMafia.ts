@@ -13,7 +13,7 @@ import {
 } from './types/index.js';
 import {
   createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch,
-  dissolveMatch, startMatch, reshuffleRoles, setRoleConfig, setSettings, beginMafiaMeet, endMafiaMeet, beginNight, mafiaVote, donCheck, sheriffCheck,
+  dissolveMatch, transferHost, startMatch, reshuffleRoles, setRoleConfig, setSettings, pickCard, beginMafiaMeet, endMafiaMeet, beginNight, mafiaVote, donCheck, sheriffCheck,
   endNight, advanceNightAuto, beginDay, nextSpeaker, advanceSpeakerAuto, extendSpeech, nominate,
   castVote, endVote, giveFoul, endLastWords, rematch, disconnectSocket, getSafeState,
 } from './services/sxvaMafiaService.js';
@@ -225,6 +225,18 @@ export function registerSxvaMafiaHandlers(io: AppServer, socket: AppSocket): voi
         cb(ok(null));
       } catch (e: any) { cb(err(e.message)); }
     };
+
+  socket.on('xm:transfer_host' as any, targetAction(transferHost, 'ვერ გადაეცა ჰოსტობა'));
+
+  socket.on('xm:pick_card' as any, (data: { matchId: string; cardIndex: number }, cb: (r: any) => void) => {
+    try {
+      const matchId = String(data?.matchId);
+      const m = pickCard(matchId, uid(), Number(data?.cardIndex));
+      if (!m) return cb(err('ვერ აიღე ბარათი'));
+      after(matchId);
+      cb(ok(null));
+    } catch (e: any) { cb(err(e.message)); }
+  });
 
   socket.on('xm:mafia_vote' as any, targetAction(mafiaVote, 'ვერ აირჩია სამიზნე'));
   socket.on('xm:don_check' as any, targetAction(donCheck, 'ვერ შეამოწმა'));

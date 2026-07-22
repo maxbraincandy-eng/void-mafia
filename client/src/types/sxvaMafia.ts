@@ -41,6 +41,8 @@ export interface XmSafeState {
   myAlive: boolean;
   myFouls: number;
   mateIds: string[];
+  cards: { index: number; claimedById: string | null; claimedByName: string | null; claimedBySeat: number | null }[];
+  myCardIndex: number | null;
   speakingUserId: string | null;
   speechEndsAt: number;
   speechIdx: number;

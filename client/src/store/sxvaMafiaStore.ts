@@ -18,6 +18,8 @@ interface XmStore {
   // host
   start: () => Promise<void>;
   reshuffle: () => Promise<void>;
+  transferHost: (targetId: string) => Promise<void>;
+  pickCard: (cardIndex: number) => Promise<void>;
   setRoles: (config: { don: number; mafia: number; sheriff: number } | null) => Promise<void>;
   setSettings: (patch: Partial<{ speechSeconds: number; voteSeconds: number; lastWordsSeconds: number; nightSeconds: number; floorControl: boolean }>) => Promise<void>;
   beginMeet: () => Promise<void>;
@@ -59,6 +61,8 @@ export const useSxvaMafiaStore = create<XmStore>((set, get) => {
 
     start: hostEv('xm:start'),
     reshuffle: hostEv('xm:reshuffle'),
+    transferHost: targetEv('xm:transfer_host'),
+    pickCard: async (cardIndex) => { const id = mid(); if (!id) return; try { const r = await emit('xm:pick_card', { matchId: id, cardIndex }); if (!r.ok) set({ error: r.error }); } catch (e: any) { set({ error: e.message }); } },
     setRoles: async (config) => { const id = mid(); if (!id) return; try { const r = await emit('xm:set_roles', { matchId: id, config }); if (!r.ok) set({ error: r.error }); } catch (e: any) { set({ error: e.message }); } },
     setSettings: async (patch) => { const id = mid(); if (!id) return; try { const r = await emit('xm:set_settings', { matchId: id, patch }); if (!r.ok) set({ error: r.error }); } catch (e: any) { set({ error: e.message }); } },
     beginMeet: hostEv('xm:begin_meet'),

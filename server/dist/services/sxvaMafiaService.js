@@ -86,6 +86,7 @@ export function createMatch(hostId, socketId, nickname, opts) {
         spectators: [],
         settings: { speechSeconds: 60, nightSeconds: 40, voteSeconds: 30, lastWordsSeconds: 40, floorControl: true },
         roleConfig: null,
+        deck: [],
         log: [],
         round: 0,
         speechOrder: [], speechIdx: 0, speechEndsAt: 0, nominations: [], nominatedBy: {},
@@ -149,7 +150,7 @@ export function joinMatch(matchId, userId, socketId, nickname) {
         return { match: m, isNew: false };
     }
     if (m.phase === 'lobby' && m.seats.length < m.maxSeats) {
-        m.seats.push({ userId, socketId, nickname, seat: m.seats.length + 1, connected: true, role: null, alive: true, fouls: 0, eliminatedRound: null, eliminatedBy: null, lastCheck: null });
+        m.seats.push({ userId, socketId, nickname, seat: m.seats.length + 1, connected: true, role: null, alive: true, fouls: 0, eliminatedRound: null, eliminatedBy: null, lastCheck: null, cardIndex: null });
         return { match: m, isNew: true };
     }
     m.spectators.push({ userId, socketId, nickname, connected: true });
@@ -211,8 +212,33 @@ export function dissolveMatch(matchId, _byUserId) {
     m.winner = null;
     return m;
 }
-// ── Start / role assignment ─────────────────────────────────────────────────────
-export function assignRoles(m) {
+/** Lobby only: the host hands the moderator role to a seated player and takes
+ * that player's seat in return (a straight swap). */
+export function transferHost(matchId, byUserId, targetUserId) {
+    const m = matches.get(matchId);
+    if (!m || m.hostId !== byUserId || m.phase !== 'lobby')
+        return null;
+    const target = findByUser(m, targetUserId);
+    if (!target)
+        return null;
+    const oldHostSeat = {
+        userId: m.hostId, socketId: m.hostSocketId, nickname: m.hostName, seat: target.seat,
+        connected: m.hostConnected, role: null, alive: true, fouls: 0,
+        eliminatedRound: null, eliminatedBy: null, lastCheck: null, cardIndex: null,
+    };
+    m.seats = m.seats.map(s => (s.userId === targetUserId ? oldHostSeat : s));
+    m.seats.forEach((s, i) => { s.seat = i + 1; });
+    m.hostId = target.userId;
+    m.hostSocketId = target.socketId;
+    m.hostName = target.nickname;
+    m.hostConnected = target.connected;
+    return m;
+}
+// ── Start / the deal ─────────────────────────────────────────────────────────────
+/** Shuffle the role composition into a face-down deck. Roles aren't assigned to
+ * seats yet — each player claims a card during the assign phase, and the card's
+ * hidden role becomes theirs. */
+export function dealCards(m) {
     const n = m.seats.length;
     const { don, mafia, sheriff } = effectiveCounts(m);
     const pool = [
@@ -222,9 +248,10 @@ export function assignRoles(m) {
     ];
     while (pool.length < n)
         pool.push('citizen');
-    const roles = shuffle(pool);
-    m.seats.forEach((s, i) => {
-        s.role = roles[i];
+    m.deck = shuffle(pool);
+    m.seats.forEach(s => {
+        s.role = null;
+        s.cardIndex = null;
         s.alive = true;
         s.fouls = 0;
         s.eliminatedRound = null;
@@ -238,7 +265,7 @@ export function startMatch(matchId, byUserId) {
         return null;
     if (m.seats.length < 4)
         return null;
-    assignRoles(m);
+    dealCards(m);
     m.round = 0;
     m.phase = 'assign';
     m.winner = null;
@@ -246,6 +273,23 @@ export function startMatch(matchId, byUserId) {
     m.announce = null;
     m.log = [];
     pushLog(m, 'game', `თამაში დაიწყო — ${m.seats.length} მოთამაშე`);
+    return m;
+}
+/** A player takes one of the face-down cards; its hidden role becomes theirs. */
+export function pickCard(matchId, byUserId, cardIndex) {
+    const m = matches.get(matchId);
+    if (!m || m.phase !== 'assign')
+        return null;
+    const seat = findByUser(m, byUserId);
+    if (!seat || seat.cardIndex !== null)
+        return null; // spectators / host / already took one
+    const idx = Math.floor(Number(cardIndex));
+    if (idx < 0 || idx >= m.deck.length)
+        return null;
+    if (m.seats.some(s => s.cardIndex === idx))
+        return null; // already taken by someone
+    seat.cardIndex = idx;
+    seat.role = m.deck[idx];
     return m;
 }
 /** Host configures the role composition (lobby or assign). Pass null to reset to auto. */
@@ -266,7 +310,7 @@ export function setRoleConfig(matchId, byUserId, cfg) {
         };
     }
     if (m.phase === 'assign')
-        assignRoles(m); // reflect the new split immediately
+        dealCards(m); // re-deal with the new split (everyone re-picks)
     return m;
 }
 /** Host tweaks timers / floor control. Durations only editable before play starts. */
@@ -288,12 +332,12 @@ export function setSettings(matchId, byUserId, patch) {
     }
     return m;
 }
-/** Host re-rolls the secret roles while still on the assign screen. */
+/** Host re-deals the cards while still on the assign screen (everyone re-picks). */
 export function reshuffleRoles(matchId, byUserId) {
     const m = matches.get(matchId);
     if (!m || m.hostId !== byUserId || m.phase !== 'assign')
         return null;
-    assignRoles(m);
+    dealCards(m);
     return m;
 }
 // ── Phase transitions (host-driven) ─────────────────────────────────────────────
@@ -324,6 +368,8 @@ export function beginMafiaMeet(matchId, byUserId) {
     const m = matches.get(matchId);
     if (!m || m.hostId !== byUserId || m.phase !== 'assign')
         return null;
+    if (m.seats.some(s => s.cardIndex === null))
+        return null; // wait until everyone took a card
     resetNight(m);
     m.round = 1;
     m.phase = 'mafia_meet';
@@ -724,10 +770,11 @@ export function rematch(matchId, byUserId) {
     for (const sp of m.spectators.filter(s => s.connected)) {
         if (keep.length >= m.maxSeats)
             break;
-        keep.push({ userId: sp.userId, socketId: sp.socketId, nickname: sp.nickname, seat: 0, connected: true, role: null, alive: true, fouls: 0, eliminatedRound: null, eliminatedBy: null, lastCheck: null });
+        keep.push({ userId: sp.userId, socketId: sp.socketId, nickname: sp.nickname, seat: 0, connected: true, role: null, alive: true, fouls: 0, eliminatedRound: null, eliminatedBy: null, lastCheck: null, cardIndex: null });
     }
     m.seats = keep;
-    m.seats.forEach((s, i) => { s.seat = i + 1; s.role = null; s.alive = true; s.fouls = 0; s.eliminatedRound = null; s.eliminatedBy = null; });
+    m.seats.forEach((s, i) => { s.seat = i + 1; s.role = null; s.alive = true; s.fouls = 0; s.eliminatedRound = null; s.eliminatedBy = null; s.lastCheck = null; s.cardIndex = null; });
+    m.deck = [];
     m.spectators = [];
     m.phase = 'lobby';
     m.round = 0;
@@ -820,6 +867,11 @@ export function getSafeState(m, viewerUserId) {
         myAlive: meSeat?.alive ?? false,
         myFouls: meSeat?.fouls ?? 0,
         mateIds,
+        cards: m.phase === 'assign' ? m.deck.map((_, index) => {
+            const holder = m.seats.find(s => s.cardIndex === index) ?? null;
+            return { index, claimedById: holder?.userId ?? null, claimedByName: holder?.nickname ?? null, claimedBySeat: holder?.seat ?? null };
+        }) : [],
+        myCardIndex: meSeat?.cardIndex ?? null,
         speakingUserId,
         speechEndsAt: m.phase === 'speech' ? m.speechEndsAt : 0,
         speechIdx: m.speechIdx,

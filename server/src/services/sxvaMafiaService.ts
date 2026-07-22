@@ -38,6 +38,7 @@ export interface XmSeat {
   eliminatedRound: number | null;
   eliminatedBy: 'vote' | 'mafia' | 'fouls' | null;
   lastCheck: string | null; // don/sheriff: their most recent check result, kept visible into the day
+  cardIndex: number | null; // which face-down card this player took at the deal
 }
 
 export interface XmLogEntry {
@@ -73,6 +74,7 @@ export interface XmMatch {
   spectators: { userId: string; socketId: string; nickname: string; connected: boolean }[];
   settings: { speechSeconds: number; nightSeconds: number; voteSeconds: number; lastWordsSeconds: number; floorControl: boolean };
   roleConfig: { don: number; mafia: number; sheriff: number } | null; // host override; null = auto by count
+  deck: XmRole[];                // shuffled face-down cards for the deal; a card's role is revealed only to whoever takes it
   log: XmLogEntry[];             // running protocol, visible to everyone (no roles)
   round: number;                 // day number, 1-based once play starts
   // speech
@@ -128,6 +130,9 @@ export interface XmSafeState {
   myAlive: boolean;
   myFouls: number;
   mateIds: string[];            // fellow mafia userIds (if I'm mafia)
+  // deal (assign phase): face-down cards on the table
+  cards: { index: number; claimedById: string | null; claimedByName: string | null; claimedBySeat: number | null }[];
+  myCardIndex: number | null;
   // speech
   speakingUserId: string | null;
   speechEndsAt: number;
@@ -217,6 +222,7 @@ export function createMatch(hostId: string, socketId: string, nickname: string, 
     spectators: [],
     settings: { speechSeconds: 60, nightSeconds: 40, voteSeconds: 30, lastWordsSeconds: 40, floorControl: true },
     roleConfig: null,
+    deck: [],
     log: [],
     round: 0,
     speechOrder: [], speechIdx: 0, speechEndsAt: 0, nominations: [], nominatedBy: {},
@@ -264,7 +270,7 @@ export function joinMatch(matchId: string, userId: string, socketId: string, nic
   const spec = m.spectators.find(s => s.userId === userId);
   if (spec) { spec.socketId = socketId; spec.connected = true; return { match: m, isNew: false }; }
   if (m.phase === 'lobby' && m.seats.length < m.maxSeats) {
-    m.seats.push({ userId, socketId, nickname, seat: m.seats.length + 1, connected: true, role: null, alive: true, fouls: 0, eliminatedRound: null, eliminatedBy: null, lastCheck: null });
+    m.seats.push({ userId, socketId, nickname, seat: m.seats.length + 1, connected: true, role: null, alive: true, fouls: 0, eliminatedRound: null, eliminatedBy: null, lastCheck: null, cardIndex: null });
     return { match: m, isNew: true };
   }
   m.spectators.push({ userId, socketId, nickname, connected: true });
@@ -313,8 +319,29 @@ export function dissolveMatch(matchId: string, _byUserId: string): XmMatch | nul
   return m;
 }
 
-// ── Start / role assignment ─────────────────────────────────────────────────────
-export function assignRoles(m: XmMatch): void {
+/** Lobby only: the host hands the moderator role to a seated player and takes
+ * that player's seat in return (a straight swap). */
+export function transferHost(matchId: string, byUserId: string, targetUserId: string): XmMatch | null {
+  const m = matches.get(matchId);
+  if (!m || m.hostId !== byUserId || m.phase !== 'lobby') return null;
+  const target = findByUser(m, targetUserId);
+  if (!target) return null;
+  const oldHostSeat: XmSeat = {
+    userId: m.hostId, socketId: m.hostSocketId, nickname: m.hostName, seat: target.seat,
+    connected: m.hostConnected, role: null, alive: true, fouls: 0,
+    eliminatedRound: null, eliminatedBy: null, lastCheck: null, cardIndex: null,
+  };
+  m.seats = m.seats.map(s => (s.userId === targetUserId ? oldHostSeat : s));
+  m.seats.forEach((s, i) => { s.seat = i + 1; });
+  m.hostId = target.userId; m.hostSocketId = target.socketId; m.hostName = target.nickname; m.hostConnected = target.connected;
+  return m;
+}
+
+// ── Start / the deal ─────────────────────────────────────────────────────────────
+/** Shuffle the role composition into a face-down deck. Roles aren't assigned to
+ * seats yet — each player claims a card during the assign phase, and the card's
+ * hidden role becomes theirs. */
+export function dealCards(m: XmMatch): void {
   const n = m.seats.length;
   const { don, mafia, sheriff } = effectiveCounts(m);
   const pool: XmRole[] = [
@@ -323,9 +350,9 @@ export function assignRoles(m: XmMatch): void {
     ...Array(sheriff).fill('sheriff'),
   ];
   while (pool.length < n) pool.push('citizen');
-  const roles = shuffle(pool);
-  m.seats.forEach((s, i) => {
-    s.role = roles[i]!;
+  m.deck = shuffle(pool);
+  m.seats.forEach(s => {
+    s.role = null; s.cardIndex = null;
     s.alive = true; s.fouls = 0; s.eliminatedRound = null; s.eliminatedBy = null; s.lastCheck = null;
   });
 }
@@ -334,12 +361,26 @@ export function startMatch(matchId: string, byUserId: string): XmMatch | null {
   const m = matches.get(matchId);
   if (!m || m.hostId !== byUserId || m.phase !== 'lobby') return null;
   if (m.seats.length < 4) return null;
-  assignRoles(m);
+  dealCards(m);
   m.round = 0;
   m.phase = 'assign';
   m.winner = null; m.reveal = null; m.announce = null;
   m.log = [];
   pushLog(m, 'game', `თამაში დაიწყო — ${m.seats.length} მოთამაშე`);
+  return m;
+}
+
+/** A player takes one of the face-down cards; its hidden role becomes theirs. */
+export function pickCard(matchId: string, byUserId: string, cardIndex: number): XmMatch | null {
+  const m = matches.get(matchId);
+  if (!m || m.phase !== 'assign') return null;
+  const seat = findByUser(m, byUserId);
+  if (!seat || seat.cardIndex !== null) return null; // spectators / host / already took one
+  const idx = Math.floor(Number(cardIndex));
+  if (idx < 0 || idx >= m.deck.length) return null;
+  if (m.seats.some(s => s.cardIndex === idx)) return null; // already taken by someone
+  seat.cardIndex = idx;
+  seat.role = m.deck[idx]!;
   return m;
 }
 
@@ -356,7 +397,7 @@ export function setRoleConfig(matchId: string, byUserId: string, cfg: { don: num
       sheriff: Math.max(0, Math.min(2, Math.floor(Number(cfg.sheriff ?? 0)))),
     };
   }
-  if (m.phase === 'assign') assignRoles(m); // reflect the new split immediately
+  if (m.phase === 'assign') dealCards(m); // re-deal with the new split (everyone re-picks)
   return m;
 }
 
@@ -374,11 +415,11 @@ export function setSettings(matchId: string, byUserId: string, patch: Partial<Xm
   return m;
 }
 
-/** Host re-rolls the secret roles while still on the assign screen. */
+/** Host re-deals the cards while still on the assign screen (everyone re-picks). */
 export function reshuffleRoles(matchId: string, byUserId: string): XmMatch | null {
   const m = matches.get(matchId);
   if (!m || m.hostId !== byUserId || m.phase !== 'assign') return null;
-  assignRoles(m);
+  dealCards(m);
   return m;
 }
 
@@ -409,6 +450,7 @@ function startNight(m: XmMatch): void {
 export function beginMafiaMeet(matchId: string, byUserId: string): XmMatch | null {
   const m = matches.get(matchId);
   if (!m || m.hostId !== byUserId || m.phase !== 'assign') return null;
+  if (m.seats.some(s => s.cardIndex === null)) return null; // wait until everyone took a card
   resetNight(m);
   m.round = 1;
   m.phase = 'mafia_meet';
@@ -737,10 +779,11 @@ export function rematch(matchId: string, byUserId: string): XmMatch | null {
   const keep = m.seats.filter(s => s.connected);
   for (const sp of m.spectators.filter(s => s.connected)) {
     if (keep.length >= m.maxSeats) break;
-    keep.push({ userId: sp.userId, socketId: sp.socketId, nickname: sp.nickname, seat: 0, connected: true, role: null, alive: true, fouls: 0, eliminatedRound: null, eliminatedBy: null, lastCheck: null });
+    keep.push({ userId: sp.userId, socketId: sp.socketId, nickname: sp.nickname, seat: 0, connected: true, role: null, alive: true, fouls: 0, eliminatedRound: null, eliminatedBy: null, lastCheck: null, cardIndex: null });
   }
   m.seats = keep;
-  m.seats.forEach((s, i) => { s.seat = i + 1; s.role = null; s.alive = true; s.fouls = 0; s.eliminatedRound = null; s.eliminatedBy = null; });
+  m.seats.forEach((s, i) => { s.seat = i + 1; s.role = null; s.alive = true; s.fouls = 0; s.eliminatedRound = null; s.eliminatedBy = null; s.lastCheck = null; s.cardIndex = null; });
+  m.deck = [];
   m.spectators = [];
   m.phase = 'lobby';
   m.round = 0;
@@ -823,6 +866,11 @@ export function getSafeState(m: XmMatch, viewerUserId: string): XmSafeState {
     myAlive: meSeat?.alive ?? false,
     myFouls: meSeat?.fouls ?? 0,
     mateIds,
+    cards: m.phase === 'assign' ? m.deck.map((_, index) => {
+      const holder = m.seats.find(s => s.cardIndex === index) ?? null;
+      return { index, claimedById: holder?.userId ?? null, claimedByName: holder?.nickname ?? null, claimedBySeat: holder?.seat ?? null };
+    }) : [],
+    myCardIndex: meSeat?.cardIndex ?? null,
     speakingUserId,
     speechEndsAt: m.phase === 'speech' ? m.speechEndsAt : 0,
     speechIdx: m.speechIdx,
