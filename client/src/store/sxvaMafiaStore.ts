@@ -18,6 +18,7 @@ interface XmStore {
   // host
   start: () => Promise<void>;
   reshuffle: () => Promise<void>;
+  setRoles: (config: { don: number; mafia: number; sheriff: number } | null) => Promise<void>;
   beginMeet: () => Promise<void>;
   endMeet: () => Promise<void>;
   beginNight: () => Promise<void>;
@@ -57,6 +58,7 @@ export const useSxvaMafiaStore = create<XmStore>((set, get) => {
 
     start: hostEv('xm:start'),
     reshuffle: hostEv('xm:reshuffle'),
+    setRoles: async (config) => { const id = mid(); if (!id) return; try { const r = await emit('xm:set_roles', { matchId: id, config }); if (!r.ok) set({ error: r.error }); } catch (e: any) { set({ error: e.message }); } },
     beginMeet: hostEv('xm:begin_meet'),
     endMeet: hostEv('xm:end_meet'),
     beginNight: hostEv('xm:begin_night'),

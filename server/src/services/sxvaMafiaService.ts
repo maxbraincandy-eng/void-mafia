@@ -65,6 +65,7 @@ export interface XmMatch {
   seats: XmSeat[];
   spectators: { userId: string; socketId: string; nickname: string; connected: boolean }[];
   settings: { speechSeconds: number; nightSeconds: number; voteSeconds: number; lastWordsSeconds: number };
+  roleConfig: { don: number; mafia: number; sheriff: number } | null; // host override; null = auto by count
   round: number;                 // day number, 1-based once play starts
   // speech
   speechOrder: string[];         // alive seat userIds, this day's order
@@ -107,6 +108,8 @@ export interface XmSafeState {
   seats: XmSafeSeat[];
   spectatorCount: number;
   settings: XmMatch['settings'];
+  setup: { don: number; mafia: number; sheriff: number; citizen: number };
+  roleConfigCustom: boolean;
   round: number;
   amHost: boolean;
   amSpectator: boolean;
@@ -165,6 +168,31 @@ export function roleCounts(n: number): { don: number; mafia: number; sheriff: nu
   return { don, mafia, sheriff, citizen };
 }
 
+/** The role counts actually used for the current seat count: the host's override
+ * (clamped to a playable shape), or the automatic split when none is set. */
+export function effectiveCounts(m: XmMatch): { don: number; mafia: number; sheriff: number; citizen: number } {
+  const n = m.seats.length;
+  if (!m.roleConfig) return roleCounts(n);
+  let don = Math.max(0, Math.min(2, Math.floor(m.roleConfig.don)));
+  let mafia = Math.max(0, Math.min(9, Math.floor(m.roleConfig.mafia)));
+  let sheriff = Math.max(0, Math.min(2, Math.floor(m.roleConfig.sheriff)));
+  // A mafia game needs at least one mafia-team member and at least one townsperson.
+  if (don + mafia === 0) mafia = 1;
+  // Trim specials that don't fit, then guarantee ≥1 town seat remains.
+  let specials = don + mafia + sheriff;
+  if (specials > n) { const o = specials - n; mafia = Math.max(0, mafia - o); }
+  specials = don + mafia + sheriff;
+  if (specials > n) { const o = specials - n; sheriff = Math.max(0, sheriff - o); }
+  specials = don + mafia + sheriff;
+  if (specials > n) { const o = specials - n; don = Math.max(0, don - o); }
+  if (don + mafia === 0) mafia = 1;
+  // Keep at least one town seat: mafia team can be at most n-1.
+  while (don + mafia >= n && mafia > 0) mafia -= 1;
+  while (don + mafia >= n && don > 0) don -= 1;
+  const citizen = Math.max(0, n - don - mafia - sheriff);
+  return { don, mafia, sheriff, citizen };
+}
+
 export function createMatch(hostId: string, socketId: string, nickname: string, opts: { maxSeats?: number }): XmMatch {
   const id = randomBytes(8).toString('hex');
   const m: XmMatch = {
@@ -174,6 +202,7 @@ export function createMatch(hostId: string, socketId: string, nickname: string, 
     seats: [],
     spectators: [],
     settings: { speechSeconds: 60, nightSeconds: 40, voteSeconds: 30, lastWordsSeconds: 40 },
+    roleConfig: null,
     round: 0,
     speechOrder: [], speechIdx: 0, speechEndsAt: 0, nominations: [], nominatedBy: {},
     night: { mafiaVotes: {}, donCheck: null, donResult: null, sheriffCheck: null, sheriffResult: null },
@@ -271,7 +300,7 @@ export function dissolveMatch(matchId: string, _byUserId: string): XmMatch | nul
 // ── Start / role assignment ─────────────────────────────────────────────────────
 export function assignRoles(m: XmMatch): void {
   const n = m.seats.length;
-  const { don, mafia, sheriff } = roleCounts(n);
+  const { don, mafia, sheriff } = effectiveCounts(m);
   const pool: XmRole[] = [
     ...Array(don).fill('don'),
     ...Array(mafia).fill('mafia'),
@@ -293,6 +322,23 @@ export function startMatch(matchId: string, byUserId: string): XmMatch | null {
   m.round = 0;
   m.phase = 'assign';
   m.winner = null; m.reveal = null; m.announce = null;
+  return m;
+}
+
+/** Host configures the role composition (lobby or assign). Pass null to reset to auto. */
+export function setRoleConfig(matchId: string, byUserId: string, cfg: { don: number; mafia: number; sheriff: number } | null): XmMatch | null {
+  const m = matches.get(matchId);
+  if (!m || m.hostId !== byUserId) return null;
+  if (m.phase !== 'lobby' && m.phase !== 'assign') return null;
+  if (!cfg) { m.roleConfig = null; }
+  else {
+    m.roleConfig = {
+      don: Math.max(0, Math.min(2, Math.floor(Number(cfg.don ?? 0)))),
+      mafia: Math.max(0, Math.min(9, Math.floor(Number(cfg.mafia ?? 0)))),
+      sheriff: Math.max(0, Math.min(2, Math.floor(Number(cfg.sheriff ?? 0)))),
+    };
+  }
+  if (m.phase === 'assign') assignRoles(m); // reflect the new split immediately
   return m;
 }
 
@@ -672,6 +718,8 @@ export function getSafeState(m: XmMatch, viewerUserId: string): XmSafeState {
     seats,
     spectatorCount: m.spectators.filter(s => s.connected).length,
     settings: m.settings,
+    setup: effectiveCounts(m),
+    roleConfigCustom: m.roleConfig !== null,
     round: m.round,
     amHost, amSpectator,
     mySeat: meSeat?.seat ?? null,

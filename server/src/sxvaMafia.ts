@@ -13,7 +13,7 @@ import {
 } from './types/index.js';
 import {
   createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch,
-  dissolveMatch, startMatch, reshuffleRoles, beginMafiaMeet, endMafiaMeet, beginNight, mafiaVote, donCheck, sheriffCheck,
+  dissolveMatch, startMatch, reshuffleRoles, setRoleConfig, beginMafiaMeet, endMafiaMeet, beginNight, mafiaVote, donCheck, sheriffCheck,
   endNight, beginDay, nextSpeaker, advanceSpeakerAuto, extendSpeech, nominate,
   castVote, endVote, giveFoul, endLastWords, rematch, disconnectSocket, getSafeState,
 } from './services/sxvaMafiaService.js';
@@ -139,6 +139,16 @@ export function registerSxvaMafiaHandlers(io: AppServer, socket: AppSocket): voi
 
   socket.on('xm:start' as any, hostAction(startMatch, 'ვერ დაიწყო — საჭიროა მინიმუმ 4 მოთამაშე'));
   socket.on('xm:reshuffle' as any, hostAction(reshuffleRoles, 'ვერ განახლდა'));
+
+  socket.on('xm:set_roles' as any, (data: { matchId: string; config: { don: number; mafia: number; sheriff: number } | null }, cb: (r: any) => void) => {
+    try {
+      const matchId = String(data?.matchId);
+      const m = setRoleConfig(matchId, uid(), data?.config ?? null);
+      if (!m) return cb(err('ვერ შეიცვალა'));
+      after(matchId);
+      cb(ok(null));
+    } catch (e: any) { cb(err(e.message)); }
+  });
   socket.on('xm:begin_meet' as any, hostAction(beginMafiaMeet, 'ვერ დაიწყო'));
   socket.on('xm:end_meet' as any, hostAction(endMafiaMeet, 'ვერ დასრულდა'));
   socket.on('xm:begin_night' as any, hostAction(beginNight, 'ვერ დაიწყო ღამე'));

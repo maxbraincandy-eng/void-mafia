@@ -48,6 +48,11 @@ export interface XmMatch {
         voteSeconds: number;
         lastWordsSeconds: number;
     };
+    roleConfig: {
+        don: number;
+        mafia: number;
+        sheriff: number;
+    } | null;
     round: number;
     speechOrder: string[];
     speechIdx: number;
@@ -99,6 +104,13 @@ export interface XmSafeState {
     seats: XmSafeSeat[];
     spectatorCount: number;
     settings: XmMatch['settings'];
+    setup: {
+        don: number;
+        mafia: number;
+        sheriff: number;
+        citizen: number;
+    };
+    roleConfigCustom: boolean;
     round: number;
     amHost: boolean;
     amSpectator: boolean;
@@ -148,6 +160,14 @@ export declare function roleCounts(n: number): {
     sheriff: number;
     citizen: number;
 };
+/** The role counts actually used for the current seat count: the host's override
+ * (clamped to a playable shape), or the automatic split when none is set. */
+export declare function effectiveCounts(m: XmMatch): {
+    don: number;
+    mafia: number;
+    sheriff: number;
+    citizen: number;
+};
 export declare function createMatch(hostId: string, socketId: string, nickname: string, opts: {
     maxSeats?: number;
 }): XmMatch;
@@ -165,6 +185,12 @@ export declare function disconnectSocket(socketId: string): string | null;
 export declare function dissolveMatch(matchId: string, _byUserId: string): XmMatch | null;
 export declare function assignRoles(m: XmMatch): void;
 export declare function startMatch(matchId: string, byUserId: string): XmMatch | null;
+/** Host configures the role composition (lobby or assign). Pass null to reset to auto. */
+export declare function setRoleConfig(matchId: string, byUserId: string, cfg: {
+    don: number;
+    mafia: number;
+    sheriff: number;
+} | null): XmMatch | null;
 /** Host re-rolls the secret roles while still on the assign screen. */
 export declare function reshuffleRoles(matchId: string, byUserId: string): XmMatch | null;
 /** First night only: the mafia open their eyes and get to know each other. */

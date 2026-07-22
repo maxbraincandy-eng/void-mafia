@@ -25,6 +25,8 @@ export interface XmSafeState {
   seats: XmSafeSeat[];
   spectatorCount: number;
   settings: { speechSeconds: number; nightSeconds: number; voteSeconds: number; lastWordsSeconds: number };
+  setup: { don: number; mafia: number; sheriff: number; citizen: number };
+  roleConfigCustom: boolean;
   round: number;
   amHost: boolean;
   amSpectator: boolean;

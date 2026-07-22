@@ -1,5 +1,5 @@
 import { ok, err, } from './types/index.js';
-import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch, dissolveMatch, startMatch, reshuffleRoles, beginMafiaMeet, endMafiaMeet, beginNight, mafiaVote, donCheck, sheriffCheck, endNight, beginDay, nextSpeaker, advanceSpeakerAuto, extendSpeech, nominate, castVote, endVote, giveFoul, endLastWords, rematch, disconnectSocket, getSafeState, } from './services/sxvaMafiaService.js';
+import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch, dissolveMatch, startMatch, reshuffleRoles, setRoleConfig, beginMafiaMeet, endMafiaMeet, beginNight, mafiaVote, donCheck, sheriffCheck, endNight, beginDay, nextSpeaker, advanceSpeakerAuto, extendSpeech, nominate, castVote, endVote, giveFoul, endLastWords, rematch, disconnectSocket, getSafeState, } from './services/sxvaMafiaService.js';
 const ROOM = (id) => `xm:${id}`;
 function userId(socket) { return socket.data.profileId ?? socket.id; }
 function everyone(m) {
@@ -142,6 +142,19 @@ export function registerSxvaMafiaHandlers(io, socket) {
     };
     socket.on('xm:start', hostAction(startMatch, 'ვერ დაიწყო — საჭიროა მინიმუმ 4 მოთამაშე'));
     socket.on('xm:reshuffle', hostAction(reshuffleRoles, 'ვერ განახლდა'));
+    socket.on('xm:set_roles', (data, cb) => {
+        try {
+            const matchId = String(data?.matchId);
+            const m = setRoleConfig(matchId, uid(), data?.config ?? null);
+            if (!m)
+                return cb(err('ვერ შეიცვალა'));
+            after(matchId);
+            cb(ok(null));
+        }
+        catch (e) {
+            cb(err(e.message));
+        }
+    });
     socket.on('xm:begin_meet', hostAction(beginMafiaMeet, 'ვერ დაიწყო'));
     socket.on('xm:end_meet', hostAction(endMafiaMeet, 'ვერ დასრულდა'));
     socket.on('xm:begin_night', hostAction(beginNight, 'ვერ დაიწყო ღამე'));

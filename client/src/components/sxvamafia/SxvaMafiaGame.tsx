@@ -49,6 +49,22 @@ function ringCells(cols: number, rows: number): { row: number; col: number }[] {
   for (let r = rows - 1; r >= 2; r--) cells.push({ row: r, col: 1 });
   return cells;
 }
+const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
+
+/** ± stepper for one role count in the host's lobby composition panel. */
+function RoleStepper({ emoji, label, value, min, max, onChange }: { emoji: string; label: string; value: number; min: number; max: number; onChange: (delta: number) => void }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="font-mono text-[12.5px] text-white/85">{emoji} {label}</span>
+      <div className="flex items-center gap-2">
+        <button onClick={() => onChange(-1)} disabled={value <= min} className="w-7 h-7 rounded-lg font-bold text-white disabled:opacity-25 leading-none" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.14)' }}>−</button>
+        <span className="font-mono text-[15px] font-bold text-white w-5 text-center">{value}</span>
+        <button onClick={() => onChange(1)} disabled={value >= max} className="w-7 h-7 rounded-lg font-bold text-white disabled:opacity-25 leading-none" style={{ background: `${RED}22`, border: `1px solid ${RED}44` }}>+</button>
+      </div>
+    </div>
+  );
+}
+
 /** Spread `n` seats as evenly as possible over `P` perimeter slots. */
 function distribute(n: number, P: number): number[] {
   const used = new Set<number>(); const out: number[] = [];
@@ -483,9 +499,37 @@ export function SxvaMafiaGame() {
               {match.seats.map(s => <Tile key={s.userId} seat={s} />)}
             </div>
             {match.phase === 'lobby' && (
-              <p className="text-center font-mono text-[12px] text-white/40 mt-4">
-                {isHost ? 'გააზიარე კოდი და დაელოდე მოთამაშეებს (მინ. 4). ჰოსტი მოთამაშე არ არის — ის მართავს თამაშს.' : 'დაელოდე, სანამ ჰოსტი დაიწყებს…'}
-              </p>
+              <>
+                <p className="text-center font-mono text-[12px] text-white/40 mt-4">
+                  {isHost ? 'გააზიარე კოდი და დაელოდე მოთამაშეებს (მინ. 4). ჰოსტი მოთამაშე არ არის — ის მართავს თამაშს.' : 'დაელოდე, სანამ ჰოსტი დაიწყებს…'}
+                </p>
+
+                {/* Role composition (host configurable, others read-only) */}
+                <div className="mt-4 max-w-sm mx-auto rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${RED}22` }}>
+                  <div className="flex items-center justify-between mb-2.5">
+                    <p className="font-display font-bold text-white text-[13px]">🎭 როლების შემადგენლობა</p>
+                    <span className="font-mono text-[10px] px-2 py-0.5 rounded" style={{ background: match.roleConfigCustom ? `${RED}22` : 'rgba(255,255,255,0.06)', color: match.roleConfigCustom ? RED : 'rgba(255,255,255,0.5)' }}>{match.roleConfigCustom ? 'მორგებული' : 'ავტო'}</span>
+                  </div>
+                  {isHost ? (
+                    <div className="space-y-2.5">
+                      <RoleStepper emoji="🎩" label="დონი" value={match.setup.don} min={0} max={Math.min(2, match.seats.length - match.setup.mafia - match.setup.sheriff)}
+                        onChange={d => store.setRoles({ don: clamp(match.setup.don + d, 0, 2), mafia: match.setup.mafia, sheriff: match.setup.sheriff })} />
+                      <RoleStepper emoji="🔫" label="მაფია" value={match.setup.mafia} min={0} max={Math.min(9, match.seats.length - match.setup.don - match.setup.sheriff)}
+                        onChange={d => store.setRoles({ don: match.setup.don, mafia: clamp(match.setup.mafia + d, 0, 9), sheriff: match.setup.sheriff })} />
+                      <RoleStepper emoji="🔎" label="შერიფი" value={match.setup.sheriff} min={0} max={Math.min(2, match.seats.length - match.setup.don - match.setup.mafia)}
+                        onChange={d => store.setRoles({ don: match.setup.don, mafia: match.setup.mafia, sheriff: clamp(match.setup.sheriff + d, 0, 2) })} />
+                      <div className="flex items-center justify-between pt-0.5">
+                        <span className="font-mono text-[12.5px] text-white/85">🧑 მშვიდობიანი</span>
+                        <span className="font-mono text-[14px] text-white/55">{match.setup.citizen} <span className="text-[10px] text-white/30">(ავტო)</span></span>
+                      </div>
+                      {match.roleConfigCustom && <button onClick={() => { SFX.click?.(); store.setRoles(null); }} className="w-full mt-1 py-1.5 rounded-lg font-mono text-[11px]" style={{ color: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.14)' }}>↺ ავტოზე დაბრუნება</button>}
+                    </div>
+                  ) : (
+                    <p className="font-mono text-[13px] text-white/70 text-center">🎩 {match.setup.don} · 🔫 {match.setup.mafia} · 🔎 {match.setup.sheriff} · 🧑 {match.setup.citizen}</p>
+                  )}
+                  <p className="font-mono text-[10px] text-white/30 mt-2.5 text-center">მაფიის გუნდი {match.setup.don + match.setup.mafia} · ქალაქი {match.setup.sheriff + match.setup.citizen} · სულ {match.seats.length}</p>
+                </div>
+              </>
             )}
           </div>
         )}
