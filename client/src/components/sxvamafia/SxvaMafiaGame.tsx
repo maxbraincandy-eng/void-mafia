@@ -22,6 +22,8 @@ import { XM_ROLE_META, type XmSafeSeat, type XmSafeState, type XmRole } from '@/
 const RED = '#ff3b47';
 // Tasteful per-seat avatar tints for when a webcam isn't showing.
 const AV = ['#7c5cff', '#3f8cff', '#2fb8a0', '#e0803c', '#d84f7a', '#5cbe6a', '#c78cff', '#4aa0d8', '#e0b23c', '#5c7cff'];
+// A fixed twinkling starfield for the night overlay (computed once).
+const STARS = Array.from({ length: 54 }, (_, i) => ({ x: (i * 37 + 13) % 100, y: (i * 53 + 7) % 100, s: 1 + ((i * 7) % 3) * 0.7, d: ((i * 11) % 40) / 10 }));
 
 function fmt(sec: number): string { const s = Math.max(0, sec); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
 
@@ -296,16 +298,21 @@ export function SxvaMafiaGame() {
       stream={streamFor(uid)} isSpeaking={speaking.has(uid)} grabbing={grabbing} foulMode={foulMode} isHost={isHost} speechLeft={speechLeft} onFoul={onFoul} {...extra} />;
   };
 
-  // ── target chips for actions ────────────────────────────────────────────────
-  const Chips = ({ seats, onPick, active }: { seats: XmSafeSeat[]; onPick: (uid: string) => void; active?: string | null }) => (
+  // ── target chips for actions (mini-avatar pills) ────────────────────────────
+  const Chips = ({ seats, onPick, active, accent = RED }: { seats: XmSafeSeat[]; onPick: (uid: string) => void; active?: string | null; accent?: string }) => (
     <div className="flex flex-wrap gap-1.5 justify-center">
-      {seats.map(s => (
-        <button key={s.userId} onClick={() => { SFX.click?.(); haptic('selection'); onPick(s.userId); }}
-          className="px-2.5 py-1.5 rounded-lg font-mono text-[12px] transition-all active:scale-95"
-          style={{ background: active === s.userId ? `${RED}33` : 'rgba(255,255,255,0.05)', border: `1px solid ${active === s.userId ? RED : 'rgba(255,255,255,0.14)'}`, color: '#fff' }}>
-          #{s.seat} {s.nickname}
-        </button>
-      ))}
+      {seats.map(s => {
+        const c = AV[s.seat % AV.length]!;
+        const on = active === s.userId;
+        return (
+          <button key={s.userId} onClick={() => { SFX.click?.(); haptic('selection'); onPick(s.userId); }}
+            className="flex items-center gap-1.5 pl-1 pr-2.5 py-1 rounded-full font-mono text-[12px] transition-all active:scale-95"
+            style={{ background: on ? `${accent}2a` : 'rgba(255,255,255,0.05)', border: `1px solid ${on ? accent : 'rgba(255,255,255,0.14)'}`, color: '#fff' }}>
+            <span className="rounded-full flex items-center justify-center font-black text-white flex-shrink-0" style={{ width: 20, height: 20, fontSize: 10, background: `linear-gradient(150deg, ${c}, #16111f)` }}>{(s.nickname || '?').trim().charAt(0).toUpperCase()}</span>
+            <span className="truncate" style={{ maxWidth: 120 }}>#{s.seat} {s.nickname}</span>
+          </button>
+        );
+      })}
     </div>
   );
 
@@ -390,16 +397,30 @@ export function SxvaMafiaGame() {
     }
 
     if (match.phase === 'vote') {
-      return (<div><p className="text-center font-mono text-[11px] mb-2" style={{ color: '#ffcc33' }}>{match.voteRevote ? '🔁 ხელახალი კენჭისყრა (ხმები გაიყო)' : '⚖️ ვის გავრიცხავთ?'} ({fmt(voteLeft)})</p>
-        <div className="flex flex-wrap gap-1.5 justify-center">
-          {match.nominations.map(n => (
-            <button key={n.userId} onClick={() => { SFX.click?.(); haptic('selection'); store.castVote(n.userId); }}
-              className="px-3 py-1.5 rounded-lg font-mono text-[12px] active:scale-95"
-              style={{ background: match.myVote === n.userId ? `${RED}33` : 'rgba(255,255,255,0.05)', border: `1px solid ${match.myVote === n.userId ? RED : 'rgba(255,255,255,0.14)'}`, color: '#fff' }}>
-              #{n.seat} {n.nickname} · {match.voteTally[n.userId] ?? 0}
-            </button>
-          ))}
-        </div></div>);
+      const total = Math.max(1, Object.values(match.voteTally).reduce((a, b) => a + b, 0));
+      return (<div>
+        <div className="flex items-center justify-center gap-2 mb-2">
+          <p className="font-display font-bold text-[12px]" style={{ color: '#ffcc33' }}>{match.voteRevote ? '🔁 ხელახალი კენჭისყრა' : '⚖️ ვის გავრიცხავთ?'}</p>
+          <span className="font-mono text-[11px] px-2 py-0.5 rounded" style={{ background: 'rgba(255,204,51,0.15)', color: '#ffcc33', fontVariantNumeric: 'tabular-nums' }}>{fmt(voteLeft)}</span>
+        </div>
+        <div className="space-y-1.5 max-w-sm mx-auto">
+          {match.nominations.map(n => {
+            const v = match.voteTally[n.userId] ?? 0;
+            const picked = match.myVote === n.userId;
+            return (
+              <button key={n.userId} onClick={() => { SFX.click?.(); haptic('selection'); store.castVote(n.userId); }}
+                className="relative w-full overflow-hidden rounded-xl px-3 py-2.5 text-left transition-all active:scale-[0.99]"
+                style={{ border: `1.5px solid ${picked ? RED : 'rgba(255,255,255,0.14)'}`, background: 'rgba(255,255,255,0.03)' }}>
+                <div className="absolute inset-y-0 left-0" style={{ width: `${(v / total) * 100}%`, background: picked ? `${RED}30` : 'rgba(255,255,255,0.07)', transition: 'width 0.35s ease' }} />
+                <div className="relative flex items-center justify-between gap-2">
+                  <span className="font-mono text-[13px] text-white truncate">#{n.seat} {n.nickname}{picked && ' ✓'}</span>
+                  <span className="font-mono text-[14px] font-bold flex-shrink-0" style={{ color: picked ? RED : '#fff', fontVariantNumeric: 'tabular-nums' }}>{v}</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>);
     }
 
     if (match.phase === 'last_words') {
@@ -482,6 +503,7 @@ export function SxvaMafiaGame() {
         .xm-pulse { animation: xmPulseKf 1.35s ease-in-out infinite; }
         @keyframes xmFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
         .xm-float { animation: xmFloat 3s ease-in-out infinite; }
+        @keyframes xmTwinkle { 0%,100% { opacity: 0.15; } 50% { opacity: 0.95; } }
       `}</style>
 
       {/* Top bar */}
@@ -625,6 +647,17 @@ export function SxvaMafiaGame() {
               </motion.div>
             )}
           </div>
+        ) : match.phase === 'night' && (match.amSpectator || !match.myAlive || match.myRole === 'citizen') ? (
+          // ── Night for townsfolk: a starry sky while the special roles act ─────
+          <div className="min-h-full flex flex-col items-center justify-center relative overflow-hidden" style={{ background: 'radial-gradient(ellipse at 50% 20%, #0e1638, #05060f 75%)' }}>
+            {STARS.map((st, i) => (
+              <span key={i} className="absolute rounded-full" style={{ left: `${st.x}%`, top: `${st.y}%`, width: st.s, height: st.s, background: '#fff', animation: `xmTwinkle ${2.4 + st.d}s ease-in-out ${st.d}s infinite`, boxShadow: '0 0 3px #fff' }} />
+            ))}
+            <motion.div animate={{ y: [0, -7, 0], rotate: [0, 4, 0] }} transition={{ repeat: Infinity, duration: 5, ease: 'easeInOut' }} style={{ fontSize: 64, filter: 'drop-shadow(0 0 18px rgba(255,220,120,0.5))' }}>🌙</motion.div>
+            <p className="font-display font-black text-white mt-3" style={{ fontSize: 22, letterSpacing: 1 }}>ქალაქს სძინავს</p>
+            <p className="font-mono text-[12px] mt-1.5" style={{ color: 'rgba(180,200,255,0.6)' }}>დახუჭე თვალები — ღამე მოქმედებს…</p>
+            {!match.myAlive && <p className="font-mono text-[11px] mt-4 text-white/30">💀 შენ თამაშიდან გახვედი</p>}
+          </div>
         ) : useRing ? (
           // ── Centre-stage table: players ring the stage ──────────────────────
           <div className="min-h-full flex items-center justify-center">
@@ -633,12 +666,20 @@ export function SxvaMafiaGame() {
               {match.seats.map((s, i) => { const cell = cells[place[i]]!; return <div key={s.userId} style={{ gridColumn: cell.col, gridRow: cell.row }}>{renderSeat(s, { fill: true })}</div>; })}
             </div>
           </div>
+        ) : match.phase !== 'lobby' ? (
+          // ── In-play: 2-column grid that fills the screen; host tile at the bottom ──
+          <div className="mx-auto w-full" style={{ height: '100%', display: 'flex', flexDirection: 'column', maxWidth: wide ? 560 : undefined }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gridAutoRows: '1fr', gap: 8, height: '100%', flexShrink: 0 }}>
+              {match.seats.map(s => renderSeat(s, { fill: true }))}
+            </div>
+            <div className="mt-2 mx-auto" style={{ width: '52%', maxWidth: 200 }}>{renderSeat(null, { isHostTile: true })}</div>
+          </div>
         ) : (
-          // ── Compact centred grid (narrow screens, small games & lobby) ──────
+          // ── Lobby: centred grid + setup panels (host tile last) ──
           <div className="max-w-3xl mx-auto">
             <div className="grid gap-2.5 justify-center" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 190px))' }}>
-              {renderSeat(null, { isHostTile: true })}
               {match.seats.map(s => renderSeat(s))}
+              {renderSeat(null, { isHostTile: true })}
             </div>
             {match.phase === 'lobby' && (
               <>
