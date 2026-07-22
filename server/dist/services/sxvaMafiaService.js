@@ -216,12 +216,31 @@ export function reshuffleRoles(matchId, byUserId) {
 function resetNight(m) {
     m.night = { mafiaVotes: {}, donCheck: null, donResult: null, sheriffCheck: null, sheriffResult: null };
 }
+/** First night only: the mafia open their eyes and get to know each other. */
+export function beginMafiaMeet(matchId, byUserId) {
+    const m = matches.get(matchId);
+    if (!m || m.hostId !== byUserId || m.phase !== 'assign')
+        return null;
+    resetNight(m);
+    m.round = 1;
+    m.phase = 'mafia_meet';
+    return m;
+}
+/** Host closes the acquaintance screen; the first night's actions begin. */
+export function endMafiaMeet(matchId, byUserId) {
+    const m = matches.get(matchId);
+    if (!m || m.hostId !== byUserId || m.phase !== 'mafia_meet')
+        return null;
+    resetNight(m);
+    m.phase = 'night';
+    return m;
+}
 export function beginNight(matchId, byUserId) {
     const m = matches.get(matchId);
     if (!m || m.hostId !== byUserId)
         return null;
-    if (m.phase !== 'assign' && m.phase !== 'speech' && m.phase !== 'day_announce')
-        return null;
+    if (m.phase !== 'speech' && m.phase !== 'day_announce')
+        return null; // first night goes via mafia_meet
     resetNight(m);
     m.phase = 'night';
     m.round += 1;

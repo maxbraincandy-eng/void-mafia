@@ -61,7 +61,7 @@ function distribute(n: number, P: number): number[] {
 }
 
 const PHASE_LABEL: Record<XmSafeState['phase'], string> = {
-  lobby: 'მოლოდინი', assign: 'როლების დარიგება', night: 'ღამე', day_announce: 'დილა',
+  lobby: 'მოლოდინი', assign: 'როლების დარიგება', mafia_meet: 'პირველი ღამე', night: 'ღამე', day_announce: 'დილა',
   speech: 'დღე — საუბრები', vote: 'კენჭისყრა', last_words: 'გამომშვიდობების სიტყვა', finished: 'დასასრული',
 };
 
@@ -111,7 +111,8 @@ export function SxvaMafiaGame() {
     if (!match) return;
     const p = match.phase;
     if (p !== prevPhase.current) {
-      if (p === 'night') { SFX.voteStart?.(); haptic('heavy'); }
+      if (p === 'mafia_meet') { SFX.voteStart?.(); haptic('heavy'); }
+      else if (p === 'night') { SFX.voteStart?.(); haptic('heavy'); }
       else if (p === 'speech') { SFX.gameStart?.(); haptic('tap'); }
       else if (p === 'vote') { SFX.voteStart?.(); haptic('selection'); }
       else if (p === 'finished') SFX.gameOver?.();
@@ -246,7 +247,8 @@ export function SxvaMafiaGame() {
     return (
       <div className="flex items-center gap-2 overflow-x-auto pb-1">
         {match.phase === 'lobby' && btn(match.seats.length < 4 ? `საჭიროა ${4 - match.seats.length} მოთ.` : '🎬 დაწყება', () => store.start(), true)}
-        {match.phase === 'assign' && <>{btn('🔀 თავიდან არევა', () => store.reshuffle())}{btn('🌙 ღამე', () => store.beginNight(), true)}</>}
+        {match.phase === 'assign' && <>{btn('🔀 თავიდან არევა', () => store.reshuffle())}{btn('🌙 პირველი ღამე', () => store.beginMeet(), true)}</>}
+        {match.phase === 'mafia_meet' && btn('🔫 ღამის მოქმედება', () => store.endMeet(), true)}
         {match.phase === 'night' && btn('☀️ ღამის დასრულება', () => store.endNight(), true)}
         {match.phase === 'day_announce' && btn('🗣 საუბრების დაწყება', () => store.beginDay(), true)}
         {match.phase === 'speech' && <>{btn('⏭ შემდეგი', () => store.nextSpeaker(), true)}{btn('+30წ', () => store.extendSpeech(30))}</>}
@@ -332,7 +334,9 @@ export function SxvaMafiaGame() {
 
   // ── Centre-stage ring layout (wide screens, in play) ───────────────────────
   const inPlay = match.phase !== 'lobby' && match.phase !== 'finished';
-  const useRing = wide && inPlay && match.seats.length >= 4;
+  const useRing = wide && inPlay && match.phase !== 'mafia_meet' && match.seats.length >= 4;
+  const amMafia = match.myRole === 'mafia' || match.myRole === 'don';
+  const mafiaTeam = match.seats.filter(s => s.role === 'mafia' || s.role === 'don');
   const dims = ringDims(match.seats.length);
   const cells = ringCells(dims.cols, dims.rows);
   const place = distribute(match.seats.length, cells.length);
@@ -408,7 +412,7 @@ export function SxvaMafiaGame() {
       </div>
 
       {/* Compact stage banner — only when NOT using the centre-stage ring */}
-      {!useRing && match.phase !== 'lobby' && match.phase !== 'finished' && (
+      {!useRing && match.phase !== 'lobby' && match.phase !== 'finished' && match.phase !== 'mafia_meet' && (
         <div className="flex-shrink-0 px-4 py-2 text-center" style={{ background: match.phase === 'night' ? 'rgba(10,10,40,0.5)' : 'rgba(255,59,71,0.06)' }}>
           <p className="font-display font-bold text-white" style={{ fontSize: 15 }}>{stageIcon} {PHASE_LABEL[match.phase]}</p>
           {stageSub && <p className="font-mono text-[12px] mt-0.5" style={{ color: match.phase === 'speech' || match.phase === 'last_words' ? RED : 'rgba(255,255,255,0.6)' }}>{stageSub}</p>}
@@ -425,6 +429,44 @@ export function SxvaMafiaGame() {
         {!lkEnabled && match.phase !== 'finished' && <p className="text-center font-mono text-[11px] text-white/40 mb-2">📡 ვიდეო ამ სერვერზე გათიშულია — თამაში ტექსტურ რეჟიმში მიდის</p>}
         {match.phase === 'finished' ? (
           <FinishedView match={match} onLeave={doLeave} onRematch={() => { SFX.click?.(); store.rematch(); }} isHost={isHost} />
+        ) : match.phase === 'mafia_meet' ? (
+          // ── First night: the mafia get acquainted (separate screen) ─────────
+          <div className="min-h-full flex items-center justify-center">
+            {(amMafia || isHost) ? (
+              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-lg text-center">
+                <motion.p initial={{ scale: 0.5 }} animate={{ scale: 1 }} className="text-4xl mb-1">🌙🔫</motion.p>
+                <p className="font-display font-black" style={{ fontSize: 22, color: RED }}>პირველი ღამე</p>
+                <p className="font-mono text-[12px] mt-1" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                  {isHost ? 'მაფია თვალებს ახელს და ერთმანეთს ცნობს' : 'გაიცანი შენი გუნდი — მხოლოდ თქვენ ხედავთ ერთმანეთს'}
+                </p>
+                <div className="mt-5 grid gap-2.5" style={{ gridTemplateColumns: `repeat(${Math.min(mafiaTeam.length, 3)}, 1fr)`, maxWidth: mafiaTeam.length <= 2 ? 320 : 480, marginInline: 'auto' }}>
+                  {mafiaTeam.map(s => {
+                    const rm = XM_ROLE_META[s.role!];
+                    const isMe = s.userId === myId;
+                    return (
+                      <motion.div key={s.userId} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                        className="relative rounded-xl overflow-hidden" style={{ aspectRatio: '3/4', background: '#0b0b12', border: `2px solid ${rm.color}`, boxShadow: `0 0 18px ${rm.color}55` }}>
+                        <VideoTile stream={streamFor(s.userId)} mirror={isMe} muted={isMe} />
+                        {!streamFor(s.userId) && <div className="absolute inset-0 flex items-center justify-center text-3xl opacity-70">{rm.emoji}</div>}
+                        <div className="absolute bottom-0 left-0 right-0 px-2 py-1.5" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.9), transparent)' }}>
+                          <p className="font-mono text-[11px] text-white truncate">#{s.seat} {s.nickname}{isMe && ' (შენ)'}</p>
+                          <p className="font-mono text-[10px]" style={{ color: rm.color }}>{rm.emoji} {rm.label}</p>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+                {amMafia && mafiaTeam.length === 1 && <p className="font-mono text-[12px] mt-4 text-white/50">შენ ერთადერთი მაფია ხარ — მარტო იმოქმედებ.</p>}
+                <p className="font-mono text-[11px] mt-5 text-white/35 animate-pulse">{isHost ? 'დააჭირე „ღამის მოქმედება"-ს გასაგრძელებლად' : 'ჰოსტი მალე გააგრძელებს…'}</p>
+              </motion.div>
+            ) : (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center">
+                <motion.p animate={{ opacity: [0.4, 1, 0.4] }} transition={{ repeat: Infinity, duration: 2 }} className="text-5xl mb-3">🌙</motion.p>
+                <p className="font-display font-bold text-white text-lg">პირველი ღამე</p>
+                <p className="font-mono text-[12px] mt-1 text-white/45">თვალები დახუჭე — მაფია ერთმანეთს ცნობს…</p>
+              </motion.div>
+            )}
+          </div>
         ) : useRing ? (
           // ── Centre-stage table: players ring the stage ──────────────────────
           <div className="min-h-full flex items-center justify-center">

@@ -18,6 +18,8 @@ interface XmStore {
   // host
   start: () => Promise<void>;
   reshuffle: () => Promise<void>;
+  beginMeet: () => Promise<void>;
+  endMeet: () => Promise<void>;
   beginNight: () => Promise<void>;
   endNight: () => Promise<void>;
   beginDay: () => Promise<void>;
@@ -55,6 +57,8 @@ export const useSxvaMafiaStore = create<XmStore>((set, get) => {
 
     start: hostEv('xm:start'),
     reshuffle: hostEv('xm:reshuffle'),
+    beginMeet: hostEv('xm:begin_meet'),
+    endMeet: hostEv('xm:end_meet'),
     beginNight: hostEv('xm:begin_night'),
     endNight: hostEv('xm:end_night'),
     beginDay: hostEv('xm:begin_day'),

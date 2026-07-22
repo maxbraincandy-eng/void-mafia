@@ -21,7 +21,7 @@
 import { randomBytes } from 'crypto';
 
 export type XmRole = 'don' | 'mafia' | 'sheriff' | 'citizen';
-export type XmPhase = 'lobby' | 'assign' | 'night' | 'day_announce' | 'speech' | 'vote' | 'last_words' | 'finished';
+export type XmPhase = 'lobby' | 'assign' | 'mafia_meet' | 'night' | 'day_announce' | 'speech' | 'vote' | 'last_words' | 'finished';
 export type XmWinner = 'town' | 'mafia' | null;
 
 export const XM_FOULS_TO_ELIMINATE = 4;
@@ -309,10 +309,29 @@ function resetNight(m: XmMatch): void {
   m.night = { mafiaVotes: {}, donCheck: null, donResult: null, sheriffCheck: null, sheriffResult: null };
 }
 
+/** First night only: the mafia open their eyes and get to know each other. */
+export function beginMafiaMeet(matchId: string, byUserId: string): XmMatch | null {
+  const m = matches.get(matchId);
+  if (!m || m.hostId !== byUserId || m.phase !== 'assign') return null;
+  resetNight(m);
+  m.round = 1;
+  m.phase = 'mafia_meet';
+  return m;
+}
+
+/** Host closes the acquaintance screen; the first night's actions begin. */
+export function endMafiaMeet(matchId: string, byUserId: string): XmMatch | null {
+  const m = matches.get(matchId);
+  if (!m || m.hostId !== byUserId || m.phase !== 'mafia_meet') return null;
+  resetNight(m);
+  m.phase = 'night';
+  return m;
+}
+
 export function beginNight(matchId: string, byUserId: string): XmMatch | null {
   const m = matches.get(matchId);
   if (!m || m.hostId !== byUserId) return null;
-  if (m.phase !== 'assign' && m.phase !== 'speech' && m.phase !== 'day_announce') return null;
+  if (m.phase !== 'speech' && m.phase !== 'day_announce') return null; // first night goes via mafia_meet
   resetNight(m);
   m.phase = 'night';
   m.round += 1;

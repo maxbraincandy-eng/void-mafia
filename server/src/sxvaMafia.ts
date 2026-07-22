@@ -13,7 +13,7 @@ import {
 } from './types/index.js';
 import {
   createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch,
-  dissolveMatch, startMatch, reshuffleRoles, beginNight, mafiaVote, donCheck, sheriffCheck,
+  dissolveMatch, startMatch, reshuffleRoles, beginMafiaMeet, endMafiaMeet, beginNight, mafiaVote, donCheck, sheriffCheck,
   endNight, beginDay, nextSpeaker, advanceSpeakerAuto, extendSpeech, nominate,
   castVote, endVote, giveFoul, endLastWords, rematch, disconnectSocket, getSafeState,
 } from './services/sxvaMafiaService.js';
@@ -139,6 +139,8 @@ export function registerSxvaMafiaHandlers(io: AppServer, socket: AppSocket): voi
 
   socket.on('xm:start' as any, hostAction(startMatch, 'ვერ დაიწყო — საჭიროა მინიმუმ 4 მოთამაშე'));
   socket.on('xm:reshuffle' as any, hostAction(reshuffleRoles, 'ვერ განახლდა'));
+  socket.on('xm:begin_meet' as any, hostAction(beginMafiaMeet, 'ვერ დაიწყო'));
+  socket.on('xm:end_meet' as any, hostAction(endMafiaMeet, 'ვერ დასრულდა'));
   socket.on('xm:begin_night' as any, hostAction(beginNight, 'ვერ დაიწყო ღამე'));
   socket.on('xm:end_night' as any, hostAction(endNight, 'ვერ დასრულდა ღამე'));
   socket.on('xm:begin_day' as any, hostAction(beginDay, 'ვერ დაიწყო დღე'));

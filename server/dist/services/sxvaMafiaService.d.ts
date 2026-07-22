@@ -1,5 +1,5 @@
 export type XmRole = 'don' | 'mafia' | 'sheriff' | 'citizen';
-export type XmPhase = 'lobby' | 'assign' | 'night' | 'day_announce' | 'speech' | 'vote' | 'last_words' | 'finished';
+export type XmPhase = 'lobby' | 'assign' | 'mafia_meet' | 'night' | 'day_announce' | 'speech' | 'vote' | 'last_words' | 'finished';
 export type XmWinner = 'town' | 'mafia' | null;
 export declare const XM_FOULS_TO_ELIMINATE = 4;
 export interface XmSeat {
@@ -167,6 +167,10 @@ export declare function assignRoles(m: XmMatch): void;
 export declare function startMatch(matchId: string, byUserId: string): XmMatch | null;
 /** Host re-rolls the secret roles while still on the assign screen. */
 export declare function reshuffleRoles(matchId: string, byUserId: string): XmMatch | null;
+/** First night only: the mafia open their eyes and get to know each other. */
+export declare function beginMafiaMeet(matchId: string, byUserId: string): XmMatch | null;
+/** Host closes the acquaintance screen; the first night's actions begin. */
+export declare function endMafiaMeet(matchId: string, byUserId: string): XmMatch | null;
 export declare function beginNight(matchId: string, byUserId: string): XmMatch | null;
 /** Mafia member picks the kill target for tonight. */
 export declare function mafiaVote(matchId: string, byUserId: string, targetUserId: string): XmMatch | null;

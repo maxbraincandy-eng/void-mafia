@@ -1,5 +1,5 @@
 export type XmRole = 'don' | 'mafia' | 'sheriff' | 'citizen';
-export type XmPhase = 'lobby' | 'assign' | 'night' | 'day_announce' | 'speech' | 'vote' | 'last_words' | 'finished';
+export type XmPhase = 'lobby' | 'assign' | 'mafia_meet' | 'night' | 'day_announce' | 'speech' | 'vote' | 'last_words' | 'finished';
 export type XmWinner = 'town' | 'mafia' | null;
 
 export interface XmSafeSeat {
