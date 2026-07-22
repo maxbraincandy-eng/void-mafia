@@ -298,7 +298,7 @@ export function SxvaMafiaGame() {
         })()}
         {match.phase === 'mafia_meet' && btn('🔫 ღამის მოქმედება', () => store.endMeet(), true)}
         {match.phase === 'night' && btn('☀️ ღამის დასრულება', () => store.endNight(), true)}
-        {match.phase === 'day_announce' && btn('🗣 საუბრების დაწყება', () => store.beginDay(), true)}
+        {match.phase === 'day_announce' && (match.announce ? btn('🗣 საუბრების დაწყება', () => store.beginDay(), true) : btn('🌙 ღამე', () => store.beginNight(), true))}
         {match.phase === 'speech' && <>{btn('⏭ შემდეგი', () => store.nextSpeaker(), true)}{btn('+30წ', () => store.extendSpeech(30))}</>}
         {match.phase === 'vote' && btn('✅ ხმების დათვლა', () => store.endVote(), true)}
         {match.phase === 'last_words' && btn('➡️ გაგრძელება', () => store.endLastWords(), true)}
@@ -323,13 +323,13 @@ export function SxvaMafiaGame() {
         </div>
       ) : null;
       if (nightRole === 'sheriff') {
-        return (<div><p className="text-center font-mono text-[11px] mb-2" style={{ color: '#4fb8ff' }}>🔎 შეამოწმე ერთი მოთამაშე (მაფიაა თუ არა) · {fmt(nightLeft)}</p>
+        return (<div><p className="text-center font-mono text-[11px] mb-2" style={{ color: '#4fb8ff' }}>🔎 შეამოწმე ერთი მოთამაშე (მაფიაა თუ არა)</p>
           <Chips seats={aliveSeats.filter(s => s.userId !== myId)} onPick={store.sheriffCheck} />
           {match.nightPrivate && <p className="text-center font-mono text-[13px] mt-2 text-white">{match.nightPrivate}</p>}</div>);
       }
       if (nightRole === 'don') {
         return (<div className="space-y-2">
-          <p className="text-center font-mono text-[11px]" style={{ color: RED }}>🔫 მაფიის მსხვერპლი · {fmt(nightLeft)}</p>
+          <p className="text-center font-mono text-[11px]" style={{ color: RED }}>🔫 მაფიის მსხვერპლი</p>
           <Chips seats={aliveSeats.filter(s => !match.mateIds.includes(s.userId) && s.userId !== myId)} onPick={store.mafiaVote} />
           {consensus}
           <p className="text-center font-mono text-[11px]" style={{ color: '#ffcc33' }}>🎩 შეამოწმე შერიფზე</p>
@@ -337,7 +337,7 @@ export function SxvaMafiaGame() {
           {match.nightPrivate && <p className="text-center font-mono text-[13px] text-white">{match.nightPrivate}</p>}</div>);
       }
       if (nightRole === 'mafia') {
-        return (<div><p className="text-center font-mono text-[11px] mb-2" style={{ color: RED }}>🔫 აირჩიე მსხვერპლი (მაფიასთან ერთად) · {fmt(nightLeft)}</p>
+        return (<div><p className="text-center font-mono text-[11px] mb-2" style={{ color: RED }}>🔫 აირჩიე მსხვერპლი (მაფიასთან ერთად)</p>
           <Chips seats={aliveSeats.filter(s => !match.mateIds.includes(s.userId) && s.userId !== myId)} onPick={store.mafiaVote} />
           {consensus}
           {match.iActedTonight && <p className="text-center font-mono text-[11px] mt-2 text-white/50">✅ არჩევანი გააკეთე</p>}</div>);
@@ -382,7 +382,7 @@ export function SxvaMafiaGame() {
     if (match.phase === 'speech') { const s = match.seats.find(x => x.userId === match.speakingUserId); return s ? `#${s.seat} ${s.nickname} საუბრობს · ${fmt(speechLeft)}` : ''; }
     if (match.phase === 'vote') return `კენჭისყრა · ${fmt(voteLeft)}`;
     if (match.phase === 'last_words') return `${match.lastWordsName ?? ''} · ${fmt(lwLeft)}`;
-    if (match.phase === 'day_announce') return match.announce?.killedName ? `ღამით მოკლეს: ${match.announce.killedName}` : 'ღამე მშვიდად ჩაიარა';
+    if (match.phase === 'day_announce') return match.announce ? (match.announce.killedName ? `ღამით მოკლეს: ${match.announce.killedName}` : 'ღამე მშვიდად ჩაიარა') : 'დღე დასრულდა — ღამდება';
     if (match.phase === 'night') return 'ქალაქს სძინავს…';
     if (match.phase === 'assign') return 'როლები დარიგდა';
     return '';
@@ -390,7 +390,10 @@ export function SxvaMafiaGame() {
 
   // ── Centre-stage ring layout (wide screens, in play) ───────────────────────
   const inPlay = match.phase !== 'lobby' && match.phase !== 'finished';
-  const useRing = wide && inPlay && match.phase !== 'mafia_meet' && match.seats.length >= 4;
+  // The centre-stage ring only reads well when there are enough players to fill
+  // its perimeter; with fewer it looks huge and sparse, so fall back to a tidy
+  // centred grid.
+  const useRing = wide && inPlay && match.phase !== 'mafia_meet' && match.seats.length >= 8;
   const amMafia = match.myRole === 'mafia' || match.myRole === 'don';
   const mafiaTeam = match.seats.filter(s => s.role === 'mafia' || s.role === 'don');
   const dims = ringDims(match.seats.length);
@@ -400,7 +403,7 @@ export function SxvaMafiaGame() {
   const stageIcon = match.phase === 'night' ? '🌙' : match.phase === 'vote' ? '⚖️'
     : match.phase === 'last_words' ? '🎤' : match.phase === 'day_announce' ? (match.announce?.killedName ? '💀' : '🌅')
     : match.phase === 'speech' ? '🗣️' : '🎭';
-  const stageBig = match.phase === 'speech' ? fmt(speechLeft) : match.phase === 'vote' ? fmt(voteLeft) : match.phase === 'last_words' ? fmt(lwLeft) : match.phase === 'night' ? fmt(nightLeft) : '';
+  const stageBig = match.phase === 'speech' ? fmt(speechLeft) : match.phase === 'vote' ? fmt(voteLeft) : match.phase === 'last_words' ? fmt(lwLeft) : '';
   const nightMood = match.phase === 'night';
 
   const StageCard = (
@@ -577,15 +580,15 @@ export function SxvaMafiaGame() {
         ) : useRing ? (
           // ── Centre-stage table: players ring the stage ──────────────────────
           <div className="min-h-full flex items-center justify-center">
-            <div className="w-full" style={{ maxWidth: dims.cols * 208, display: 'grid', gridTemplateColumns: `repeat(${dims.cols}, 1fr)`, gridTemplateRows: `repeat(${dims.rows}, 1fr)`, gap: 8, aspectRatio: `${dims.cols} / ${dims.rows}` }}>
+            <div className="w-full" style={{ maxWidth: dims.cols * 186, display: 'grid', gridTemplateColumns: `repeat(${dims.cols}, 1fr)`, gridTemplateRows: `repeat(${dims.rows}, 1fr)`, gap: 8, aspectRatio: `${dims.cols} / ${dims.rows}` }}>
               <div style={{ gridColumn: `2 / ${dims.cols}`, gridRow: `2 / ${dims.rows}` }}>{StageCard}</div>
               {match.seats.map((s, i) => { const cell = cells[place[i]]!; return <div key={s.userId} style={{ gridColumn: cell.col, gridRow: cell.row }}>{renderSeat(s, { fill: true })}</div>; })}
             </div>
           </div>
         ) : (
-          // ── Compact grid (narrow screens & lobby) ───────────────────────────
-          <div className="max-w-4xl mx-auto">
-            <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))' }}>
+          // ── Compact centred grid (narrow screens, small games & lobby) ──────
+          <div className="max-w-3xl mx-auto">
+            <div className="grid gap-2.5 justify-center" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 190px))' }}>
               {renderSeat(null, { isHostTile: true })}
               {match.seats.map(s => renderSeat(s))}
             </div>

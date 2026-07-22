@@ -14,7 +14,7 @@ import {
 import {
   createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch,
   dissolveMatch, transferHost, startMatch, reshuffleRoles, setRoleConfig, setSettings, pickCard, beginMafiaMeet, endMafiaMeet, beginNight, mafiaVote, donCheck, sheriffCheck,
-  endNight, advanceNightAuto, beginDay, nextSpeaker, advanceSpeakerAuto, extendSpeech, nominate,
+  endNight, beginDay, nextSpeaker, advanceSpeakerAuto, extendSpeech, nominate,
   castVote, endVote, giveFoul, endLastWords, rematch, disconnectSocket, getSafeState,
 } from './services/sxvaMafiaService.js';
 
@@ -61,10 +61,8 @@ function syncTimer(io: AppServer, matchId: string): void {
   } else if (m.phase === 'last_words' && m.lastWordsEndsAt) {
     deadline = m.lastWordsEndsAt;
     fire = () => { endLastWords(matchId, null); };
-  } else if (m.phase === 'night' && m.nightEndsAt) {
-    deadline = m.nightEndsAt;
-    fire = () => { advanceNightAuto(matchId); };
   }
+  // Night is host-paced (auto-advances when all roles act, or host closes it) — no timer.
   if (!fire || !deadline) return;
   const token = deadline;
   const t = setTimeout(() => {
@@ -75,8 +73,7 @@ function syncTimer(io: AppServer, matchId: string): void {
     const stillCurrent =
       (cur.phase === 'speech' && cur.speechEndsAt === token) ||
       (cur.phase === 'vote' && cur.voteEndsAt === token) ||
-      (cur.phase === 'last_words' && cur.lastWordsEndsAt === token) ||
-      (cur.phase === 'night' && cur.nightEndsAt === token);
+      (cur.phase === 'last_words' && cur.lastWordsEndsAt === token);
     if (!stillCurrent) return;
     fire!();
     broadcastState(io, matchId);

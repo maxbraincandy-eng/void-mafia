@@ -361,7 +361,10 @@ function nightAllActed(m) {
 function startNight(m) {
     resetNight(m);
     m.phase = 'night';
-    m.nightEndsAt = Date.now() + m.settings.nightSeconds * 1000;
+    // Host-paced: the night ends when every role has acted (auto) or the host
+    // closes it — NOT on a hard timer, which used to resolve a premature "peaceful
+    // night" before the mafia (especially 2+) could agree on a target.
+    m.nightEndsAt = 0;
 }
 /** First night only: the mafia open their eyes and get to know each other. */
 export function beginMafiaMeet(matchId, byUserId) {
@@ -730,11 +733,14 @@ export function endLastWords(matchId, byUserId) {
         return null;
     if (byUserId !== null && m.hostId !== byUserId)
         return null;
+    const seat = m.lastWordsUserId ? findByUser(m, m.lastWordsUserId) : null;
     m.lastWordsUserId = null;
     if (checkWin(m))
         return m;
-    // After a night kill's farewell we open the day; after a vote/foul we drop to night.
-    if (m.announce && m.announce.killedUserId) {
+    // A night victim's farewell → it's the morning, the host runs the day (announce
+    // stands). A day elimination (vote/foul) → the day is over, so clear the announce;
+    // day_announce with a null announce is the "night falls next" state.
+    if (seat && seat.eliminatedBy === 'mafia') {
         m.phase = 'day_announce';
     }
     else {
