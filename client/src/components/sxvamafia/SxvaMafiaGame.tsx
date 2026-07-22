@@ -20,6 +20,8 @@ import { XM_ROLE_META, type XmSafeSeat, type XmSafeState, type XmRole } from '@/
  */
 
 const RED = '#ff3b47';
+// Tasteful per-seat avatar tints for when a webcam isn't showing.
+const AV = ['#7c5cff', '#3f8cff', '#2fb8a0', '#e0803c', '#d84f7a', '#5cbe6a', '#c78cff', '#4aa0d8', '#e0b23c', '#5c7cff'];
 
 function fmt(sec: number): string { const s = Math.max(0, sec); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
 
@@ -110,60 +112,74 @@ const SeatTile = memo(function SeatTile({ seat, isHostTile, fill, match, myId, s
   const conn = isHostTile ? match.hostConnected : seat!.connected;
   const glow = turnSpeaking ? RED : grabbing ? '#ffcc33' : isSpeaking ? '#39d98a' : mate ? '#ff6b6b' : 'transparent';
   const canFoul = isHost && foulMode && !isHostTile && seat!.alive;
+  const initial = (name || '?').trim().charAt(0).toUpperCase() || '?';
+  const avatarColor = isHostTile ? RED : AV[((seat?.seat ?? 0)) % AV.length]!;
 
   return (
-    <div className="relative rounded-xl overflow-hidden select-none"
+    <div className={`relative overflow-hidden select-none ${turnSpeaking ? 'xm-pulse' : ''}`}
       style={{
         aspectRatio: fill ? undefined : '4/3', width: fill ? '100%' : undefined, height: fill ? '100%' : undefined,
-        background: '#0b0b12',
-        border: `2px solid ${glow === 'transparent' ? 'rgba(255,255,255,0.08)' : glow}`,
-        boxShadow: turnSpeaking ? `0 0 22px ${RED}88` : grabbing ? '0 0 18px #ffcc3388' : isSpeaking ? '0 0 16px #39d98a66' : 'none',
-        opacity: dead ? 0.5 : 1,
+        borderRadius: 14, background: '#0b0b12',
+        border: `1.5px solid ${glow === 'transparent' ? 'rgba(255,255,255,0.09)' : glow}`,
+        boxShadow: turnSpeaking ? undefined : grabbing ? '0 0 18px #ffcc3388' : isSpeaking ? '0 0 15px #39d98a55' : '0 2px 10px rgba(0,0,0,0.4)',
+        opacity: dead ? 0.55 : 1,
         cursor: canFoul ? 'pointer' : 'default',
+        // pulse animation reads these CSS variables
+        ['--xm-glow' as any]: `${RED}`,
       }}
       onClick={() => { if (canFoul) onFoul(seat!.userId); }}>
       <VideoTile stream={stream} mirror={isMe} muted={isMe} />
       {!stream && (
-        <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'radial-gradient(circle at 50% 40%, #1a1522, #0b0b12)' }}>
-          <span className="text-3xl opacity-60">{isHostTile ? '🎬' : dead ? '💀' : '🎥'}</span>
+        <div className="absolute inset-0 flex items-center justify-center" style={{ background: `radial-gradient(circle at 50% 34%, ${avatarColor}1f, #0a0810 72%)` }}>
+          {dead ? (
+            <span className="text-3xl" style={{ filter: 'grayscale(0.4) opacity(0.8)' }}>🕴️</span>
+          ) : (
+            <div className="rounded-full flex items-center justify-center font-display font-black text-white"
+              style={{ width: '42%', aspectRatio: '1', fontSize: '1.5rem', background: `linear-gradient(155deg, ${avatarColor}, #16111f)`, border: '1px solid rgba(255,255,255,0.1)', boxShadow: 'inset 0 -6px 14px rgba(0,0,0,0.45), 0 3px 10px rgba(0,0,0,0.45)' }}>
+              {isHostTile ? '🎬' : initial}
+            </div>
+          )}
         </div>
       )}
-      <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded-md font-mono text-[10px] font-bold"
-        style={{ background: isHostTile ? `${RED}dd` : 'rgba(0,0,0,0.6)', color: '#fff' }}>
+      {/* glassy top highlight */}
+      <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.06), transparent 22%)', borderRadius: 14 }} />
+
+      <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-lg font-mono text-[10px] font-bold backdrop-blur-sm"
+        style={{ background: isHostTile ? `${RED}e6` : 'rgba(0,0,0,0.55)', color: '#fff' }}>
         {isHostTile ? 'H · ჰოსტი' : `#${seat!.seat}`}
       </div>
       {turnSpeaking && (
-        <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded-md font-mono text-[11px] font-bold"
-          style={{ background: RED, color: '#fff', fontVariantNumeric: 'tabular-nums' }}>{fmt(speechLeft)}</div>
+        <div className="absolute top-1.5 right-1.5 px-2 py-0.5 rounded-lg font-mono text-[11px] font-bold"
+          style={{ background: RED, color: '#fff', fontVariantNumeric: 'tabular-nums', boxShadow: `0 0 12px ${RED}` }}>{fmt(speechLeft)}</div>
       )}
       {grabbing && !turnSpeaking && (
-        <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded-md font-mono text-[10px] font-bold" style={{ background: '#ffcc33', color: '#000' }}>🎙 ფოლი</div>
+        <div className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-lg font-mono text-[10px] font-bold" style={{ background: '#ffcc33', color: '#000' }}>🎙 ფოლი</div>
+      )}
+      {!isHostTile && seat!.isNominated && !turnSpeaking && match.phase !== 'finished' && (
+        <div className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-lg font-mono text-[9px] font-bold" style={{ background: '#ffcc33', color: '#000' }}>კენჭზე</div>
       )}
       {!isHostTile && seat!.fouls > 0 && !dead && (
-        <div className="absolute bottom-1 right-1 flex gap-0.5">
+        <div className="absolute bottom-8 right-1.5 flex gap-0.5">
           {Array.from({ length: 4 }).map((_, i) => (
-            <span key={i} className="w-2 h-2 rounded-full" style={{ background: i < seat!.fouls ? '#ffcc33' : 'rgba(255,255,255,0.18)' }} />
+            <span key={i} className="w-2 h-2 rounded-full" style={{ background: i < seat!.fouls ? '#ffcc33' : 'rgba(255,255,255,0.16)', boxShadow: i < seat!.fouls ? '0 0 4px #ffcc33' : undefined }} />
           ))}
         </div>
       )}
-      <div className="absolute bottom-0 left-0 right-0 px-1.5 py-1 flex items-center gap-1"
-        style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)' }}>
-        {!conn && <span className="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0" />}
-        <span className="font-mono text-[10px] text-white truncate flex-1">{name}{isMe && ' (შენ)'}</span>
-        {rm && <span className="text-[11px] flex-shrink-0" title={rm.label}>{rm.emoji}</span>}
+      <div className="absolute bottom-0 left-0 right-0 px-2 pt-3 pb-1.5 flex items-center gap-1.5"
+        style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.85), transparent)' }}>
+        {!conn && <span className="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0" style={{ boxShadow: '0 0 5px #ff0000' }} />}
+        <span className="font-mono text-[11px] text-white truncate flex-1" style={{ textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>{name}{isMe && ' (შენ)'}</span>
+        {rm && <span className="text-[12px] flex-shrink-0" title={rm.label}>{rm.emoji}</span>}
       </div>
-      {!isHostTile && seat!.isNominated && match.phase !== 'finished' && (
-        <div className="absolute top-1 right-1 px-1 py-0.5 rounded font-mono text-[9px] font-bold" style={{ background: '#ffcc33', color: '#000' }}>კენჭზე</div>
-      )}
       {dead && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center" style={{ background: 'rgba(120,0,10,0.35)' }}>
-          <span className="text-2xl" style={{ filter: 'drop-shadow(0 0 6px #ff0000)' }}>💀</span>
-          <span className="font-mono text-[9px] font-black tracking-widest mt-0.5" style={{ color: RED }}>
+        <div className="absolute inset-0 flex flex-col items-center justify-center" style={{ background: 'rgba(70,0,8,0.45)', borderRadius: 14 }}>
+          <span className="text-2xl" style={{ filter: 'drop-shadow(0 0 8px #ff0000)' }}>💀</span>
+          <span className="font-mono text-[9px] font-black tracking-widest mt-1 px-2 py-0.5 rounded" style={{ color: '#fff', background: `${RED}cc` }}>
             {seat!.eliminatedBy === 'mafia' ? 'მოკლული' : seat!.eliminatedBy === 'fouls' ? '4 ფაული' : 'გარიცხული'}
           </span>
         </div>
       )}
-      {canFoul && <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(255,204,51,0.14)' }}><span className="text-lg">⚠️ +ფაული</span></div>}
+      {canFoul && <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(255,204,51,0.16)', borderRadius: 14 }}><span className="font-display font-bold text-white text-sm px-2 py-1 rounded-lg" style={{ background: 'rgba(0,0,0,0.5)' }}>⚠️ +ფაული</span></div>}
     </div>
   );
 });
@@ -252,6 +268,8 @@ export function SxvaMafiaGame() {
   if (!match) return null;
 
   const isHost = match.amHost;
+  const intro = match.phase === 'speech' && match.introRound;
+  const phaseTitle = intro ? 'გაცნობის წრე' : PHASE_LABEL[match.phase];
   const speechLeft = match.speechEndsAt ? Math.round((match.speechEndsAt - now) / 1000) : 0;
   const nightLeft = match.nightEndsAt ? Math.round((match.nightEndsAt - now) / 1000) : 0;
   const voteLeft = match.voteEndsAt ? Math.round((match.voteEndsAt - now) / 1000) : 0;
@@ -361,11 +379,14 @@ export function SxvaMafiaGame() {
 
     if (match.phase === 'speech') {
       const myTurn = match.speakingUserId === myId;
-      if (myTurn) return (<div><p className="text-center font-mono text-[11px] mb-2" style={{ color: RED }}>🗣 შენი წუთია ({fmt(speechLeft)}) — დაასახელე კენჭისყრაზე (არჩევითი)</p>
-        <Chips seats={aliveSeats.filter(s => s.userId !== myId)} onPick={store.nominate} />
-        {match.iNominated && <p className="text-center font-mono text-[11px] mt-2 text-white/50">დაასახელე ✓</p>}</div>);
+      if (myTurn) {
+        if (intro) return <p className="text-center font-mono text-[12px]" style={{ color: RED }}>🤝 შენი გაცნობის წუთი ({fmt(speechLeft)}) — წარადგინე თავი</p>;
+        return (<div><p className="text-center font-mono text-[11px] mb-2" style={{ color: RED }}>🗣 შენი წუთია ({fmt(speechLeft)}) — დაასახელე კენჭისყრაზე (არჩევითი)</p>
+          <Chips seats={aliveSeats.filter(s => s.userId !== myId)} onPick={store.nominate} />
+          {match.iNominated && <p className="text-center font-mono text-[11px] mt-2 text-white/50">დაასახელე ✓</p>}</div>);
+      }
       const spk = match.seats.find(s => s.userId === match.speakingUserId);
-      return <p className="text-center font-mono text-[12px] text-white/50">🗣 საუბრობს #{spk?.seat} {spk?.nickname} — {fmt(speechLeft)}</p>;
+      return <p className="text-center font-mono text-[12px] text-white/50">{intro ? '🤝 გაცნობა' : '🗣 საუბრობს'} #{spk?.seat} {spk?.nickname} — {fmt(speechLeft)}</p>;
     }
 
     if (match.phase === 'vote') {
@@ -393,7 +414,7 @@ export function SxvaMafiaGame() {
 
   // stage / phase hero text
   const stageSub = (() => {
-    if (match.phase === 'speech') { const s = match.seats.find(x => x.userId === match.speakingUserId); return s ? `#${s.seat} ${s.nickname} საუბრობს · ${fmt(speechLeft)}` : ''; }
+    if (match.phase === 'speech') { const s = match.seats.find(x => x.userId === match.speakingUserId); return s ? `#${s.seat} ${s.nickname} ${intro ? 'წარადგენს თავს' : 'საუბრობს'} · ${fmt(speechLeft)}` : ''; }
     if (match.phase === 'vote') return `კენჭისყრა · ${fmt(voteLeft)}`;
     if (match.phase === 'last_words') return `${match.lastWordsName ?? ''} · ${fmt(lwLeft)}`;
     if (match.phase === 'day_announce') return match.announce ? (match.announce.killedName ? `ღამით მოკლეს: ${match.announce.killedName}` : 'ღამე მშვიდად ჩაიარა') : 'დღე დასრულდა — ღამდება';
@@ -414,7 +435,7 @@ export function SxvaMafiaGame() {
   const cells = ringCells(dims.cols, dims.rows);
   const place = distribute(match.seats.length, cells.length);
 
-  const stageIcon = match.phase === 'night' ? '🌙' : match.phase === 'vote' ? '⚖️'
+  const stageIcon = intro ? '🤝' : match.phase === 'night' ? '🌙' : match.phase === 'vote' ? '⚖️'
     : match.phase === 'last_words' ? '🎤' : match.phase === 'day_announce' ? (match.announce?.killedName ? '💀' : '🌅')
     : match.phase === 'speech' ? '🗣️' : '🎭';
   const stageBig = match.phase === 'speech' ? fmt(speechLeft) : match.phase === 'vote' ? fmt(voteLeft) : match.phase === 'last_words' ? fmt(lwLeft) : '';
@@ -425,7 +446,7 @@ export function SxvaMafiaGame() {
       style={{ background: nightMood ? 'linear-gradient(160deg,#0a1030,#05060f)' : 'linear-gradient(160deg,#25080e,#0a0609)', border: `1.5px solid ${nightMood ? '#3a4a8a66' : RED + '44'}`, boxShadow: 'inset 0 0 44px rgba(0,0,0,0.55)' }}>
       <div>
         <p className="font-mono text-[10px] tracking-[0.25em] text-white/40">რაუნდი {match.round}</p>
-        <p className="font-display font-black text-white mt-0.5" style={{ fontSize: 17 }}>{PHASE_LABEL[match.phase]}</p>
+        <p className="font-display font-black text-white mt-0.5" style={{ fontSize: 17 }}>{phaseTitle}</p>
       </div>
       <div className="flex flex-col items-center gap-0.5">
         <motion.span key={match.phase + stageIcon} initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} style={{ fontSize: 40 }}>{stageIcon}</motion.span>
@@ -456,6 +477,13 @@ export function SxvaMafiaGame() {
       style={{ background: 'radial-gradient(ellipse 90% 55% at 50% -5%, #2a0a10 0%, #08060a 60%)', fontFamily: '"Space Grotesk", system-ui, sans-serif' }}
       onTouchStart={e => e.stopPropagation()} onTouchEnd={e => e.stopPropagation()}>
 
+      <style>{`
+        @keyframes xmPulseKf { 0%,100% { box-shadow: 0 0 14px rgba(255,59,71,0.5); } 50% { box-shadow: 0 0 32px rgba(255,59,71,0.95); } }
+        .xm-pulse { animation: xmPulseKf 1.35s ease-in-out infinite; }
+        @keyframes xmFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+        .xm-float { animation: xmFloat 3s ease-in-out infinite; }
+      `}</style>
+
       {/* Top bar */}
       <div className="flex-shrink-0 px-4 pt-[calc(env(safe-area-inset-top,0px)+10px)] pb-2" style={{ borderBottom: `1px solid ${RED}22` }}>
         <div className="flex items-center justify-between gap-2">
@@ -463,7 +491,7 @@ export function SxvaMafiaGame() {
             <p className="font-display font-black text-white leading-none" style={{ fontSize: 15 }}>სხვა მაფია 🎭</p>
             <p className="font-mono text-[10px] mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>
               <span style={{ color: RED, letterSpacing: 2 }}>{match.code}</span>
-              {match.phase !== 'lobby' && <> · რაუნდი {match.round} · {PHASE_LABEL[match.phase]}</>}
+              {match.phase !== 'lobby' && <> · რაუნდი {match.round} · {phaseTitle}</>}
               {match.spectatorCount > 0 && <> · 👁 {match.spectatorCount}</>}
             </p>
           </div>
@@ -490,7 +518,7 @@ export function SxvaMafiaGame() {
       {/* Compact stage banner — only when NOT using the centre-stage ring */}
       {!useRing && match.phase !== 'lobby' && match.phase !== 'finished' && match.phase !== 'mafia_meet' && match.phase !== 'assign' && (
         <div className="flex-shrink-0 px-4 py-2 text-center" style={{ background: match.phase === 'night' ? 'rgba(10,10,40,0.5)' : 'rgba(255,59,71,0.06)' }}>
-          <p className="font-display font-bold text-white" style={{ fontSize: 15 }}>{stageIcon} {PHASE_LABEL[match.phase]}</p>
+          <p className="font-display font-bold text-white" style={{ fontSize: 15 }}>{stageIcon} {phaseTitle}</p>
           {stageSub && <p className="font-mono text-[12px] mt-0.5" style={{ color: match.phase === 'speech' || match.phase === 'last_words' ? RED : 'rgba(255,255,255,0.6)' }}>{stageSub}</p>}
         </div>
       )}
@@ -563,18 +591,24 @@ export function SxvaMafiaGame() {
                 <p className="font-mono text-[12px] mt-1" style={{ color: 'rgba(255,255,255,0.6)' }}>
                   {isHost ? 'მაფია თვალებს ახელს და ერთმანეთს ცნობს' : 'გაიცანი შენი გუნდი — მხოლოდ თქვენ ხედავთ ერთმანეთს'}
                 </p>
-                <div className="mt-5 grid gap-2.5" style={{ gridTemplateColumns: `repeat(${Math.min(mafiaTeam.length, 3)}, 1fr)`, maxWidth: mafiaTeam.length <= 2 ? 320 : 480, marginInline: 'auto' }}>
-                  {mafiaTeam.map(s => {
+                <div className="mt-5 grid gap-3 justify-center" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 150px))', maxWidth: 470, marginInline: 'auto' }}>
+                  {mafiaTeam.map((s, i) => {
                     const rm = XM_ROLE_META[s.role!];
                     const isMe = s.userId === myId;
+                    const st = streamFor(s.userId);
                     return (
-                      <motion.div key={s.userId} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                        className="relative rounded-xl overflow-hidden" style={{ aspectRatio: '3/4', background: '#0b0b12', border: `2px solid ${rm.color}`, boxShadow: `0 0 18px ${rm.color}55` }}>
-                        <VideoTile stream={streamFor(s.userId)} mirror={isMe} muted={isMe} />
-                        {!streamFor(s.userId) && <div className="absolute inset-0 flex items-center justify-center text-3xl opacity-70">{rm.emoji}</div>}
-                        <div className="absolute bottom-0 left-0 right-0 px-2 py-1.5" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.9), transparent)' }}>
+                      <motion.div key={s.userId} initial={{ opacity: 0, y: 14, rotateY: 30 }} animate={{ opacity: 1, y: 0, rotateY: 0 }} transition={{ delay: 0.1 + i * 0.12 }}
+                        className="relative overflow-hidden xm-float" style={{ aspectRatio: '3/4', borderRadius: 14, background: '#0b0b12', border: `2px solid ${rm.color}`, boxShadow: `0 0 22px ${rm.color}66, inset 0 0 30px ${rm.color}18` }}>
+                        <VideoTile stream={st} mirror={isMe} muted={isMe} />
+                        {!st && (
+                          <div className="absolute inset-0 flex items-center justify-center" style={{ background: `radial-gradient(circle at 50% 34%, ${rm.color}22, #0a0810 72%)` }}>
+                            <div className="rounded-full flex items-center justify-center" style={{ width: '48%', aspectRatio: '1', fontSize: '1.7rem', background: `linear-gradient(155deg, ${rm.color}, #16111f)`, boxShadow: 'inset 0 -6px 14px rgba(0,0,0,0.45)' }}>{rm.emoji}</div>
+                          </div>
+                        )}
+                        <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.07), transparent 22%)' }} />
+                        <div className="absolute bottom-0 left-0 right-0 px-2 pt-3 pb-1.5" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.92), transparent)' }}>
                           <p className="font-mono text-[11px] text-white truncate">#{s.seat} {s.nickname}{isMe && ' (შენ)'}</p>
-                          <p className="font-mono text-[10px]" style={{ color: rm.color }}>{rm.emoji} {rm.label}</p>
+                          <p className="font-mono text-[10px] font-bold" style={{ color: rm.color }}>{rm.emoji} {rm.label}</p>
                         </div>
                       </motion.div>
                     );
@@ -788,7 +822,7 @@ function PlayerPanelReadonly({ match }: { match: XmSafeState }) {
     const total = Object.values(match.voteTally).reduce((a, b) => a + b, 0);
     return <p className="text-center font-mono text-[10px] text-white/35">⚖️ მიცემული ხმები: {total} · {match.nominations.map(n => `#${n.seat}:${match.voteTally[n.userId] ?? 0}`).join('  ')}</p>;
   }
-  if (match.phase === 'speech') return <p className="text-center font-mono text-[10px] text-white/35">🎙 {match.speechIdx + 1}/{match.speechTotal} საუბრობს · კენჭზე: {match.nominations.length}</p>;
+  if (match.phase === 'speech') return <p className="text-center font-mono text-[10px] text-white/35">🎙 {match.speechIdx + 1}/{match.speechTotal} {match.introRound ? 'გაცნობა (დასახელების გარეშე)' : `საუბრობს · კენჭზე: ${match.nominations.length}`}</p>;
   return null;
 }
 

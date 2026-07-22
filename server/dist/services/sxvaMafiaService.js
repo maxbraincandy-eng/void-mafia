@@ -89,6 +89,7 @@ export function createMatch(hostId, socketId, nickname, opts) {
         deck: [],
         log: [],
         round: 0,
+        introRound: false,
         speechOrder: [], speechIdx: 0, speechEndsAt: 0, nominations: [], nominatedBy: {},
         night: { mafiaVotes: {}, donCheck: null, donResult: null, sheriffCheck: null, sheriffResult: null },
         nightEndsAt: 0,
@@ -379,12 +380,19 @@ export function beginMafiaMeet(matchId, byUserId) {
     m.phase = 'mafia_meet';
     return m;
 }
-/** Host closes the acquaintance screen; the first night's actions begin. */
+/** Host closes the acquaintance screen; the day-0 introduction circle begins —
+ * everyone speaks in turn, no nominations, then the first night falls. */
 export function endMafiaMeet(matchId, byUserId) {
     const m = matches.get(matchId);
     if (!m || m.hostId !== byUserId || m.phase !== 'mafia_meet')
         return null;
-    startNight(m);
+    m.introRound = true;
+    m.floorGrab = null;
+    m.nominations = [];
+    m.nominatedBy = {};
+    buildSpeechOrder(m);
+    m.phase = 'speech';
+    m.speechEndsAt = Date.now() + m.settings.speechSeconds * 1000;
     return m;
 }
 export function beginNight(matchId, byUserId) {
@@ -554,18 +562,29 @@ export function advanceSpeakerAuto(matchId) {
     advanceSpeaker(m);
     return m;
 }
+/** Everyone has finished speaking — decide what comes next. */
+function endSpeeches(m) {
+    if (m.introRound) {
+        // The day-0 acquaintance circle has no vote; the first night falls.
+        m.introRound = false;
+        pushLog(m, 'day', 'გაცნობის წრე დასრულდა');
+        startNight(m);
+        return;
+    }
+    if (m.nominations.length === 0) {
+        m.phase = 'day_announce';
+        m.announce = null;
+        return;
+    } // day over → night
+    startVote(m);
+}
 function advanceSpeaker(m) {
     if (m.speechIdx + 1 >= m.speechOrder.length) {
-        // Everyone spoke. If nobody was put to the vote, go straight to night.
-        if (m.nominations.length === 0) {
-            m.phase = 'day_announce';
-            m.announce = null;
-            return;
-        }
-        startVote(m);
+        endSpeeches(m);
         return;
     }
     m.speechIdx += 1;
+    m.floorGrab = null;
     // Skip anyone who died/was fouled out mid-round.
     while (m.speechIdx < m.speechOrder.length) {
         const s = findByUser(m, m.speechOrder[m.speechIdx]);
@@ -574,12 +593,7 @@ function advanceSpeaker(m) {
         m.speechIdx += 1;
     }
     if (m.speechIdx >= m.speechOrder.length) {
-        if (m.nominations.length === 0) {
-            m.phase = 'day_announce';
-            m.announce = null;
-        }
-        else
-            startVote(m);
+        endSpeeches(m);
         return;
     }
     m.speechEndsAt = Date.now() + m.settings.speechSeconds * 1000;
@@ -594,8 +608,8 @@ export function extendSpeech(matchId, byUserId, seconds) {
 /** The current speaker nominates one living player for the day's vote. */
 export function nominate(matchId, byUserId, targetUserId) {
     const m = matches.get(matchId);
-    if (!m || m.phase !== 'speech')
-        return null;
+    if (!m || m.phase !== 'speech' || m.introRound)
+        return null; // no nominations in the acquaintance circle
     if (m.speechOrder[m.speechIdx] !== byUserId)
         return null; // only the active speaker
     const target = findByUser(m, targetUserId);
@@ -801,6 +815,7 @@ export function rematch(matchId, byUserId) {
     m.spectators = [];
     m.phase = 'lobby';
     m.round = 0;
+    m.introRound = false;
     m.speechOrder = [];
     m.speechIdx = 0;
     m.speechEndsAt = 0;
@@ -896,6 +911,7 @@ export function getSafeState(m, viewerUserId) {
             return { index, claimedById: holder?.userId ?? null, claimedByName: holder?.nickname ?? null, claimedBySeat: holder?.seat ?? null };
         }) : [],
         myCardIndex: meSeat?.cardIndex ?? null,
+        introRound: m.introRound,
         speakingUserId,
         speechEndsAt: m.phase === 'speech' ? m.speechEndsAt : 0,
         speechIdx: m.speechIdx,

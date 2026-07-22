@@ -64,6 +64,7 @@ export interface XmMatch {
     deck: XmRole[];
     log: XmLogEntry[];
     round: number;
+    introRound: boolean;
     speechOrder: string[];
     speechIdx: number;
     speechEndsAt: number;
@@ -142,6 +143,7 @@ export interface XmSafeState {
         claimedBySeat: number | null;
     }[];
     myCardIndex: number | null;
+    introRound: boolean;
     speakingUserId: string | null;
     speechEndsAt: number;
     speechIdx: number;
@@ -239,7 +241,8 @@ export declare function setSettings(matchId: string, byUserId: string, patch: Pa
 export declare function reshuffleRoles(matchId: string, byUserId: string): XmMatch | null;
 /** First night only: the mafia open their eyes and get to know each other. */
 export declare function beginMafiaMeet(matchId: string, byUserId: string): XmMatch | null;
-/** Host closes the acquaintance screen; the first night's actions begin. */
+/** Host closes the acquaintance screen; the day-0 introduction circle begins —
+ * everyone speaks in turn, no nominations, then the first night falls. */
 export declare function endMafiaMeet(matchId: string, byUserId: string): XmMatch | null;
 export declare function beginNight(matchId: string, byUserId: string): XmMatch | null;
 /** Mafia member picks the kill target for tonight. */
