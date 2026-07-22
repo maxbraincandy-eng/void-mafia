@@ -344,10 +344,10 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   if (onOpenPremium) defs.push({ id: 'premium', title: 'Premium Worlds', sub: 'Beach Camp 3D · ' + t.commB.premiumSub, cat: 'worlds', kind: 'launch', accent: '#ff8c3c', emoji: '🔥', badge: true, keywords: 'premium worlds 3d beach', launch: onOpenPremium });
   if (onOpenSpace) defs.push({ id: 'space', title: 'Virtual Space', sub: t.commB.spaceSub, cat: 'worlds', kind: 'launch', accent: '#4a76c4', logo: 'vspace', emoji: '🌐', keywords: 'space virtual სივრცე vr', launch: onOpenSpace });
   if (onOpenBackrooms) defs.push({ id: 'backrooms', title: 'Backrooms', sub: t.commB.backroomsSub, cat: 'solo', kind: 'launch', accent: '#f5de80', emoji: '🟨', keywords: 'backrooms horror', launch: onOpenBackrooms });
-  defs.push({ id: 'othermafia', title: 'თუჯიტური მაფია', sub: 'ვიდეო-მაფია ჰოსტით · 4-14 მოთ.', cat: 'maxpuzzle', kind: 'match', accent: RED_XM, logo: 'mafianight', emoji: '🎭', badge: true, keywords: 'mafia მაფია თუჯიტური tujituri video ვიდეო table host' });
+  defs.push({ id: 'othermafia', title: 'თუჯიტური მაფია', sub: 'ვიდეო-მაფია ჰოსტით · 4-14 მოთ.', cat: 'deduction', kind: 'match', accent: RED_XM, logo: 'mafianight', emoji: '🎭', badge: true, keywords: 'mafia მაფია თუჯიტური tujituri video ვიდეო table host' });
 
   const byId = (id: string) => defs.find(d => d.id === id);
-  const FEATURED = ['voidiq', ...(onOpenPremium ? ['premium'] : []), 'maxpuzzle'];
+  const FEATURED = ['voidiq', ...(onOpenPremium ? ['premium'] : []), 'maxpuzzle', 'othermafia'];
 
   const q = query.trim().toLowerCase();
   const matchesQ = (d: GameDef) => !q || d.title.toLowerCase().includes(q) || d.keywords.toLowerCase().includes(q) || d.sub.toLowerCase().includes(q);
@@ -367,7 +367,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
         style={{ minHeight: 104, background: 'rgba(12,10,24,0.72)', border: `1px solid ${d.accent}40`, boxShadow: `0 4px 18px ${d.accent}12` }}>
         {d.badge && <span style={{ position: 'absolute', top: 8, right: 8, fontFamily: 'monospace', fontSize: 8, letterSpacing: 1, color: '#fff', background: 'rgba(124,58,237,0.9)', borderRadius: 6, padding: '2px 6px' }}>NEW</span>}
         <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-2" style={{ background: `${d.accent}1f` }}>
-          {d.logo === 'iq' ? <IQLogo size={34} /> : d.logo === 'vspace' ? <VRBustIcon size={36} /> : d.logo === 'philosophy' ? <PhilosopherIcon size={34} /> : d.logo === 'uno' ? <UnoLogo size={36} /> : d.logo === 'codenames' ? <NinjaEmblem size={36} /> : d.logo === 'sage' ? <SageIcon size={36} /> : d.logo === 'maxseal' ? <MaxSeal size={36} /> : d.logo === 'liar' ? <CrossedFingersIcon size={34} mask="#181026" /> : d.logo === 'mafianight' ? <img src="/mafia-night.png" alt="" className="w-9 h-9 object-contain" /> : d.logo === 'ganab' ? <img src="/ganab-star.png" alt="" className="w-7 h-7 object-contain" /> : <span className="text-2xl leading-none">{d.emoji}</span>}
+          {d.logo === 'iq' ? <IQLogo size={34} /> : d.logo === 'vspace' ? <VRBustIcon size={36} /> : d.logo === 'philosophy' ? <PhilosopherIcon size={34} /> : d.logo === 'uno' ? <UnoLogo size={36} /> : d.logo === 'codenames' ? <NinjaEmblem size={36} /> : d.logo === 'sage' ? <SageIcon size={36} /> : d.logo === 'maxseal' ? <MaxSeal size={36} /> : d.logo === 'liar' ? <CrossedFingersIcon size={34} mask="#181026" /> : d.logo === 'mafianight' ? <img src="/mafia-night.webp" alt="" className="w-9 h-9 object-contain" /> : d.logo === 'ganab' ? <img src="/ganab-star.png" alt="" className="w-7 h-7 object-contain" /> : <span className="text-2xl leading-none">{d.emoji}</span>}
         </div>
         <div className="min-w-0">
           <p className="font-display font-bold text-white text-[13px] leading-tight truncate">{d.title}</p>
@@ -425,6 +425,18 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
               <span style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 1, color: '#1a1206', background: 'rgba(217,180,90,0.92)', borderRadius: 8, padding: '3px 8px' }}>NEW</span>
             </div>
           </button>
+
+          <button onClick={() => openGame(byId('othermafia')!)} className="w-full text-left rounded-2xl overflow-hidden transition-all active:scale-[0.99]"
+            style={{ border: '1px solid rgba(255,59,71,0.45)', boxShadow: '0 6px 30px rgba(255,59,71,0.16)' }}>
+            <div style={{ height: 84, background: 'linear-gradient(135deg, #2a0a14 0%, #170a1e 55%, #3a0f16 100%)', display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px', position: 'relative' }}>
+              <img src="/mafia-night.webp" alt="" className="flex-shrink-0" style={{ width: 56, height: 56, objectFit: 'contain', borderRadius: 10 }} />
+              <div className="flex-1 min-w-0">
+                <p className="font-display font-bold text-sm leading-tight" style={{ background: 'linear-gradient(90deg,#ffd9dd,#ff5d6c)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>თუჯიტური მაფია 🎭</p>
+                <p className="font-mono text-[12px] text-white/55 mt-0.5">ვიდეო-მაფია ჰოსტით · 4-14 მოთ.</p>
+              </div>
+              <span style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 1, color: '#fff', background: 'rgba(255,59,71,0.92)', borderRadius: 8, padding: '3px 8px' }}>NEW</span>
+            </div>
+          </button>
         </>
       )}
 
@@ -460,7 +472,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
               <button key={d!.id} onClick={() => openGame(d!)}
                 className="flex-shrink-0 flex flex-col items-center gap-1.5 w-[68px]" >
                 <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: `${d!.accent}1f`, border: `1px solid ${d!.accent}40` }}>
-                  {d!.logo === 'iq' ? <IQLogo size={38} /> : d!.logo === 'vspace' ? <VRBustIcon size={40} /> : d!.logo === 'philosophy' ? <PhilosopherIcon size={38} /> : d!.logo === 'uno' ? <UnoLogo size={40} /> : d!.logo === 'codenames' ? <NinjaEmblem size={40} /> : d!.logo === 'sage' ? <SageIcon size={40} /> : d!.logo === 'maxseal' ? <MaxSeal size={40} /> : d!.logo === 'liar' ? <CrossedFingersIcon size={38} mask="#181026" /> : d!.logo === 'mafianight' ? <img src="/mafia-night.png" alt="" className="w-10 h-10 object-contain" /> : d!.logo === 'ganab' ? <img src="/ganab-star.png" alt="" className="w-7 h-7 object-contain" /> : <span className="text-2xl">{d!.emoji}</span>}
+                  {d!.logo === 'iq' ? <IQLogo size={38} /> : d!.logo === 'vspace' ? <VRBustIcon size={40} /> : d!.logo === 'philosophy' ? <PhilosopherIcon size={38} /> : d!.logo === 'uno' ? <UnoLogo size={40} /> : d!.logo === 'codenames' ? <NinjaEmblem size={40} /> : d!.logo === 'sage' ? <SageIcon size={40} /> : d!.logo === 'maxseal' ? <MaxSeal size={40} /> : d!.logo === 'liar' ? <CrossedFingersIcon size={38} mask="#181026" /> : d!.logo === 'mafianight' ? <img src="/mafia-night.webp" alt="" className="w-10 h-10 object-contain" /> : d!.logo === 'ganab' ? <img src="/ganab-star.png" alt="" className="w-7 h-7 object-contain" /> : <span className="text-2xl">{d!.emoji}</span>}
                 </div>
                 <span className="font-mono text-[9px] text-white/50 text-center leading-tight truncate w-full">{d!.title}</span>
               </button>
@@ -506,7 +518,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
                   <>
                     <div className="flex items-center gap-3 mb-4">
                       <div className="w-11 h-11 rounded-xl flex items-center justify-center overflow-hidden" style={{ background: `${cfg.accent}1f` }}>
-                        {d.logo === 'mafianight' ? <img src="/mafia-night.png" alt="" className="w-11 h-11 object-contain" /> : <span className="text-2xl">{d.emoji}</span>}
+                        {d.logo === 'mafianight' ? <img src="/mafia-night.webp" alt="" className="w-11 h-11 object-contain" /> : <span className="text-2xl">{d.emoji}</span>}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="font-display font-bold text-white text-base leading-tight">{d.title}</p>
