@@ -13,6 +13,12 @@ export interface XmSeat {
     fouls: number;
     eliminatedRound: number | null;
     eliminatedBy: 'vote' | 'mafia' | 'fouls' | null;
+    lastCheck: string | null;
+}
+export interface XmLogEntry {
+    round: number;
+    phase: 'night' | 'day' | 'foul' | 'game';
+    text: string;
 }
 export interface XmNightState {
     mafiaVotes: Record<string, string>;
@@ -47,12 +53,14 @@ export interface XmMatch {
         nightSeconds: number;
         voteSeconds: number;
         lastWordsSeconds: number;
+        floorControl: boolean;
     };
     roleConfig: {
         don: number;
         mafia: number;
         sheriff: number;
     } | null;
+    log: XmLogEntry[];
     round: number;
     speechOrder: string[];
     speechIdx: number;
@@ -60,9 +68,11 @@ export interface XmMatch {
     nominations: string[];
     nominatedBy: Record<string, string>;
     night: XmNightState;
+    nightEndsAt: number;
     announce: XmAnnounce | null;
     votes: Record<string, string>;
     voteEndsAt: number;
+    voteRevote: boolean;
     voteResult: {
         eliminatedUserId: string | null;
         tally: Record<string, number>;
@@ -132,14 +142,23 @@ export interface XmSafeState {
     nightEndsAt: number;
     iActedTonight: boolean;
     nightPrivate: string | null;
+    nightAllActed: boolean;
+    mafiaPicks: {
+        userId: string;
+        nickname: string;
+        targetId: string;
+        targetName: string;
+    }[];
     announce: XmAnnounce | null;
     voteEndsAt: number;
+    voteRevote: boolean;
     myVote: string | null;
     voteTally: Record<string, number>;
     voteResult: XmMatch['voteResult'];
     lastWordsUserId: string | null;
     lastWordsName: string | null;
     lastWordsEndsAt: number;
+    log: XmLogEntry[];
     winner: XmWinner;
     reveal: XmMatch['reveal'];
     dissolved: boolean;
@@ -191,6 +210,8 @@ export declare function setRoleConfig(matchId: string, byUserId: string, cfg: {
     mafia: number;
     sheriff: number;
 } | null): XmMatch | null;
+/** Host tweaks timers / floor control. Durations only editable before play starts. */
+export declare function setSettings(matchId: string, byUserId: string, patch: Partial<XmMatch['settings']>): XmMatch | null;
 /** Host re-rolls the secret roles while still on the assign screen. */
 export declare function reshuffleRoles(matchId: string, byUserId: string): XmMatch | null;
 /** First night only: the mafia open their eyes and get to know each other. */
@@ -202,8 +223,10 @@ export declare function beginNight(matchId: string, byUserId: string): XmMatch |
 export declare function mafiaVote(matchId: string, byUserId: string, targetUserId: string): XmMatch | null;
 export declare function donCheck(matchId: string, byUserId: string, targetUserId: string): XmMatch | null;
 export declare function sheriffCheck(matchId: string, byUserId: string, targetUserId: string): XmMatch | null;
-/** Host closes the night. Resolves the kill and moves to the morning announcement. */
+/** Host closes the night. */
 export declare function endNight(matchId: string, byUserId: string): XmMatch | null;
+/** Night timer fired — resolve whatever was chosen. */
+export declare function advanceNightAuto(matchId: string): XmMatch | null;
 export declare function beginDay(matchId: string, byUserId: string): XmMatch | null;
 export declare function nextSpeaker(matchId: string, byUserId: string): XmMatch | null;
 /** Timer fired for the current speaker (byUserId null) or host skipped. */

@@ -99,20 +99,43 @@ export function SxvaMafiaGame() {
   const [now, setNow] = useState(Date.now());
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [roleOpen, setRoleOpen] = useState(false);
+  const [journalOpen, setJournalOpen] = useState(false);
   const [foulMode, setFoulMode] = useState(false);
+  const [cinematic, setCinematic] = useState<{ type: 'night' | 'morning'; key: number } | null>(null);
   const prevPhase = useRef<string>('');
   const cameraInit = useRef(false);
+  const cineKey = useRef(0);
   const wide = useWide(760);
 
-  // LiveKit video room (one per match). Dead players & spectators are listen-only.
+  // Auto-dismiss the cinematic overlay shortly after it appears.
+  useEffect(() => { if (!cinematic) return; const t = setTimeout(() => setCinematic(null), 1700); return () => clearTimeout(t); }, [cinematic]);
+
+  // LiveKit video room (one per match). Floor control: with it on, only the
+  // player who currently "holds the floor" (active speaker / last-words / host)
+  // may talk; everyone else is muted. Dead players & spectators always listen.
   const { enabled: lkEnabled } = useLiveKitGate();
-  const amActiveTalker = !!match && (match.amHost || match.myAlive);
+  const floorControl = match?.settings.floorControl ?? true;
+  const iHoldFloor = !!match && (
+    match.amHost || match.phase === 'lobby' ||
+    (match.phase === 'speech' && match.speakingUserId === myId) ||
+    (match.phase === 'last_words' && match.lastWordsUserId === myId)
+  );
+  const amActiveTalker = !!match && (match.amHost || match.myAlive) && !match.amSpectator;
+  const listenOnly = !!match && (match.amSpectator || (!match.amHost && !match.myAlive) || (floorControl && !iHoldFloor && !match.amHost));
   const voice = useLivekitRoomVoice({
     roomId: match?.id ? `sxvamafia_${match.id}` : null,
     identity: myId || null,
     active: lkEnabled && !!match && match.phase !== 'finished',
-    listenOnly: !amActiveTalker,
+    listenOnly,
   });
+
+  // Auto-open the mic the moment you gain the floor (start of your turn).
+  const prevFloor = useRef(false);
+  useEffect(() => {
+    if (iHoldFloor && !prevFloor.current && !listenOnly && voice.connected && !match?.amHost) voice.setMic(true);
+    prevFloor.current = iHoldFloor;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [iHoldFloor, listenOnly, voice.connected]);
 
   // Turn the camera on once we're connected (video-first game).
   useEffect(() => {
@@ -128,7 +151,8 @@ export function SxvaMafiaGame() {
     const p = match.phase;
     if (p !== prevPhase.current) {
       if (p === 'mafia_meet') { SFX.voteStart?.(); haptic('heavy'); }
-      else if (p === 'night') { SFX.voteStart?.(); haptic('heavy'); }
+      else if (p === 'night') { SFX.voteStart?.(); haptic('heavy'); setCinematic({ type: 'night', key: ++cineKey.current }); }
+      else if (p === 'day_announce' && prevPhase.current === 'night') { setCinematic({ type: 'morning', key: ++cineKey.current }); }
       else if (p === 'speech') { SFX.gameStart?.(); haptic('tap'); }
       else if (p === 'vote') { SFX.voteStart?.(); haptic('selection'); }
       else if (p === 'finished') SFX.gameOver?.();
@@ -143,6 +167,7 @@ export function SxvaMafiaGame() {
 
   const isHost = match.amHost;
   const speechLeft = match.speechEndsAt ? Math.round((match.speechEndsAt - now) / 1000) : 0;
+  const nightLeft = match.nightEndsAt ? Math.round((match.nightEndsAt - now) / 1000) : 0;
   const voteLeft = match.voteEndsAt ? Math.round((match.voteEndsAt - now) / 1000) : 0;
   const lwLeft = match.lastWordsEndsAt ? Math.round((match.lastWordsEndsAt - now) / 1000) : 0;
 
@@ -284,22 +309,30 @@ export function SxvaMafiaGame() {
     if (!match.myAlive) return <p className="text-center font-mono text-[12px] text-white/40">💀 შენ თამაშიდან გახვედი — უყურე დანარჩენებს</p>;
 
     if (match.phase === 'night' && canActNight) {
+      const consensus = match.mafiaPicks.length > 0 ? (
+        <div className="mt-2 rounded-lg px-2.5 py-1.5" style={{ background: 'rgba(255,59,71,0.08)', border: '1px solid rgba(255,59,71,0.22)' }}>
+          <p className="font-mono text-[10px] text-white/45 mb-0.5">🔫 გუნდის არჩევანი:</p>
+          {match.mafiaPicks.map(p => <p key={p.userId} className="font-mono text-[11px]" style={{ color: '#ff8a92' }}>{p.nickname} → {p.targetName}</p>)}
+        </div>
+      ) : null;
       if (nightRole === 'sheriff') {
-        return (<div><p className="text-center font-mono text-[11px] mb-2" style={{ color: '#4fb8ff' }}>🔎 შეამოწმე ერთი მოთამაშე (მაფიაა თუ არა)</p>
+        return (<div><p className="text-center font-mono text-[11px] mb-2" style={{ color: '#4fb8ff' }}>🔎 შეამოწმე ერთი მოთამაშე (მაფიაა თუ არა) · {fmt(nightLeft)}</p>
           <Chips seats={aliveSeats.filter(s => s.userId !== myId)} onPick={store.sheriffCheck} />
-          {match.nightPrivate && <p className="text-center font-mono text-[12px] mt-2 text-white">{match.nightPrivate}</p>}</div>);
+          {match.nightPrivate && <p className="text-center font-mono text-[13px] mt-2 text-white">{match.nightPrivate}</p>}</div>);
       }
       if (nightRole === 'don') {
         return (<div className="space-y-2">
-          <p className="text-center font-mono text-[11px]" style={{ color: RED }}>🔫 მაფიის მსხვერპლი</p>
+          <p className="text-center font-mono text-[11px]" style={{ color: RED }}>🔫 მაფიის მსხვერპლი · {fmt(nightLeft)}</p>
           <Chips seats={aliveSeats.filter(s => !match.mateIds.includes(s.userId) && s.userId !== myId)} onPick={store.mafiaVote} />
+          {consensus}
           <p className="text-center font-mono text-[11px]" style={{ color: '#ffcc33' }}>🎩 შეამოწმე შერიფზე</p>
           <Chips seats={aliveSeats.filter(s => s.userId !== myId)} onPick={store.donCheck} />
-          {match.nightPrivate && <p className="text-center font-mono text-[12px] text-white">{match.nightPrivate}</p>}</div>);
+          {match.nightPrivate && <p className="text-center font-mono text-[13px] text-white">{match.nightPrivate}</p>}</div>);
       }
       if (nightRole === 'mafia') {
-        return (<div><p className="text-center font-mono text-[11px] mb-2" style={{ color: RED }}>🔫 აირჩიე მსხვერპლი (მაფიასთან ერთად)</p>
+        return (<div><p className="text-center font-mono text-[11px] mb-2" style={{ color: RED }}>🔫 აირჩიე მსხვერპლი (მაფიასთან ერთად) · {fmt(nightLeft)}</p>
           <Chips seats={aliveSeats.filter(s => !match.mateIds.includes(s.userId) && s.userId !== myId)} onPick={store.mafiaVote} />
+          {consensus}
           {match.iActedTonight && <p className="text-center font-mono text-[11px] mt-2 text-white/50">✅ არჩევანი გააკეთე</p>}</div>);
       }
       return <p className="text-center font-mono text-[12px] text-white/40 animate-pulse">🌙 ღამეა — თვალები დახუჭე</p>;
@@ -315,7 +348,7 @@ export function SxvaMafiaGame() {
     }
 
     if (match.phase === 'vote') {
-      return (<div><p className="text-center font-mono text-[11px] mb-2" style={{ color: '#ffcc33' }}>⚖️ ვის გავრიცხავთ? ({fmt(voteLeft)})</p>
+      return (<div><p className="text-center font-mono text-[11px] mb-2" style={{ color: '#ffcc33' }}>{match.voteRevote ? '🔁 ხელახალი კენჭისყრა (ხმები გაიყო)' : '⚖️ ვის გავრიცხავთ?'} ({fmt(voteLeft)})</p>
         <div className="flex flex-wrap gap-1.5 justify-center">
           {match.nominations.map(n => (
             <button key={n.userId} onClick={() => { SFX.click?.(); haptic('selection'); store.castVote(n.userId); }}
@@ -360,7 +393,7 @@ export function SxvaMafiaGame() {
   const stageIcon = match.phase === 'night' ? '🌙' : match.phase === 'vote' ? '⚖️'
     : match.phase === 'last_words' ? '🎤' : match.phase === 'day_announce' ? (match.announce?.killedName ? '💀' : '🌅')
     : match.phase === 'speech' ? '🗣️' : '🎭';
-  const stageBig = match.phase === 'speech' ? fmt(speechLeft) : match.phase === 'vote' ? fmt(voteLeft) : match.phase === 'last_words' ? fmt(lwLeft) : '';
+  const stageBig = match.phase === 'speech' ? fmt(speechLeft) : match.phase === 'vote' ? fmt(voteLeft) : match.phase === 'last_words' ? fmt(lwLeft) : match.phase === 'night' ? fmt(nightLeft) : '';
   const nightMood = match.phase === 'night';
 
   const StageCard = (
@@ -411,7 +444,10 @@ export function SxvaMafiaGame() {
             </p>
           </div>
           <div className="flex items-center gap-1.5">
-            {amActiveTalker && (
+            {match.phase !== 'lobby' && (
+              <button onClick={() => { SFX.click?.(); setJournalOpen(true); }} className="w-8 h-8 rounded-full flex items-center justify-center text-sm" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)' }} title="ჟურნალი">📜</button>
+            )}
+            {!listenOnly && (
               <button onClick={() => { SFX.click?.(); voice.toggleMic(); }} className="w-8 h-8 rounded-full flex items-center justify-center text-sm"
                 style={{ background: voice.micEnabled ? `${RED}22` : 'rgba(255,255,255,0.06)', border: `1px solid ${voice.micEnabled ? RED : 'rgba(255,255,255,0.15)'}` }}>{voice.micEnabled ? '🎙' : '🔇'}</button>
             )}
@@ -529,6 +565,29 @@ export function SxvaMafiaGame() {
                   )}
                   <p className="font-mono text-[10px] text-white/30 mt-2.5 text-center">მაფიის გუნდი {match.setup.don + match.setup.mafia} · ქალაქი {match.setup.sheriff + match.setup.citizen} · სულ {match.seats.length}</p>
                 </div>
+
+                {/* Timers & floor control (host only) */}
+                {isHost && (
+                  <div className="mt-3 max-w-sm mx-auto rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${RED}22` }}>
+                    <p className="font-display font-bold text-white text-[13px] mb-2.5">⏱ ტაიმერები & წესები</p>
+                    <div className="space-y-2.5">
+                      <RoleStepper emoji="🗣" label="საუბრის წუთი" value={match.settings.speechSeconds} min={20} max={180}
+                        onChange={d => store.setSettings({ speechSeconds: clamp(match.settings.speechSeconds + d * 10, 20, 180) })} />
+                      <RoleStepper emoji="🌙" label="ღამის დრო" value={match.settings.nightSeconds} min={20} max={120}
+                        onChange={d => store.setSettings({ nightSeconds: clamp(match.settings.nightSeconds + d * 10, 20, 120) })} />
+                      <RoleStepper emoji="⚖️" label="კენჭისყრა" value={match.settings.voteSeconds} min={15} max={120}
+                        onChange={d => store.setSettings({ voteSeconds: clamp(match.settings.voteSeconds + d * 5, 15, 120) })} />
+                      <RoleStepper emoji="🎤" label="ბოლო სიტყვა" value={match.settings.lastWordsSeconds} min={15} max={120}
+                        onChange={d => store.setSettings({ lastWordsSeconds: clamp(match.settings.lastWordsSeconds + d * 5, 15, 120) })} />
+                      <button onClick={() => { SFX.click?.(); store.setSettings({ floorControl: !match.settings.floorControl }); }}
+                        className="w-full flex items-center justify-between px-2 py-1.5 rounded-lg" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                        <span className="font-mono text-[12.5px] text-white/85">🎙 მიკროფონის კონტროლი</span>
+                        <span className="font-mono text-[11px] px-2 py-0.5 rounded" style={{ background: match.settings.floorControl ? `${RED}33` : 'rgba(255,255,255,0.08)', color: match.settings.floorControl ? '#ff8a92' : 'rgba(255,255,255,0.5)' }}>{match.settings.floorControl ? 'ჩართული' : 'გამორთ.'}</span>
+                      </button>
+                    </div>
+                    <p className="font-mono text-[10px] text-white/30 mt-2 text-center">ჩართულ რეჟიმში მხოლოდ მოსაუბრეს აქვს ხმა</p>
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -547,9 +606,47 @@ export function SxvaMafiaGame() {
         </div>
       )}
 
+      {/* Cinematic phase transition */}
+      <AnimatePresence>
+        {cinematic && (
+          <motion.div key={cinematic.key} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.4 }}
+            className="fixed inset-0 z-[575] flex flex-col items-center justify-center pointer-events-none"
+            style={{ background: cinematic.type === 'night' ? 'radial-gradient(ellipse at center, #0a1030 0%, #04040a 100%)' : 'radial-gradient(ellipse at center, #3a1508 0%, #0a0609 100%)' }}>
+            <motion.span initial={{ scale: 0.4, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', damping: 12 }} style={{ fontSize: 72 }}>{cinematic.type === 'night' ? '🌙' : '🌅'}</motion.span>
+            <motion.p initial={{ y: 12, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.15 }} className="font-display font-black text-white mt-2" style={{ fontSize: 26, letterSpacing: 2 }}>
+              {cinematic.type === 'night' ? 'ღამე ჩამოწვა' : 'დილა დგება'}
+            </motion.p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Journal / protocol */}
+      <AnimatePresence>
+        {journalOpen && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[586] flex items-end sm:items-center justify-center" style={{ background: 'rgba(4,4,10,0.7)' }} onClick={() => setJournalOpen(false)}>
+            <motion.div initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }} onClick={e => e.stopPropagation()}
+              className="w-full max-w-md rounded-t-2xl sm:rounded-2xl p-4 max-h-[70vh] flex flex-col" style={{ background: 'rgba(16,10,14,0.99)', border: `1px solid ${RED}33` }}>
+              <div className="flex items-center justify-between mb-2 flex-shrink-0">
+                <p className="font-display font-bold text-white text-[15px]">📜 თამაშის ჟურნალი</p>
+                <button onClick={() => setJournalOpen(false)} className="w-7 h-7 rounded-full flex items-center justify-center text-white/50" style={{ border: '1px solid rgba(255,255,255,0.15)' }}>✕</button>
+              </div>
+              <div className="overflow-y-auto space-y-1.5">
+                {match.log.length === 0 ? <p className="font-mono text-[12px] text-white/40 text-center py-6">ჯერ ჩანაწერი არ არის</p> : [...match.log].reverse().map((e, i) => (
+                  <div key={i} className="flex items-start gap-2 px-2.5 py-1.5 rounded-lg" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                    <span className="text-[13px] flex-shrink-0">{e.phase === 'night' ? '🌙' : e.phase === 'day' ? '☀️' : e.phase === 'foul' ? '⚠️' : '🎬'}</span>
+                    <span className="font-mono text-[12px] text-white/80">{e.text}</span>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Role card */}
       <AnimatePresence>
-        {roleOpen && match.myRole && <RoleCard role={match.myRole} mates={match.seats.filter(s => match.mateIds.includes(s.userId))} onClose={() => setRoleOpen(false)} />}
+        {roleOpen && match.myRole && <RoleCard role={match.myRole} mates={match.seats.filter(s => match.mateIds.includes(s.userId))} note={match.nightPrivate} onClose={() => setRoleOpen(false)} />}
       </AnimatePresence>
 
       {/* Error toast */}
@@ -584,7 +681,7 @@ export function SxvaMafiaGame() {
 
 // Host also sees the live phase context (read-only) so they know what players face.
 function PlayerPanelReadonly({ match }: { match: XmSafeState }) {
-  if (match.phase === 'night') return <p className="text-center font-mono text-[10px] text-white/35">🌙 მაფია/შერიფი მოქმედებენ — დაასრულე ღამე, როცა მზად იქნებიან</p>;
+  if (match.phase === 'night') return <p className="text-center font-mono text-[10px]" style={{ color: match.nightAllActed ? '#7fe0a0' : 'rgba(255,255,255,0.35)' }}>{match.nightAllActed ? '✅ ყველა მზადაა — ღამე ავტომატურად სრულდება' : '🌙 მაფია/შერიფი მოქმედებენ… (ავტომატურად დასრულდება)'}</p>;
   if (match.phase === 'vote') {
     const total = Object.values(match.voteTally).reduce((a, b) => a + b, 0);
     return <p className="text-center font-mono text-[10px] text-white/35">⚖️ მიცემული ხმები: {total} · {match.nominations.map(n => `#${n.seat}:${match.voteTally[n.userId] ?? 0}`).join('  ')}</p>;
@@ -593,7 +690,7 @@ function PlayerPanelReadonly({ match }: { match: XmSafeState }) {
   return null;
 }
 
-function RoleCard({ role, mates, onClose }: { role: XmRole; mates: XmSafeSeat[]; onClose: () => void }) {
+function RoleCard({ role, mates, note, onClose }: { role: XmRole; mates: XmSafeSeat[]; note?: string | null; onClose: () => void }) {
   const rm = XM_ROLE_META[role];
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -613,6 +710,12 @@ function RoleCard({ role, mates, onClose }: { role: XmRole; mates: XmSafeSeat[];
           <div className="mt-3 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
             <p className="font-mono text-[10px] text-white/40 mb-1">შენი გუნდი:</p>
             <p className="font-mono text-[12px]" style={{ color: rm.color }}>{mates.map(m => `#${m.seat} ${m.nickname}`).join(', ')}</p>
+          </div>
+        )}
+        {note && (
+          <div className="mt-3 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+            <p className="font-mono text-[10px] text-white/40 mb-1">შენი ბოლო შემოწმება:</p>
+            <p className="font-mono text-[12px] text-white">{note}</p>
           </div>
         )}
         <button onClick={onClose} className="mt-4 w-full py-2.5 rounded-xl font-display font-bold text-white text-[13px]" style={{ background: rm.color }}>დამალვა</button>

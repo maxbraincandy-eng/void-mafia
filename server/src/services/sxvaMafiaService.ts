@@ -37,6 +37,13 @@ export interface XmSeat {
   fouls: number;
   eliminatedRound: number | null;
   eliminatedBy: 'vote' | 'mafia' | 'fouls' | null;
+  lastCheck: string | null; // don/sheriff: their most recent check result, kept visible into the day
+}
+
+export interface XmLogEntry {
+  round: number;
+  phase: 'night' | 'day' | 'foul' | 'game';
+  text: string;
 }
 
 export interface XmNightState {
@@ -64,8 +71,9 @@ export interface XmMatch {
   maxSeats: number;
   seats: XmSeat[];
   spectators: { userId: string; socketId: string; nickname: string; connected: boolean }[];
-  settings: { speechSeconds: number; nightSeconds: number; voteSeconds: number; lastWordsSeconds: number };
+  settings: { speechSeconds: number; nightSeconds: number; voteSeconds: number; lastWordsSeconds: number; floorControl: boolean };
   roleConfig: { don: number; mafia: number; sheriff: number } | null; // host override; null = auto by count
+  log: XmLogEntry[];             // running protocol, visible to everyone (no roles)
   round: number;                 // day number, 1-based once play starts
   // speech
   speechOrder: string[];         // alive seat userIds, this day's order
@@ -75,10 +83,12 @@ export interface XmMatch {
   nominatedBy: Record<string, string>; // nominee -> nominator (one nomination per speaker)
   // night
   night: XmNightState;
+  nightEndsAt: number;
   announce: XmAnnounce | null;
   // vote
   votes: Record<string, string>; // voter userId -> nominee userId
   voteEndsAt: number;
+  voteRevote: boolean;           // this vote is a tie-break re-vote
   voteResult: { eliminatedUserId: string | null; tally: Record<string, number> } | null;
   // last words
   lastWordsUserId: string | null;
@@ -129,9 +139,12 @@ export interface XmSafeState {
   nightEndsAt: number;
   iActedTonight: boolean;       // did my night role already submit
   nightPrivate: string | null;  // result text for don/sheriff (only to them)
+  nightAllActed: boolean;       // host hint: everyone with a night role has acted
+  mafiaPicks: { userId: string; nickname: string; targetId: string; targetName: string }[]; // mafia-only: teammate kill choices
   announce: XmAnnounce | null;
   // vote
   voteEndsAt: number;
+  voteRevote: boolean;
   myVote: string | null;
   voteTally: Record<string, number>;
   voteResult: XmMatch['voteResult'];
@@ -140,6 +153,7 @@ export interface XmSafeState {
   lastWordsName: string | null;
   lastWordsEndsAt: number;
   // end
+  log: XmLogEntry[];
   winner: XmWinner;
   reveal: XmMatch['reveal'];
   dissolved: boolean;
@@ -201,13 +215,15 @@ export function createMatch(hostId: string, socketId: string, nickname: string, 
     maxSeats: Math.min(14, Math.max(4, Number(opts.maxSeats ?? 10))),
     seats: [],
     spectators: [],
-    settings: { speechSeconds: 60, nightSeconds: 40, voteSeconds: 30, lastWordsSeconds: 40 },
+    settings: { speechSeconds: 60, nightSeconds: 40, voteSeconds: 30, lastWordsSeconds: 40, floorControl: true },
     roleConfig: null,
+    log: [],
     round: 0,
     speechOrder: [], speechIdx: 0, speechEndsAt: 0, nominations: [], nominatedBy: {},
     night: { mafiaVotes: {}, donCheck: null, donResult: null, sheriffCheck: null, sheriffResult: null },
+    nightEndsAt: 0,
     announce: null,
-    votes: {}, voteEndsAt: 0, voteResult: null,
+    votes: {}, voteEndsAt: 0, voteRevote: false, voteResult: null,
     lastWordsUserId: null, lastWordsEndsAt: 0,
     winner: null, reveal: null, dissolved: false, createdAt: Date.now(),
   };
@@ -248,7 +264,7 @@ export function joinMatch(matchId: string, userId: string, socketId: string, nic
   const spec = m.spectators.find(s => s.userId === userId);
   if (spec) { spec.socketId = socketId; spec.connected = true; return { match: m, isNew: false }; }
   if (m.phase === 'lobby' && m.seats.length < m.maxSeats) {
-    m.seats.push({ userId, socketId, nickname, seat: m.seats.length + 1, connected: true, role: null, alive: true, fouls: 0, eliminatedRound: null, eliminatedBy: null });
+    m.seats.push({ userId, socketId, nickname, seat: m.seats.length + 1, connected: true, role: null, alive: true, fouls: 0, eliminatedRound: null, eliminatedBy: null, lastCheck: null });
     return { match: m, isNew: true };
   }
   m.spectators.push({ userId, socketId, nickname, connected: true });
@@ -310,7 +326,7 @@ export function assignRoles(m: XmMatch): void {
   const roles = shuffle(pool);
   m.seats.forEach((s, i) => {
     s.role = roles[i]!;
-    s.alive = true; s.fouls = 0; s.eliminatedRound = null; s.eliminatedBy = null;
+    s.alive = true; s.fouls = 0; s.eliminatedRound = null; s.eliminatedBy = null; s.lastCheck = null;
   });
 }
 
@@ -322,6 +338,8 @@ export function startMatch(matchId: string, byUserId: string): XmMatch | null {
   m.round = 0;
   m.phase = 'assign';
   m.winner = null; m.reveal = null; m.announce = null;
+  m.log = [];
+  pushLog(m, 'game', `თამაში დაიწყო — ${m.seats.length} მოთამაშე`);
   return m;
 }
 
@@ -342,6 +360,20 @@ export function setRoleConfig(matchId: string, byUserId: string, cfg: { don: num
   return m;
 }
 
+/** Host tweaks timers / floor control. Durations only editable before play starts. */
+export function setSettings(matchId: string, byUserId: string, patch: Partial<XmMatch['settings']>): XmMatch | null {
+  const m = matches.get(matchId);
+  if (!m || m.hostId !== byUserId) return null;
+  if (typeof patch.floorControl === 'boolean') m.settings.floorControl = patch.floorControl; // any time
+  if (m.phase === 'lobby') {
+    if (patch.speechSeconds != null) m.settings.speechSeconds = Math.max(20, Math.min(180, Math.floor(patch.speechSeconds)));
+    if (patch.voteSeconds != null) m.settings.voteSeconds = Math.max(15, Math.min(120, Math.floor(patch.voteSeconds)));
+    if (patch.lastWordsSeconds != null) m.settings.lastWordsSeconds = Math.max(15, Math.min(120, Math.floor(patch.lastWordsSeconds)));
+    if (patch.nightSeconds != null) m.settings.nightSeconds = Math.max(20, Math.min(120, Math.floor(patch.nightSeconds)));
+  }
+  return m;
+}
+
 /** Host re-rolls the secret roles while still on the assign screen. */
 export function reshuffleRoles(matchId: string, byUserId: string): XmMatch | null {
   const m = matches.get(matchId);
@@ -353,6 +385,24 @@ export function reshuffleRoles(matchId: string, byUserId: string): XmMatch | nul
 // ── Phase transitions (host-driven) ─────────────────────────────────────────────
 function resetNight(m: XmMatch): void {
   m.night = { mafiaVotes: {}, donCheck: null, donResult: null, sheriffCheck: null, sheriffResult: null };
+}
+function seatLabel(s: XmSeat): string { return `#${s.seat} ${s.nickname}`; }
+function pushLog(m: XmMatch, phase: XmLogEntry['phase'], text: string): void {
+  m.log.push({ round: m.round, phase, text });
+  if (m.log.length > 60) m.log.shift();
+}
+/** True once everyone who has a night action tonight has submitted it. */
+function nightAllActed(m: XmMatch): boolean {
+  const mafia = aliveMafia(m);
+  const allMafiaVoted = mafia.length === 0 || mafia.every(s => m.night.mafiaVotes[s.userId]);
+  const don = m.seats.find(s => s.alive && s.role === 'don');
+  const sheriff = m.seats.find(s => s.alive && s.role === 'sheriff');
+  return allMafiaVoted && (!don || m.night.donCheck !== null) && (!sheriff || m.night.sheriffCheck !== null);
+}
+function startNight(m: XmMatch): void {
+  resetNight(m);
+  m.phase = 'night';
+  m.nightEndsAt = Date.now() + m.settings.nightSeconds * 1000;
 }
 
 /** First night only: the mafia open their eyes and get to know each other. */
@@ -369,8 +419,7 @@ export function beginMafiaMeet(matchId: string, byUserId: string): XmMatch | nul
 export function endMafiaMeet(matchId: string, byUserId: string): XmMatch | null {
   const m = matches.get(matchId);
   if (!m || m.hostId !== byUserId || m.phase !== 'mafia_meet') return null;
-  resetNight(m);
-  m.phase = 'night';
+  startNight(m);
   return m;
 }
 
@@ -378,9 +427,8 @@ export function beginNight(matchId: string, byUserId: string): XmMatch | null {
   const m = matches.get(matchId);
   if (!m || m.hostId !== byUserId) return null;
   if (m.phase !== 'speech' && m.phase !== 'day_announce') return null; // first night goes via mafia_meet
-  resetNight(m);
-  m.phase = 'night';
   m.round += 1;
+  startNight(m);
   return m;
 }
 
@@ -393,6 +441,7 @@ export function mafiaVote(matchId: string, byUserId: string, targetUserId: strin
   if (!actor || !actor.alive || !isMafiaRole(actor.role)) return null;
   if (!target || !target.alive || isMafiaRole(target.role)) return null; // mafia don't shoot their own
   m.night.mafiaVotes[byUserId] = targetUserId;
+  maybeAutoNight(m);
   return m;
 }
 
@@ -405,6 +454,8 @@ export function donCheck(matchId: string, byUserId: string, targetUserId: string
   if (!target || !target.alive) return null;
   m.night.donCheck = targetUserId;
   m.night.donResult = target.role === 'sheriff';
+  actor.lastCheck = `🎩 ${seatLabel(target)}: ${m.night.donResult ? 'შერიფია ✓' : 'შერიფი არ არის'}`;
+  maybeAutoNight(m);
   return m;
 }
 
@@ -417,6 +468,8 @@ export function sheriffCheck(matchId: string, byUserId: string, targetUserId: st
   if (!target || !target.alive) return null;
   m.night.sheriffCheck = targetUserId;
   m.night.sheriffResult = isMafiaRole(target.role);
+  actor.lastCheck = `🔎 ${seatLabel(target)}: ${m.night.sheriffResult ? 'მაფიაა ✗' : 'მშვიდობიანია ✓'}`;
+  maybeAutoNight(m);
   return m;
 }
 
@@ -440,17 +493,37 @@ function resolveKill(m: XmMatch): XmSeat | null {
   return victim && victim.alive && !isMafiaRole(victim.role) ? victim : null;
 }
 
-/** Host closes the night. Resolves the kill and moves to the morning announcement. */
-export function endNight(matchId: string, byUserId: string): XmMatch | null {
-  const m = matches.get(matchId);
-  if (!m || m.hostId !== byUserId || m.phase !== 'night') return null;
+/** Core night resolution — no host check. Used by the host action, the auto-end
+ * (all roles acted) and the night timer. */
+function resolveNight(m: XmMatch): void {
+  if (m.phase !== 'night') return;
   const victim = resolveKill(m);
   if (victim) { victim.alive = false; victim.eliminatedRound = m.round; victim.eliminatedBy = 'mafia'; }
   m.announce = { round: m.round, killedUserId: victim?.userId ?? null, killedName: victim?.nickname ?? null };
+  pushLog(m, 'night', victim ? `ღამე ${m.round}: მოკლეს ${seatLabel(victim)}` : `ღამე ${m.round}: მშვიდი ღამე — მსხვერპლი არ არის`);
   m.phase = 'day_announce';
-  if (checkWin(m)) return m;
-  // The freshly killed player gets a farewell; otherwise straight into speeches.
-  if (victim) startLastWords(m, victim.userId);
+  if (checkWin(m)) return;
+  if (victim) startLastWords(m, victim.userId); // the freshly killed player gets a farewell
+}
+
+/** Auto-close the night the moment every night role has acted. */
+function maybeAutoNight(m: XmMatch): void {
+  if (m.phase === 'night' && nightAllActed(m)) resolveNight(m);
+}
+
+/** Host closes the night. */
+export function endNight(matchId: string, byUserId: string): XmMatch | null {
+  const m = matches.get(matchId);
+  if (!m || m.hostId !== byUserId || m.phase !== 'night') return null;
+  resolveNight(m);
+  return m;
+}
+
+/** Night timer fired — resolve whatever was chosen. */
+export function advanceNightAuto(matchId: string): XmMatch | null {
+  const m = matches.get(matchId);
+  if (!m || m.phase !== 'night') return null;
+  resolveNight(m);
   return m;
 }
 
@@ -538,6 +611,7 @@ export function nominate(matchId: string, byUserId: string, targetUserId: string
 function startVote(m: XmMatch): void {
   m.votes = {};
   m.voteResult = null;
+  m.voteRevote = false;
   m.phase = 'vote';
   m.voteEndsAt = Date.now() + m.settings.voteSeconds * 1000;
 }
@@ -559,20 +633,38 @@ function resolveVote(m: XmMatch): void {
   const tally: Record<string, number> = {};
   for (const nominee of m.nominations) tally[nominee] = 0;
   for (const v of Object.values(m.votes)) tally[v] = (tally[v] ?? 0) + 1;
-  let best: string | null = null, bestN = -1, tie = false;
-  for (const [nominee, c] of Object.entries(tally)) { if (c > bestN) { best = nominee; bestN = c; tie = false; } else if (c === bestN) tie = true; }
-  const eliminated = tie || bestN <= 0 ? null : best;
-  m.voteResult = { eliminatedUserId: eliminated, tally };
-  if (eliminated) {
-    const s = findByUser(m, eliminated);
-    if (s) { s.alive = false; s.eliminatedRound = m.round; s.eliminatedBy = 'vote'; }
-    if (checkWin(m)) return;
-    startLastWords(m, eliminated);
-  } else {
-    // No elimination → night falls.
-    m.phase = 'day_announce';
-    m.announce = null;
+  let bestN = -1; const tied: string[] = [];
+  for (const [nominee, c] of Object.entries(tally)) {
+    if (c > bestN) { bestN = c; tied.length = 0; tied.push(nominee); }
+    else if (c === bestN) tied.push(nominee);
   }
+  const noElim = () => { m.phase = 'day_announce'; m.announce = null; };
+
+  if (bestN <= 0) { m.voteResult = { eliminatedUserId: null, tally }; noElim(); return; } // nobody voted
+
+  if (tied.length === 1) {
+    const elim = tied[0]!;
+    m.voteResult = { eliminatedUserId: elim, tally };
+    const s = findByUser(m, elim);
+    if (s) { s.alive = false; s.eliminatedRound = m.round; s.eliminatedBy = 'vote'; pushLog(m, 'day', `დღე ${m.round}: ხმით გაირიცხა ${seatLabel(s)}`); }
+    if (checkWin(m)) return;
+    startLastWords(m, elim);
+    return;
+  }
+
+  // Tie → one re-vote ("lift") between the tied candidates; a second tie spares everyone.
+  if (!m.voteRevote) {
+    m.nominations = [...tied];
+    m.votes = {};
+    m.voteResult = null;
+    m.voteRevote = true;
+    m.phase = 'vote';
+    m.voteEndsAt = Date.now() + m.settings.voteSeconds * 1000;
+    return;
+  }
+  m.voteResult = { eliminatedUserId: null, tally };
+  pushLog(m, 'day', `დღე ${m.round}: ხმები კვლავ გაიყო — არავინ გავიდა`);
+  noElim();
 }
 
 /** Host closes the vote early (timer or manual). */
@@ -593,6 +685,7 @@ export function giveFoul(matchId: string, byUserId: string, targetUserId: string
   s.fouls = Math.max(0, Math.min(XM_FOULS_TO_ELIMINATE, s.fouls + (delta >= 0 ? 1 : -1)));
   if (s.fouls >= XM_FOULS_TO_ELIMINATE) {
     s.alive = false; s.eliminatedRound = m.round; s.eliminatedBy = 'fouls';
+    pushLog(m, 'foul', `${seatLabel(s)} — 4 ფაული, გარიცხულია`);
     // If the fouled-out player was the active speaker, move on.
     if (m.phase === 'speech' && m.speechOrder[m.speechIdx] === targetUserId) advanceSpeaker(m);
     checkWin(m);
@@ -631,6 +724,7 @@ function checkWin(m: XmMatch): boolean {
     m.winner = winner;
     m.phase = 'finished';
     m.reveal = m.seats.map(s => ({ userId: s.userId, nickname: s.nickname, seat: s.seat, role: s.role! }));
+    pushLog(m, 'game', winner === 'mafia' ? '🔫 მაფიამ გაიმარჯვა' : '🏙 ქალაქმა გაიმარჯვა');
     return true;
   }
   return false;
@@ -643,7 +737,7 @@ export function rematch(matchId: string, byUserId: string): XmMatch | null {
   const keep = m.seats.filter(s => s.connected);
   for (const sp of m.spectators.filter(s => s.connected)) {
     if (keep.length >= m.maxSeats) break;
-    keep.push({ userId: sp.userId, socketId: sp.socketId, nickname: sp.nickname, seat: 0, connected: true, role: null, alive: true, fouls: 0, eliminatedRound: null, eliminatedBy: null });
+    keep.push({ userId: sp.userId, socketId: sp.socketId, nickname: sp.nickname, seat: 0, connected: true, role: null, alive: true, fouls: 0, eliminatedRound: null, eliminatedBy: null, lastCheck: null });
   }
   m.seats = keep;
   m.seats.forEach((s, i) => { s.seat = i + 1; s.role = null; s.alive = true; s.fouls = 0; s.eliminatedRound = null; s.eliminatedBy = null; });
@@ -651,9 +745,10 @@ export function rematch(matchId: string, byUserId: string): XmMatch | null {
   m.phase = 'lobby';
   m.round = 0;
   m.speechOrder = []; m.speechIdx = 0; m.speechEndsAt = 0; m.nominations = []; m.nominatedBy = {};
-  resetNight(m);
-  m.announce = null; m.votes = {}; m.voteEndsAt = 0; m.voteResult = null;
+  resetNight(m); m.nightEndsAt = 0;
+  m.announce = null; m.votes = {}; m.voteEndsAt = 0; m.voteRevote = false; m.voteResult = null;
   m.lastWordsUserId = null; m.lastWordsEndsAt = 0; m.winner = null; m.reveal = null; m.dissolved = false;
+  m.log = [];
   return m;
 }
 
@@ -688,28 +783,29 @@ export function getSafeState(m: XmMatch, viewerUserId: string): XmSafeState {
     ? m.seats.filter(s => isMafiaRole(s.role) && s.userId !== viewerUserId).map(s => s.userId)
     : [];
 
-  // Night private info + whether I already acted.
+  // Night private info + whether I already acted. The check result persists past
+  // the night (via seat.lastCheck) so the investigator keeps their information
+  // even when the night auto-resolves the instant they act.
   let iActedTonight = false;
   let nightPrivate: string | null = null;
+  if (meSeat && meSeat.alive && (meSeat.role === 'don' || meSeat.role === 'sheriff')) {
+    nightPrivate = meSeat.lastCheck;
+  }
   if (m.phase === 'night' && meSeat && meSeat.alive) {
-    if (meSeat.role === 'don') {
-      iActedTonight = m.night.donCheck !== null && !!m.night.mafiaVotes[viewerUserId];
-      if (m.night.donCheck !== null) {
-        const t = findByUser(m, m.night.donCheck);
-        nightPrivate = `${t?.nickname ?? '?'}: ${m.night.donResult ? 'შერიფია ✓' : 'შერიფი არ არის'}`;
-      }
-    } else if (isMafiaRole(meSeat.role)) {
-      iActedTonight = !!m.night.mafiaVotes[viewerUserId];
-    } else if (meSeat.role === 'sheriff') {
-      iActedTonight = m.night.sheriffCheck !== null;
-      if (m.night.sheriffCheck !== null) {
-        const t = findByUser(m, m.night.sheriffCheck);
-        nightPrivate = `${t?.nickname ?? '?'}: ${m.night.sheriffResult ? 'მაფიაა ✗' : 'მშვიდობიანია ✓'}`;
-      }
-    }
+    if (meSeat.role === 'don') iActedTonight = m.night.donCheck !== null && !!m.night.mafiaVotes[viewerUserId];
+    else if (isMafiaRole(meSeat.role)) iActedTonight = !!m.night.mafiaVotes[viewerUserId];
+    else if (meSeat.role === 'sheriff') iActedTonight = m.night.sheriffCheck !== null;
   }
 
   const lastWordsSeat = m.lastWordsUserId ? findByUser(m, m.lastWordsUserId) : null;
+
+  // Mafia see each other's kill picks live (consensus building).
+  const mafiaPicks = (iAmMafia && m.phase === 'night')
+    ? aliveMafia(m).filter(s => m.night.mafiaVotes[s.userId]).map(s => {
+        const t = findByUser(m, m.night.mafiaVotes[s.userId]!);
+        return { userId: s.userId, nickname: s.nickname, targetId: m.night.mafiaVotes[s.userId]!, targetName: t?.nickname ?? '?' };
+      })
+    : [];
 
   return {
     id: m.id, code: m.code, phase: m.phase,
@@ -733,17 +829,21 @@ export function getSafeState(m: XmMatch, viewerUserId: string): XmSafeState {
     speechTotal: m.speechOrder.length,
     nominations: m.nominations.map(uid => { const s = findByUser(m, uid); return { userId: uid, nickname: s?.nickname ?? '?', seat: s?.seat ?? 0 }; }),
     iNominated: !!(meSeat && m.nominatedBy[viewerUserId]),
-    nightEndsAt: 0, // night is host-paced; no hard deadline broadcast (kept for client shape)
+    nightEndsAt: m.phase === 'night' ? m.nightEndsAt : 0,
     iActedTonight,
     nightPrivate,
+    nightAllActed: m.phase === 'night' ? nightAllActed(m) : false,
+    mafiaPicks,
     announce: (m.phase === 'day_announce' || m.phase === 'last_words') ? m.announce : null,
     voteEndsAt: m.phase === 'vote' ? m.voteEndsAt : 0,
+    voteRevote: m.phase === 'vote' ? m.voteRevote : false,
     myVote: m.votes[viewerUserId] ?? null,
     voteTally: (() => { const t: Record<string, number> = {}; for (const nm of m.nominations) t[nm] = 0; for (const v of Object.values(m.votes)) t[v] = (t[v] ?? 0) + 1; return t; })(),
     voteResult: m.phase === 'vote' ? m.voteResult : null,
     lastWordsUserId: m.lastWordsUserId,
     lastWordsName: lastWordsSeat?.nickname ?? null,
     lastWordsEndsAt: m.phase === 'last_words' ? m.lastWordsEndsAt : 0,
+    log: m.log.slice(-40),
     winner: m.winner,
     reveal: m.reveal,
     dissolved: m.dissolved,

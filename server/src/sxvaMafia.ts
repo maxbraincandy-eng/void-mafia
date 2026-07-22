@@ -13,8 +13,8 @@ import {
 } from './types/index.js';
 import {
   createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch,
-  dissolveMatch, startMatch, reshuffleRoles, setRoleConfig, beginMafiaMeet, endMafiaMeet, beginNight, mafiaVote, donCheck, sheriffCheck,
-  endNight, beginDay, nextSpeaker, advanceSpeakerAuto, extendSpeech, nominate,
+  dissolveMatch, startMatch, reshuffleRoles, setRoleConfig, setSettings, beginMafiaMeet, endMafiaMeet, beginNight, mafiaVote, donCheck, sheriffCheck,
+  endNight, advanceNightAuto, beginDay, nextSpeaker, advanceSpeakerAuto, extendSpeech, nominate,
   castVote, endVote, giveFoul, endLastWords, rematch, disconnectSocket, getSafeState,
 } from './services/sxvaMafiaService.js';
 
@@ -61,6 +61,9 @@ function syncTimer(io: AppServer, matchId: string): void {
   } else if (m.phase === 'last_words' && m.lastWordsEndsAt) {
     deadline = m.lastWordsEndsAt;
     fire = () => { endLastWords(matchId, null); };
+  } else if (m.phase === 'night' && m.nightEndsAt) {
+    deadline = m.nightEndsAt;
+    fire = () => { advanceNightAuto(matchId); };
   }
   if (!fire || !deadline) return;
   const token = deadline;
@@ -72,7 +75,8 @@ function syncTimer(io: AppServer, matchId: string): void {
     const stillCurrent =
       (cur.phase === 'speech' && cur.speechEndsAt === token) ||
       (cur.phase === 'vote' && cur.voteEndsAt === token) ||
-      (cur.phase === 'last_words' && cur.lastWordsEndsAt === token);
+      (cur.phase === 'last_words' && cur.lastWordsEndsAt === token) ||
+      (cur.phase === 'night' && cur.nightEndsAt === token);
     if (!stillCurrent) return;
     fire!();
     broadcastState(io, matchId);
@@ -144,6 +148,16 @@ export function registerSxvaMafiaHandlers(io: AppServer, socket: AppSocket): voi
     try {
       const matchId = String(data?.matchId);
       const m = setRoleConfig(matchId, uid(), data?.config ?? null);
+      if (!m) return cb(err('ვერ შეიცვალა'));
+      after(matchId);
+      cb(ok(null));
+    } catch (e: any) { cb(err(e.message)); }
+  });
+
+  socket.on('xm:set_settings' as any, (data: { matchId: string; patch: any }, cb: (r: any) => void) => {
+    try {
+      const matchId = String(data?.matchId);
+      const m = setSettings(matchId, uid(), data?.patch ?? {});
       if (!m) return cb(err('ვერ შეიცვალა'));
       after(matchId);
       cb(ok(null));

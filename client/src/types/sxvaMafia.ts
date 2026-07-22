@@ -16,6 +16,12 @@ export interface XmAnnounce {
   killedName: string | null;
 }
 
+export interface XmLogEntry {
+  round: number;
+  phase: 'night' | 'day' | 'foul' | 'game';
+  text: string;
+}
+
 export interface XmSafeState {
   id: string;
   code: string;
@@ -24,7 +30,7 @@ export interface XmSafeState {
   maxSeats: number;
   seats: XmSafeSeat[];
   spectatorCount: number;
-  settings: { speechSeconds: number; nightSeconds: number; voteSeconds: number; lastWordsSeconds: number };
+  settings: { speechSeconds: number; nightSeconds: number; voteSeconds: number; lastWordsSeconds: number; floorControl: boolean };
   setup: { don: number; mafia: number; sheriff: number; citizen: number };
   roleConfigCustom: boolean;
   round: number;
@@ -44,14 +50,18 @@ export interface XmSafeState {
   nightEndsAt: number;
   iActedTonight: boolean;
   nightPrivate: string | null;
+  nightAllActed: boolean;
+  mafiaPicks: { userId: string; nickname: string; targetId: string; targetName: string }[];
   announce: XmAnnounce | null;
   voteEndsAt: number;
+  voteRevote: boolean;
   myVote: string | null;
   voteTally: Record<string, number>;
   voteResult: { eliminatedUserId: string | null; tally: Record<string, number> } | null;
   lastWordsUserId: string | null;
   lastWordsName: string | null;
   lastWordsEndsAt: number;
+  log: XmLogEntry[];
   winner: XmWinner;
   reveal: { userId: string; nickname: string; seat: number; role: XmRole }[] | null;
   dissolved: boolean;
