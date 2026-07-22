@@ -187,7 +187,6 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   const [query, setQuery] = useState('');
   const [cat, setCat] = useState<'all' | GCat>('all');
   const [sheet, setSheet] = useState<string | null>(null); // open match-game launcher
-  const [xmSplashOk, setXmSplashOk] = useState(false); // თუჯიტური მაფია — tech-support entry gag
   const [recent, setRecent] = useState<string[]>(() => loadRecent());
   const recordRecent = useCallback((id: string) => setRecent(pushRecent(id)), []);
 
@@ -356,7 +355,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   const openGame = (d: GameDef) => {
     recordRecent(d.id);
     if (d.kind === 'launch') d.launch?.();
-    else { if (d.id === 'othermafia') setXmSplashOk(false); setSheet(d.id); }
+    else setSheet(d.id);
   };
 
   const Tile = ({ d }: { d: GameDef }) => {
@@ -504,7 +503,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
           the fixed overlay to the page (forcing the user to scroll to it). */}
       {createPortal(
       <AnimatePresence>
-        {sheet && MATCH[sheet] && (
+        {sheet && sheet !== 'othermafia' && MATCH[sheet] && (
           <motion.div className="fixed inset-0 z-[520] flex items-center justify-center px-4 py-6 overflow-y-auto" style={{ background: 'rgba(4,4,10,0.72)' }}
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSheet(null)}
             onTouchStart={e => e.stopPropagation()} onTouchEnd={e => e.stopPropagation()}>
@@ -513,7 +512,6 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
               style={{ background: 'rgba(12,10,24,0.99)', border: `1px solid ${MATCH[sheet].accent}55`, boxShadow: `0 18px 60px rgba(0,0,0,0.6), 0 0 40px ${MATCH[sheet].accent}18` }}>
               {(() => {
                 const d = byId(sheet)!; const cfg = MATCH[sheet];
-                if (sheet === 'othermafia' && !xmSplashOk) return <TujituriSplash onAgree={() => setXmSplashOk(true)} onClose={() => setSheet(null)} />;
                 return (
                   <>
                     <div className="flex items-center gap-3 mb-4">
@@ -537,6 +535,11 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
       document.body)}
 
       {/* Overlays */}
+      <AnimatePresence>
+        {sheet === 'othermafia' && MATCH.othermafia && (
+          <TujituriLauncher cfg={MATCH.othermafia} onClose={() => setSheet(null)} onRecord={() => recordRecent('othermafia')} />
+        )}
+      </AnimatePresence>
       {voidIqOpen && <Suspense fallback={null}><VoidIQHub onClose={() => setVoidIqOpen(false)} /></Suspense>}
       {maxPuzzleOpen && <Suspense fallback={null}><MaxPuzzleExperience onClose={() => setMaxPuzzleOpen(false)} /></Suspense>}
       {dilemmasHubOpen && <Suspense fallback={null}><DilemmasHub onClose={() => setDilemmasHubOpen(false)} /></Suspense>}
@@ -618,6 +621,61 @@ function MatchLauncher({ cfg, onDone, onRecord }: { cfg: LauncherCfg; onDone: ()
         </div>
       )}
     </div>
+  );
+}
+
+// თუჯიტური მაფია — a dedicated, full-screen themed launcher (splash → create/join).
+function TujituriLauncher({ cfg, onClose, onRecord }: { cfg: LauncherCfg; onClose: () => void; onRecord: () => void }) {
+  const [agreed, setAgreed] = useState(false);
+  const create = () => { onRecord(); cfg.onCreate(); onClose(); };
+  const join = () => { if (!cfg.joinCode.trim()) return; onRecord(); cfg.onJoin(); onClose(); };
+  return createPortal(
+    <motion.div className="fixed inset-0 z-[545] flex flex-col select-none" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      style={{ background: 'radial-gradient(ellipse 120% 60% at 50% -8%, #2a0a14 0%, #08060a 60%)', fontFamily: '"Space Grotesk", system-ui, sans-serif' }}
+      onTouchStart={e => e.stopPropagation()} onTouchEnd={e => e.stopPropagation()}>
+      <div className="flex-shrink-0 flex justify-end p-4 pt-[calc(env(safe-area-inset-top,0px)+12px)]">
+        <button onClick={onClose} className="w-9 h-9 rounded-full flex items-center justify-center text-white/60" style={{ border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.04)' }}>✕</button>
+      </div>
+      <div className="flex-1 overflow-y-auto px-6 pb-10 flex flex-col">
+        <AnimatePresence mode="wait">
+          {!agreed ? (
+            <motion.div key="splash" initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.96 }} className="flex-1 flex items-center justify-center">
+              <div className="w-full max-w-sm rounded-3xl p-5" style={{ background: 'rgba(12,10,24,0.92)', border: `1px solid ${RED_XM}44`, boxShadow: `0 18px 60px rgba(0,0,0,0.6), 0 0 40px ${RED_XM}14` }}>
+                <TujituriSplash onAgree={() => setAgreed(true)} onClose={onClose} />
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div key="launch" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="flex-1 max-w-sm w-full mx-auto flex flex-col">
+              <div className="text-center pt-1">
+                <motion.img src="/mafia-night.webp" alt="" initial={{ scale: 0.7, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', damping: 12 }} className="xm-float" style={{ width: 148, height: 148, objectFit: 'contain', margin: '0 auto', filter: 'drop-shadow(0 8px 30px rgba(255,59,71,0.35))' }} />
+                <h1 className="font-display font-black text-white mt-2" style={{ fontSize: 26 }}>თუჯიტური მაფია</h1>
+                <p className="font-mono text-[12px] text-white/50 mt-1">ვიდეო-მაფია ჰოსტით · 4–14 მოთამაშე</p>
+              </div>
+              <div className="mt-6 space-y-3">
+                <button onClick={create} disabled={cfg.loading} className="w-full py-3.5 rounded-2xl font-display font-black text-white text-[15px] disabled:opacity-50 active:scale-[0.98]" style={{ background: `linear-gradient(135deg, ${RED_XM}, #b81020)`, boxShadow: `0 8px 26px ${RED_XM}44` }}>
+                  {cfg.loading ? '…' : '🎬 ოთახის შექმნა'}
+                </button>
+                <div className="flex items-center gap-2 text-white/25 font-mono text-[10px]"><div className="flex-1 h-px bg-white/10" />ან შეუერთდი კოდით<div className="flex-1 h-px bg-white/10" /></div>
+                <div className="flex gap-2">
+                  <input value={cfg.joinCode} onChange={e => cfg.setJoinCode(e.target.value.toUpperCase())} onKeyDown={e => { if (e.key === 'Enter') join(); }} placeholder="XXXXXX" maxLength={cfg.codeMax}
+                    className="flex-1 bg-transparent font-mono text-center text-lg text-white placeholder-white/20 outline-none px-3 py-3 rounded-xl transition-colors tracking-[0.3em]" style={{ border: '1px solid rgba(255,255,255,0.15)' }} />
+                  <button onClick={join} disabled={!cfg.joinCode.trim() || cfg.loading} className="px-5 rounded-xl font-mono text-xs uppercase tracking-wider active:scale-95 disabled:opacity-40" style={{ background: `${RED_XM}22`, border: `1px solid ${RED_XM}66`, color: '#ff8a92' }}>შესვლა</button>
+                </div>
+                {cfg.error && <p className="font-mono text-[12px] text-center" style={{ color: RED_XM }} onClick={cfg.clearError}>{cfg.error}</p>}
+              </div>
+              {cfg.list.length > 0 && (
+                <div className="mt-6 space-y-1.5">
+                  <p className="font-mono text-[11px] uppercase tracking-widest text-white/30">🟢 ღია ოთახები</p>
+                  {cfg.list.map(cfg.renderRow)}
+                </div>
+              )}
+              <p className="font-mono text-[10px] text-white/20 text-center mt-auto pt-6">ჰოსტი მართავს თამაშს · მინ. 4 მოთამაშე</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </motion.div>,
+    document.body,
   );
 }
 

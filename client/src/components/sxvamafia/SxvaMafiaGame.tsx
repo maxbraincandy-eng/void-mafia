@@ -675,9 +675,9 @@ export function SxvaMafiaGame() {
             <div className="mt-2 mx-auto" style={{ width: '52%', maxWidth: 200 }}>{renderSeat(null, { isHostTile: true })}</div>
           </div>
         ) : (
-          // ── Lobby: centred grid + setup panels (host tile last) ──
+          // ── Lobby: 2-column grid + setup panels (host tile last) ──
           <div className="max-w-3xl mx-auto">
-            <div className="grid gap-2.5 justify-center" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 190px))' }}>
+            <div className="grid gap-2.5 mx-auto" style={{ gridTemplateColumns: 'repeat(2, 1fr)', maxWidth: 380 }}>
               {match.seats.map(s => renderSeat(s))}
               {renderSeat(null, { isHostTile: true })}
             </div>
