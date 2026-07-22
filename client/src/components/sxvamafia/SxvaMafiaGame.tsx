@@ -510,7 +510,7 @@ export function SxvaMafiaGame() {
       <div className="flex-shrink-0 px-4 pt-[calc(env(safe-area-inset-top,0px)+10px)] pb-2" style={{ borderBottom: `1px solid ${RED}22` }}>
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
-            <p className="font-display font-black text-white leading-none" style={{ fontSize: 15 }}>სხვა მაფია 🎭</p>
+            <p className="font-display font-black text-white leading-none" style={{ fontSize: 15 }}>თუჯიტური მაფია 🎭</p>
             <p className="font-mono text-[10px] mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>
               <span style={{ color: RED, letterSpacing: 2 }}>{match.code}</span>
               {match.phase !== 'lobby' && <> · რაუნდი {match.round} · {phaseTitle}</>}

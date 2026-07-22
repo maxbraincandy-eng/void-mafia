@@ -187,6 +187,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   const [query, setQuery] = useState('');
   const [cat, setCat] = useState<'all' | GCat>('all');
   const [sheet, setSheet] = useState<string | null>(null); // open match-game launcher
+  const [xmSplashOk, setXmSplashOk] = useState(false); // თუჯიტური მაფია — tech-support entry gag
   const [recent, setRecent] = useState<string[]>(() => loadRecent());
   const recordRecent = useCallback((id: string) => setRecent(pushRecent(id)), []);
 
@@ -343,7 +344,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   if (onOpenPremium) defs.push({ id: 'premium', title: 'Premium Worlds', sub: 'Beach Camp 3D · ' + t.commB.premiumSub, cat: 'worlds', kind: 'launch', accent: '#ff8c3c', emoji: '🔥', badge: true, keywords: 'premium worlds 3d beach', launch: onOpenPremium });
   if (onOpenSpace) defs.push({ id: 'space', title: 'Virtual Space', sub: t.commB.spaceSub, cat: 'worlds', kind: 'launch', accent: '#4a76c4', logo: 'vspace', emoji: '🌐', keywords: 'space virtual სივრცე vr', launch: onOpenSpace });
   if (onOpenBackrooms) defs.push({ id: 'backrooms', title: 'Backrooms', sub: t.commB.backroomsSub, cat: 'solo', kind: 'launch', accent: '#f5de80', emoji: '🟨', keywords: 'backrooms horror', launch: onOpenBackrooms });
-  defs.push({ id: 'othermafia', title: 'სხვა მაფია', sub: 'ვიდეო-მაფია ჰოსტით · 4-14 მოთ.', cat: 'worlds', kind: 'match', accent: RED_XM, emoji: '🎭', badge: true, keywords: 'mafia მაფია video ვიდეო table host sxva სხვა' });
+  defs.push({ id: 'othermafia', title: 'თუჯიტური მაფია', sub: 'ვიდეო-მაფია ჰოსტით · 4-14 მოთ.', cat: 'worlds', kind: 'match', accent: RED_XM, emoji: '🎭', badge: true, keywords: 'mafia მაფია თუჯიტური tujituri video ვიდეო table host' });
 
   const byId = (id: string) => defs.find(d => d.id === id);
   const FEATURED = ['voidiq', ...(onOpenPremium ? ['premium'] : []), 'maxpuzzle'];
@@ -355,7 +356,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   const openGame = (d: GameDef) => {
     recordRecent(d.id);
     if (d.kind === 'launch') d.launch?.();
-    else setSheet(d.id);
+    else { if (d.id === 'othermafia') setXmSplashOk(false); setSheet(d.id); }
   };
 
   const Tile = ({ d }: { d: GameDef }) => {
@@ -500,6 +501,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
               style={{ background: 'rgba(12,10,24,0.99)', border: `1px solid ${MATCH[sheet].accent}55`, boxShadow: `0 18px 60px rgba(0,0,0,0.6), 0 0 40px ${MATCH[sheet].accent}18` }}>
               {(() => {
                 const d = byId(sheet)!; const cfg = MATCH[sheet];
+                if (sheet === 'othermafia' && !xmSplashOk) return <TujituriSplash onAgree={() => setXmSplashOk(true)} onClose={() => setSheet(null)} />;
                 return (
                   <>
                     <div className="flex items-center gap-3 mb-4">
@@ -549,6 +551,30 @@ interface LauncherCfg {
   clearError: () => void;
   renderRow: (m: any) => JSX.Element;
   extra?: JSX.Element;
+}
+
+// თუჯიტური მაფია — a tongue-in-cheek "tech support" error shown on entry.
+function TujituriSplash({ onAgree, onClose }: { onAgree: () => void; onClose: () => void }) {
+  return (
+    <div className="text-center">
+      <div className="flex items-center gap-2 -mt-1 mb-4 pb-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+        <span className="text-lg">⚙️</span>
+        <span className="font-mono text-[12px] text-white/60 flex-1 text-left">billing-system.exe</span>
+        <button onClick={onClose} className="w-6 h-6 rounded flex items-center justify-center text-white/40 text-xs" style={{ border: '1px solid rgba(255,255,255,0.15)' }}>✕</button>
+      </div>
+      <motion.div initial={{ scale: 0.6, opacity: 0, rotate: -8 }} animate={{ scale: 1, opacity: 1, rotate: 0 }} transition={{ type: 'spring', damping: 11 }} className="text-5xl mb-2">⚠️</motion.div>
+      <p className="font-display font-black" style={{ fontSize: 20, color: '#ffcc33' }}>შეცდომა 404</p>
+      <p className="font-mono text-[13px] mt-1" style={{ color: RED_XM }}>50 ლარი ვერ მოიძებნა</p>
+      <div className="mt-4 rounded-xl p-3.5 text-left font-mono text-[12.5px] leading-relaxed" style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.75)' }}>
+        <p><span style={{ color: RED_XM }}>&gt;</span> სამწუხაროდ, ჩვენმა ბილინგის სისტემამ ვერ იპოვა ფუნქცია, სადაც მოთამაშეს თვეში <b style={{ color: '#fff' }}>50 ლარს</b> ვართმევთ.</p>
+        <p className="mt-2"><span style={{ color: RED_XM }}>&gt;</span> დეველოპერებმა განაცხადეს, რომ „<b style={{ color: '#fff' }}>თუჯიტურ მაფიაში</b>" თამაში <b style={{ color: '#7fe0a0' }}>უფასოა</b> და ასეც დარჩება.</p>
+      </div>
+      <button onClick={onAgree} className="mt-4 w-full py-3.5 rounded-2xl font-display font-bold text-white text-[14px] active:scale-[0.98]" style={{ background: `linear-gradient(135deg, ${RED_XM}, #b81020)` }}>
+        ❌ ხარვეზის იგნორირება / თამაშის დაწყება
+      </button>
+      <p className="font-mono text-[9px] text-white/25 mt-2.5">error_id: 0x7A3F · თუჯიტური მაფია™</p>
+    </div>
+  );
 }
 
 function MatchLauncher({ cfg, onDone, onRecord }: { cfg: LauncherCfg; onDone: () => void; onRecord: () => void }) {
