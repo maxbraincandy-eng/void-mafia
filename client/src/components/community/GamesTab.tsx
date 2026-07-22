@@ -343,10 +343,10 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   if (onOpenPremium) defs.push({ id: 'premium', title: 'Premium Worlds', sub: 'Beach Camp 3D · ' + t.commB.premiumSub, cat: 'worlds', kind: 'launch', accent: '#ff8c3c', emoji: '🔥', badge: true, keywords: 'premium worlds 3d beach', launch: onOpenPremium });
   if (onOpenSpace) defs.push({ id: 'space', title: 'Virtual Space', sub: t.commB.spaceSub, cat: 'worlds', kind: 'launch', accent: '#4a76c4', logo: 'vspace', emoji: '🌐', keywords: 'space virtual სივრცე vr', launch: onOpenSpace });
   if (onOpenBackrooms) defs.push({ id: 'backrooms', title: 'Backrooms', sub: t.commB.backroomsSub, cat: 'solo', kind: 'launch', accent: '#f5de80', emoji: '🟨', keywords: 'backrooms horror', launch: onOpenBackrooms });
-  defs.push({ id: 'othermafia', title: 'თუჯიტური მაფია', sub: 'ვიდეო-მაფია ჰოსტით · 4-14 მოთ.', cat: 'deduction', kind: 'match', accent: RED_XM, logo: 'mafianight', emoji: '🎭', badge: true, keywords: 'mafia მაფია თუჯიტური tujituri video ვიდეო table host' });
+  defs.push({ id: 'othermafia', title: 'თუჯიტური მაფია', sub: 'ვიდეო-მაფია ჰოსტით · 4-14 მოთ.', cat: 'worlds', kind: 'match', accent: RED_XM, logo: 'mafianight', emoji: '🎭', badge: true, keywords: 'mafia მაფია თუჯიტური tujituri video ვიდეო table host' });
 
   const byId = (id: string) => defs.find(d => d.id === id);
-  const FEATURED = ['voidiq', ...(onOpenPremium ? ['premium'] : []), 'maxpuzzle', 'othermafia'];
+  const FEATURED = ['voidiq', ...(onOpenPremium ? ['premium'] : []), 'maxpuzzle'];
 
   const q = query.trim().toLowerCase();
   const matchesQ = (d: GameDef) => !q || d.title.toLowerCase().includes(q) || d.keywords.toLowerCase().includes(q) || d.sub.toLowerCase().includes(q);
@@ -425,17 +425,6 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
             </div>
           </button>
 
-          <button onClick={() => openGame(byId('othermafia')!)} className="w-full text-left rounded-2xl overflow-hidden transition-all active:scale-[0.99]"
-            style={{ border: '1px solid rgba(255,59,71,0.45)', boxShadow: '0 6px 30px rgba(255,59,71,0.16)' }}>
-            <div style={{ height: 84, background: 'linear-gradient(135deg, #2a0a14 0%, #170a1e 55%, #3a0f16 100%)', display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px', position: 'relative' }}>
-              <img src="/mafia-night.webp" alt="" className="flex-shrink-0" style={{ width: 56, height: 56, objectFit: 'contain', borderRadius: 10 }} />
-              <div className="flex-1 min-w-0">
-                <p className="font-display font-bold text-sm leading-tight" style={{ background: 'linear-gradient(90deg,#ffd9dd,#ff5d6c)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>თუჯიტური მაფია 🎭</p>
-                <p className="font-mono text-[12px] text-white/55 mt-0.5">ვიდეო-მაფია ჰოსტით · 4-14 მოთ.</p>
-              </div>
-              <span style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 1, color: '#fff', background: 'rgba(255,59,71,0.92)', borderRadius: 8, padding: '3px 8px' }}>NEW</span>
-            </div>
-          </button>
         </>
       )}
 
