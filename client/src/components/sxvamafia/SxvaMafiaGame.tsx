@@ -23,6 +23,43 @@ const RED = '#ff3b47';
 
 function fmt(sec: number): string { const s = Math.max(0, sec); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
 
+/** Viewport-width gate: the centre-stage ring only makes sense on wider screens. */
+function useWide(bp = 760): boolean {
+  const [w, setW] = useState(typeof window !== 'undefined' ? window.innerWidth >= bp : true);
+  useEffect(() => { const on = () => setW(window.innerWidth >= bp); window.addEventListener('resize', on); return () => window.removeEventListener('resize', on); }, [bp]);
+  return w;
+}
+/** Grid dimensions whose perimeter can seat `n` players around a central stage. */
+function ringDims(n: number): { cols: number; rows: number; P: number } {
+  let best: { cols: number; rows: number; P: number; waste: number } | null = null;
+  for (let cols = 4; cols <= 6; cols++) for (let rows = 4; rows <= 6; rows++) {
+    const P = 2 * cols + 2 * (rows - 2);
+    if (P < n) continue;
+    const waste = P - n;
+    if (!best || waste < best.waste || (waste === best.waste && cols + rows < best.cols + best.rows)) best = { cols, rows, P, waste };
+  }
+  return best ? { cols: best.cols, rows: best.rows, P: best.P } : { cols: 5, rows: 5, P: 16 };
+}
+/** Perimeter cells of a cols×rows grid, clockwise from the top-left corner. */
+function ringCells(cols: number, rows: number): { row: number; col: number }[] {
+  const cells: { row: number; col: number }[] = [];
+  for (let c = 1; c <= cols; c++) cells.push({ row: 1, col: c });
+  for (let r = 2; r <= rows - 1; r++) cells.push({ row: r, col: cols });
+  for (let c = cols; c >= 1; c--) cells.push({ row: rows, col: c });
+  for (let r = rows - 1; r >= 2; r--) cells.push({ row: r, col: 1 });
+  return cells;
+}
+/** Spread `n` seats as evenly as possible over `P` perimeter slots. */
+function distribute(n: number, P: number): number[] {
+  const used = new Set<number>(); const out: number[] = [];
+  for (let i = 0; i < n; i++) {
+    let idx = Math.round((i * P) / n) % P;
+    while (used.has(idx)) idx = (idx + 1) % P;
+    used.add(idx); out.push(idx);
+  }
+  return out;
+}
+
 const PHASE_LABEL: Record<XmSafeState['phase'], string> = {
   lobby: 'მოლოდინი', assign: 'როლების დარიგება', night: 'ღამე', day_announce: 'დილა',
   speech: 'დღე — საუბრები', vote: 'კენჭისყრა', last_words: 'გამომშვიდობების სიტყვა', finished: 'დასასრული',
@@ -49,6 +86,7 @@ export function SxvaMafiaGame() {
   const [foulMode, setFoulMode] = useState(false);
   const prevPhase = useRef<string>('');
   const cameraInit = useRef(false);
+  const wide = useWide(760);
 
   // LiveKit video room (one per match). Dead players & spectators are listen-only.
   const { enabled: lkEnabled } = useLiveKitGate();
@@ -78,6 +116,8 @@ export function SxvaMafiaGame() {
       else if (p === 'vote') { SFX.voteStart?.(); haptic('selection'); }
       else if (p === 'finished') SFX.gameOver?.();
       setFoulMode(false);
+      // Right after roles are dealt, pop each player's card so they see it first.
+      if (p === 'assign' && match.myRole) setRoleOpen(true);
       prevPhase.current = p;
     }
   }, [match?.phase]);
@@ -101,7 +141,7 @@ export function SxvaMafiaGame() {
   const canActNight = match.phase === 'night' && match.myAlive && !match.amSpectator;
 
   // ── Video tile ────────────────────────────────────────────────────────────
-  function Tile({ seat, isHostTile }: { seat: XmSafeSeat | null; isHostTile?: boolean }) {
+  function Tile({ seat, isHostTile, fill }: { seat: XmSafeSeat | null; isHostTile?: boolean; fill?: boolean }) {
     const uid = isHostTile ? match!.hostId : seat!.userId;
     const name = isHostTile ? match!.hostName : seat!.nickname;
     const stream = streamFor(uid);
@@ -119,7 +159,8 @@ export function SxvaMafiaGame() {
     return (
       <div className="relative rounded-xl overflow-hidden select-none"
         style={{
-          aspectRatio: '4/3', background: '#0b0b12',
+          aspectRatio: fill ? undefined : '4/3', width: fill ? '100%' : undefined, height: fill ? '100%' : undefined,
+          background: '#0b0b12',
           border: `2px solid ${glow === 'transparent' ? 'rgba(255,255,255,0.08)' : glow}`,
           boxShadow: turnSpeaking ? `0 0 22px ${RED}88` : isSpk ? '0 0 16px #39d98a66' : 'none',
           opacity: dead ? 0.5 : 1,
@@ -289,6 +330,49 @@ export function SxvaMafiaGame() {
     return '';
   })();
 
+  // ── Centre-stage ring layout (wide screens, in play) ───────────────────────
+  const inPlay = match.phase !== 'lobby' && match.phase !== 'finished';
+  const useRing = wide && inPlay && match.seats.length >= 4;
+  const dims = ringDims(match.seats.length);
+  const cells = ringCells(dims.cols, dims.rows);
+  const place = distribute(match.seats.length, cells.length);
+
+  const stageIcon = match.phase === 'night' ? '🌙' : match.phase === 'vote' ? '⚖️'
+    : match.phase === 'last_words' ? '🎤' : match.phase === 'day_announce' ? (match.announce?.killedName ? '💀' : '🌅')
+    : match.phase === 'speech' ? '🗣️' : '🎭';
+  const stageBig = match.phase === 'speech' ? fmt(speechLeft) : match.phase === 'vote' ? fmt(voteLeft) : match.phase === 'last_words' ? fmt(lwLeft) : '';
+  const nightMood = match.phase === 'night';
+
+  const StageCard = (
+    <div className="relative w-full h-full rounded-2xl overflow-hidden flex flex-col items-center justify-between p-3 text-center"
+      style={{ background: nightMood ? 'linear-gradient(160deg,#0a1030,#05060f)' : 'linear-gradient(160deg,#25080e,#0a0609)', border: `1.5px solid ${nightMood ? '#3a4a8a66' : RED + '44'}`, boxShadow: 'inset 0 0 44px rgba(0,0,0,0.55)' }}>
+      <div>
+        <p className="font-mono text-[10px] tracking-[0.25em] text-white/40">რაუნდი {match.round}</p>
+        <p className="font-display font-black text-white mt-0.5" style={{ fontSize: 17 }}>{PHASE_LABEL[match.phase]}</p>
+      </div>
+      <div className="flex flex-col items-center gap-0.5">
+        <motion.span key={match.phase + stageIcon} initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} style={{ fontSize: 40 }}>{stageIcon}</motion.span>
+        {stageBig && <span className="font-mono font-black" style={{ fontSize: 32, color: RED, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{stageBig}</span>}
+        {stageSub && <p className="font-mono text-[12px] mt-1 px-2" style={{ color: 'rgba(255,255,255,0.72)' }}>{stageSub}</p>}
+        {match.phase === 'vote' && match.nominations.length > 0 && (
+          <p className="font-mono text-[11px] mt-1" style={{ color: '#ffcc33' }}>{match.nominations.map(n => `#${n.seat}:${match.voteTally[n.userId] ?? 0}`).join('  ')}</p>
+        )}
+      </div>
+      {/* host mini-tile */}
+      <div className="w-full flex items-center gap-2 rounded-xl px-2 py-1.5" style={{ background: 'rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.08)' }}>
+        <div className="relative rounded-lg overflow-hidden flex-shrink-0" style={{ width: 46, height: 34, background: '#0b0b12' }}>
+          <VideoTile stream={streamFor(match.hostId)} mirror={match.hostId === myId} muted={match.hostId === myId} />
+          {!streamFor(match.hostId) && <div className="absolute inset-0 flex items-center justify-center text-sm">🎬</div>}
+        </div>
+        <div className="text-left leading-tight min-w-0">
+          <p className="font-mono text-[11px] font-bold" style={{ color: RED }}>H · ჰოსტი</p>
+          <p className="font-mono text-[10px] truncate" style={{ color: match.hostConnected ? '#7fe0a0' : '#ff6b6b' }}>{match.hostName}{!match.hostConnected && ' · გათიშ.'}</p>
+        </div>
+        {foulMode && <span className="ml-auto font-mono text-[9px] px-1.5 py-0.5 rounded" style={{ background: '#ffcc33', color: '#000' }}>⚠️ ფაული</span>}
+      </div>
+    </div>
+  );
+
   return createPortal(
     <motion.div className="fixed inset-0 z-[560] flex flex-col select-none"
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -323,10 +407,10 @@ export function SxvaMafiaGame() {
         </div>
       </div>
 
-      {/* Stage banner */}
-      {match.phase !== 'lobby' && match.phase !== 'finished' && (
+      {/* Compact stage banner — only when NOT using the centre-stage ring */}
+      {!useRing && match.phase !== 'lobby' && match.phase !== 'finished' && (
         <div className="flex-shrink-0 px-4 py-2 text-center" style={{ background: match.phase === 'night' ? 'rgba(10,10,40,0.5)' : 'rgba(255,59,71,0.06)' }}>
-          <p className="font-display font-bold text-white" style={{ fontSize: 15 }}>{PHASE_LABEL[match.phase]}</p>
+          <p className="font-display font-bold text-white" style={{ fontSize: 15 }}>{stageIcon} {PHASE_LABEL[match.phase]}</p>
           {stageSub && <p className="font-mono text-[12px] mt-0.5" style={{ color: match.phase === 'speech' || match.phase === 'last_words' ? RED : 'rgba(255,255,255,0.6)' }}>{stageSub}</p>}
         </div>
       )}
@@ -336,14 +420,23 @@ export function SxvaMafiaGame() {
         <button onClick={() => voice.unlockAudio()} className="flex-shrink-0 mx-4 my-1 py-2 rounded-xl font-mono text-[12px]" style={{ background: `${RED}22`, color: '#fff', border: `1px solid ${RED}` }}>🔊 დააჭირე ხმის ჩასართავად</button>
       )}
 
-      {/* Grid */}
+      {/* Grid / stage */}
       <div className="flex-1 overflow-y-auto overscroll-contain px-3 py-3">
+        {!lkEnabled && match.phase !== 'finished' && <p className="text-center font-mono text-[11px] text-white/40 mb-2">📡 ვიდეო ამ სერვერზე გათიშულია — თამაში ტექსტურ რეჟიმში მიდის</p>}
         {match.phase === 'finished' ? (
           <FinishedView match={match} onLeave={doLeave} onRematch={() => { SFX.click?.(); store.rematch(); }} isHost={isHost} />
+        ) : useRing ? (
+          // ── Centre-stage table: players ring the stage ──────────────────────
+          <div className="min-h-full flex items-center justify-center">
+            <div className="w-full" style={{ maxWidth: dims.cols * 208, display: 'grid', gridTemplateColumns: `repeat(${dims.cols}, 1fr)`, gridTemplateRows: `repeat(${dims.rows}, 1fr)`, gap: 8, aspectRatio: `${dims.cols} / ${dims.rows}` }}>
+              <div style={{ gridColumn: `2 / ${dims.cols}`, gridRow: `2 / ${dims.rows}` }}>{StageCard}</div>
+              {match.seats.map((s, i) => { const cell = cells[place[i]]!; return <div key={s.userId} style={{ gridColumn: cell.col, gridRow: cell.row }}><Tile seat={s} fill /></div>; })}
+            </div>
+          </div>
         ) : (
+          // ── Compact grid (narrow screens & lobby) ───────────────────────────
           <div className="max-w-4xl mx-auto">
-            {!lkEnabled && <p className="text-center font-mono text-[11px] text-white/40 mb-2">📡 ვიდეო ამ სერვერზე გათიშულია — თამაში ტექსტურ რეჟიმში მიდის</p>}
-            <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))' }}>
+            <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))' }}>
               <Tile seat={null} isHostTile />
               {match.seats.map(s => <Tile key={s.userId} seat={s} />)}
             </div>
