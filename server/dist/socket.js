@@ -15,6 +15,7 @@ import { registerDrawHandlers, handleDrawDisconnect } from './draw.js';
 import { registerCodenamesHandlers, handleCodenamesDisconnect } from './codenames.js';
 import { registerSpyfallHandlers, handleSpyfallDisconnect } from './spyfall.js';
 import { registerLiesHandlers, handleLiesDisconnect } from './lies.js';
+import { registerSxvaMafiaHandlers, handleSxvaMafiaDisconnect } from './sxvaMafia.js';
 import { registerIQHandlers } from './iq.js';
 import { registerMaxPuzzleHandlers } from './maxpuzzle.js';
 import { addCrown as ganabAddCrown, listCrowned as ganabListCrowned } from './services/ganabService.js';
@@ -8215,6 +8216,8 @@ export function attachSocketHandlers(io) {
         registerSpyfallHandlers(io, socket);
         // ── ტყუილების ოსტატი (Master of Lies) ────────────────────────────
         registerLiesHandlers(io, socket);
+        // ── სხვა მაფია (Other Mafia) ─────────────────────────────────────
+        registerSxvaMafiaHandlers(io, socket);
         // ── VOID IQ ──────────────────────────────────────────────────────
         registerIQHandlers(io, socket);
         // ── ბატონი მაქსის თავსატეხი ──────────────────────────────────────
@@ -9740,6 +9743,7 @@ export function attachSocketHandlers(io) {
             handleCodenamesDisconnect(io, socket.id);
             handleSpyfallDisconnect(io, socket.id);
             handleLiesDisconnect(io, socket.id);
+            handleSxvaMafiaDisconnect(io, socket.id);
             // Remove from any spectate queues
             for (const [qRoomId, queue] of spectateQueues) {
                 const idx = queue.indexOf(socket.id);

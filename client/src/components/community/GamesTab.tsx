@@ -31,6 +31,8 @@ import { useSpyfallStore } from '@/store/spyfallStore';
 import type { SpyfallListItem } from '@/types/spyfall';
 import { useLiesStore } from '@/store/liesStore';
 import type { LiesListItem } from '@/types/lies';
+import { useSxvaMafiaStore } from '@/store/sxvaMafiaStore';
+import type { XmListItem } from '@/types/sxvaMafia';
 import { useDrawStore } from '@/store/drawStore';
 import type { DrawListItem } from '@/types/draw';
 import { useCodenamesStore } from '@/store/codenamesStore';
@@ -42,6 +44,8 @@ import type { JokerMatchListItem } from '@/types/joker';
 import type { LudoMatchListItem } from '@/types/ludo';
 import type { WWWListItem } from '@/types/www';
 import type { UnoListItem } from '@/types/uno';
+
+const RED_XM = '#ff3b47'; // სხვა მაფია accent
 
 // ── Categories ───────────────────────────────────────────────────────────────
 type GCat = 'mind' | 'maxpuzzle' | 'deduction' | 'party' | 'classic' | 'worlds' | 'solo';
@@ -158,6 +162,13 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   } = useLiesStore();
   const [liJoinCode, setLiJoinCode] = useState('');
 
+  // ── სხვა მაფია (Other Mafia) ─────────────────────────────────────────
+  const {
+    matchList: xmList, isLoading: xmLoading, error: xmError,
+    fetchList: xmFetch, createMatch: xmCreate, joinMatch: xmJoin, clearError: xmClear,
+  } = useSxvaMafiaStore();
+  const [xmJoinCode, setXmJoinCode] = useState('');
+
   // ── Draw & Guess ────────────────────────────────────────────────────
   const {
     matchList: drList, isLoading: drLoading, error: drError,
@@ -180,11 +191,11 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   const recordRecent = useCallback((id: string) => setRecent(pushRecent(id)), []);
 
   const handleRefresh = useCallback(() => {
-    ckClear(); jkClear(); ldClear(); wwClear(); unoClear(); boClear(); alClear(); drClear(); cnClear(); spClear(); liClear();
-    ckFetch(); jkFetch(); ldFetch(); wwFetch(); unoFetch(); boFetch(); alFetch(); drFetch(); cnFetch(); spFetch(); liFetch();
-  }, [ckFetch, jkFetch, ldFetch, wwFetch, unoFetch, boFetch, alFetch, drFetch, cnFetch, spFetch, liFetch, ckClear, jkClear, ldClear, wwClear, unoClear, boClear, alClear, drClear, cnClear, spClear, liClear]);
+    ckClear(); jkClear(); ldClear(); wwClear(); unoClear(); boClear(); alClear(); drClear(); cnClear(); spClear(); liClear(); xmClear();
+    ckFetch(); jkFetch(); ldFetch(); wwFetch(); unoFetch(); boFetch(); alFetch(); drFetch(); cnFetch(); spFetch(); liFetch(); xmFetch();
+  }, [ckFetch, jkFetch, ldFetch, wwFetch, unoFetch, boFetch, alFetch, drFetch, cnFetch, spFetch, liFetch, xmFetch, ckClear, jkClear, ldClear, wwClear, unoClear, boClear, alClear, drClear, cnClear, spClear, liClear, xmClear]);
 
-  useEffect(() => { ckFetch(); jkFetch(); ldFetch(); wwFetch(); unoFetch(); boFetch(); alFetch(); drFetch(); cnFetch(); spFetch(); liFetch(); }, [ckFetch, jkFetch, ldFetch, wwFetch, unoFetch, boFetch, alFetch, drFetch, cnFetch, spFetch, liFetch]);
+  useEffect(() => { ckFetch(); jkFetch(); ldFetch(); wwFetch(); unoFetch(); boFetch(); alFetch(); drFetch(); cnFetch(); spFetch(); liFetch(); xmFetch(); }, [ckFetch, jkFetch, ldFetch, wwFetch, unoFetch, boFetch, alFetch, drFetch, cnFetch, spFetch, liFetch, xmFetch]);
 
   useEffect(() => {
     const handler = () => { if (!document.hidden) handleRefresh(); };
@@ -219,6 +230,8 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   const handleSpJoin = () => { if (spJoinCode.trim()) { spJoin(spJoinCode.trim().toUpperCase(), playerName); setSpJoinCode(''); } };
   const handleLiCreate = () => liCreate(playerName);
   const handleLiJoin = () => { if (liJoinCode.trim()) { liJoin(liJoinCode.trim().toUpperCase(), playerName); setLiJoinCode(''); } };
+  const handleXmCreate = () => xmCreate(playerName);
+  const handleXmJoin = () => { if (xmJoinCode.trim()) { xmJoin(xmJoinCode.trim().toUpperCase(), playerName); setXmJoinCode(''); } };
   const handleDrCreate = () => drCreate(playerName);
   const handleDrJoin = () => { if (drJoinCode.trim()) { drJoin(drJoinCode.trim().toUpperCase(), playerName); setDrJoinCode(''); } };
   const handleCnCreate = () => cnCreate(playerName);
@@ -278,6 +291,11 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
       onJoin: handleLiJoin, codeMax: 6, codePh: 'XXXXXX', list: liList, error: liError, clearError: liClear,
       renderRow: m => <LiesRow key={m.id} match={m} onJoin={code => { recordRecent('lies'); liJoin(code, playerName); }} />,
     },
+    othermafia: {
+      accent: RED_XM, onCreate: handleXmCreate, loading: xmLoading, joinCode: xmJoinCode, setJoinCode: setXmJoinCode,
+      onJoin: handleXmJoin, codeMax: 6, codePh: 'XXXXXX', list: xmList, error: xmError, clearError: xmClear,
+      renderRow: m => <XmRow key={m.id} match={m} onJoin={code => { recordRecent('othermafia'); xmJoin(code, playerName); }} />,
+    },
     alias: {
       accent: '#4d9fff', onCreate: handleAlCreate, loading: alLoading, joinCode: alJoinCode, setJoinCode: setAlJoinCode,
       onJoin: handleAlJoin, codeMax: 6, codePh: 'XXXXXX', list: alList, error: alError, clearError: alClear,
@@ -325,6 +343,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   if (onOpenPremium) defs.push({ id: 'premium', title: 'Premium Worlds', sub: 'Beach Camp 3D · ' + t.commB.premiumSub, cat: 'worlds', kind: 'launch', accent: '#ff8c3c', emoji: '🔥', badge: true, keywords: 'premium worlds 3d beach', launch: onOpenPremium });
   if (onOpenSpace) defs.push({ id: 'space', title: 'Virtual Space', sub: t.commB.spaceSub, cat: 'worlds', kind: 'launch', accent: '#4a76c4', logo: 'vspace', emoji: '🌐', keywords: 'space virtual სივრცე vr', launch: onOpenSpace });
   if (onOpenBackrooms) defs.push({ id: 'backrooms', title: 'Backrooms', sub: t.commB.backroomsSub, cat: 'solo', kind: 'launch', accent: '#f5de80', emoji: '🟨', keywords: 'backrooms horror', launch: onOpenBackrooms });
+  defs.push({ id: 'othermafia', title: 'სხვა მაფია', sub: 'ვიდეო-მაფია ჰოსტით · 4-14 მოთ.', cat: 'worlds', kind: 'match', accent: RED_XM, emoji: '🎭', badge: true, keywords: 'mafia მაფია video ვიდეო table host sxva სხვა' });
 
   const byId = (id: string) => defs.find(d => d.id === id);
   const FEATURED = ['voidiq', ...(onOpenPremium ? ['premium'] : []), 'maxpuzzle'];
@@ -703,6 +722,26 @@ function SpyfallRow({ match, onJoin }: { match: SpyfallListItem; onJoin: (code: 
         className="px-2.5 py-1 rounded-lg font-mono text-[12px] uppercase tracking-wider transition-all active:scale-95"
         style={{ background: 'rgba(255,45,85,0.1)', border: '1px solid rgba(255,45,85,0.25)', color: '#ff5d6c' }}>
         შეუერთდი
+      </button>
+    </div>
+  );
+}
+
+function XmRow({ match, onJoin }: { match: XmListItem; onJoin: (code: string) => void }) {
+  return (
+    <div className="flex items-center gap-3 px-2 py-2 rounded-xl" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
+      <div className="flex-1 min-w-0">
+        <p className="font-mono text-xs text-white truncate">{match.hostName} <span className="text-white/30">(ჰოსტი)</span></p>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="font-mono text-[12px] text-white/25 tracking-widest">{match.code}</span>
+          <span className="font-mono text-[12px] text-white/20">{match.seatCount}/{match.maxSeats}</span>
+          {match.phase !== 'lobby' && <span className="font-mono text-[10px] text-amber-400/60">მიმდინარეობს</span>}
+        </div>
+      </div>
+      <button onClick={() => onJoin(match.code)}
+        className="px-2.5 py-1 rounded-lg font-mono text-[12px] uppercase tracking-wider transition-all active:scale-95"
+        style={{ background: 'rgba(255,59,71,0.12)', border: '1px solid rgba(255,59,71,0.3)', color: '#ff8a92' }}>
+        {match.phase === 'lobby' ? 'შესვლა' : 'ყურება'}
       </button>
     </div>
   );
