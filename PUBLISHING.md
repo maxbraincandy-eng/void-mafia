@@ -104,11 +104,28 @@ billing-ით უნდა გაიყიდოს:
 2. RevenueCat რეკომენდებულია — ერთი SDK ფარავს Google + Apple-ს, receipt
    validation + webhook სერვერისკენ (მონეტების ჩარიცხვა).
 
-### რაც უნდა აიგოს (მომავალი session)
-- [ ] IAP plugin/RevenueCat ინტეგრაცია client-ში
-- [ ] პროდუქტების კატალოგი Play/Apple-ში (მაგ. `coins_500`, `season_pass`)
-- [ ] server webhook: receipt → მონეტების/Pass-ის ჩარიცხვა (`coinStore`)
-- [ ] ვებ-fallback: ბრაუზერში IAP ღილაკები დამალვა ან „აპში გახსენი"
+### რაც უკვე აიგო (server foundation ✅)
+- **`store_purchases` ცხრილი** `UNIQUE(platform, transaction_id)`-ით → crediting
+  **idempotent** (გამეორებული token/webhook მონეტებს ერთხელ რიცხავს).
+- **`creditStorePurchase()`** (`coinService.ts`) — ატომურად იჭერს purchase-ს და
+  მხოლოდ ახალზე რიცხავს მონეტებს.
+- **`GET /api/iap/products`** — native shop-ის კატალოგი (product id → coins).
+- **`POST /api/iap/revenuecat`** — RevenueCat webhook (Authorization header-ით
+  დაცული, `REVENUECAT_WEBHOOK_AUTH` env), აკავშირებს `app_user_id`→profileId-ს.
+- **client**: `isNativeApp()` detektor; Coin Shop-ში აპში Stripe **გამორთულია**,
+  „in-app purchases coming" placeholder ჩანს. ვებ-ზე Stripe უცვლელი.
+
+Store product id-ები = `coins_500 / coins_1500 / coins_4000 / coins_10000`
+(იგივე რაც ვებ-პაკეტები). იგივე id-ები უნდა შექმნა Play/Apple + RevenueCat-ში.
+
+### რაც დარჩა (შენი account-ის შემდეგ)
+- [ ] RevenueCat ანგარიში → პროექტი → Play & Apple app-ების მიბმა
+- [ ] product id-ების შექმნა Play Console + App Store Connect-ში (consumable)
+- [ ] RevenueCat webhook: URL `https://voidmafia.one/api/iap/revenuecat`,
+      Authorization header = `REVENUECAT_WEBHOOK_AUTH` (env-ში Railway-ზე)
+- [ ] client: `@revenuecat/purchases-capacitor` დაყენება + purchase flow
+      (`Purchases.logIn(profileId)` + `Purchases.purchaseStoreProduct(...)`) —
+      ცოცხალ device build-ზე ტესტი (მე ავაგებ, როცა RC key გექნება)
 - [ ] restore purchases ღილაკი (Apple-ის მოთხოვნა)
 
 ---

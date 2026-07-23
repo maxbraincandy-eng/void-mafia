@@ -22,7 +22,7 @@ import { getPlayerAchievements } from './services/achievementService.js';
 import { sql, initializeDatabase } from './db.js';
 import { configurePassport, createAuthRouter } from './auth.js';
 import { initPushService, getVapidPublicKey, sendPushToUser as _sendPush } from './pushService.js';
-import { creditPurchasedCoins, grantCoins } from './services/coinService.js';
+import { creditPurchasedCoins, creditStorePurchase, grantCoins } from './services/coinService.js';
 import { computeTrending, settleWeeklyLeaderboard } from './services/communityService.js';
 import { createHermesRouter } from './routes/hermes.js';
 import { createLiveKitRouter } from './routes/livekitRoutes.js';
@@ -33,6 +33,10 @@ const STRIPE_SECRET = process.env.STRIPE_SECRET_KEY ?? '';
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET ?? '';
 const stripe = STRIPE_SECRET ? new Stripe(STRIPE_SECRET) : null;
 
+// RevenueCat webhook shared secret. Set this to the same value you enter in the
+// RevenueCat dashboard → Integrations → Webhooks → Authorization header.
+const REVENUECAT_WEBHOOK_AUTH = process.env.REVENUECAT_WEBHOOK_AUTH ?? '';
+
 export const COIN_PACKAGES = [
   { id: 'coins_500',   coins: 500,   price: 499,   label: '500 Coins',    bonus: '' },
   { id: 'coins_1500',  coins: 1500,  price: 999,   label: '1,500 Coins',  bonus: '+200 bonus' },
@@ -40,12 +44,20 @@ export const COIN_PACKAGES = [
   { id: 'coins_10000', coins: 10000, price: 3999,  label: '10,000 Coins', bonus: '+2,000 bonus' },
 ] as const;
 
+// Map a store product id → coin amount. Store product ids are configured to
+// match the package ids above (coins_500, coins_1500, …), so the native app,
+// the web shop, and RevenueCat all speak the same product ids.
+function coinsForProduct(productId: string): number | null {
+  const pkg = COIN_PACKAGES.find(p => p.id === productId);
+  return pkg ? pkg.coins : null;
+}
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 3000);
 const CLIENT_URL = process.env.CLIENT_URL ?? 'http://localhost:5173';
 const IS_PROD = process.env.NODE_ENV === 'production';
 
-const CLIENT_BUILD = '2026-07-11-v497';
+const CLIENT_BUILD = '2026-07-23-v498';
 console.log('[Startup] Void Mafia server starting');
 console.log(`[Startup] Client build: ${CLIENT_BUILD}`);
 console.log(`[Startup] NODE_ENV=${process.env.NODE_ENV ?? 'development'}`);
@@ -299,6 +311,75 @@ app.post('/api/shop/webhook', express.raw({ type: 'application/json' }), async (
     }
   }
   res.json({ received: true });
+});
+
+// ── In-app purchases (Google Play / Apple via RevenueCat) ─────────────
+// Digital goods sold inside the native app MUST use store billing, not Stripe.
+// The native client buys through RevenueCat; RevenueCat then calls the webhook
+// below server-to-server, and we credit coins idempotently.
+
+// Product catalog for the native shop. Prices come from the store (RevenueCat
+// offerings) at runtime; this just tells the app which product ids exist and
+// how many coins each grants, so the UI can label them consistently.
+app.get('/api/iap/products', (_req, res) => {
+  res.json({
+    ok: true,
+    data: COIN_PACKAGES.map(p => ({ productId: p.id, coins: p.coins, label: p.label, bonus: p.bonus })),
+    revenueCatEnabled: !!REVENUECAT_WEBHOOK_AUTH,
+  });
+});
+
+// RevenueCat webhook. Configure in RevenueCat → Integrations → Webhooks with the
+// Authorization header set to REVENUECAT_WEBHOOK_AUTH. The app_user_id must be
+// set to the player's profile id by the client at login (Purchases.logIn).
+app.post('/api/iap/revenuecat', express.json(), async (req, res) => {
+  if (!REVENUECAT_WEBHOOK_AUTH) { res.status(503).json({ ok: false, error: 'IAP not configured.' }); return; }
+  if (req.headers['authorization'] !== REVENUECAT_WEBHOOK_AUTH) {
+    console.warn('[iap] rejected webhook: bad authorization header');
+    res.status(401).json({ ok: false }); return;
+  }
+  const event = (req.body && req.body.event) || {};
+  const type: string = event.type ?? '';
+  // One-time coin packs arrive as NON_RENEWING_PURCHASE (and INITIAL_PURCHASE for
+  // some store setups). Ignore refunds/cancellations here — those don't credit.
+  const CREDIT_TYPES = ['INITIAL_PURCHASE', 'NON_RENEWING_PURCHASE', 'RENEWAL'];
+  if (!CREDIT_TYPES.includes(type)) {
+    res.json({ ok: true, ignored: type || 'unknown' }); return;
+  }
+  const profileId: string = event.app_user_id ?? '';
+  const productId: string = event.product_id ?? '';
+  // RevenueCat's store transaction id (falls back to the event id).
+  const transactionId: string = event.transaction_id ?? event.store_transaction_id ?? event.id ?? '';
+  const coins = coinsForProduct(productId);
+
+  if (!profileId || !productId || !transactionId) {
+    res.status(400).json({ ok: false, error: 'Missing app_user_id/product_id/transaction_id.' }); return;
+  }
+  if (coins == null) {
+    console.warn(`[iap] unknown product_id: ${productId}`);
+    res.json({ ok: true, ignored: 'unknown_product' }); return;
+  }
+
+  try {
+    const store = (event.store ?? 'revenuecat').toLowerCase(); // 'app_store' | 'play_store' | …
+    const result = await creditStorePurchase({
+      profileId,
+      platform: `rc_${store}`,
+      transactionId,
+      productId,
+      coins,
+      raw: event,
+    });
+    if (result.credited) {
+      console.log(`[iap] credited ${coins} coins to ${profileId} (${productId}, ${transactionId})`);
+    } else {
+      console.log(`[iap] duplicate purchase ignored (${transactionId})`);
+    }
+    res.json({ ok: true, credited: result.credited });
+  } catch (e: any) {
+    console.error('[iap] credit failed:', e.message);
+    res.status(500).json({ ok: false, error: 'Credit failed.' });
+  }
 });
 
 // ── Serve built client in production ─────────────────────────────────

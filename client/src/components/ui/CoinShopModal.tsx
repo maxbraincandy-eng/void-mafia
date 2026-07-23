@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { PROFILE_BACKGROUNDS, NAME_COLORS, NAME_COLOR_PRICES, RARITY_COLOR, RARITY_LABEL, nameColorGlow, nameColorUI } from '@/constants/cosmetics';
 import { SPACE_THEME_DEFS, itemIdForTheme } from '@/constants/spaceThemes';
 import { emitWithAck } from '@/lib/socket';
+import { isNativeApp } from '@/lib/platform';
 import { useAuthStore } from '@/store/authStore';
 import { useNameColorStore } from '@/store/nameColorStore';
 import type { PlayerCosmetics, Res } from '@/types/index';
@@ -46,6 +47,10 @@ export function CoinShopModal({ open, onClose, profileId, coins: propCoins, onCo
   const [busySp, setBusySp] = useState<string | null>(null);
   const [spMsg, setSpMsg] = useState<string | null>(null);
   const profile = useAuthStore(s => s.profile);
+  // Inside the native app, Stripe/card checkout for digital goods is not allowed
+  // by Google Play / Apple. Store billing (RevenueCat) is wired separately; until
+  // it's live the coin-buying tab shows an "in-app purchases coming" state here.
+  const native = isNativeApp();
   const unlockedItems = profile?.cosmetics?.unlockedItems ?? [];
   const equippedNameColor = profile?.cosmetics?.equippedNameColor ?? null;
 
@@ -60,6 +65,8 @@ export function CoinShopModal({ open, onClose, profileId, coins: propCoins, onCo
   }, [open]);
 
   const handleBuy = async (pkg: CoinPackage) => {
+    // Never route to Stripe from inside the native app (store-policy violation).
+    if (native) return;
     if (buying) return;
     setBuying(pkg.id);
     setError(null);
@@ -242,7 +249,22 @@ export function CoinShopModal({ open, onClose, profileId, coins: propCoins, onCo
 
               <div className="px-4 pt-4 space-y-3">
                 {/* ── Buy Coins tab ── */}
-                {shopTab === 'coins' && (
+                {/* Inside the native app: store billing (Google Play / Apple) is
+                    required for digital goods, so the Stripe list is hidden and a
+                    placeholder shows until RevenueCat is wired. Cosmetic tabs
+                    below (bought with already-owned coins) still work in-app. */}
+                {shopTab === 'coins' && native && (
+                <div className="py-10 px-4 text-center space-y-3">
+                  <div className="text-4xl">🪙</div>
+                  <p className="font-display text-base font-bold text-amber-400">In-app purchases</p>
+                  <p className="font-mono text-[13px] text-white/40 leading-relaxed">
+                    Buying coins in the app will use secure store billing (Google Play / App Store).
+                    This is being set up — check back soon.
+                  </p>
+                </div>
+                )}
+
+                {shopTab === 'coins' && !native && (
                 <>
                 {/* Trust indicators */}
                 <div className="flex items-center justify-center gap-4 pb-1">

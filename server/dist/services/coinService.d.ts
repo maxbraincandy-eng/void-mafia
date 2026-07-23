@@ -172,6 +172,24 @@ export declare function currentSeasonTag(): string | null;
 export declare function creditPurchasedCoins(profileId: string, amount: number, description: string): Promise<{
     newBalance: number;
 }>;
+/**
+ * Credit coins for a verified in-app purchase (Google Play / Apple / RevenueCat),
+ * exactly once. The store_purchases UNIQUE(platform, transaction_id) row is
+ * claimed first; if the row already exists (replayed token or re-delivered
+ * webhook) this is a no-op that returns credited=false. Only on a fresh claim
+ * are coins actually added to the balance.
+ */
+export declare function creditStorePurchase(args: {
+    profileId: string;
+    platform: string;
+    transactionId: string;
+    productId: string;
+    coins: number;
+    raw?: unknown;
+}): Promise<{
+    credited: boolean;
+    newBalance: number | null;
+}>;
 export declare function getGiftLeaderboard(): Promise<{
     topGifters: Array<{
         profileId: string;

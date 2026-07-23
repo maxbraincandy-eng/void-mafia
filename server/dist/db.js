@@ -434,6 +434,23 @@ export async function initializeDatabase() {
       PRIMARY KEY (player_id, date_key)
     )
   `;
+    // In-app purchases (Google Play / Apple / RevenueCat). The UNIQUE constraint
+    // on (platform, transaction_id) makes crediting idempotent: a replayed
+    // purchase token or a re-delivered store/RevenueCat webhook credits coins
+    // exactly once.
+    await sql `
+    CREATE TABLE IF NOT EXISTS store_purchases (
+      id             TEXT PRIMARY KEY,
+      player_id      TEXT NOT NULL,
+      platform       TEXT NOT NULL,
+      transaction_id TEXT NOT NULL,
+      product_id     TEXT NOT NULL,
+      coins          INTEGER NOT NULL,
+      raw            TEXT,
+      created_at     BIGINT NOT NULL,
+      UNIQUE (platform, transaction_id)
+    )
+  `;
     await sql `
     CREATE TABLE IF NOT EXISTS push_subscriptions (
       id         TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,

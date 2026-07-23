@@ -644,6 +644,39 @@ export async function creditPurchasedCoins(profileId, amount, description) {
     const { balanceAfter } = await recordTransaction(profileId, 'grant', amount, description);
     return { newBalance: balanceAfter };
 }
+/**
+ * Credit coins for a verified in-app purchase (Google Play / Apple / RevenueCat),
+ * exactly once. The store_purchases UNIQUE(platform, transaction_id) row is
+ * claimed first; if the row already exists (replayed token or re-delivered
+ * webhook) this is a no-op that returns credited=false. Only on a fresh claim
+ * are coins actually added to the balance.
+ */
+export async function creditStorePurchase(args) {
+    const { profileId, platform, transactionId, productId, coins } = args;
+    if (!profileId)
+        throw new Error('profileId required.');
+    if (!platform || !transactionId)
+        throw new Error('platform and transactionId required.');
+    if (!Number.isInteger(coins) || coins <= 0)
+        throw new Error('coins must be a positive integer.');
+    // Claim the purchase row. ON CONFLICT DO NOTHING means a duplicate
+    // (platform, transaction_id) returns zero rows → we skip crediting.
+    const rows = await sql `
+    INSERT INTO store_purchases
+      (id, player_id, platform, transaction_id, product_id, coins, raw, created_at)
+    VALUES
+      (${generateId()}, ${profileId}, ${platform}, ${transactionId}, ${productId},
+       ${coins}, ${args.raw != null ? JSON.stringify(args.raw) : null}, ${Date.now()})
+    ON CONFLICT (platform, transaction_id) DO NOTHING
+    RETURNING id
+  `;
+    if (rows.length === 0) {
+        // Already processed — idempotent no-op.
+        return { credited: false, newBalance: null };
+    }
+    const { balanceAfter } = await recordTransaction(profileId, 'grant', coins, `IAP ${platform} ${productId} (${transactionId})`);
+    return { credited: true, newBalance: balanceAfter };
+}
 export async function getGiftLeaderboard() {
     // Top 10 gifters by coins spent
     const giftersRows = await sql `
