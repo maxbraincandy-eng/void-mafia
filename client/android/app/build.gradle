@@ -1,5 +1,15 @@
 apply plugin: 'com.android.application'
 
+// Release signing — loaded from android/keystore.properties, which is kept OUT
+// of git (see .gitignore). Create it from keystore.properties.example after you
+// generate your upload keystore. Without the file, debug builds still work and
+// release builds simply stay unsigned (so CI / other machines don't break).
+def keystorePropertiesFile = rootProject.file("keystore.properties")
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
 android {
     namespace = "one.voidmafia.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -16,8 +26,23 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (keystorePropertiesFile.exists()) {
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
+    }
     buildTypes {
         release {
+            // Only attach the signing config when keystore.properties is present,
+            // so `assembleRelease` on a machine without the keystore still runs.
+            if (keystorePropertiesFile.exists()) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
