@@ -30,7 +30,7 @@ export interface Settings {
   largeText: boolean;
 
   // Design
-  themeMode: 'void-neon' | 'minimal-glass';
+  themeMode: 'void-neon' | 'minimal-glass' | 'graphite';
 }
 
 interface SettingsStore extends Settings {

@@ -29,6 +29,10 @@ const GLASS_COLORS: Record<string, string> = {
   rooms: '#8b5cf6', community: '#8b5cf6', games: '#fbbf24',
   clans: '#f87171', leaderboard: '#fde68a', profile: '#67e8f9',
 };
+const GRAPHITE_COLORS: Record<string, string> = {
+  rooms: '#7c93ff', community: '#7c93ff', games: '#d0a95a',
+  clans: '#d97a7a', leaderboard: '#d8c47a', profile: '#6bc4c4',
+};
 
 function items(colors: Record<string, string>): Item[] {
   return [
@@ -51,7 +55,7 @@ function items(colors: Record<string, string>): Item[] {
 export function SideNav({ active, onChange, onMoreClick }: Props) {
   const { unreadDmCount } = useSocialStore();
   const themeMode = useSettingsStore(s => s.themeMode) ?? 'void-neon';
-  const colors = themeMode === 'minimal-glass' ? GLASS_COLORS : NEON_COLORS;
+  const colors = themeMode === 'minimal-glass' ? GLASS_COLORS : themeMode === 'graphite' ? GRAPHITE_COLORS : NEON_COLORS;
   const t = useT();
   const navLabel = (id: NavTab) => (t.nav as Record<string, string>)[id] ?? id;
 

@@ -519,6 +519,35 @@ export function MorePanel({ isOwner = false, isMod = false, onEconomyClick, onSh
                         </div>
                       )}
                     </button>
+
+                    <button
+                      onClick={() => updateSettings({ themeMode: 'graphite' })}
+                      className="flex-1 flex flex-col items-center gap-1.5 py-3 px-2 rounded-2xl transition-all duration-200 active:scale-95"
+                      style={{
+                        background: themeMode === 'graphite'
+                          ? 'linear-gradient(135deg, rgba(107,138,253,0.18), rgba(148,163,184,0.06))'
+                          : 'rgba(255,255,255,0.03)',
+                        border: themeMode === 'graphite'
+                          ? '1px solid rgba(107,138,253,0.42)'
+                          : '1px solid rgba(255,255,255,0.07)',
+                        boxShadow: themeMode === 'graphite' ? '0 0 14px rgba(107,138,253,0.1)' : 'none',
+                      }}
+                    >
+                      <div className="flex gap-1">
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ background: '#94a3b8' }} />
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ background: '#6b8afd' }} />
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ background: '#475569' }} />
+                      </div>
+                      <p className="text-[11px] font-mono font-bold tracking-widest uppercase leading-none" style={{ color: themeMode === 'graphite' ? 'rgba(107,138,253,0.95)' : 'rgba(255,255,255,0.28)' }}>
+                        Graphite
+                      </p>
+                      <p className="text-[10px] font-mono leading-none" style={{ color: 'rgba(255,255,255,0.18)' }}>სუფთა & მშვიდი</p>
+                      {themeMode === 'graphite' && (
+                        <div className="w-3.5 h-3.5 rounded-full flex items-center justify-center" style={{ background: 'rgba(107,138,253,0.28)', border: '1px solid rgba(107,138,253,0.5)', fontSize: '9px', color: 'rgba(107,138,253,0.95)' }}>
+                          ✓
+                        </div>
+                      )}
+                    </button>
                   </div>
                 </div>
 

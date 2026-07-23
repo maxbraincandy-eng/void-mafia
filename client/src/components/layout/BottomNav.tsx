@@ -113,6 +113,10 @@ const GLASS_TAB_COLORS: Record<string, string> = {
   community: '#8b5cf6', games: '#fbbf24', clans: '#f87171',
   leaderboard: '#fde68a', profile: '#67e8f9',
 };
+const GRAPHITE_TAB_COLORS: Record<string, string> = {
+  community: '#7c93ff', games: '#d0a95a', clans: '#d97a7a',
+  leaderboard: '#d8c47a', profile: '#6bc4c4',
+};
 
 // ── NavItem ─────────────────────────────────────────────────────────────────
 // Georgian glyphs are wider than Latin/Cyrillic, so long labels
@@ -167,7 +171,7 @@ function NavItem({ tab, active, color, onPress, label, ka }: { tab: TabDef; acti
 export function BottomNav({ active, onChange, onMoreClick }: Props) {
   const { unreadDmCount } = useSocialStore();
   const themeMode = useSettingsStore(s => s.themeMode) ?? 'void-neon';
-  const TAB_COLORS = themeMode === 'minimal-glass' ? GLASS_TAB_COLORS : NEON_TAB_COLORS;
+  const TAB_COLORS = themeMode === 'minimal-glass' ? GLASS_TAB_COLORS : themeMode === 'graphite' ? GRAPHITE_TAB_COLORS : NEON_TAB_COLORS;
   const isRooms = active === 'rooms';
   const t = useT();
   const ka = useLangStore(s => s.lang) === 'ka';
