@@ -495,7 +495,7 @@ export function SxvaMafiaGame() {
   return createPortal(
     <motion.div className="fixed inset-0 z-[560] flex flex-col select-none"
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      style={{ background: 'radial-gradient(ellipse 90% 55% at 50% -5%, #2a0a10 0%, #08060a 60%)', fontFamily: '"Space Grotesk", system-ui, sans-serif' }}
+      style={{ background: 'radial-gradient(ellipse 90% 55% at 50% -5%, #2a0a10 0%, #08060a 60%)', fontFamily: 'Rajdhani, "Noto Sans Georgian", system-ui, sans-serif' }}
       onTouchStart={e => e.stopPropagation()} onTouchEnd={e => e.stopPropagation()}>
 
       <style>{`

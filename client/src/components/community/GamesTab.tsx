@@ -620,7 +620,7 @@ function TujituriLauncher({ cfg, onClose, onRecord }: { cfg: LauncherCfg; onClos
   const join = () => { if (!cfg.joinCode.trim()) return; onRecord(); cfg.onJoin(); onClose(); };
   return createPortal(
     <motion.div className="fixed inset-0 z-[545] flex flex-col select-none" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      style={{ background: 'radial-gradient(ellipse 120% 60% at 50% -8%, #2a0a14 0%, #08060a 60%)', fontFamily: '"Space Grotesk", system-ui, sans-serif' }}
+      style={{ background: 'radial-gradient(ellipse 120% 60% at 50% -8%, #2a0a14 0%, #08060a 60%)', fontFamily: 'Rajdhani, "Noto Sans Georgian", system-ui, sans-serif' }}
       onTouchStart={e => e.stopPropagation()} onTouchEnd={e => e.stopPropagation()}>
       <div className="flex-shrink-0 flex justify-end p-4 pt-[calc(env(safe-area-inset-top,0px)+12px)]">
         <button onClick={onClose} className="w-9 h-9 rounded-full flex items-center justify-center text-white/60" style={{ border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.04)' }}>✕</button>
