@@ -349,7 +349,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   defs.push({ id: 'watchparty', title: 'კინო სივრცე', sub: 'ერთად უყურეთ ვიდეოს · სინქრონში + ხმა', cat: 'worlds', kind: 'launch', accent: '#ff5d5d', emoji: '🎬', badge: true, keywords: 'watch party კინო ფილმი youtube ვიდეო together სინქრონი co-watch cinema', launch: () => setWatchPartyOpen(true) });
 
   const byId = (id: string) => defs.find(d => d.id === id);
-  const FEATURED = ['voidiq', ...(onOpenPremium ? ['premium'] : []), 'maxpuzzle'];
+  const FEATURED = ['watchparty', 'voidiq', ...(onOpenPremium ? ['premium'] : []), 'maxpuzzle'];
 
   const q = query.trim().toLowerCase();
   const matchesQ = (d: GameDef) => !q || d.title.toLowerCase().includes(q) || d.keywords.toLowerCase().includes(q) || d.sub.toLowerCase().includes(q);
