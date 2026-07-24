@@ -33,6 +33,8 @@ export function WatchPartyRoom({ onClose }: { onClose: () => void }) {
   useEffect(() => { const t = setTimeout(() => requestSync(), 800); return () => clearTimeout(t); }, [requestSync]);
   useEffect(() => { chatEndRef.current?.scrollIntoView({ block: 'end' }); }, [match?.chat.length]);
   useEffect(() => { if (error) { const t = setTimeout(clearError, 3500); return () => clearTimeout(t); } }, [error, clearError]);
+  // Auto-cancel a pending "confirm host transfer" if the host doesn't confirm.
+  useEffect(() => { if (menuFor) { const t = setTimeout(() => setMenuFor(null), 4000); return () => clearTimeout(t); } }, [menuFor]);
 
   if (!match) return null;
   const isHost = match.you.isHost;
@@ -74,26 +76,33 @@ export function WatchPartyRoom({ onClose }: { onClose: () => void }) {
 
       {tab === 'people' ? (
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
+          {isHost && match.members.length > 1 && (
+            <p className="font-mono text-[10px] text-white/30 text-center pb-1">👑 ღილაკით ჰოსტობა გადაეცი — ის მართავს დაკვრას და რთავს ვიდეოს</p>
+          )}
           {match.members.map(mem => {
             const isSpeaking = speaking.has(mem.userId);
+            const canPromote = isHost && !mem.isHost && mem.userId !== myId;
+            const confirming = menuFor === mem.userId;
             return (
-              <div key={mem.userId} className="relative">
-                <button
-                  onClick={() => { if (isHost && mem.userId !== myId) setMenuFor(menuFor === mem.userId ? null : mem.userId); }}
-                  className="w-full flex items-center gap-2.5 p-2 rounded-xl transition-all text-left"
-                  style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${isSpeaking ? '#39d98a66' : 'rgba(255,255,255,0.06)'}` }}>
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center font-display font-bold text-[12px] text-white flex-shrink-0"
-                    style={{ background: tint(mem.userId), boxShadow: isSpeaking ? '0 0 0 2px #39d98a' : 'none' }}>
-                    {mem.avatar && mem.avatar.length <= 2 ? mem.avatar : initials(mem.name)}
-                  </div>
-                  <span className="flex-1 font-display text-[13px] text-white/85 truncate">{mem.name}{mem.userId === myId ? ' (შენ)' : ''}</span>
-                  {mem.isHost && <span className="font-mono text-[9px] uppercase px-1.5 py-0.5 rounded" style={{ background: `${ACCENT}22`, color: ACCENT }}>ჰოსტი</span>}
-                  {isSpeaking && <span className="text-[11px]">🔊</span>}
-                </button>
-                {menuFor === mem.userId && (
-                  <div className="absolute right-2 top-full mt-1 z-10 rounded-lg overflow-hidden" style={{ background: '#1a1a22', border: '1px solid rgba(255,255,255,0.12)' }}>
-                    <button onClick={() => { transferHost(mem.userId); setMenuFor(null); }} className="block w-full px-3 py-2 text-left font-mono text-[11px] text-white/80 hover:bg-white/10 whitespace-nowrap">👑 ჰოსტობა გადაეცი</button>
-                  </div>
+              <div key={mem.userId} className="w-full flex items-center gap-2.5 p-2 rounded-xl"
+                style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${isSpeaking ? '#39d98a66' : 'rgba(255,255,255,0.06)'}` }}>
+                <div className="w-8 h-8 rounded-full flex items-center justify-center font-display font-bold text-[12px] text-white flex-shrink-0"
+                  style={{ background: tint(mem.userId), boxShadow: isSpeaking ? '0 0 0 2px #39d98a' : 'none' }}>
+                  {mem.avatar && mem.avatar.length <= 2 ? mem.avatar : initials(mem.name)}
+                </div>
+                <span className="flex-1 font-display text-[13px] text-white/85 truncate">{mem.name}{mem.userId === myId ? ' (შენ)' : ''}</span>
+                {mem.isHost && <span className="font-mono text-[9px] uppercase px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: `${ACCENT}22`, color: ACCENT }}>ჰოსტი</span>}
+                {isSpeaking && <span className="text-[11px] flex-shrink-0">🔊</span>}
+                {canPromote && (
+                  confirming ? (
+                    <button onClick={() => { transferHost(mem.userId); setMenuFor(null); haptic('tap'); }}
+                      className="px-2 py-1 rounded-lg font-mono text-[10px] uppercase tracking-wider flex-shrink-0"
+                      style={{ background: ACCENT, color: '#fff' }}>დაადასტურე</button>
+                  ) : (
+                    <button onClick={() => setMenuFor(mem.userId)} title="ჰოსტობა გადაეცი"
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-[14px] flex-shrink-0"
+                      style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>👑</button>
+                  )
                 )}
               </div>
             );
