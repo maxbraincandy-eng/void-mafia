@@ -367,7 +367,7 @@ const _worlds = new Map(); // worldId → players
 const _worldVoice = new Map(); // worldId → Map<socketId, name>
 const _worldTV = new Map(); // worldId → shared cinema
 const WORLD_MAX = 40;
-const WORLD_IDS = new Set(['beach_camp', 'cyber_lounge']);
+const WORLD_IDS = new Set(['beach_camp', 'cyber_lounge', 'mountain_cabin']);
 const _hex6 = (v, fallback) => (typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v)) ? v : fallback;
 function _leaveWorldVoice(sid, io) {
     for (const [worldId, voices] of _worldVoice) {

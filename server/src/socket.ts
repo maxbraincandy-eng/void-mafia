@@ -499,7 +499,7 @@ const _worlds = new Map<string, Map<string, WorldPlayer>>();          // worldId
 const _worldVoice = new Map<string, Map<string, string>>();           // worldId → Map<socketId, name>
 const _worldTV = new Map<string, WorldTV>();                          // worldId → shared cinema
 const WORLD_MAX = 40;
-const WORLD_IDS = new Set(['beach_camp', 'cyber_lounge']);
+const WORLD_IDS = new Set(['beach_camp', 'cyber_lounge', 'mountain_cabin']);
 const _hex6 = (v: any, fallback: string) => (typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v)) ? v : fallback;
 
 function _leaveWorldVoice(sid: string, io: AppServer): void {

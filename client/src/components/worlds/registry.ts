@@ -5,10 +5,12 @@
 import type { WorldDef } from './types';
 import { beachCamp } from './beachCamp';
 import { cyberLounge } from './cyberLounge';
+import { mountainCabin } from './mountainCabin';
 
 export const PREMIUM_WORLDS: WorldDef[] = [
   beachCamp,
   cyberLounge,
+  mountainCabin,
   // Coming soon — placeholders so the lobby shows the roadmap. `build` is never
   // called for 'soon' worlds; they can't be entered yet.
   { id: 'skyline_terrace', name: 'Skyline Terrace', subtitle: 'ცის ხაზი · მალე', icon: '🏙️', status: 'soon', spawn: { x: 0, z: 0, yaw: 0 }, fog: { color: 0x101828, density: 0.02 }, clear: 0x101828, build() {} },
