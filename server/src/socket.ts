@@ -35,6 +35,7 @@ import { registerCodenamesHandlers, handleCodenamesDisconnect } from './codename
 import { registerSpyfallHandlers, handleSpyfallDisconnect } from './spyfall.js';
 import { registerLiesHandlers, handleLiesDisconnect } from './lies.js';
 import { registerSxvaMafiaHandlers, handleSxvaMafiaDisconnect } from './sxvaMafia.js';
+import { registerWatchPartyHandlers, handleWatchPartyDisconnect } from './watchParty.js';
 import { registerIQHandlers } from './iq.js';
 import { registerMaxPuzzleHandlers } from './maxpuzzle.js';
 import { addCrown as ganabAddCrown, listCrowned as ganabListCrowned } from './services/ganabService.js';
@@ -7180,6 +7181,9 @@ export function attachSocketHandlers(io: AppServer): void {
     // ── სხვა მაფია (Other Mafia) ─────────────────────────────────────
     registerSxvaMafiaHandlers(io, socket);
 
+    // ── Watch Party (co-watch) ───────────────────────────────────────
+    registerWatchPartyHandlers(io, socket);
+
     // ── VOID IQ ──────────────────────────────────────────────────────
     registerIQHandlers(io, socket);
 
@@ -8449,6 +8453,7 @@ export function attachSocketHandlers(io: AppServer): void {
       handleSpyfallDisconnect(io, socket.id);
       handleLiesDisconnect(io, socket.id);
       handleSxvaMafiaDisconnect(io, socket.id);
+      handleWatchPartyDisconnect(io, socket.id);
       // Remove from any spectate queues
       for (const [qRoomId, queue] of spectateQueues) {
         const idx = queue.indexOf(socket.id);

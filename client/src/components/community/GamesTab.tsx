@@ -8,6 +8,7 @@ const DilemmasHub = lazy(() => import('@/components/dilemmas/DilemmasHub').then(
 const PhilosophyHub = lazy(() => import('@/components/philosophy/PhilosophyHub').then(m => ({ default: m.PhilosophyHub })));
 const PhiloTestExperience = lazy(() => import('@/components/philotest/PhiloTestExperience').then(m => ({ default: m.PhiloTestExperience })));
 const VoidIQHub = lazy(() => import('@/components/iq/VoidIQHub').then(m => ({ default: m.VoidIQHub })));
+const WatchPartyLauncher = lazy(() => import('@/components/watchparty/WatchPartyLauncher').then(m => ({ default: m.WatchPartyLauncher })));
 const MaxPuzzleExperience = lazy(() => import('@/components/maxpuzzle/MaxPuzzleExperience').then(m => ({ default: m.MaxPuzzleExperience })));
 import { IQLogo } from '@/components/iq/IQLogo';
 import { MaxSeal } from '@/components/maxpuzzle/MaxSeal';
@@ -94,6 +95,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   const [philoTestOpen, setPhiloTestOpen] = useState(false);
   const [voidIqOpen, setVoidIqOpen] = useState(false);
   const [maxPuzzleOpen, setMaxPuzzleOpen] = useState(false);
+  const [watchPartyOpen, setWatchPartyOpen] = useState(false);
 
   // ── Checkers ────────────────────────────────────────────────────────
   const {
@@ -344,6 +346,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   if (onOpenSpace) defs.push({ id: 'space', title: 'Virtual Space', sub: t.commB.spaceSub, cat: 'worlds', kind: 'launch', accent: '#4a76c4', logo: 'vspace', emoji: '🌐', keywords: 'space virtual სივრცე vr', launch: onOpenSpace });
   if (onOpenBackrooms) defs.push({ id: 'backrooms', title: 'Backrooms', sub: t.commB.backroomsSub, cat: 'solo', kind: 'launch', accent: '#f5de80', emoji: '🟨', keywords: 'backrooms horror', launch: onOpenBackrooms });
   defs.push({ id: 'othermafia', title: 'თუჯიტური მაფია', sub: 'ვიდეო-მაფია ჰოსტით · 4-14 მოთ.', cat: 'worlds', kind: 'match', accent: RED_XM, logo: 'mafianight', emoji: '🎭', badge: true, keywords: 'mafia მაფია თუჯიტური tujituri video ვიდეო table host' });
+  defs.push({ id: 'watchparty', title: 'კინო სივრცე', sub: 'ერთად უყურეთ ვიდეოს · სინქრონში + ხმა', cat: 'worlds', kind: 'launch', accent: '#ff5d5d', emoji: '🎬', badge: true, keywords: 'watch party კინო ფილმი youtube ვიდეო together სინქრონი co-watch cinema', launch: () => setWatchPartyOpen(true) });
 
   const byId = (id: string) => defs.find(d => d.id === id);
   const FEATURED = ['voidiq', ...(onOpenPremium ? ['premium'] : []), 'maxpuzzle'];
@@ -535,6 +538,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
       {philoHubOpen && <Suspense fallback={null}><PhilosophyHub onClose={() => setPhiloHubOpen(false)} /></Suspense>}
       {philoTestOpen && <Suspense fallback={null}><PhiloTestExperience onClose={() => setPhiloTestOpen(false)} /></Suspense>}
       {bandicootOpen && <Suspense fallback={null}><NeoBandicoot onClose={() => setBandicootOpen(false)} /></Suspense>}
+      {watchPartyOpen && <Suspense fallback={null}><WatchPartyLauncher onClose={() => setWatchPartyOpen(false)} /></Suspense>}
       {aristocracyOpen && <Suspense fallback={null}><AristocracyTest onClose={() => setAristocracyOpen(false)} /></Suspense>}
     </div>
   );
