@@ -34,8 +34,9 @@ export const cyberLounge: WorldDef = {
   icon: '🌆',
   status: 'live',
   spawn: { x: 0, z: HD - 4, yaw: Math.PI },
-  fog: { color: 0x0a0620, density: 0.03 },
-  clear: 0x06030f,
+  // Lighter, thinner fog so the far walls read as a space instead of a black void.
+  fog: { color: 0x1a0f38, density: 0.012 },
+  clear: 0x140a2e,
 
   build(ctx: WorldContext) {
     _s = 4242421;
@@ -52,10 +53,13 @@ export const cyberLounge: WorldDef = {
     buildPillars(ctx);
     buildDust(ctx);
 
-    ctx.ambientLight.color.setHex(0x2a1840);
-    ctx.ambientLight.intensity = 0.55;
-    ctx.moon.intensity = 0.25;
-    ctx.moon.color.setHex(0x6a7bff);
+    // Bright, warm-purple fill so every surface reads clearly (ambient is free
+    // performance-wise); a soft blue key light adds shape without extra cost.
+    ctx.ambientLight.color.setHex(0x6a5a9a);
+    ctx.ambientLight.intensity = 1.5;
+    ctx.moon.intensity = 0.8;
+    ctx.moon.color.setHex(0x9aa8ff);
+    ctx.moon.position.set(6, 14, 8);
 
     ctx.addAmbient({ kind: 'night', x: 0, z: 0, radius: 120 });
   },
@@ -67,11 +71,13 @@ function buildShell(ctx: WorldContext) {
 
   const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(HW * 2, HD * 2),
-    new THREE.MeshStandardMaterial({ color: 0x0a0a16, metalness: 0.75, roughness: 0.35 }),
+    // Lighter, more diffuse floor — a near-black mirror just read as a black hole.
+    new THREE.MeshStandardMaterial({ color: 0x241f3e, metalness: 0.35, roughness: 0.55 }),
   );
   floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
 
-  const wallMat = new THREE.MeshStandardMaterial({ color: 0x0d0a1c, roughness: 0.85, metalness: 0.2 });
+  // Walls carry a faint self-glow so they're visible even away from the lights.
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0x2a2450, roughness: 0.8, metalness: 0.15, emissive: 0x140f2e, emissiveIntensity: 0.6 });
   const walls: Array<[number, number, number, number, number]> = [
     // x, z, w(x-span), d(z-span), trim-color
     [0, -HD, HW * 2, 0.4, CYAN],   // front (screen wall)
@@ -107,7 +113,7 @@ function buildFloorGrid(ctx: WorldContext) {
 
 // ── Ceiling with neon strip lights + two real accent lights ────────────
 function buildCeiling(ctx: WorldContext) {
-  const ceil = new THREE.Mesh(new THREE.PlaneGeometry(HW * 2, HD * 2), new THREE.MeshStandardMaterial({ color: 0x08060f, roughness: 1 }));
+  const ceil = new THREE.Mesh(new THREE.PlaneGeometry(HW * 2, HD * 2), new THREE.MeshStandardMaterial({ color: 0x181233, roughness: 1, emissive: 0x0d0a22, emissiveIntensity: 0.5 }));
   ceil.rotation.x = Math.PI / 2; ceil.position.y = WALL_H; ctx.scene.add(ceil);
 
   // parallel neon tubes across the ceiling (unlit)
@@ -119,13 +125,14 @@ function buildCeiling(ctx: WorldContext) {
     ctx.scene.add(tube);
   }
 
-  // Only two real lights in the whole world — a cyan & a magenta wash.
-  const l1 = new THREE.PointLight(CYAN, 0.9, 26, 2); l1.position.set(-7, WALL_H - 0.8, -4); ctx.scene.add(l1);
-  const l2 = new THREE.PointLight(MAGENTA, 0.9, 26, 2); l2.position.set(7, WALL_H - 0.8, 4); ctx.scene.add(l2);
+  // Three coloured washes — brighter and wider so the room is clearly lit.
+  const l1 = new THREE.PointLight(CYAN, 2.2, 34, 2); l1.position.set(-7, WALL_H - 0.6, -4); ctx.scene.add(l1);
+  const l2 = new THREE.PointLight(MAGENTA, 2.2, 34, 2); l2.position.set(7, WALL_H - 0.6, 4); ctx.scene.add(l2);
+  const l3 = new THREE.PointLight(0xbfa8ff, 1.6, 30, 2); l3.position.set(0, WALL_H - 0.6, 0); ctx.scene.add(l3); // central fill over the dance floor
   ctx.onUpdate((_d, e) => {
     if (ctx.perf.reduced) return;
-    l1.intensity = 0.8 + Math.sin(e * 2.1) * 0.25;
-    l2.intensity = 0.8 + Math.sin(e * 2.1 + 2) * 0.25;
+    l1.intensity = 2.0 + Math.sin(e * 2.1) * 0.4;
+    l2.intensity = 2.0 + Math.sin(e * 2.1 + 2) * 0.4;
   });
 }
 
