@@ -68,8 +68,14 @@ function loadVimeoApi(): Promise<void> {
   return vimeoApiPromise;
 }
 
-const DRIFT_HARD = 1.0;   // seconds — correct immediately on a fresh server update
-const DRIFT_SOFT = 1.6;   // seconds — correct during the periodic drift loop
+// Sync tolerances. A watch party doesn't need frame-accurate sync — a second or
+// two of offset is imperceptible in conversation, whereas frequent seeking makes
+// audio/video stutter. So we align hard only on intentional events and on large
+// drift, and otherwise leave the playhead alone (or micro-nudge plain video).
+const DRIFT_APPLY = 0.6;      // fresh intentional event (play/pause/seek): align if off by this
+const DRIFT_SEEK  = 2.5;      // periodic loop: only hard-seek beyond this
+const DRIFT_NUDGE = 0.5;      // periodic loop: micro-correct plain <video> beyond this
+const SEEK_COOLDOWN = 3000;   // ms — min gap between periodic hard-seeks (anti-thrash)
 
 function fmt(sec: number): string {
   if (!isFinite(sec) || sec < 0) sec = 0;
@@ -94,6 +100,8 @@ export function SyncedPlayer(props: Props) {
   const [cur, setCur] = useState(0);
   const [dur, setDur] = useState(0);
   const scrubbing = useRef(false);
+  const lastSeekAt = useRef(0);   // perf.now of the last correction seek (anti-thrash)
+  const nudging = useRef(false);  // true while temporarily off-rate to catch up (video only)
 
   const targetPos = useCallback((): number => {
     if (!playing) return positionSec;
@@ -195,34 +203,50 @@ export function SyncedPlayer(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [source?.provider, source?.refId, source?.synced]);
 
-  // ── Apply server state on every fresh update ───────────────────────
+  // ── Apply server state on every fresh (intentional) update ─────────
   useEffect(() => {
     const a = adapterRef.current;
     if (!a || !ready) return;
+    nudging.current = false;
     a.setRate(rate);
     const t = targetPos();
-    if (Math.abs(a.getTime() - t) > DRIFT_HARD) a.seek(t);
+    if (Math.abs(a.getTime() - t) > DRIFT_APPLY) { a.seek(t); lastSeekAt.current = performance.now(); }
     if (playing && !a.isPlaying()) { a.play(); }
     if (!playing && a.isPlaying()) { a.pause(); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, playing, positionSec, receivedAt, rate]);
 
   // ── Periodic drift correction + control-bar polling ────────────────
+  // Runs once a second. Small drift is tolerated (no glitch); moderate drift on
+  // a plain <video> is smoothed out by nudging playbackRate ±5%; only large drift
+  // triggers a hard seek, and never more than once per SEEK_COOLDOWN.
   useEffect(() => {
     if (!ready) return;
     const iv = setInterval(() => {
       const a = adapterRef.current;
       if (!a) return;
       if (!scrubbing.current) { setCur(a.getTime()); setDur(a.getDuration()); }
-      if (playing) {
-        const t = targetPos();
-        if (Math.abs(a.getTime() - t) > DRIFT_SOFT) a.seek(t);
-        if (!a.isPlaying()) { /* blocked autoplay */ setNeedGesture(true); }
+      if (!playing) return;
+      const t = targetPos();
+      const drift = a.getTime() - t;   // >0 ahead of the room, <0 behind
+      const mag = Math.abs(drift);
+      const now = performance.now();
+      if (mag > DRIFT_SEEK) {
+        if (now - lastSeekAt.current > SEEK_COOLDOWN) {
+          a.seek(t); lastSeekAt.current = now;
+          if (nudging.current) { a.setRate(rate); nudging.current = false; }
+        }
+      } else if (mag > DRIFT_NUDGE && source?.provider === 'video') {
+        // Only plain <video> honours arbitrary playbackRate; catch up gently.
+        a.setRate(rate * (drift < 0 ? 1.05 : 0.95));
+        nudging.current = true;
+      } else if (nudging.current) {
+        a.setRate(rate); nudging.current = false;
       }
-    }, 1500);
+    }, 1000);
     return () => clearInterval(iv);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, playing, positionSec, receivedAt, rate]);
+  }, [ready, playing, positionSec, receivedAt, rate, source?.provider]);
 
   const resumeByGesture = () => {
     setNeedGesture(false);
