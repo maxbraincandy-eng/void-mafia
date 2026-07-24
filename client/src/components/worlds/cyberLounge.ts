@@ -51,6 +51,7 @@ export const cyberLounge: WorldDef = {
     buildHologram(ctx);
     buildDjBooth(ctx);
     buildPillars(ctx);
+    buildLoveseats(ctx);
     buildDust(ctx);
 
     // Bright, warm-purple fill so every surface reads clearly (ambient is free
@@ -307,6 +308,25 @@ function buildPillars(ctx: WorldContext) {
     ctx.addCollider({ x: px, z: pz, r: 0.7 });
   }
   ctx.onUpdate((d) => { if (ctx.perf.reduced) return; for (const r of rings) r.rotation.z += d * 0.8; });
+}
+
+// ── Cuddle loveseats — two seats + embrace pose (cuddleL/cuddleR) ─────
+function loveseat(ctx: WorldContext, x: number, z: number, yaw: number, col: number, id: string) {
+  const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = yaw; ctx.scene.add(g);
+  const mat = new THREE.MeshStandardMaterial({ color: 0x171334, roughness: 0.7, metalness: 0.2 });
+  const base = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.4, 1.0), mat); base.position.y = 0.26; base.castShadow = true; g.add(base);
+  const back = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.55, 0.2), mat); back.position.set(0, 0.6, -0.4); g.add(back);
+  const glow = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.05, 0.1), neon(col)); glow.position.set(0, 0.04, 0.45); g.add(glow);
+  const heart = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 10), neon(0xff4d6d)); heart.position.set(0, 1.5, 0); heart.scale.set(1, 0.9, 0.6); g.add(heart);
+  ctx.onUpdate((_d, e) => { heart.position.y = 1.45 + Math.sin(e * 1.6) * 0.08; heart.rotation.y = e * 0.7; });
+  ctx.addCollider({ x, z, r: 0.9 });
+  const d = 0.34, cx = Math.cos(yaw), sx = Math.sin(yaw);
+  ctx.addSeat({ id: `${id}-l`, x: x + cx * d, y: 0.5, z: z - sx * d, yaw, pose: 'cuddleL' });
+  ctx.addSeat({ id: `${id}-r`, x: x - cx * d, y: 0.5, z: z + sx * d, yaw, pose: 'cuddleR' });
+}
+function buildLoveseats(ctx: WorldContext) {
+  loveseat(ctx, -HW + 4, 8, -2.3, PINK, 'love1');
+  loveseat(ctx, HW - 4, -8.5, 0.7, CYAN, 'love2');
 }
 
 // ── Floating neon dust — one Points cloud ─────────────────────────────
