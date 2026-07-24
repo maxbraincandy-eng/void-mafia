@@ -64,6 +64,7 @@ export declare function findBySocket(socketId: string): WpMatch | undefined;
 /** Current playback position in seconds, extrapolated from the last update. */
 export declare function effectivePosition(m: WpMatch): number;
 export declare function setSource(id: string, hostId: string, rawUrl: string): WpMatch | null;
+export declare function clearSource(id: string, hostId: string): WpMatch | null;
 export declare function play(id: string, hostId: string, positionSec?: number): WpMatch | null;
 export declare function pause(id: string, hostId: string, positionSec?: number): WpMatch | null;
 export declare function seek(id: string, hostId: string, positionSec: number): WpMatch | null;

@@ -84,6 +84,7 @@ function fmt(sec: number): string {
 
 export function SyncedPlayer(props: Props) {
   const { source, playing, positionSec, receivedAt, rate, isHost } = props;
+  const rootRef = useRef<HTMLDivElement>(null);
   const mountRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const adapterRef = useRef<PlayerAdapter | null>(null);
@@ -247,6 +248,31 @@ export function SyncedPlayer(props: Props) {
     props.onSeek(a.getTime());
   };
 
+  const toggleFullscreen = () => {
+    const el = rootRef.current;
+    if (!el) return;
+    try {
+      if (document.fullscreenElement) document.exitFullscreen();
+      else (el.requestFullscreen?.() ?? (el as any).webkitRequestFullscreen?.());
+    } catch { /* ignore */ }
+  };
+
+  // Clicking the video area: host toggles play/pause (routed through the server
+  // so everyone stays in sync); a viewer with blocked autoplay resumes. This
+  // also blocks the provider's native controls so a native click can't desync.
+  const onMediaClick = () => {
+    if (needGesture) { resumeByGesture(); return; }
+    if (isHost) togglePlay();
+  };
+
+  const FsButton = (
+    <button onClick={toggleFullscreen} title="სრული ეკრანი"
+      className="absolute top-2 right-2 z-30 w-9 h-9 rounded-lg flex items-center justify-center text-base"
+      style={{ background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff' }}>
+      ⛶
+    </button>
+  );
+
   // ── Render ─────────────────────────────────────────────────────────
   if (!source) {
     return (
@@ -263,12 +289,13 @@ export function SyncedPlayer(props: Props) {
   // Unsynced providers → plain embed
   if (!source.synced) {
     return (
-      <div className="w-full h-full relative" style={{ background: '#000' }}>
+      <div ref={rootRef} className="w-full h-full relative" style={{ background: '#000' }}>
         <UnsyncedEmbed source={source} />
         <div className="absolute top-2 left-2 px-2 py-1 rounded-md font-mono text-[10px] uppercase tracking-wider"
           style={{ background: 'rgba(0,0,0,0.6)', color: '#ffd34d', border: '1px solid rgba(255,211,77,0.3)' }}>
           სინქრონის გარეშე · {source.provider}
         </div>
+        {FsButton}
       </div>
     );
   }
@@ -276,15 +303,21 @@ export function SyncedPlayer(props: Props) {
   const RATES = [0.5, 1, 1.25, 1.5, 2];
 
   return (
-    <div className="w-full h-full relative flex flex-col" style={{ background: '#000' }}>
+    <div ref={rootRef} className="w-full h-full relative flex flex-col" style={{ background: '#000' }}>
       <div className="flex-1 relative min-h-0">
         {source.provider === 'video'
           ? <video ref={videoRef} playsInline className="w-full h-full" style={{ objectFit: 'contain', background: '#000' }} />
           : <div ref={mountRef} className="w-full h-full [&>*]:w-full [&>*]:h-full" />}
 
+        {/* Interaction shield: blocks the provider's native controls so a native
+            click can't desync playback. Host clicks here to toggle play/pause. */}
+        <div className="absolute inset-0 z-10" style={{ cursor: isHost ? 'pointer' : 'default' }} onClick={onMediaClick} />
+
+        {FsButton}
+
         {needGesture && (
           <button onClick={resumeByGesture}
-            className="absolute inset-0 flex flex-col items-center justify-center gap-2"
+            className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2"
             style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(2px)' }}>
             <span className="text-5xl">▶️</span>
             <span className="font-display text-white font-bold">დააჭირე დასაკრავად</span>

@@ -21,6 +21,7 @@ interface WpStore {
   transferHost: (targetUserId: string) => Promise<void>;
 
   setSource: (url: string) => Promise<void>;
+  clearSource: () => Promise<void>;
   play: (positionSec?: number) => Promise<void>;
   pause: (positionSec?: number) => Promise<void>;
   seek: (positionSec: number) => Promise<void>;
@@ -70,6 +71,7 @@ export const useWatchPartyStore = create<WpStore>((set, get) => {
     transferHost: async (targetUserId) => hostEmit('wp:transfer_host', { targetUserId }),
 
     setSource: async (url) => hostEmit('wp:set_source', { url }),
+    clearSource: async () => hostEmit('wp:clear_source'),
     play: async (positionSec) => hostEmit('wp:play', positionSec != null ? { positionSec } : undefined),
     pause: async (positionSec) => hostEmit('wp:pause', positionSec != null ? { positionSec } : undefined),
     seek: async (positionSec) => hostEmit('wp:seek', { positionSec }),

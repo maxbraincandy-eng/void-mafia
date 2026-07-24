@@ -205,6 +205,14 @@ export function setSource(id, hostId, rawUrl) {
     capture(m, 0, src.synced); // synced sources autoplay; embed-only starts "paused" (no control)
     return m;
 }
+export function clearSource(id, hostId) {
+    const m = matches.get(id);
+    if (!m || m.hostId !== hostId)
+        return null;
+    m.source = null;
+    capture(m, 0, false);
+    return m;
+}
 export function play(id, hostId, positionSec) {
     const m = matches.get(id);
     if (!m || m.hostId !== hostId)

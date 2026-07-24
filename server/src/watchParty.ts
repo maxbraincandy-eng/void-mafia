@@ -13,7 +13,7 @@ import {
 } from './types/index.js';
 import {
   createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch,
-  transferHost, setSource, play, pause, seek, setRate,
+  transferHost, setSource, clearSource, play, pause, seek, setRate,
   queueAdd, queueRemove, queueNext, addChat, findBySocket, getSafeState,
   type WpMatch,
 } from './services/watchPartyService.js';
@@ -98,6 +98,9 @@ export function registerWatchPartyHandlers(io: AppServer, socket: AppSocket): vo
 
   socket.on('wp:set_source' as any, (data: any, cb: any) =>
     control(setSource(String(data?.matchId ?? ''), uid(socket), String(data?.url ?? '')), cb));
+
+  socket.on('wp:clear_source' as any, (data: any, cb: any) =>
+    control(clearSource(String(data?.matchId ?? ''), uid(socket)), cb));
 
   socket.on('wp:play' as any, (data: any, cb: any) =>
     control(play(String(data?.matchId ?? ''), uid(socket), typeof data?.positionSec === 'number' ? data.positionSec : undefined), cb));

@@ -18,7 +18,7 @@ const PROVIDER_ICON: Record<string, string> = { youtube: '▶️', video: '🎞�
 export function WatchPartyRoom({ onClose }: { onClose: () => void }) {
   const profile = useAuthStore(s => s.profile);
   const myId = profile?.id ?? 'me';
-  const { match, receivedAt, leaveMatch, setSource, play, pause, seek, setRate, queueAdd, queueRemove, queueNext, transferHost, sendChat, requestSync, error, clearError } = useWatchPartyStore();
+  const { match, receivedAt, leaveMatch, setSource, clearSource, play, pause, seek, setRate, queueAdd, queueRemove, queueNext, transferHost, sendChat, requestSync, error, clearError } = useWatchPartyStore();
 
   const { enabled: lkEnabled } = useLiveKitGate();
   const voice = useLivekitRoomVoice({ roomId: match ? `watchparty_${match.id}` : '', identity: myId, active: lkEnabled && !!match });
@@ -38,10 +38,17 @@ export function WatchPartyRoom({ onClose }: { onClose: () => void }) {
   const isHost = match.you.isHost;
   const speaking = getLiveKitSpeaking();
 
-  const submitLink = () => {
+  const playNow = () => {
     const url = linkInput.trim();
     if (!url) return;
-    if (match.source) queueAdd(url); else setSource(url);
+    setSource(url); // server replaces the current source immediately
+    setLinkInput('');
+    haptic('tap');
+  };
+  const addToQueue = () => {
+    const url = linkInput.trim();
+    if (!url) return;
+    queueAdd(url);
     setLinkInput('');
     haptic('tap');
   };
@@ -157,16 +164,32 @@ export function WatchPartyRoom({ onClose }: { onClose: () => void }) {
             />
           </div>
 
-          {/* Host: link input + queue */}
+          {/* Host: now-playing + link input + queue */}
           {isHost && (
             <div className="flex-shrink-0 p-2 space-y-2" style={{ background: 'rgba(0,0,0,0.4)', borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+              {match.source && (
+                <div className="flex items-center gap-2 px-1">
+                  <span className="text-[13px]">{PROVIDER_ICON[match.source.provider] ?? '🎞️'}</span>
+                  <span className="flex-1 font-mono text-[11px] text-white/50 truncate">ახლა: {match.source.title}</span>
+                  <button onClick={() => { clearSource(); haptic('tap'); }}
+                    className="px-2 py-1 rounded-lg font-mono text-[10px] uppercase tracking-wider flex-shrink-0"
+                    style={{ background: 'rgba(255,60,70,0.15)', color: '#ff8a92', border: '1px solid rgba(255,60,70,0.3)' }}>
+                    ✕ წაშლა
+                  </button>
+                </div>
+              )}
               <div className="flex gap-1.5">
-                <input value={linkInput} onChange={e => setLinkInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && submitLink()}
+                <input value={linkInput} onChange={e => setLinkInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && playNow()}
                   placeholder="ჩააგდე ლინკი — YouTube, ვიდეო, Vimeo, Twitch…"
                   className="flex-1 bg-white/5 rounded-lg px-3 py-2 font-display text-[13px] text-white outline-none" style={{ border: '1px solid rgba(255,255,255,0.1)' }} />
-                <button onClick={submitLink} className="px-3 rounded-lg font-mono text-[11px] uppercase tracking-wider font-bold" style={{ background: ACCENT, color: '#fff' }}>
-                  {match.source ? '+ რიგში' : 'ჩართვა'}
+                <button onClick={playNow} className="px-3 rounded-lg font-mono text-[11px] uppercase tracking-wider font-bold flex-shrink-0" style={{ background: ACCENT, color: '#fff' }}>
+                  {match.source ? 'ახლა' : 'ჩართვა'}
                 </button>
+                {match.source && (
+                  <button onClick={addToQueue} className="px-3 rounded-lg font-mono text-[11px] uppercase tracking-wider font-bold flex-shrink-0" style={{ background: 'rgba(255,255,255,0.1)', color: '#fff' }}>
+                    + რიგში
+                  </button>
+                )}
               </div>
               {match.queue.length > 0 && (
                 <div className="flex items-center gap-2">

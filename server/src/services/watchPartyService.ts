@@ -269,6 +269,14 @@ export function setSource(id: string, hostId: string, rawUrl: string): WpMatch |
   return m;
 }
 
+export function clearSource(id: string, hostId: string): WpMatch | null {
+  const m = matches.get(id);
+  if (!m || m.hostId !== hostId) return null;
+  m.source = null;
+  capture(m, 0, false);
+  return m;
+}
+
 export function play(id: string, hostId: string, positionSec?: number): WpMatch | null {
   const m = matches.get(id);
   if (!m || m.hostId !== hostId) return null;

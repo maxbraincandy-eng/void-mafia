@@ -1,5 +1,5 @@
 import { ok, err, } from './types/index.js';
-import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch, transferHost, setSource, play, pause, seek, setRate, queueAdd, queueRemove, queueNext, addChat, findBySocket, getSafeState, } from './services/watchPartyService.js';
+import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch, transferHost, setSource, clearSource, play, pause, seek, setRate, queueAdd, queueRemove, queueNext, addChat, findBySocket, getSafeState, } from './services/watchPartyService.js';
 const ROOM = (id) => `wp:${id}`;
 function uid(socket) { return socket.data.profileId ?? socket.id; }
 function broadcastState(io, matchId) {
@@ -74,6 +74,7 @@ export function registerWatchPartyHandlers(io, socket) {
         broadcastList(io);
     };
     socket.on('wp:set_source', (data, cb) => control(setSource(String(data?.matchId ?? ''), uid(socket), String(data?.url ?? '')), cb));
+    socket.on('wp:clear_source', (data, cb) => control(clearSource(String(data?.matchId ?? ''), uid(socket)), cb));
     socket.on('wp:play', (data, cb) => control(play(String(data?.matchId ?? ''), uid(socket), typeof data?.positionSec === 'number' ? data.positionSec : undefined), cb));
     socket.on('wp:pause', (data, cb) => control(pause(String(data?.matchId ?? ''), uid(socket), typeof data?.positionSec === 'number' ? data.positionSec : undefined), cb));
     socket.on('wp:seek', (data, cb) => control(seek(String(data?.matchId ?? ''), uid(socket), Number(data?.positionSec)), cb));
