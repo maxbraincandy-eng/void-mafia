@@ -202,41 +202,95 @@ function buildRocks(ctx: WorldContext) {
   inst.instanceMatrix.needsUpdate = true; ctx.scene.add(inst);
 }
 
-// ── Log cabin with a glowing window, porch & a bench ──────────────────
+// ── Enterable log cabin (hollow, doorway, cosy interior) ──────────────
 function buildCabin(ctx: WorldContext) {
-  const CX = 11, CZ = -6;
-  const g = new THREE.Group(); g.position.set(CX, 0, CZ); g.rotation.y = -0.6; ctx.scene.add(g);
+  const CX = 13, CZ = -9;            // cabin centre (axis-aligned so you can walk in)
+  const HWD = 4.2, HDD = 3.6;        // half-width / half-depth of the interior box
+  const WH = 3.1, TH = 0.3;          // wall height / thickness
+  const DOOR = 1.5;                  // doorway width in the +z (front) wall
+  const g = new THREE.Group(); g.position.set(CX, 0, CZ); ctx.scene.add(g);
+
   const logMat = new THREE.MeshStandardMaterial({ color: 0x6a4a2c, roughness: 1 });
   const darkWood = new THREE.MeshStandardMaterial({ color: 0x3a2716, roughness: 1 });
+  const winMat = new THREE.MeshBasicMaterial({ color: 0xffd48a, toneMapped: false });
 
-  const body = new THREE.Mesh(new THREE.BoxGeometry(6, 3.2, 5), logMat); body.position.y = 1.6; body.castShadow = true; body.receiveShadow = true; g.add(body);
-  // log courses (thin horizontal lines) for texture
-  for (let i = 0; i < 6; i++) { const line = new THREE.Mesh(new THREE.BoxGeometry(6.05, 0.06, 5.05), darkWood); line.position.y = 0.4 + i * 0.5; g.add(line); }
-  // gabled roof (two slabs)
-  const roofMat = new THREE.MeshStandardMaterial({ color: 0x513a24, roughness: 1 });
-  for (const sgn of [-1, 1]) { const slab = new THREE.Mesh(new THREE.BoxGeometry(6.6, 0.2, 3.4), roofMat); slab.position.set(0, 4.05, sgn * 1.35); slab.rotation.x = sgn * -0.62; slab.castShadow = true; g.add(slab); }
-  const gable = new THREE.Mesh(new THREE.CylinderGeometry(0.001, 1.75, 5.2, 3, 1, false, 0, Math.PI), logMat);
-  // door
-  const door = new THREE.Mesh(new THREE.BoxGeometry(1.1, 2.1, 0.12), darkWood); door.position.set(0, 1.05, 2.53); g.add(door);
-  // glowing windows
-  const winMat = new THREE.MeshBasicMaterial({ color: 0xffcf7a, toneMapped: false });
-  for (const wx of [-1.9, 1.9]) { const win = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.0, 0.1), winMat); win.position.set(wx, 1.9, 2.52); g.add(win); }
-  const win2 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.0, 1.0), winMat); win2.position.set(3.02, 1.9, 0); g.add(win2);
-  // chimney with a wisp of smoke
-  const chim = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.6, 0.7), new THREE.MeshStandardMaterial({ color: 0x555055, roughness: 1 })); chim.position.set(-2.1, 4.6, 0); g.add(chim);
-  // one warm light from the cabin
-  const lamp = new THREE.PointLight(0xffb765, 1.4, 16, 2); lamp.position.set(0, 2.2, 3.4); g.add(lamp);
-  ctx.onUpdate((_d, e) => { if (!ctx.perf.reduced) lamp.intensity = 1.3 + Math.sin(e * 3) * 0.15; });
-  void gable;
+  // helper: build a wall as a box in local space
+  const wall = (w: number, h: number, d: number, x: number, y: number, z: number) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), logMat); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; g.add(m); return m;
+  };
+  // back + sides
+  wall(HWD * 2 + TH, WH, TH, 0, WH / 2, -HDD);
+  wall(TH, WH, HDD * 2, -HWD, WH / 2, 0);
+  wall(TH, WH, HDD * 2, HWD, WH / 2, 0);
+  // front wall in two segments, leaving a central doorway
+  const seg = (HWD * 2 - DOOR) / 2;
+  wall(seg, WH, TH, -(DOOR / 2 + seg / 2), WH / 2, HDD);
+  wall(seg, WH, TH, (DOOR / 2 + seg / 2), WH / 2, HDD);
+  wall(DOOR + 0.4, 0.6, TH, 0, WH - 0.3, HDD); // lintel above the door
 
-  ctx.addCollider({ x: CX, z: CZ, r: 3.6 });
+  // interior + exterior floor (wooden deck a touch above the dirt)
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(HWD * 2, 0.1, HDD * 2), darkWood); floor.position.y = 0.05; floor.receiveShadow = true; g.add(floor);
 
-  // porch bench (a seat) in front of the cabin, facing the campfire
-  const bx = CX + Math.sin(-0.6) * 3.6, bz = CZ + Math.cos(-0.6) * 3.6;
+  // gabled roof (two slanted slabs) + gable triangles — raised so it never
+  // traps the third-person camera, and the interior light keeps it readable.
+  const roofMat = new THREE.MeshStandardMaterial({ color: 0x4a3320, roughness: 1 });
+  for (const sgn of [-1, 1]) { const slab = new THREE.Mesh(new THREE.BoxGeometry(HWD * 2 + 0.8, 0.18, HDD + 0.6), roofMat); slab.position.set(0, WH + 0.9, sgn * (HDD / 2 + 0.1)); slab.rotation.x = sgn * -0.6; slab.castShadow = true; g.add(slab); }
+
+  // log-course lines on the exterior for texture
+  for (let i = 1; i < 6; i++) { const line = new THREE.Mesh(new THREE.BoxGeometry(HWD * 2 + TH + 0.02, 0.05, HDD * 2 + 0.02), darkWood); line.position.y = i * 0.5; g.add(line); }
+
+  // glowing windows (side + back walls)
+  for (const [wx, wz, ww, wd] of [[-HWD - 0.01, -1.4, 0.06, 1.0], [-HWD - 0.01, 1.4, 0.06, 1.0], [1.6, -HDD - 0.01, 1.0, 0.06]] as const) {
+    const win = new THREE.Mesh(new THREE.BoxGeometry(ww, 1.0, wd), winMat); win.position.set(wx, 1.7, wz); g.add(win);
+  }
+
+  // chimney
+  const chim = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.8, 0.7), new THREE.MeshStandardMaterial({ color: 0x555055, roughness: 1 })); chim.position.set(-HWD + 0.6, WH + 1.3, -HDD + 0.6); g.add(chim);
+
+  // ── interior: hearth, rug, warm light, two armchairs ──
+  const hearth = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.1, 0.5), new THREE.MeshStandardMaterial({ color: 0x6b6560, roughness: 1 })); hearth.position.set(0, 0.6, -HDD + 0.4); g.add(hearth);
+  const hfire = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.7, 8), new THREE.MeshBasicMaterial({ color: 0xffa63c, toneMapped: false })); hfire.position.set(0, 0.5, -HDD + 0.55); g.add(hfire);
+  const rug = new THREE.Mesh(new THREE.CircleGeometry(1.6, 24), new THREE.MeshStandardMaterial({ color: 0x7a3b2c, roughness: 1 })); rug.rotation.x = -Math.PI / 2; rug.position.set(0, 0.11, 0.4); g.add(rug);
+  const ilight = new THREE.PointLight(0xffbe78, 2.0, 16, 2); ilight.position.set(0, 2.2, 0.3); g.add(ilight);
+  ctx.onUpdate((_d, e) => { if (!ctx.perf.reduced) { const f = 1.9 + Math.sin(e * 10) * 0.3; ilight.intensity = f; hfire.scale.y = 0.85 + Math.sin(e * 11) * 0.15; } });
+
+  // two armchairs facing the hearth (interior seats)
+  const chairMat = new THREE.MeshStandardMaterial({ color: 0x5a3a28, roughness: 0.9 });
+  for (const sx of [-1.2, 1.2]) {
+    const cz = 1.1;
+    const seat = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.4, 0.8), chairMat); seat.position.set(sx, 0.4, cz); seat.castShadow = true; g.add(seat);
+    const back = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.7, 0.16), chairMat); back.position.set(sx, 0.75, cz + 0.32); g.add(back);
+    // world coords (group is axis-aligned at CX,CZ), seat faces the hearth (-z)
+    const wxp = CX + sx, wzp = CZ + cz;
+    ctx.addSeat({ id: `cabin_${sx}`, x: wxp, y: 0.62, z: wzp, yaw: Math.atan2(wxp - CX, wzp - (CZ - HDD)) });
+  }
+
+  // ── colliders: wall segments (doorway left open) ──
+  const addWallColliders = (ax: number, az: number, len: number, horizontal: boolean, gap = 0) => {
+    const n = Math.max(1, Math.round(len / 1.1));
+    for (let i = 0; i <= n; i++) {
+      const t = (i / n - 0.5) * len;
+      if (gap > 0 && Math.abs(t) < gap / 2) continue; // leave the doorway open
+      const x = CX + (horizontal ? t : ax), z = CZ + (horizontal ? az : t);
+      ctx.addCollider({ x, z, r: 0.7 });
+    }
+  };
+  addWallColliders(0, -HDD, HWD * 2, true);              // back
+  addWallColliders(-HWD, 0, HDD * 2, false);             // left
+  addWallColliders(HWD, 0, HDD * 2, false);              // right
+  addWallColliders(0, HDD, HWD * 2, true, DOOR + 0.6);   // front with doorway gap
+
+  // ── porch bench outside, facing the campfire ──
+  const bx = CX, bz = CZ + HDD + 1.6;
   const bench = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.16, 0.5), darkWood); bench.position.set(bx, 0.45, bz); bench.castShadow = true; ctx.scene.add(bench);
-  for (const s of [-0.7, 0.7]) { const leg = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.45, 0.45), darkWood); leg.position.set(bx + s * Math.cos(-0.6), 0.22, bz - s * Math.sin(-0.6)); ctx.scene.add(leg); }
-  ctx.addSeat({ id: 'porch', x: bx, y: 0.6, z: bz, yaw: Math.atan2(0 - bx, -2 - bz) });
-  ctx.addCollider({ x: bx, z: bz, r: 0.5 });
+  for (const s of [-0.7, 0.7]) { const leg = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.45, 0.45), darkWood); leg.position.set(bx + s, 0.22, bz); ctx.scene.add(leg); }
+  ctx.addCollider({ x: bx, z: bz, r: 0.6 });
+  ctx.addSeat({ id: 'porch', x: bx, y: 0.6, z: bz, yaw: Math.atan2(bx - 0, bz - (-2)) }); // faces the fire at (0,-2)
+
+  // a warm lantern by the door
+  const lantern = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.3, 0.18), winMat); lantern.position.set(DOOR / 2 + 0.3, 2.2, CZ + HDD + 0.05 - CZ); g.add(lantern);
+  const dl = new THREE.PointLight(0xffb765, 1.0, 8, 2); dl.position.set(DOOR / 2 + 0.3, 2.2, HDD + 0.1); g.add(dl);
+  void dl;
 }
 
 // ── Campfire with a ring of log seats ─────────────────────────────────
@@ -268,7 +322,7 @@ function buildCampfire(ctx: WorldContext) {
     const sx = FX + Math.cos(a) * 3.0, sz = FZ + Math.sin(a) * 3.0;
     const log = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 1.3, 10), logMat); log.rotation.z = Math.PI / 2; log.rotation.y = a; log.position.set(sx, 0.32, sz); log.castShadow = true; ctx.scene.add(log);
     ctx.addCollider({ x: sx, z: sz, r: 0.45 });
-    ctx.addSeat({ id: `fire${i}`, x: sx, y: 0.62, z: sz, yaw: Math.atan2(FX - sx, FZ - sz) });
+    ctx.addSeat({ id: `fire${i}`, x: sx, y: 0.62, z: sz, yaw: Math.atan2(sx - FX, sz - FZ) });
   }
 }
 

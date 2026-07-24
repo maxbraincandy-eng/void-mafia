@@ -164,7 +164,7 @@ function buildBar(ctx: WorldContext) {
     stool.position.set(sx, 0.31, sz); stool.castShadow = true; ctx.scene.add(stool);
     const ring = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.03, 6, 16), neon(PINK)); ring.rotation.x = Math.PI / 2; ring.position.set(sx, 0.6, sz); ctx.scene.add(ring);
     ctx.addCollider({ x: sx, z: sz, r: 0.34 });
-    ctx.addSeat({ id: `bar${i}`, x: sx, y: 0.64, z: sz, yaw: Math.atan2(BX - sx, BZ - sz), prop: 'drink' });
+    ctx.addSeat({ id: `bar${i}`, x: sx, y: 0.64, z: sz, yaw: Math.atan2(sx - BX, sz - BZ), prop: 'drink' });
   }
 }
 
@@ -195,7 +195,7 @@ function buildBooths(ctx: WorldContext) {
       const lx = sgn * 0.9, lz = -0.7;
       const wx = cx + lx * Math.cos(g.rotation.y) - lz * Math.sin(g.rotation.y);
       const wz = cz + lx * Math.sin(g.rotation.y) + lz * Math.cos(g.rotation.y);
-      ctx.addSeat({ id: `booth_${cx}_${sgn}`, x: wx, y: 0.55, z: wz, yaw: Math.atan2(cx - wx, cz - wz), prop: 'drink' });
+      ctx.addSeat({ id: `booth_${cx}_${sgn}`, x: wx, y: 0.55, z: wz, yaw: Math.atan2(wx - cx, wz - cz), prop: 'drink' });
     }
   }
 }
