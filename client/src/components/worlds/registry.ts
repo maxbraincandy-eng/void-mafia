@@ -8,6 +8,7 @@ import { cyberLounge } from './cyberLounge';
 import { mountainCabin } from './mountainCabin';
 import { skylineTerrace } from './skylineTerrace';
 import { privateYacht } from './privateYacht';
+import { rotmundi } from './rotmundi';
 
 export const PREMIUM_WORLDS: WorldDef[] = [
   beachCamp,
@@ -15,6 +16,7 @@ export const PREMIUM_WORLDS: WorldDef[] = [
   mountainCabin,
   skylineTerrace,
   privateYacht,
+  rotmundi,
 ];
 
 export function getWorld(id: string): WorldDef | undefined {
