@@ -390,6 +390,18 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
       {/* Flagship banners — only in the default view */}
       {cat === 'all' && !q && (
         <>
+          <button onClick={() => openGame(byId('watchparty')!)} className="w-full text-left rounded-2xl overflow-hidden transition-all active:scale-[0.99]"
+            style={{ border: '1px solid rgba(255,93,93,0.45)', boxShadow: '0 6px 34px rgba(255,60,70,0.18)' }}>
+            <div style={{ height: 92, background: 'linear-gradient(135deg, #3a0f14 0%, #24101c 55%, #120a10 100%)', display: 'flex', alignItems: 'center', gap: 14, padding: '0 18px', position: 'relative' }}>
+              <span style={{ fontSize: 44, filter: 'drop-shadow(0 4px 14px rgba(255,93,93,0.5))' }} className="flex-shrink-0">🎬</span>
+              <div className="flex-1 min-w-0">
+                <p className="font-display font-black text-white text-base leading-tight tracking-[0.1em]" style={{ background: 'linear-gradient(90deg,#ffe3e3,#ff5d5d)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>კინო სივრცე</p>
+                <p className="font-mono text-[12px] text-white/55 mt-0.5">ერთად უყურეთ ვიდეოს · სინქრონში + ხმა</p>
+              </div>
+              <span style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 1, color: '#fff', background: 'rgba(255,60,70,0.9)', borderRadius: 8, padding: '3px 8px' }}>NEW</span>
+            </div>
+          </button>
+
           <button onClick={() => openGame(byId('voidiq')!)} className="w-full text-left rounded-2xl overflow-hidden transition-all active:scale-[0.99]"
             style={{ border: '1px solid rgba(79,184,255,0.45)', boxShadow: '0 6px 34px rgba(0,150,255,0.18)' }}>
             <div style={{ height: 92, background: 'linear-gradient(135deg, #0a2a4a 0%, #1a1a4a 55%, #2a1a5a 100%)', display: 'flex', alignItems: 'center', gap: 14, padding: '0 18px', position: 'relative' }}>
