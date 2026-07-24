@@ -134,9 +134,10 @@ function buildGrass(ctx: WorldContext) {
   for (let i = 0; i < COUNT; i++) {
     const a = rnd() * Math.PI * 2, rad = Math.sqrt(rnd()) * R;
     const x = Math.cos(a) * rad, z = Math.sin(a) * rad;
-    // keep grass out of the lake and the worn gathering patch
+    // keep grass out of the lake, the gathering patch and the lodge footprint
     if (Math.hypot(x + 19, z - 14) < 11.5) continue;
     if (Math.hypot(x, z + 2) < 8.5) continue;
+    if (Math.hypot(x - 15, z + 10) < 8) continue;
     dummy.position.set(x, 0, z);
     dummy.rotation.y = rnd() * Math.PI;
     const sc = rr(0.7, 1.5); dummy.scale.set(sc, rr(0.8, 1.4), sc);
@@ -159,6 +160,7 @@ function buildForest(ctx: WorldContext) {
     const rad = rr(R - 4, R + 22);
     const x = Math.cos(a) * rad, z = Math.sin(a) * rad;
     if (Math.hypot(x + 19, z - 14) < 13) continue;   // not in the lake
+    if (Math.hypot(x - 15, z + 10) < 9) continue;    // not on the lodge
     spots.push([x, z, rr(0.8, 1.6)]);
   }
   const trunkMat = new THREE.MeshStandardMaterial({ color: 0x4a3320, roughness: 1 });
@@ -188,6 +190,7 @@ function buildRocks(ctx: WorldContext) {
     const x = Math.cos(a) * rad, z = Math.sin(a) * rad;
     if (Math.hypot(x, z + 2) < 6) continue;
     if (Math.hypot(x + 19, z - 14) < 12) continue;
+    if (Math.hypot(x - 15, z + 10) < 8) continue;
     spots.push([x, z, rr(0.4, 1.1)]);
   }
   const mat = new THREE.MeshStandardMaterial({ color: 0x6b7280, roughness: 1 });
@@ -202,95 +205,104 @@ function buildRocks(ctx: WorldContext) {
   inst.instanceMatrix.needsUpdate = true; ctx.scene.add(inst);
 }
 
-// ── Enterable log cabin (hollow, doorway, cosy interior) ──────────────
+// ── Enterable lodge — spacious, bright, OPEN-TOP so the third-person camera
+//    never gets trapped and daylight fills the room. A cosy fireside seating
+//    area (long sofa + two armchairs) sits inside; a bench waits on the porch.
 function buildCabin(ctx: WorldContext) {
-  const CX = 13, CZ = -9;            // cabin centre (axis-aligned so you can walk in)
-  const HWD = 4.2, HDD = 3.6;        // half-width / half-depth of the interior box
-  const WH = 3.1, TH = 0.3;          // wall height / thickness
-  const DOOR = 1.5;                  // doorway width in the +z (front) wall
+  const CX = 15, CZ = -10;           // lodge centre (axis-aligned so you can walk in)
+  const HWD = 6, HDD = 5;            // half-width / half-depth of the interior
+  const WH = 2.6, TH = 0.3;          // wall height / thickness (low walls = airy)
+  const DOOR = 3.0;                  // wide doorway in the +z (front) wall
   const g = new THREE.Group(); g.position.set(CX, 0, CZ); ctx.scene.add(g);
 
-  const logMat = new THREE.MeshStandardMaterial({ color: 0x6a4a2c, roughness: 1 });
+  const logMat = new THREE.MeshStandardMaterial({ color: 0x7a5636, roughness: 1 });
   const darkWood = new THREE.MeshStandardMaterial({ color: 0x3a2716, roughness: 1 });
   const winMat = new THREE.MeshBasicMaterial({ color: 0xffd48a, toneMapped: false });
 
-  // helper: build a wall as a box in local space
   const wall = (w: number, h: number, d: number, x: number, y: number, z: number) => {
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), logMat); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; g.add(m); return m;
   };
-  // back + sides
-  wall(HWD * 2 + TH, WH, TH, 0, WH / 2, -HDD);
-  wall(TH, WH, HDD * 2, -HWD, WH / 2, 0);
-  wall(TH, WH, HDD * 2, HWD, WH / 2, 0);
-  // front wall in two segments, leaving a central doorway
-  const seg = (HWD * 2 - DOOR) / 2;
+  wall(HWD * 2 + TH, WH, TH, 0, WH / 2, -HDD);          // back
+  wall(TH, WH, HDD * 2, -HWD, WH / 2, 0);               // left
+  wall(TH, WH, HDD * 2, HWD, WH / 2, 0);                // right
+  const seg = (HWD * 2 - DOOR) / 2;                     // front: two segments + doorway
   wall(seg, WH, TH, -(DOOR / 2 + seg / 2), WH / 2, HDD);
   wall(seg, WH, TH, (DOOR / 2 + seg / 2), WH / 2, HDD);
-  wall(DOOR + 0.4, 0.6, TH, 0, WH - 0.3, HDD); // lintel above the door
 
-  // interior + exterior floor (wooden deck a touch above the dirt)
-  const floor = new THREE.Mesh(new THREE.BoxGeometry(HWD * 2, 0.1, HDD * 2), darkWood); floor.position.y = 0.05; floor.receiveShadow = true; g.add(floor);
+  // wooden floor
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(HWD * 2, 0.1, HDD * 2), new THREE.MeshStandardMaterial({ color: 0x5a4128, roughness: 1 })); floor.position.y = 0.05; floor.receiveShadow = true; g.add(floor);
 
-  // gabled roof (two slanted slabs) + gable triangles — raised so it never
-  // traps the third-person camera, and the interior light keeps it readable.
-  const roofMat = new THREE.MeshStandardMaterial({ color: 0x4a3320, roughness: 1 });
-  for (const sgn of [-1, 1]) { const slab = new THREE.Mesh(new THREE.BoxGeometry(HWD * 2 + 0.8, 0.18, HDD + 0.6), roofMat); slab.position.set(0, WH + 0.9, sgn * (HDD / 2 + 0.1)); slab.rotation.x = sgn * -0.6; slab.castShadow = true; g.add(slab); }
+  // Open timber frame (posts + top beams + a ridge) — reads as a lodge from
+  // outside but leaves the centre open to the sky, so nothing traps the camera.
+  const beamMat = new THREE.MeshStandardMaterial({ color: 0x4a3320, roughness: 1 });
+  for (const [px, pz] of [[-HWD, -HDD], [HWD, -HDD], [-HWD, HDD], [HWD, HDD]] as const) {
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.3, WH + 1.4, 0.3), beamMat); post.position.set(px, (WH + 1.4) / 2, pz); post.castShadow = true; g.add(post);
+  }
+  for (const sgn of [-1, 1]) {
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(HWD * 2 + 0.4, 0.2, 0.2), beamMat); beam.position.set(0, WH + 1.3, sgn * HDD); g.add(beam);
+    const side = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, HDD * 2), beamMat); side.position.set(sgn * HWD, WH + 1.3, 0); g.add(side);
+  }
+  const ridge = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.24, HDD * 2 + 0.4), beamMat); ridge.position.set(0, WH + 2.2, 0); g.add(ridge);
+  for (const sgn of [-1, 1]) { const rafter = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, HDD * 2 + 0.6), beamMat); rafter.position.set(sgn * HWD * 0.6, WH + 1.75, 0); g.add(rafter); }
+  // small eave panels along the two long sides only (a hint of roof, centre open)
+  const roofMat = new THREE.MeshStandardMaterial({ color: 0x513a24, roughness: 1 });
+  for (const sgn of [-1, 1]) { const eave = new THREE.Mesh(new THREE.BoxGeometry(HWD * 2 + 1, 0.16, 1.4), roofMat); eave.position.set(0, WH + 1.5, sgn * (HDD - 0.2)); eave.rotation.x = sgn * -0.5; g.add(eave); }
 
-  // log-course lines on the exterior for texture
-  for (let i = 1; i < 6; i++) { const line = new THREE.Mesh(new THREE.BoxGeometry(HWD * 2 + TH + 0.02, 0.05, HDD * 2 + 0.02), darkWood); line.position.y = i * 0.5; g.add(line); }
-
-  // glowing windows (side + back walls)
-  for (const [wx, wz, ww, wd] of [[-HWD - 0.01, -1.4, 0.06, 1.0], [-HWD - 0.01, 1.4, 0.06, 1.0], [1.6, -HDD - 0.01, 1.0, 0.06]] as const) {
-    const win = new THREE.Mesh(new THREE.BoxGeometry(ww, 1.0, wd), winMat); win.position.set(wx, 1.7, wz); g.add(win);
+  // glowing windows on the side + back walls
+  for (const [wx, wz, ww, wd] of [[-HWD - 0.02, -2, 0.06, 1.1], [-HWD - 0.02, 2, 0.06, 1.1], [HWD + 0.02, -2, 0.06, 1.1], [-2.5, -HDD - 0.02, 1.1, 0.06], [2.5, -HDD - 0.02, 1.1, 0.06]] as const) {
+    const win = new THREE.Mesh(new THREE.BoxGeometry(ww, 1.0, wd), winMat); win.position.set(wx, 1.5, wz); g.add(win);
   }
 
-  // chimney
-  const chim = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.8, 0.7), new THREE.MeshStandardMaterial({ color: 0x555055, roughness: 1 })); chim.position.set(-HWD + 0.6, WH + 1.3, -HDD + 0.6); g.add(chim);
+  const chim = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.6, 0.7), new THREE.MeshStandardMaterial({ color: 0x555055, roughness: 1 })); chim.position.set(-HWD + 0.7, WH + 1.6, -HDD + 0.7); g.add(chim);
 
-  // ── interior: hearth, rug, warm light, two armchairs ──
-  const hearth = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.1, 0.5), new THREE.MeshStandardMaterial({ color: 0x6b6560, roughness: 1 })); hearth.position.set(0, 0.6, -HDD + 0.4); g.add(hearth);
-  const hfire = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.7, 8), new THREE.MeshBasicMaterial({ color: 0xffa63c, toneMapped: false })); hfire.position.set(0, 0.5, -HDD + 0.55); g.add(hfire);
-  const rug = new THREE.Mesh(new THREE.CircleGeometry(1.6, 24), new THREE.MeshStandardMaterial({ color: 0x7a3b2c, roughness: 1 })); rug.rotation.x = -Math.PI / 2; rug.position.set(0, 0.11, 0.4); g.add(rug);
-  const ilight = new THREE.PointLight(0xffbe78, 2.0, 16, 2); ilight.position.set(0, 2.2, 0.3); g.add(ilight);
-  ctx.onUpdate((_d, e) => { if (!ctx.perf.reduced) { const f = 1.9 + Math.sin(e * 10) * 0.3; ilight.intensity = f; hfire.scale.y = 0.85 + Math.sin(e * 11) * 0.15; } });
+  // ── fireside seating: hearth, rug, coffee table, sofa + two armchairs ──
+  const hearth = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.2, 0.5), new THREE.MeshStandardMaterial({ color: 0x6b6560, roughness: 1 })); hearth.position.set(0, 0.6, -HDD + 0.35); g.add(hearth);
+  const hfire = new THREE.Mesh(new THREE.ConeGeometry(0.34, 0.8, 8), new THREE.MeshBasicMaterial({ color: 0xffa63c, toneMapped: false })); hfire.position.set(0, 0.55, -HDD + 0.55); g.add(hfire);
+  const rug = new THREE.Mesh(new THREE.CircleGeometry(2.4, 28), new THREE.MeshStandardMaterial({ color: 0x7a3b2c, roughness: 1 })); rug.rotation.x = -Math.PI / 2; rug.position.set(0, 0.11, -0.6); g.add(rug);
+  const table = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.6, 0.5, 16), darkWood); table.position.set(0, 0.25, -0.6); g.add(table);
+  const ilight = new THREE.PointLight(0xffc98a, 2.2, 20, 2); ilight.position.set(0, 2.6, -0.6); g.add(ilight);
+  ctx.onUpdate((_d, e) => { if (!ctx.perf.reduced) { ilight.intensity = 2.1 + Math.sin(e * 10) * 0.3; hfire.scale.y = 0.85 + Math.sin(e * 11) * 0.15; } });
 
-  // two armchairs facing the hearth (interior seats)
-  const chairMat = new THREE.MeshStandardMaterial({ color: 0x5a3a28, roughness: 0.9 });
-  for (const sx of [-1.2, 1.2]) {
-    const cz = 1.1;
-    const seat = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.4, 0.8), chairMat); seat.position.set(sx, 0.4, cz); seat.castShadow = true; g.add(seat);
-    const back = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.7, 0.16), chairMat); back.position.set(sx, 0.75, cz + 0.32); g.add(back);
-    // world coords (group is axis-aligned at CX,CZ), seat faces the hearth (-z)
-    const wxp = CX + sx, wzp = CZ + cz;
-    ctx.addSeat({ id: `cabin_${sx}`, x: wxp, y: 0.62, z: wzp, yaw: Math.atan2(wxp - CX, wzp - (CZ - HDD)) });
+  const HEARTH_Z = CZ - HDD;   // world z of the hearth (seats face it)
+  const seatMat = new THREE.MeshStandardMaterial({ color: 0x6a4630, roughness: 0.9 });
+  const faceHearth = (wx: number, wz: number) => Math.atan2(wx - CX, wz - HEARTH_Z);
+
+  // long sofa along the +z side, 3 sit spots, facing the hearth
+  const sofaZ = 1.6;
+  const sofaBase = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.45, 1.0), seatMat); sofaBase.position.set(0, 0.28, sofaZ); sofaBase.castShadow = true; g.add(sofaBase);
+  const sofaBack = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.7, 0.2), seatMat); sofaBack.position.set(0, 0.7, sofaZ + 0.4); g.add(sofaBack);
+  for (const sx of [-1.4, 0, 1.4]) { const wxp = CX + sx, wzp = CZ + sofaZ; ctx.addSeat({ id: `sofa_${sx}`, x: wxp, y: 0.6, z: wzp, yaw: faceHearth(wxp, wzp) }); }
+  ctx.addCollider({ x: CX, z: CZ + sofaZ + 0.3, r: 0.5 });
+
+  // two armchairs angled at the sides, facing the hearth
+  for (const sx of [-3.4, 3.4]) {
+    const cz = -0.4;
+    const chair = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.45, 1.0), seatMat); chair.position.set(sx, 0.28, cz); chair.castShadow = true; g.add(chair);
+    const back = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.7, 0.18), seatMat); back.position.set(sx, 0.7, cz + (sx > 0 ? 0.4 : 0.4)); g.add(back);
+    const wxp = CX + sx, wzp = CZ + cz; ctx.addSeat({ id: `chair_${sx}`, x: wxp, y: 0.6, z: wzp, yaw: faceHearth(wxp, wzp) });
+    ctx.addCollider({ x: wxp, z: wzp, r: 0.6 });
   }
 
-  // ── colliders: wall segments (doorway left open) ──
-  const addWallColliders = (ax: number, az: number, len: number, horizontal: boolean, gap = 0) => {
-    const n = Math.max(1, Math.round(len / 1.1));
+  // ── wall colliders (wide doorway kept clear) ──
+  const addWall = (ax: number, az: number, len: number, horizontal: boolean, gap = 0) => {
+    const n = Math.max(1, Math.round(len / 1.0));
     for (let i = 0; i <= n; i++) {
       const t = (i / n - 0.5) * len;
-      if (gap > 0 && Math.abs(t) < gap / 2) continue; // leave the doorway open
-      const x = CX + (horizontal ? t : ax), z = CZ + (horizontal ? az : t);
-      ctx.addCollider({ x, z, r: 0.7 });
+      if (gap > 0 && Math.abs(t) < gap / 2) continue;
+      ctx.addCollider({ x: CX + (horizontal ? t : ax), z: CZ + (horizontal ? az : t), r: 0.55 });
     }
   };
-  addWallColliders(0, -HDD, HWD * 2, true);              // back
-  addWallColliders(-HWD, 0, HDD * 2, false);             // left
-  addWallColliders(HWD, 0, HDD * 2, false);              // right
-  addWallColliders(0, HDD, HWD * 2, true, DOOR + 0.6);   // front with doorway gap
+  addWall(0, -HDD, HWD * 2, true);
+  addWall(-HWD, 0, HDD * 2, false);
+  addWall(HWD, 0, HDD * 2, false);
+  addWall(0, HDD, HWD * 2, true, DOOR + 1.4);   // generous clear doorway
 
   // ── porch bench outside, facing the campfire ──
-  const bx = CX, bz = CZ + HDD + 1.6;
+  const bx = CX, bz = CZ + HDD + 1.8;
   const bench = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.16, 0.5), darkWood); bench.position.set(bx, 0.45, bz); bench.castShadow = true; ctx.scene.add(bench);
   for (const s of [-0.7, 0.7]) { const leg = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.45, 0.45), darkWood); leg.position.set(bx + s, 0.22, bz); ctx.scene.add(leg); }
   ctx.addCollider({ x: bx, z: bz, r: 0.6 });
-  ctx.addSeat({ id: 'porch', x: bx, y: 0.6, z: bz, yaw: Math.atan2(bx - 0, bz - (-2)) }); // faces the fire at (0,-2)
-
-  // a warm lantern by the door
-  const lantern = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.3, 0.18), winMat); lantern.position.set(DOOR / 2 + 0.3, 2.2, CZ + HDD + 0.05 - CZ); g.add(lantern);
-  const dl = new THREE.PointLight(0xffb765, 1.0, 8, 2); dl.position.set(DOOR / 2 + 0.3, 2.2, HDD + 0.1); g.add(dl);
-  void dl;
+  ctx.addSeat({ id: 'porch', x: bx, y: 0.6, z: bz, yaw: Math.atan2(bx - 0, bz - (-2)) });
 }
 
 // ── Campfire with a ring of log seats ─────────────────────────────────
