@@ -5,7 +5,7 @@
 // loop survive re-renders. Reused by every present and future Premium World.
 import * as THREE from 'three';
 import { Avatar, type EmoteKind } from './avatar';
-import type { WorldDef, WorldContext, WorldCollider, WorldSeat, WorldInteractable, AmbientSource, AvatarConfig, WorldScreen } from './types';
+import type { WorldDef, WorldContext, WorldCollider, WorldSeat, WorldInteractable, AmbientSource, AvatarConfig, WorldScreen, WorldSwimZone, WorldVehicle, VehicleKind } from './types';
 import type { CharacterSpec } from '../character/spec';
 import { tNow } from '@/store/langStore';
 
@@ -35,6 +35,11 @@ export type QualityMode = 'auto' | 'high' | 'low';
 const EYE = 1.5;
 const WALK = 2.6, RUN = 5.4;
 const CAM_DIST = 5.2, CAM_HEIGHT = 2.1;
+const VEH_Y = -0.5;                 // vehicle hull float height
+const VEH_SEAT = VEH_Y + 0.75;      // rider height while driving
+const OCEAN_R = 74;                 // how far you can roam on the water
+
+type VehicleInst = WorldVehicle & { mesh: THREE.Group; ry: number; homeX: number; homeZ: number; homeYaw: number };
 
 export class WorldEngine {
   input = { move: { x: 0, y: 0 }, run: false };
@@ -63,6 +68,12 @@ export class WorldEngine {
   private interactables: WorldInteractable[] = [];
   private nearObj: WorldInteractable | null = null;
   private seated: WorldSeat | null = null;
+  // swimming + vehicles
+  private swimZones: WorldSwimZone[] = [];
+  private vehicles: VehicleInst[] = [];
+  private riding: VehicleInst | null = null;
+  private nearVehicle: VehicleInst | null = null;
+  private groundY = 0;              // eased target floor height (0 = deck, <0 = water)
   private lastObjInteract = 0;
   onInteract: ((id: string) => void) | null = null;
   private updates: ((dt: number, elapsed: number) => void)[] = [];
@@ -142,10 +153,13 @@ export class WorldEngine {
 
   addLook(dx: number, dy: number) { this.pendingLook.x += dx; this.pendingLook.y += dy; }
   interact() {
+    if (this.riding) { this.dismount(); return; }
     if (this.seated) { this.stand(); return; }
-    // prefer whichever (seat or object) is closer
+    // prefer whichever (vehicle / seat / object) is closest
     const sd = this.nearSeat ? (this.nearSeat.x - this.pos.x) ** 2 + (this.nearSeat.z - this.pos.z) ** 2 : Infinity;
     const od = this.nearObj ? (this.nearObj.x - this.pos.x) ** 2 + (this.nearObj.z - this.pos.z) ** 2 : Infinity;
+    const vd = this.nearVehicle ? (this.nearVehicle.mesh.position.x - this.pos.x) ** 2 + (this.nearVehicle.mesh.position.z - this.pos.z) ** 2 : Infinity;
+    if (this.nearVehicle && vd <= sd && vd <= od) { this.mount(this.nearVehicle); return; }
     if (this.nearObj && od <= sd) {
       const now = performance.now();
       if (now - this.lastObjInteract < 550) return; // debounce accidental double-fire
@@ -154,7 +168,7 @@ export class WorldEngine {
     }
     if (this.nearSeat) this.sit(this.nearSeat);
   }
-  jump() { if (!this.seated && this.pos.y <= 0.02) this.vy = 8.0; }
+  jump() { if (!this.seated && !this.riding && this.pos.y <= this.groundY + 0.05) this.vy = 8.0; }
   // 1 near the screen, fading with distance — drives the cinema volume. The
   // audible radius is generous so the TV can be heard from most of the camp
   // (spawn, fire, DJ booth, karaoke are all ~12-20 units away); it only fully
@@ -442,12 +456,58 @@ export class WorldEngine {
       addSeat: (s) => this.seats.push(s),
       addInteractable: (o) => this.interactables.push(o),
       addAmbient: (a) => this.ambients.push(a),
+      addSwimZone: (z) => this.swimZones.push(z),
+      addVehicle: (v) => {
+        const mesh = this.buildVehicle(v.kind);
+        const yaw = v.yaw ?? 0;
+        mesh.position.set(v.x, VEH_Y, v.z); mesh.rotation.y = yaw;
+        this.scene.add(mesh);
+        this.vehicles.push({ ...v, mesh, ry: yaw, homeX: v.x, homeZ: v.z, homeYaw: yaw });
+      },
       setScreen: (s) => { this.screen = s; },
       onUpdate: (fn) => this.updates.push(fn),
       disposables: [],
       perf: this.worldPerf,
     };
     this.def.build(ctx);
+  }
+
+  // ── water vehicles ───────────────────────────────────────────────────
+  private buildVehicle(kind: VehicleKind): THREE.Group {
+    const g = new THREE.Group();
+    const accent = new THREE.MeshBasicMaterial({ color: 0x35e0e0, toneMapped: false });
+    if (kind === 'jetski') {
+      const hullMat = new THREE.MeshStandardMaterial({ color: 0xff3b6a, roughness: 0.4, metalness: 0.3 });
+      const hull = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.4, 2.0), hullMat); hull.position.y = 0.35; hull.castShadow = true; g.add(hull);
+      const nose = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.9, 4), hullMat); nose.rotation.x = -Math.PI / 2; nose.rotation.y = Math.PI / 4; nose.position.set(0, 0.35, -1.3); nose.scale.set(1, 1, 0.6); g.add(nose);
+      const seat = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.2, 0.9), new THREE.MeshStandardMaterial({ color: 0x1a1a22, roughness: 0.8 })); seat.position.set(0, 0.6, 0.2); g.add(seat);
+      const bars = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.06, 0.06), new THREE.MeshStandardMaterial({ color: 0x111, roughness: 0.5 })); bars.position.set(0, 0.75, -0.5); g.add(bars);
+      const strip = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.06, 1.4), accent); strip.position.set(0, 0.5, 0.1); g.add(strip);
+    } else {
+      const hullMat = new THREE.MeshStandardMaterial({ color: 0xeef0f4, roughness: 0.35, metalness: 0.2 });
+      const hull = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.6, 4.0), hullMat); hull.position.y = 0.4; hull.castShadow = true; g.add(hull);
+      const nose = new THREE.Mesh(new THREE.ConeGeometry(0.8, 1.6, 4), hullMat); nose.rotation.x = -Math.PI / 2; nose.rotation.y = Math.PI / 4; nose.position.set(0, 0.4, -2.4); nose.scale.set(1, 1, 0.6); g.add(nose);
+      const deck = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.1, 3.4), new THREE.MeshStandardMaterial({ color: 0x3a3228, roughness: 0.7 })); deck.position.set(0, 0.72, 0.2); g.add(deck);
+      const screen = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.5, 0.08), new THREE.MeshStandardMaterial({ color: 0x2a3550, transparent: true, opacity: 0.5, roughness: 0.05, metalness: 0.6 })); screen.position.set(0, 1.05, -0.6); screen.rotation.x = -0.3; g.add(screen);
+      const strip = new THREE.Mesh(new THREE.BoxGeometry(1.65, 0.1, 3.0), accent); strip.position.set(0, 0.55, 0.2); g.add(strip);
+    }
+    return g;
+  }
+
+  private mount(v: VehicleInst) {
+    this.riding = v; this.seated = null;
+    this.facing = v.ry; this.camYaw = v.ry;
+    this.pos.set(v.mesh.position.x, VEH_SEAT, v.mesh.position.z);
+    this.vy = 0; this.input.move.x = 0; this.input.move.y = 0;
+  }
+  private dismount() {
+    const v = this.riding; if (!v) return;
+    this.riding = null;
+    // dock the vehicle back at its berth
+    v.mesh.position.set(v.homeX, VEH_Y, v.homeZ); v.mesh.rotation.y = v.homeYaw; v.ry = v.homeYaw;
+    // step onto the deck, nudged inboard from the berth
+    this.pos.set(v.homeX - Math.sign(v.homeX || 1) * 1.6, 0, v.homeZ - Math.sign(v.homeZ || 1) * 1.6);
+    this.groundY = 0; this.pos.y = 0; this.vy = 0;
   }
 
   // ── per-frame ───────────────────────────────────────────────────────
@@ -462,26 +522,51 @@ export class WorldEngine {
     this.camPitch = Math.max(-0.85, Math.min(1.2, this.camPitch + this.pendingLook.y * 0.0028));
     this.pendingLook.x = 0; this.pendingLook.y = 0;
 
-    // deep water → swimming (slower, half-submerged), but not while on the pier
+    // swim zones: inside one, the avatar drops to water level and swims.
+    // Beach keeps its original hardcoded shoreline swim (shore stays at y=0).
     const onPier = this.pos.x > -8 && this.pos.x < -4;
-    const swimming = !this.seated && this.pos.z < -34 && Math.abs(this.pos.x) < 42 && !onPier;
+    let inZone: WorldSwimZone | null = null;
+    if (!this.riding && !this.seated) {
+      for (const z of this.swimZones) { const dx = this.pos.x - z.x, dz = this.pos.z - z.z; if (dx * dx + dz * dz < z.r * z.r) { inZone = z; break; } }
+    }
+    const beachSwim = this.def.id === 'beach_camp' && this.pos.z < -34 && Math.abs(this.pos.x) < 42 && !onPier;
+    const swimming = !this.seated && !this.riding && (beachSwim || !!inZone);
+    const desiredGroundY = inZone ? (inZone.waterY ?? -0.9) : 0;
 
-    // movement (camera-relative), unless seated
+    // movement (camera-relative)
     let moveSpeed = 0;
-    if (!this.seated) {
+    if (this.riding) {
+      // ── driving a water vehicle ──
+      const v = this.riding;
+      let mx = this.input.move.x, my = this.input.move.y;
+      const mag = Math.hypot(mx, my); if (mag > 1) { mx /= mag; my /= mag; }
+      if (mag > 0.05) {
+        const speed = this.input.run ? 12 : 8;
+        const sin = Math.sin(this.camYaw), cos = Math.cos(this.camYaw);
+        const nx = ((-sin) * my + cos * mx), nz = ((-cos) * my + (-sin) * mx);
+        const len = Math.hypot(nx, nz) || 1; const ux = nx / len, uz = nz / len;
+        let px = this.pos.x + ux * speed * dt, pz = this.pos.z + uz * speed * dt;
+        const rr = Math.hypot(px, pz); if (rr > OCEAN_R) { px = px / rr * OCEAN_R; pz = pz / rr * OCEAN_R; }
+        this.pos.x = px; this.pos.z = pz;
+        const tf = Math.atan2(-ux, -uz); let d = tf - this.facing;
+        while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2;
+        this.facing += d * Math.min(1, dt * 6);
+        moveSpeed = speed * Math.min(1, mag);
+      }
+      this.pos.y = VEH_SEAT;
+      v.mesh.position.set(this.pos.x, VEH_Y, this.pos.z); v.mesh.rotation.y = this.facing; v.ry = this.facing;
+    } else if (!this.seated) {
       let mx = this.input.move.x, my = this.input.move.y;
       const mag = Math.hypot(mx, my);
       if (mag > 1) { mx /= mag; my /= mag; }
       if (mag > 0.05) {
         const speed = (this.input.run ? RUN : WALK) * (swimming ? 0.5 : 1);
         const sin = Math.sin(this.camYaw), cos = Math.cos(this.camYaw);
-        // forward = (-sin,-cos) relative to camera yaw
         const dirX = (-sin) * my + cos * mx;
         const dirZ = (-cos) * my + (-sin) * mx;
         const len = Math.hypot(dirX, dirZ) || 1;
         const nx = dirX / len, nz = dirZ / len;
         this.moveWithCollision(nx * speed * dt, nz * speed * dt);
-        // face movement direction (shortest-arc turn)
         const targetFace = Math.atan2(-nx, -nz);
         let d = targetFace - this.facing;
         while (d > Math.PI) d -= Math.PI * 2;
@@ -489,17 +574,20 @@ export class WorldEngine {
         this.facing += d * Math.min(1, dt * 12);
         moveSpeed = speed * Math.min(1, mag);
       }
-      // vertical (jump + gravity)
-      if (this.vy !== 0 || this.pos.y > 0) {
+      // vertical: gravity/jump clamped to the eased floor (deck or water level)
+      this.groundY += (desiredGroundY - this.groundY) * Math.min(1, dt * 6);
+      if (this.vy !== 0 || this.pos.y > this.groundY + 0.001) {
         this.pos.y += this.vy * dt;
         this.vy -= 22 * dt;
-        if (this.pos.y <= 0) { this.pos.y = 0; this.vy = 0; }
+        if (this.pos.y <= this.groundY) { this.pos.y = this.groundY; this.vy = 0; }
+      } else {
+        this.pos.y += (this.groundY - this.pos.y) * Math.min(1, dt * 6);
       }
     }
 
-    // nearest (free) seat + nearest interactable prompt
-    this.nearSeat = null; this.nearObj = null;
-    if (!this.seated) {
+    // nearest (free) seat + interactable + docked vehicle prompt
+    this.nearSeat = null; this.nearObj = null; this.nearVehicle = null;
+    if (!this.seated && !this.riding) {
       let bd = 2.3 * 2.3;
       for (const s of this.seats) {
         if (this.occupiedSeats.has(s.id)) continue;
@@ -512,12 +600,18 @@ export class WorldEngine {
         const d = dx * dx + dz * dz;
         if (d < o.r * o.r && (!this.nearObj || d < (this.nearObj.x - this.pos.x) ** 2 + (this.nearObj.z - this.pos.z) ** 2)) this.nearObj = o;
       }
+      let vbd = 3.0 * 3.0;
+      for (const v of this.vehicles) {
+        const dx = v.mesh.position.x - this.pos.x, dz = v.mesh.position.z - this.pos.z;
+        const d = dx * dx + dz * dz;
+        if (d < vbd) { vbd = d; this.nearVehicle = v; }
+      }
     }
 
     // avatar transform + animation
     this.avatar.group.position.set(this.pos.x, this.pos.y, this.pos.z);
     this.avatar.group.rotation.y = this.facing;
-    this.avatar.state = this.seated && !this.seated.pose ? 'sit' : 'idle';
+    this.avatar.state = (this.seated && !this.seated.pose) || this.riding ? 'sit' : 'idle';
     this.avatar.holdPose = this.seated?.pose ?? (swimming ? 'swim' : null);
     this.avatar.setProp(this.seated?.prop ?? null);
     this.avatar.update(dt, moveSpeed);
@@ -555,8 +649,13 @@ export class WorldEngine {
       this.hudAccum = 0;
       this.nearScreen = !!this.screen && Math.hypot(this.screen.x - this.pos.x, this.screen.z - this.pos.z) < 9;
       const W = tNow().worlds;
-      const label = this.seated ? (this.seated.pose ? W.shipDown : W.standUp) : this.nearObj ? this.nearObj.label : this.nearSeat ? (this.nearSeat.pose ? W.shipStand : W.sit) : null;
-      this.onHud?.({ world: this.def.name, sitting: !!this.seated, canInteract: label, players: 1 + this.remotes.size, nearScreen: this.nearScreen });
+      const label = this.riding ? '🚪 გადმოსვლა'
+        : this.seated ? (this.seated.pose ? W.shipDown : W.standUp)
+        : this.nearVehicle ? '🛥️ მართვა'
+        : this.nearObj ? this.nearObj.label
+        : this.nearSeat ? (this.nearSeat.pose ? W.shipStand : W.sit)
+        : null;
+      this.onHud?.({ world: this.def.name, sitting: !!this.seated || !!this.riding, canInteract: label, players: 1 + this.remotes.size, nearScreen: this.nearScreen });
     }
 
     this.updateBubbles();

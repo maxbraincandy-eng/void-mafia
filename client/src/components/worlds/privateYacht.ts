@@ -66,6 +66,7 @@ export const privateYacht: WorldDef = {
     buildHelm(ctx);
     buildStringLights(ctx);
     buildBoundary(ctx);
+    buildWater(ctx);
 
     ctx.addAmbient({ kind: 'night', x: 0, z: 0, radius: 140 });
     ctx.addAmbient({ kind: 'wind', x: 0, z: 0, radius: 140 });
@@ -182,7 +183,7 @@ function buildRailing(ctx: WorldContext) {
   };
   addRun(-HW + 0.2, -HL + 6, -HW + 0.2, HL - 2);  // port
   addRun(HW - 0.2, -HL + 6, HW - 0.2, HL - 2);    // starboard
-  addRun(-HW + 0.2, HL - 2, HW - 0.2, HL - 2);    // stern
+  addRun(-HW + 0.2, HL - 2, -2.3, HL - 2); addRun(2.3, HL - 2, HW - 0.2, HL - 2); // stern (gap = swim platform)
   addRun(-HW + 0.2, -HL + 6, 0, -HL - 0.5); addRun(0, -HL - 0.5, HW - 0.2, -HL + 6); // bow point
 }
 
@@ -359,6 +360,28 @@ function buildBoundary(ctx: WorldContext) {
   const addRun = (x1: number, z1: number, x2: number, z2: number) => { const n = Math.round(Math.hypot(x2 - x1, z2 - z1) / 1.4); for (let i = 0; i <= n; i++) { const t = i / n; ctx.addCollider({ x: x1 + (x2 - x1) * t, z: z1 + (z2 - z1) * t, r: 1.0 }); } };
   addRun(-HW + 0.4, -HL + 6, -HW + 0.4, HL - 2);
   addRun(HW - 0.4, -HL + 6, HW - 0.4, HL - 2);
-  addRun(-HW + 0.4, HL - 2, HW - 0.4, HL - 2);
+  addRun(-HW + 0.4, HL - 2, -2.6, HL - 2); addRun(2.6, HL - 2, HW - 0.4, HL - 2); // stern gap for the swim platform
   addRun(-HW + 0.4, -HL + 6, 0, -HL + 0.5); addRun(0, -HL + 0.5, HW - 0.4, -HL + 6);
+}
+
+// ── Swim platform, water zones & docked vehicles (stern) ──────────────
+function buildWater(ctx: WorldContext) {
+  // low swim/boarding platform at the stern gap
+  const plat = new THREE.Mesh(new THREE.BoxGeometry(5, 0.2, 3), new THREE.MeshStandardMaterial({ color: 0x3a3228, roughness: 0.7 })); plat.position.set(0, -0.5, HL - 0.5); ctx.scene.add(plat);
+  // little ladder rails into the water
+  for (const lx of [-0.9, 0.9]) { const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.4, 6), new THREE.MeshStandardMaterial({ color: 0x2a2e3a, metalness: 0.8, roughness: 0.3 })); rail.position.set(lx, -0.9, HL + 1); rail.rotation.x = 0.5; ctx.scene.add(rail); }
+
+  // a contiguous ring of swim zones in the water all around the hull, so once
+  // you drop in at the stern you can swim the whole way around the yacht.
+  for (let i = 0; i < 26; i++) {
+    const a = (i / 26) * Math.PI * 2;
+    const x = Math.cos(a) * (HW + 4.5), z = Math.sin(a) * (HL + 4);
+    ctx.addSwimZone({ x, z, r: 5, waterY: -1.0 });
+  }
+  // reach the deeper open water astern too
+  ctx.addSwimZone({ x: 0, z: HL + 10, r: 8, waterY: -1.0 });
+
+  // docked water toys at the stern — walk to the platform edge and press E
+  ctx.addVehicle({ id: 'jetski', kind: 'jetski', x: 3.4, z: HL + 1, yaw: 0 });
+  ctx.addVehicle({ id: 'speedboat', kind: 'boat', x: -4.2, z: HL + 2, yaw: 0 });
 }
