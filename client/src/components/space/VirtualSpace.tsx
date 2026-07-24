@@ -5,6 +5,7 @@ import { useVirtualSpace, type SpacePlayer, type SpaceMask, type SpaceMeta as Sp
 import { SpacesLobby, SpaceInvitePanel } from './SpacesLobby';
 import { ProfileModalV2 } from '@/components/community/ProfileModalV2';
 import { useSpaceVoice } from '@/hooks/useSpaceVoice';
+import { leaveWorldVoice } from '@/hooks/useWorldVoice';
 import { useLivekitRoomVoice, useLiveKitEnabled } from '@/hooks/useLivekitVoice';
 import { tNow } from '@/store/langStore';
 // Current-language strings for the Virtual Space (module has ~30 subcomponents,
@@ -1833,6 +1834,8 @@ export function VirtualSpace({ onClose, initialSpaceCode }: Props) {
     }
   }, [profile?.moderatorLevel]);
   const { joined: voiceJoined, muted, speakingIds, status: voiceStatus, joinVoice, joinVoiceGhost, leaveVoice, toggleMute } = useSpaceVoice();
+  // Kill any lingering 3D Premium-World voice mesh so the two never cross-wire.
+  useEffect(() => { leaveWorldVoice(); }, []);
 
   // LiveKit voice for the Virtual Space: each space maps to a LiveKit room of
   // the same id. When LiveKit is enabled it REPLACES the legacy mesh voice here

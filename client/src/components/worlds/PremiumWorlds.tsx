@@ -4,6 +4,7 @@ import { socket, connectSocket, emitWithAck } from '@/lib/socket';
 import { useAuthStore } from '@/store/authStore';
 import { useT } from '@/store/langStore';
 import { useWorldVoice, applyWorldSpatial, leaveWorldVoice, resumeWorldVoiceAudio } from '@/hooks/useWorldVoice';
+import { leaveSpaceVoice } from '@/hooks/useSpaceVoice';
 import { WorldEngine, type WorldHud, type RemoteWorldPlayer } from './engine';
 import { WorldCinema, ytVideoId, type TVState } from './cinema';
 import { PREMIUM_WORLDS, getWorld } from './registry';
@@ -205,6 +206,8 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
   // heard. If the browser needs a permission gesture this quietly no-ops and
   // the prominent prompt below invites a tap. Runs once.
   useEffect(() => {
+    // Kill any lingering 2D-Space voice mesh so the two never cross-wire.
+    leaveSpaceVoice();
     const t = setTimeout(() => voice.joinVoice(), 500);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
