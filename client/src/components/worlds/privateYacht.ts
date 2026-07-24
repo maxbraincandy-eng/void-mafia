@@ -21,6 +21,11 @@ const VIOLET = 0x9b5cff, CYAN = 0x35e0e0, WARM = 0xffb877, PINK = 0xff4d6d;
 let _s = 771201;
 function rnd() { _s = (_s * 1664525 + 1013904223) >>> 0; return _s / 4294967295; }
 function rr(a: number, b: number) { return a + (b - a) * rnd(); }
+
+// Shared, mutable atmosphere state so the day/night + weather machine can drive
+// the sky, ocean amplitude and fog that other build functions created.
+const ATM: { ocean?: any; setAmp?: (v: number) => void; sky?: { top: THREE.Color; mid: THREE.Color; bot: THREE.Color } } = {};
+function lerpC(out: THREE.Color, a: number, b: number, t: number) { out.setHex(a).lerp(new THREE.Color(b), t); return out; }
 const _neon = new Map<number, THREE.MeshBasicMaterial>();
 function neon(c: number) { let m = _neon.get(c); if (!m) { m = new THREE.MeshBasicMaterial({ color: c, toneMapped: false }); _neon.set(c, m); } return m; }
 
@@ -67,6 +72,7 @@ export const privateYacht: WorldDef = {
     buildStringLights(ctx);
     buildBoundary(ctx);
     buildWater(ctx);
+    buildAtmosphere(ctx);
 
     ctx.addAmbient({ kind: 'night', x: 0, z: 0, radius: 140 });
     ctx.addAmbient({ kind: 'wind', x: 0, z: 0, radius: 140 });
@@ -83,6 +89,7 @@ function buildSky(ctx: WorldContext) {
     fragmentShader: 'varying vec3 vP; uniform vec3 top; uniform vec3 mid; uniform vec3 bot; void main(){ float h=clamp((normalize(vP).y+0.12)/0.85,0.0,1.0); vec3 c=h<0.5?mix(bot,mid,h*2.0):mix(mid,top,(h-0.5)*2.0); gl_FragColor=vec4(c,1.0);}',
   });
   ctx.scene.add(new THREE.Mesh(new THREE.SphereGeometry(340, 24, 14), mat));
+  ATM.sky = { top: mat.uniforms.top.value, mid: mat.uniforms.mid.value, bot: mat.uniforms.bot.value };
   const N = 460; const arr = new Float32Array(N * 3);
   for (let i = 0; i < N; i++) { const u = rnd() * Math.PI * 2, v = rnd() * 0.46 + 0.08, r = 320; arr[i * 3] = Math.cos(u) * Math.cos(v) * r; arr[i * 3 + 1] = Math.sin(v) * r; arr[i * 3 + 2] = Math.sin(u) * Math.cos(v) * r; }
   const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.BufferAttribute(arr, 3));
@@ -91,19 +98,82 @@ function buildSky(ctx: WorldContext) {
   const moon = new THREE.Mesh(new THREE.CircleGeometry(13, 28), new THREE.MeshBasicMaterial({ color: 0xf3ecff, fog: false })); moon.position.set(-150, 120, -200); moon.lookAt(0, 0, 0); ctx.scene.add(moon);
 }
 
+// ── Dynamic day/night cycle + weather (rain, storm, lightning, fog) ──
+function buildAtmosphere(ctx: WorldContext) {
+  // moods cycled over CYCLE seconds: [top, mid, bot, moonInt, moonHex, ambInt, ambHex]
+  const MOODS: Array<[number, number, number, number, number, number, number]> = [
+    [0x14224e, 0x5a2f5a, 0xd8804a, 0.7, 0xffe0b0, 1.05, 0x6a5c8a], // sunset
+    [0x05061a, 0x1a1a44, 0x2a2a55, 1.1, 0xcdd6ff, 0.8, 0x4a4c7a],  // night (moonlit)
+    [0x14224e, 0x5a4a7a, 0xe0a060, 0.75, 0xffe8c0, 1.05, 0x6a5c8a],// dawn
+  ];
+  const CYCLE = 240;
+
+  // rain — one Points cloud recycling downward
+  const RN = ctx.perf.reduced ? 260 : 520;
+  const pos = new Float32Array(RN * 3);
+  for (let i = 0; i < RN; i++) { pos[i * 3] = rr(-90, 90); pos[i * 3 + 1] = rr(0, 34); pos[i * 3 + 2] = rr(-90, 90); }
+  const rg = new THREE.BufferGeometry(); rg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const rainMat = new THREE.PointsMaterial({ color: 0xbcd0e0, size: 0.5, transparent: true, opacity: 0, fog: false, depthWrite: false });
+  const rain = new THREE.Points(rg, rainMat); rain.frustumCulled = false; ctx.scene.add(rain);
+  // lightning flash light
+  const flash = new THREE.PointLight(0xcfe0ff, 0, 320, 0.5); flash.position.set(-20, 70, -50); ctx.scene.add(flash);
+
+  const SEQ: Array<[string, number]> = [['calm', 72], ['rain', 42], ['storm', 34], ['rain', 22], ['calm', 86], ['storm', 28]];
+  let si = 0, wt = SEQ[0][1], wet = 0, storm = 0, nextFlash = 3;
+  const tTop = new THREE.Color(), tMid = new THREE.Color(), tBot = new THREE.Color(), tA = new THREE.Color(), tMoon = new THREE.Color();
+  const stormFog = new THREE.Color(0x262b40);
+
+  ctx.onUpdate((dt, e) => {
+    // day / night interpolation
+    const p = ((e / CYCLE) % 1) * MOODS.length; const i0 = Math.floor(p) % MOODS.length, i1 = (i0 + 1) % MOODS.length, f = p - Math.floor(p);
+    const A = MOODS[i0], B = MOODS[i1];
+    // weather state machine
+    wt -= dt; if (wt <= 0) { si = (si + 1) % SEQ.length; wt = SEQ[si][1]; }
+    const st = SEQ[si][0];
+    wet += ((st === 'rain' || st === 'storm' ? 1 : 0) - wet) * Math.min(1, dt * 0.5);
+    storm += ((st === 'storm' ? 1 : 0) - storm) * Math.min(1, dt * 0.4);
+    const dark = storm * 0.55;
+
+    if (ATM.sky) {
+      ATM.sky.top.copy(lerpC(tTop, A[0], B[0], f)).multiplyScalar(1 - dark);
+      ATM.sky.mid.copy(lerpC(tMid, A[1], B[1], f)).multiplyScalar(1 - dark);
+      ATM.sky.bot.copy(lerpC(tBot, A[2], B[2], f)).multiplyScalar(1 - dark * 0.8);
+    }
+    ctx.moon.intensity = (A[3] + (B[3] - A[3]) * f) * (1 - storm * 0.6) + flash.intensity * 0.02;
+    ctx.moon.color.copy(lerpC(tMoon, A[4], B[4], f));
+    ctx.ambientLight.intensity = Math.max(0.6, (A[5] + (B[5] - A[5]) * f) * (1 - storm * 0.3));
+    ctx.ambientLight.color.copy(lerpC(tA, A[6], B[6], f));
+
+    const fog: any = ctx.scene.fog;
+    if (fog && fog.density !== undefined) { fog.density = 0.0075 + wet * 0.008 + storm * 0.02; fog.color.copy(tBot).multiplyScalar(0.5).lerp(stormFog, storm * 0.6); }
+    ATM.setAmp?.(1 + storm * 2.2 + wet * 0.4);
+
+    rainMat.opacity = wet * 0.6;
+    if (wet > 0.02 && !ctx.perf.reduced) {
+      const pa = rg.getAttribute('position') as THREE.BufferAttribute; const sp = (16 + storm * 22) * dt;
+      for (let i = 0; i < RN; i++) { let y = pa.getY(i) - sp; if (y < -1) { y = 34; pa.setX(i, rr(-90, 90)); pa.setZ(i, rr(-90, 90)); } pa.setY(i, y); }
+      pa.needsUpdate = true;
+    }
+    flash.intensity *= Math.max(0, 1 - dt * 6);
+    if (storm > 0.5) { nextFlash -= dt; if (nextFlash <= 0) { nextFlash = rr(2.5, 6.5); flash.intensity = 7; } }
+  });
+}
+
 // ── Animated ocean (sine waves in the vertex shader; lit + fogged) ────
 function buildOcean(ctx: WorldContext) {
   const geo = new THREE.PlaneGeometry(620, 620, 72, 72);
   const mat = new THREE.MeshStandardMaterial({ color: 0x0c2438, roughness: 0.18, metalness: 0.6 });
   const holder: { shader?: any } = {};
   mat.onBeforeCompile = (sh) => {
-    sh.uniforms.uTime = { value: 0 }; holder.shader = sh;
-    sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader.replace('#include <begin_vertex>',
+    sh.uniforms.uTime = { value: 0 }; sh.uniforms.uAmp = { value: 1 }; holder.shader = sh;
+    sh.vertexShader = 'uniform float uTime; uniform float uAmp;\n' + sh.vertexShader.replace('#include <begin_vertex>',
       `#include <begin_vertex>
        float w = sin(position.x*0.08 + uTime*0.9)*0.35 + cos(position.y*0.11 + uTime*1.1)*0.28 + sin((position.x+position.y)*0.05 + uTime*0.6)*0.2;
-       transformed.z += w;`);
+       transformed.z += w * uAmp;`);
   };
   const sea = new THREE.Mesh(geo, mat); sea.rotation.x = -Math.PI / 2; sea.position.y = -1.4; ctx.scene.add(sea);
+  ATM.ocean = holder;
+  ATM.setAmp = (v: number) => { if (holder.shader) holder.shader.uniforms.uAmp.value = v; };
   ctx.onUpdate((_d, e) => { if (holder.shader && !ctx.perf.reduced) holder.shader.uniforms.uTime.value = e; });
   // moon glitter streak toward the moon
   const streak = new THREE.Mesh(new THREE.PlaneGeometry(10, 120), new THREE.MeshBasicMaterial({ color: 0xdfe6ff, transparent: true, opacity: 0.16, toneMapped: false, depthWrite: false }));
