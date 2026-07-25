@@ -444,11 +444,11 @@ function buildWater(ctx: WorldContext) {
   // Open water all around the yacht — generous now that the deck is protected.
   for (let i = 0; i < 30; i++) {
     const a = (i / 30) * Math.PI * 2;
-    ctx.addSwimZone({ x: Math.cos(a) * (HW + 9), z: Math.sin(a) * (HL + 9), r: 11, waterY: -1.0 });
+    ctx.addSwimZone({ x: Math.cos(a) * (HW + 9), z: Math.sin(a) * (HL + 9), r: 11, waterY: -1.95 });
   }
-  ctx.addSwimZone({ x: 0, z: HL + 12, r: 12, waterY: -1.0 });
+  ctx.addSwimZone({ x: 0, z: HL + 12, r: 12, waterY: -1.95 });
 
   // docked water toys just off the stern platform — walk to its edge and press E
-  ctx.addVehicle({ id: 'jetski', kind: 'jetski', x: 3.2, z: HL + 1.4, yaw: 0 });
-  ctx.addVehicle({ id: 'speedboat', kind: 'boat', x: -4.0, z: HL + 2.2, yaw: 0 });
+  ctx.addVehicle({ id: 'jetski', kind: 'jetski', x: 3.2, z: HL + 1.4, yaw: 0, waterY: -1.4 });
+  ctx.addVehicle({ id: 'speedboat', kind: 'boat', x: -4.0, z: HL + 2.2, yaw: 0, waterY: -1.4 });
 }

@@ -29,7 +29,9 @@ export interface WorldDryZone { x: number; z: number; r?: number; hw?: number; h
 // A rideable water vehicle docked at (x,z). Walk up, interact to board, drive
 // with WASD across the ocean, interact again to dock + step back onto the deck.
 export type VehicleKind = 'jetski' | 'boat';
-export interface WorldVehicle { id: string; x: number; z: number; yaw?: number; kind: VehicleKind; }
+// `waterY` is the world's water surface, so the hull floats at the right height
+// (worlds put their sea at different levels).
+export interface WorldVehicle { id: string; x: number; z: number; yaw?: number; kind: VehicleKind; waterY?: number; }
 // A flat video screen the engine can project to the viewport (world cinema).
 export interface WorldScreen { x: number; y: number; z: number; w: number; h: number; ry: number; }
 

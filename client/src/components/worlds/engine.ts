@@ -35,11 +35,10 @@ export type QualityMode = 'auto' | 'high' | 'low';
 const EYE = 1.5;
 const WALK = 2.6, RUN = 5.4;
 const CAM_DIST = 5.2, CAM_HEIGHT = 2.1;
-const VEH_Y = -0.5;                 // vehicle hull float height
-const VEH_SEAT = VEH_Y + 0.75;      // rider height while driving
+const VEH_Y = -0.5;                 // default hull float height (world may override)
 const OCEAN_R = 74;                 // how far you can roam on the water
 
-type VehicleInst = WorldVehicle & { mesh: THREE.Group; ry: number; homeX: number; homeZ: number; homeYaw: number };
+type VehicleInst = WorldVehicle & { mesh: THREE.Group; ry: number; homeX: number; homeZ: number; homeYaw: number; floatY: number; seatY: number };
 
 export class WorldEngine {
   input = { move: { x: 0, y: 0 }, run: false };
@@ -462,9 +461,11 @@ export class WorldEngine {
       addVehicle: (v) => {
         const mesh = this.buildVehicle(v.kind);
         const yaw = v.yaw ?? 0;
-        mesh.position.set(v.x, VEH_Y, v.z); mesh.rotation.y = yaw;
+        // float the hull slightly into the world's water surface
+        const floatY = v.waterY !== undefined ? v.waterY - 0.2 : VEH_Y;
+        mesh.position.set(v.x, floatY, v.z); mesh.rotation.y = yaw;
         this.scene.add(mesh);
-        this.vehicles.push({ ...v, mesh, ry: yaw, homeX: v.x, homeZ: v.z, homeYaw: yaw });
+        this.vehicles.push({ ...v, mesh, ry: yaw, homeX: v.x, homeZ: v.z, homeYaw: yaw, floatY, seatY: floatY + 0.75 });
       },
       setScreen: (s) => { this.screen = s; },
       onUpdate: (fn) => this.updates.push(fn),
@@ -514,14 +515,14 @@ export class WorldEngine {
   private mount(v: VehicleInst) {
     this.riding = v; this.seated = null;
     this.facing = v.ry; this.camYaw = v.ry;
-    this.pos.set(v.mesh.position.x, VEH_SEAT, v.mesh.position.z);
+    this.pos.set(v.mesh.position.x, v.seatY, v.mesh.position.z);
     this.vy = 0; this.input.move.x = 0; this.input.move.y = 0;
   }
   private dismount() {
     const v = this.riding; if (!v) return;
     this.riding = null;
     // dock the vehicle back at its berth
-    v.mesh.position.set(v.homeX, VEH_Y, v.homeZ); v.mesh.rotation.y = v.homeYaw; v.ry = v.homeYaw;
+    v.mesh.position.set(v.homeX, v.floatY, v.homeZ); v.mesh.rotation.y = v.homeYaw; v.ry = v.homeYaw;
     // step onto the deck, nudged inboard from the berth
     this.pos.set(v.homeX - Math.sign(v.homeX || 1) * 1.6, 0, v.homeZ - Math.sign(v.homeZ || 1) * 1.6);
     this.groundY = 0; this.pos.y = 0; this.vy = 0;
@@ -570,8 +571,8 @@ export class WorldEngine {
         this.facing += d * Math.min(1, dt * 6);
         moveSpeed = speed * Math.min(1, mag);
       }
-      this.pos.y = VEH_SEAT;
-      v.mesh.position.set(this.pos.x, VEH_Y, this.pos.z); v.mesh.rotation.y = this.facing; v.ry = this.facing;
+      this.pos.y = v.seatY;
+      v.mesh.position.set(this.pos.x, v.floatY, this.pos.z); v.mesh.rotation.y = this.facing; v.ry = this.facing;
     } else if (!this.seated) {
       let mx = this.input.move.x, my = this.input.move.y;
       const mag = Math.hypot(mx, my);
