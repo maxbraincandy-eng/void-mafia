@@ -12,6 +12,10 @@ import { tNow } from '@/store/langStore';
 export interface WorldHud {
   world: string;
   sitting: boolean;
+  // At the wheel of a vehicle. `sitting` is also true then (you're in a seat and
+  // the action button becomes "get out"), but the touch controls MUST stay up —
+  // gating the joystick on `sitting` alone left phones unable to drive at all.
+  driving: boolean;
   canInteract: string | null; // label of the nearby interactable (e.g. "დაჯექი")
   players: number;
   nearScreen: boolean;        // player is near the cinema screen
@@ -939,7 +943,12 @@ export class WorldEngine {
         : this.nearObj ? this.nearObj.label
         : this.nearSeat ? (this.nearSeat.pose ? W.shipStand : W.sit)
         : null;
-      this.onHud?.({ world: this.def.name, sitting: !!this.seated || !!this.riding, canInteract: label, players: 1 + this.remotes.size, nearScreen: this.nearScreen });
+      this.onHud?.({
+        world: this.def.name,
+        sitting: !!this.seated || !!this.riding,
+        driving: !!this.riding && this.ridingRole === 'driver',
+        canInteract: label, players: 1 + this.remotes.size, nearScreen: this.nearScreen,
+      });
     }
 
     this.updateBubbles();

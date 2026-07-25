@@ -166,7 +166,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
   const engineRef = useRef<WorldEngine | null>(null);
   const cinemaBoxRef = useRef<HTMLDivElement>(null);
   const cinemaRef = useRef<WorldCinema | null>(null);
-  const [hud, setHud] = useState<WorldHud>({ world: '', sitting: false, canInteract: null, players: 1, nearScreen: false });
+  const [hud, setHud] = useState<WorldHud>({ world: '', sitting: false, driving: false, canInteract: null, players: 1, nearScreen: false });
   const [tvPanel, setTvPanel] = useState(false);
   const [tvOn, setTvOn] = useState(false);
   const [tvPlaying, setTvPlaying] = useState(false);
@@ -487,12 +487,16 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
 
   const isCtl = (t: EventTarget | null) => t instanceof HTMLElement && t.closest('[data-hud]') != null;
 
+  // The stick is up whenever the player can actually move: on foot, or at the
+  // wheel of a vehicle. (A passenger rides along, so theirs stays down.)
+  const canMove = !hud.sitting || hud.driving;
+
   const onTouchStart = (e: React.TouchEvent) => {
     engineRef.current?.resumeAudio(); cinemaRef.current?.resume(); resumeWorldVoiceAudio(); poke();
     for (const t of Array.from(e.changedTouches)) {
       if (isCtl(t.target)) continue;
       const leftZone = t.clientX < window.innerWidth * 0.42;
-      if (leftZone && !moveTouch.current && !hud.sitting) {
+      if (leftZone && !moveTouch.current && canMove) {
         moveTouch.current = { id: t.identifier, ox: t.clientX, oy: t.clientY };
         setJoy({ active: true, ox: t.clientX, oy: t.clientY, kx: 0, ky: 0 });
       } else if (!lookTouch.current) {
@@ -735,15 +739,15 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
         </div>
       )}
 
-      {/* Left joystick (hidden while seated) */}
-      {!hud.sitting && joy.active && (
+      {/* Left joystick (hidden while seated, but kept for the driver) */}
+      {canMove && joy.active && (
         <>
           <div data-hud style={{ position: 'absolute', left: joy.ox - JOY_R, top: joy.oy - JOY_R, width: JOY_R * 2, height: JOY_R * 2, borderRadius: '50%', border: '2px solid rgba(192,132,252,0.3)', background: 'rgba(192,132,252,0.06)', pointerEvents: 'none' }} />
           <div style={{ position: 'absolute', left: joy.ox + joy.kx - 26, top: joy.oy + joy.ky - 26, width: 52, height: 52, borderRadius: '50%', background: 'rgba(192,132,252,0.32)', border: '1px solid rgba(192,132,252,0.6)', pointerEvents: 'none' }} />
         </>
       )}
-      {!hud.sitting && !joy.active && showUI && (
-        <div style={{ position: 'absolute', left: 44, bottom: 64, width: JOY_R * 2, height: JOY_R * 2, borderRadius: '50%', border: '2px dashed rgba(192,132,252,0.2)', pointerEvents: 'none' }} />
+      {canMove && !joy.active && showUI && (
+        <div style={{ position: 'absolute', left: 44, bottom: 64, width: JOY_R * 2, height: JOY_R * 2, borderRadius: '50%', border: `2px dashed rgba(192,132,252,${hud.driving ? 0.4 : 0.2})`, pointerEvents: 'none' }} />
       )}
 
       {/* Chat log — recent messages, bottom-left, non-blocking */}
@@ -776,7 +780,8 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
 
       {/* Right controls */}
       <div style={{ position: 'absolute', right: 24, bottom: 'max(52px, env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, opacity: showUI ? 1 : 0.25, transition: 'opacity .4s' }}>
-        {hud.canInteract && roundBtn(hud.sitting ? '🧍' : (/^\p{Extended_Pictographic}/u.test(hud.canInteract) ? hud.canInteract.split(' ')[0] : '🪑'), () => engineRef.current?.interact(), 62, true)}
+        {/* the label's own emoji wins (🚪 get out, 🏎️ drive, 🛥️ ride) */}
+        {hud.canInteract && roundBtn(/^\p{Extended_Pictographic}/u.test(hud.canInteract) ? hud.canInteract.split(' ')[0] : (hud.sitting ? '🧍' : '🪑'), () => engineRef.current?.interact(), 62, true)}
         {(hud.nearScreen || tvOn) && roundBtn(tvOn ? '📺' : '📺', () => setTvPanel(v => !v), 54, tvPanel)}
         {/* Emote wheel */}
         {emoteOpen && (
