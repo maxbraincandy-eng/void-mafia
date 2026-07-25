@@ -861,7 +861,7 @@ export class WorldEngine {
       const dx = a.x - this.pos.x, dz = a.z - this.pos.z;
       const dist = Math.hypot(dx, dz);
       let vol = Math.max(0, 1 - dist / a.radius); vol *= vol;
-      if (!(a as any)._static) g.gain.setTargetAtTime(vol * 0.9, this.audioCtx.currentTime, 0.4);
+      if (!(a as any)._static) g.gain.setTargetAtTime(vol * 0.9 * (a.gain ?? 1), this.audioCtx.currentTime, 0.4);
       const p = dist > 0.5 ? Math.max(-1, Math.min(1, (dx * cosY - dz * sinY) / dist)) : 0;
       pan.pan.setTargetAtTime(p, this.audioCtx.currentTime, 0.3);
     }

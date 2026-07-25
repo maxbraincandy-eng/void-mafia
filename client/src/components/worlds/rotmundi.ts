@@ -56,7 +56,7 @@ function windowTexture(): THREE.Texture {
 
 export const rotmundi: WorldDef = {
   id: 'rotmundi',
-  name: 'Rotmundi',
+  name: 'Rotmund',
   subtitle: 'პორტ ქალაქი · სელაპები · ხმა',
   icon: '⚓',
   status: 'live',
@@ -97,9 +97,10 @@ export const rotmundi: WorldDef = {
     (ctx.scene.fog as any).userData = { base: 0.0055 };
     setupAtmosphere(ctx, { sky, moods: MOODS_PORT, cycle: 300, onAmp: (v) => ATM.setAmp?.(v) });
 
-    ctx.addAmbient({ kind: 'ocean', x: 0, z: -20, radius: 90 });
-    ctx.addAmbient({ kind: 'wind', x: 0, z: 0, radius: 150 });
-    ctx.addAmbient({ kind: 'night', x: 0, z: 0, radius: 150 });
+    // Kept deliberately quiet — players need to hear each other over it.
+    ctx.addAmbient({ kind: 'ocean', x: 0, z: -20, radius: 90, gain: 0.35 });
+    ctx.addAmbient({ kind: 'wind', x: 0, z: 0, radius: 150, gain: 0.22 });
+    ctx.addAmbient({ kind: 'night', x: 0, z: 0, radius: 150, gain: 0.25 });
   },
 };
 
@@ -378,7 +379,7 @@ function buildHarborGate(ctx: WorldContext) {
   g.shadowBlur = 6;
   g.fillStyle = '#e8dcc0'; g.font = 'bold 74px "Space Grotesk",monospace';
   g.letterSpacing = '16px';
-  g.fillText('ROTMUNDI', 512, 306);
+  g.fillText('Rotmund', 512, 306);
   const tex = new THREE.CanvasTexture(c);
   const banner = new THREE.Mesh(new THREE.PlaneGeometry(14.4, 5.9), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85, side: THREE.DoubleSide, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.16 }));
   banner.position.set(0, 8.2, GZ); ctx.scene.add(banner);

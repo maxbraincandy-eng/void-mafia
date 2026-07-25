@@ -19,7 +19,9 @@ export interface WorldSeat { id: string; x: number; y: number; z: number; yaw: n
 // player triggers it over the network), so it must be idempotent/replayable.
 export interface WorldInteractable { id: string; x: number; z: number; r: number; label: string; effect: () => void; }
 export type AmbientKind = 'ocean' | 'fire' | 'wind' | 'night';
-export interface AmbientSource { kind: AmbientKind; x: number; z: number; radius: number; }
+// `gain` (default 1) scales this source so a world can keep its ambience from
+// drowning out player voice chat.
+export interface AmbientSource { kind: AmbientKind; x: number; z: number; radius: number; gain?: number; }
 // A circular region of open water. Inside it the avatar drops to `waterY`
 // (default just below the surface), swims (slower, swim pose) and can dive.
 export interface WorldSwimZone { x: number; z: number; r: number; waterY?: number; }
