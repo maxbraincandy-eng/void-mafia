@@ -722,9 +722,10 @@ function buildVilla(ctx: WorldContext) {
     // the one underneath sits on the cushion; the one on top sits higher and a
     // touch forward, so they end up on their partner's lap
     ctx.addSeat({ id: 'lap-base', x: wx, y: 0.62, z: wz, yaw: yw, pose: 'lapBase' });
-    // up on the thighs and turned a quarter step, so the legs hang off to the
-    // side and the upper body tips back into the partner (see the reference)
-    ctx.addSeat({ id: 'lap-top', x: wx - Math.sin(yw) * 0.18, y: 1.02, z: wz - Math.cos(yw) * 0.18, yaw: yw + Math.PI / 2, pose: 'lapTop' });
+    // Sits ON the lap: hips at 0.80 (just above the partner's thighs, which top
+    // out at ~0.73) and nudged forward onto them, facing the SAME way so both
+    // watch the screen together.
+    ctx.addSeat({ id: 'lap-top', x: wx - Math.sin(yw) * 0.26, y: 0.80, z: wz - Math.cos(yw) * 0.26, yaw: yw, pose: 'lapTop' });
     ctx.addCollider({ x: wx, z: wz + 0.55, r: 0.6 });
   }
 
@@ -1029,7 +1030,7 @@ function buildQuayProps(ctx: WorldContext) {
     for (const lx of [-0.85, 0.85]) { const leg = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.46, 0.5), hoop); leg.position.set(bx + lx, 0.2, z); ctx.scene.add(leg); }
     ctx.addCollider({ x: bx, z, r: 0.6 });
     // face the water (-z)
-    ctx.addSeat({ id: `bench${bx}`, x: bx, y: 0.46, z, yaw: Math.atan2(0, 30) });
+    ctx.addSeat({ id: `bench${bx}`, x: bx, y: 0.56, z, yaw: Math.atan2(0, 30) });
   }
   // a second hug spot on the west promenade
   addHugSpot(ctx, -Q_HW + 6, 20, 0, 0xff7ab0, 'love2');

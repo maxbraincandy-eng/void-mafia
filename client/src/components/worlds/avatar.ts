@@ -59,7 +59,8 @@ export class Avatar {
     // body height + tilt per pose: seat = drop to hips, swim = half-submerged,
     // hammock = recline back; everything else stands upright at ground.
     let yTarget = 0, xRot = 0, zRot = 0;
-    if (sit && !this.holdPose) yTarget = -this.sitDrop;
+    const seatedPose = this.holdPose === 'lapBase' || this.holdPose === 'lapTop';
+    if (sit && (!this.holdPose || seatedPose)) yTarget = -this.sitDrop;
     else if (this.holdPose === 'swim') yTarget = -0.55;
     else if (this.holdPose === 'hammock') xRot = -1.05;
     else if (this.holdPose === 'cuddleL') { xRot = -1.05; zRot = 0.22; }   // recline + roll toward partner
@@ -71,8 +72,8 @@ export class Avatar {
     // Lap-sitting pair: the one underneath sits normally, the one on top leans
     // back into them (their seat is placed higher + slightly forward).
     else if (this.holdPose === 'lapBase') { xRot = 0; }
-    // sits across the partner's lap and tips sideways into their shoulder
-    else if (this.holdPose === 'lapTop') { xRot = -0.1; zRot = -0.26; }
+    // sits on the partner's lap facing the same way, leaning back into them
+    else if (this.holdPose === 'lapTop') { xRot = -0.12; }
     this.inner.position.y += (yTarget - this.inner.position.y) * Math.min(1, dt * 10);
     this.inner.rotation.x += (xRot - this.inner.rotation.x) * Math.min(1, dt * 8);
     this.inner.rotation.z += (zRot - this.inner.rotation.z) * Math.min(1, dt * 8);
