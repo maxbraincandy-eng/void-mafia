@@ -59,8 +59,12 @@ export class Avatar {
     // body height + tilt per pose: seat = drop to hips, swim = half-submerged,
     // hammock = recline back; everything else stands upright at ground.
     let yTarget = 0, xRot = 0, zRot = 0;
+    // NOTE: the engine reports state 'idle' (not 'sit') whenever a seat carries a
+    // pose, so a seated pose must apply the hip drop on its own — gating it on
+    // `sit` left the lap pair standing a full torso above the sofa.
     const seatedPose = this.holdPose === 'lapBase' || this.holdPose === 'lapTop';
-    if (sit && (!this.holdPose || seatedPose)) yTarget = -this.sitDrop;
+    if (seatedPose) yTarget = -this.sitDrop;
+    else if (sit && !this.holdPose) yTarget = -this.sitDrop;
     else if (this.holdPose === 'swim') yTarget = -0.55;
     else if (this.holdPose === 'hammock') xRot = -1.05;
     else if (this.holdPose === 'cuddleL') { xRot = -1.05; zRot = 0.22; }   // recline + roll toward partner
