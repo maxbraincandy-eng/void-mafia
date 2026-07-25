@@ -38,7 +38,9 @@ const CAM_DIST = 5.2, CAM_HEIGHT = 2.1;
 const VEH_Y = -0.5;                 // default hull float height (world may override)
 const OCEAN_R = 74;                 // how far you can roam on the water
 
-type VehicleInst = WorldVehicle & { mesh: THREE.Group; ry: number; homeX: number; homeZ: number; homeYaw: number; floatY: number; seatY: number };
+type VehicleInst = WorldVehicle & { mesh: THREE.Group; ry: number; homeX: number; homeZ: number; homeYaw: number; floatY: number; seatY: number; passZ: number };
+// How far BEHIND the helm the pillion/rear seat sits (local +Z is astern).
+const PASS_OFFSET: Record<VehicleKind, number> = { jetski: 0.9, boat: 1.5 };
 
 export class WorldEngine {
   input = { move: { x: 0, y: 0 }, run: false };
@@ -72,6 +74,7 @@ export class WorldEngine {
   private dryZones: WorldDryZone[] = [];
   private vehicles: VehicleInst[] = [];
   private riding: VehicleInst | null = null;
+  private ridingRole: 'driver' | 'passenger' = 'driver';
   private nearVehicle: VehicleInst | null = null;
   private groundY = 0;              // eased target floor height (0 = deck, <0 = water)
   private lastObjInteract = 0;
@@ -159,7 +162,15 @@ export class WorldEngine {
     const sd = this.nearSeat ? (this.nearSeat.x - this.pos.x) ** 2 + (this.nearSeat.z - this.pos.z) ** 2 : Infinity;
     const od = this.nearObj ? (this.nearObj.x - this.pos.x) ** 2 + (this.nearObj.z - this.pos.z) ** 2 : Infinity;
     const vd = this.nearVehicle ? (this.nearVehicle.mesh.position.x - this.pos.x) ** 2 + (this.nearVehicle.mesh.position.z - this.pos.z) ** 2 : Infinity;
-    if (this.nearVehicle && vd <= sd && vd <= od) { this.mount(this.nearVehicle); return; }
+    if (this.nearVehicle && vd <= sd && vd <= od) {
+      const v = this.nearVehicle;
+      // Someone already at the helm? Then take the rear seat and ride along.
+      const driven = this.driverOf(v.id) !== null;
+      const pillionTaken = this.passengerOf(v.id) !== null;
+      if (!driven) this.mount(v, 'driver');
+      else if (!pillionTaken) this.mount(v, 'passenger');
+      return;
+    }
     if (this.nearObj && od <= sd) {
       const now = performance.now();
       if (now - this.lastObjInteract < 550) return; // debounce accidental double-fire
@@ -187,7 +198,14 @@ export class WorldEngine {
   resumeAudio() { this.audioCtx?.resume?.().catch(() => {}); if (!this.audioCtx) this.startAudio(); }
 
   // ── multiplayer ─────────────────────────────────────────────────────
-  getNetState(): WorldNetState { return { x: this.pos.x, z: this.pos.z, ry: this.facing, seatId: this.seated?.id ?? null }; }
+  getNetState(): WorldNetState {
+    // `seatId` is an opaque string the server just relays, so we piggyback the
+    // vehicle a player is on: 'veh:<id>' at the helm, 'vehp:<id>' in the rear
+    // seat. That lets every client place the hull and the riders without any
+    // protocol change.
+    const tag = this.riding ? `${this.ridingRole === 'driver' ? 'veh' : 'vehp'}:${this.riding.id}` : (this.seated?.id ?? null);
+    return { x: this.pos.x, z: this.pos.z, ry: this.facing, seatId: tag };
+  }
   getListener() { return { x: this.pos.x, z: this.pos.z, yaw: this.camYaw }; }
   setSpeaking(ids: Set<string>) { this.speaking = ids; }
 
@@ -310,12 +328,21 @@ export class WorldEngine {
       while (dry > Math.PI) dry -= Math.PI * 2;
       while (dry < -Math.PI) dry += Math.PI * 2;
       e.cur.ry += dry * k;
-      const seat = e.target.seatId ? this.seats.find(s => s.id === e.target.seatId) : null;
+      const tag = e.target.seatId;
+      // A rider's tag names a vehicle rather than a seat. The driver's own
+      // position IS the hull, so use it to move the mesh for everyone.
+      const vehId = tag && (tag.startsWith('veh:') ? tag.slice(4) : tag.startsWith('vehp:') ? tag.slice(5) : null);
+      const veh = vehId ? this.vehicles.find(v => v.id === vehId) : null;
+      if (veh && tag!.startsWith('veh:')) {
+        veh.mesh.position.set(e.cur.x, veh.floatY, e.cur.z);
+        veh.mesh.rotation.y = e.cur.ry; veh.ry = e.cur.ry;
+      }
+      const seat = !veh && tag ? this.seats.find(s => s.id === tag) : null;
       const pose = seat?.pose ?? null;
-      e.avatar.group.position.set(e.cur.x, seat ? seat.y : 0, e.cur.z);
+      e.avatar.group.position.set(e.cur.x, veh ? veh.seatY : seat ? seat.y : 0, e.cur.z);
       e.avatar.group.rotation.y = e.cur.ry;
       const speed = Math.hypot(e.cur.x - px, e.cur.z - pz) / Math.max(dt, 0.001);
-      e.avatar.state = seat && !pose ? 'sit' : 'idle';
+      e.avatar.state = veh || (seat && !pose) ? 'sit' : 'idle';
       e.avatar.holdPose = pose;
       e.avatar.setProp(seat?.prop ?? null);
       e.avatar.update(dt, seat ? 0 : speed);
@@ -465,7 +492,7 @@ export class WorldEngine {
         const floatY = v.waterY !== undefined ? v.waterY - 0.2 : VEH_Y;
         mesh.position.set(v.x, floatY, v.z); mesh.rotation.y = yaw;
         this.scene.add(mesh);
-        this.vehicles.push({ ...v, mesh, ry: yaw, homeX: v.x, homeZ: v.z, homeYaw: yaw, floatY, seatY: floatY + 0.75 });
+        this.vehicles.push({ ...v, mesh, ry: yaw, homeX: v.x, homeZ: v.z, homeYaw: yaw, floatY, seatY: floatY + 0.75, passZ: PASS_OFFSET[v.kind] });
       },
       setScreen: (s) => { this.screen = s; },
       onUpdate: (fn) => this.updates.push(fn),
@@ -485,6 +512,9 @@ export class WorldEngine {
       const nose = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.9, 4), hullMat); nose.rotation.x = -Math.PI / 2; nose.rotation.y = Math.PI / 4; nose.position.set(0, 0.35, -1.3); nose.scale.set(1, 1, 0.6); g.add(nose);
       const seat = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.2, 0.9), new THREE.MeshStandardMaterial({ color: 0x1a1a22, roughness: 0.8 })); seat.position.set(0, 0.6, 0.2); g.add(seat);
       const bars = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.06, 0.06), new THREE.MeshStandardMaterial({ color: 0x111, roughness: 0.5 })); bars.position.set(0, 0.75, -0.5); g.add(bars);
+      // pillion pad + grab handle so a second rider has somewhere to sit
+      const pillion = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.16, 0.6), new THREE.MeshStandardMaterial({ color: 0x1a1a22, roughness: 0.8 })); pillion.position.set(0, 0.62, 0.95); g.add(pillion);
+      const grab = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.03, 6, 14), new THREE.MeshStandardMaterial({ color: 0x111, roughness: 0.5 })); grab.rotation.x = Math.PI / 2; grab.position.set(0, 0.7, 0.6); g.add(grab);
       const strip = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.06, 1.4), accent); strip.position.set(0, 0.5, 0.1); g.add(strip);
     } else {
       const hullMat = new THREE.MeshStandardMaterial({ color: 0xeef0f4, roughness: 0.35, metalness: 0.2 });
@@ -493,6 +523,9 @@ export class WorldEngine {
       const deck = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.1, 3.4), new THREE.MeshStandardMaterial({ color: 0x3a3228, roughness: 0.7 })); deck.position.set(0, 0.72, 0.2); g.add(deck);
       const screen = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.5, 0.08), new THREE.MeshStandardMaterial({ color: 0x2a3550, transparent: true, opacity: 0.5, roughness: 0.05, metalness: 0.6 })); screen.position.set(0, 1.05, -0.6); screen.rotation.x = -0.3; g.add(screen);
       const strip = new THREE.Mesh(new THREE.BoxGeometry(1.65, 0.1, 3.0), accent); strip.position.set(0, 0.55, 0.2); g.add(strip);
+      // rear bench for a passenger
+      const rear = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.18, 0.7), new THREE.MeshStandardMaterial({ color: 0x1a1a22, roughness: 0.8 })); rear.position.set(0, 0.86, 1.5); g.add(rear);
+      const rearBack = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.42, 0.12), new THREE.MeshStandardMaterial({ color: 0x1a1a22, roughness: 0.8 })); rearBack.position.set(0, 1.13, 1.86); g.add(rearBack);
     }
     return g;
   }
@@ -515,10 +548,26 @@ export class WorldEngine {
     return false;
   }
 
-  private mount(v: VehicleInst) {
-    this.riding = v; this.seated = null;
+  /** socketId of whoever is driving this vehicle, from the networked seat tag. */
+  private driverOf(id: string): string | null {
+    for (const [sid, e] of this.remotes) if (e.target.seatId === `veh:${id}`) return sid;
+    return null;
+  }
+  private passengerOf(id: string): string | null {
+    for (const [sid, e] of this.remotes) if (e.target.seatId === `vehp:${id}`) return sid;
+    return null;
+  }
+  /** Rear-seat world position for a vehicle (astern of the helm). */
+  private pillionPos(v: VehicleInst) {
+    const m = v.mesh;
+    return { x: m.position.x + Math.sin(v.ry) * v.passZ, z: m.position.z + Math.cos(v.ry) * v.passZ };
+  }
+
+  private mount(v: VehicleInst, role: 'driver' | 'passenger' = 'driver') {
+    this.riding = v; this.ridingRole = role; this.seated = null;
     this.facing = v.ry; this.camYaw = v.ry;
-    this.pos.set(v.mesh.position.x, v.seatY, v.mesh.position.z);
+    if (role === 'driver') this.pos.set(v.mesh.position.x, v.seatY, v.mesh.position.z);
+    else { const p = this.pillionPos(v); this.pos.set(p.x, v.seatY, p.z); }
     this.vy = 0; this.input.move.x = 0; this.input.move.y = 0;
   }
   /**
@@ -574,7 +623,15 @@ export class WorldEngine {
 
     // movement (camera-relative)
     let moveSpeed = 0;
-    if (this.riding) {
+    if (this.riding && this.ridingRole === 'passenger') {
+      // ── riding along in the rear seat ──
+      // The hull is driven by whoever is at the helm (their networked position
+      // moves the mesh in updateRemotes), so we simply sit astern of it.
+      const v = this.riding;
+      const p = this.pillionPos(v);
+      this.pos.set(p.x, v.seatY, p.z);
+      this.facing = v.ry;
+    } else if (this.riding) {
       // ── driving a water vehicle ──
       const v = this.riding;
       let mx = this.input.move.x, my = this.input.move.y;
@@ -694,7 +751,8 @@ export class WorldEngine {
       const W = tNow().worlds;
       const label = this.riding ? '🚪 გადმოსვლა'
         : this.seated ? (this.seated.pose ? W.shipDown : W.standUp)
-        : this.nearVehicle ? '🛥️ მართვა'
+        : this.nearVehicle
+          ? (this.driverOf(this.nearVehicle.id) ? (this.passengerOf(this.nearVehicle.id) ? '🛥️ სავსეა' : '🛥️ მიჯექი') : '🛥️ მართვა')
         : this.nearObj ? this.nearObj.label
         : this.nearSeat ? (this.nearSeat.pose ? W.shipStand : W.sit)
         : null;

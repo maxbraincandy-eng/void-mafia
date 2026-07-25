@@ -404,7 +404,7 @@ function buildPier(ctx: WorldContext) {
     ctx.addCollider({ x: sx, z, r: 0.34 });
   }
   // fishing spots at the pier head, facing out to sea
-  for (const sx of [-1.3, 1.3]) ctx.addSeat({ id: `fish${sx}`, x: sx, y: 0.1, z: PIER_Z + 1.6, yaw: Math.atan2(sx, (PIER_Z + 1.6) - (PIER_Z - 20)) });
+  for (const sx of [-1.5, 1.5]) ctx.addSeat({ id: `fish${sx}`, x: sx, y: 0.1, z: PIER_Z + 1.6, yaw: Math.atan2(sx, (PIER_Z + 1.6) - (PIER_Z - 20)) });
   // a lantern at the head
   const lp = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, 2.6, 8), dark); lp.position.set(0, 1.3, PIER_Z + 0.8); ctx.scene.add(lp);
   const lb = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 10), lit(0xffe0a0)); lb.position.set(0, 2.8, PIER_Z + 0.8); ctx.scene.add(lb);
@@ -424,8 +424,13 @@ function buildFishermanDock(ctx: WorldContext) {
   net.position.set(cx, 1.9, DOCK_Z0 + 0.8); ctx.scene.add(net);
   // crates + a lobster pot
   for (let i = 0; i < 3; i++) { const cr = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), dark); cr.position.set(DOCK_X0 + 1.4 + i * 1.4, 0.4, Q_Z0 - 1.4); cr.rotation.y = rr(0, 1); ctx.scene.add(cr); ctx.addCollider({ x: cr.position.x, z: cr.position.z, r: 0.5 }); }
-  // a bench looking out over the water
-  ctx.addSeat({ id: 'dockbench', x: cx, y: 0.1, z: DOCK_Z0 + 2.2, yaw: Math.atan2(0, 2.2) });
+  // a two-seat bench looking out over the water
+  const dbz = DOCK_Z0 + 2.2;
+  const dseat = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.16, 0.6), wood); dseat.position.set(cx, 0.46, dbz); dseat.castShadow = true; ctx.scene.add(dseat);
+  const dback = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.5, 0.12), wood); dback.position.set(cx, 0.78, dbz + 0.26); ctx.scene.add(dback);
+  for (const lx2 of [-0.95, 0.95]) { const leg = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.46, 0.5), dark); leg.position.set(cx + lx2, 0.2, dbz); ctx.scene.add(leg); }
+  ctx.addCollider({ x: cx, z: dbz, r: 0.6 });
+  for (const off of [-0.6, 0.6]) ctx.addSeat({ id: `dockbench${off}`, x: cx + off, y: 0.56, z: dbz, yaw: Math.atan2(0, 2.2) });
 }
 
 // ── Tall galleons at anchor ───────────────────────────────────────────
@@ -613,10 +618,12 @@ function buildSecretCove(ctx: WorldContext) {
   ctx.onUpdate((_d, e) => { if (ctx.perf.reduced) return; const f = 0.85 + Math.sin(e * 12) * 0.13; fire.scale.set(1, f, 1); fl.intensity = 1.9 + Math.sin(e * 15) * 0.4; });
   for (let i = 0; i < 4; i++) {
     const a = (i / 4) * Math.PI * 2 + 0.4, sx = COVE_X + Math.cos(a) * 2.8, sz = COVE_Z + Math.sin(a) * 2.8;
-    const log = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 1.3, 10), new THREE.MeshStandardMaterial({ color: 0x5a3a24, roughness: 1 }));
+    const log = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 2.2, 10), new THREE.MeshStandardMaterial({ color: 0x5a3a24, roughness: 1 }));
     log.rotation.z = Math.PI / 2; log.rotation.y = a; log.position.set(sx, 0.3, sz); ctx.scene.add(log);
-    ctx.addCollider({ x: sx, z: sz, r: 0.42 });
-    ctx.addSeat({ id: `cove${i}`, x: sx, y: 0.58, z: sz, yaw: Math.atan2(sx - COVE_X, sz - COVE_Z) });
+    ctx.addCollider({ x: sx, z: sz, r: 0.5 });
+    // two spots per log, offset along it, so pairs can share
+    const yw2 = Math.atan2(sx - COVE_X, sz - COVE_Z);
+    for (const off of [-0.55, 0.55]) ctx.addSeat({ id: `cove${i}_${off}`, x: sx + Math.cos(yw2) * off, y: 0.58, z: sz - Math.sin(yw2) * off, yaw: yw2 });
   }
   // a hug spot on the sand
   addHugSpot(ctx, COVE_X + 5.5, COVE_Z - 4, 0.8, 0xffb877, 'cove-love');
@@ -989,8 +996,14 @@ function buildLoveWall(ctx: WorldContext) {
 
   ctx.addCollider({ x: WX, z: WZ, r: 1.2 });
   for (const dz of [-3.2, 3.2]) ctx.addCollider({ x: WX, z: WZ + dz, r: 1.2 });
-  // a bench facing the wall + a hug spot in front of it
-  ctx.addSeat({ id: 'lovebench', x: WX - 3.4, y: 0.1, z: WZ, yaw: Math.atan2((WX - 3.4) - WX, 0) });
+  // a two-seat bench facing the wall + a hug spot in front of it
+  const lbx = WX - 3.4;
+  const wood2 = new THREE.MeshStandardMaterial({ color: 0x7a5636, roughness: 1 });
+  const lseat = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.16, 2.2), wood2); lseat.position.set(lbx, 0.46, WZ); lseat.castShadow = true; ctx.scene.add(lseat);
+  const lback = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.5, 2.2), wood2); lback.position.set(lbx - 0.26, 0.78, WZ); ctx.scene.add(lback);
+  for (const lz2 of [-0.95, 0.95]) { const leg = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.46, 0.14), new THREE.MeshStandardMaterial({ color: 0x3a2716, roughness: 1 })); leg.position.set(lbx, 0.2, WZ + lz2); ctx.scene.add(leg); }
+  ctx.addCollider({ x: lbx, z: WZ, r: 0.6 });
+  for (const off of [-0.6, 0.6]) ctx.addSeat({ id: `lovebench${off}`, x: lbx, y: 0.56, z: WZ + off, yaw: Math.atan2(lbx - WX, 0) });
   addHugSpot(ctx, WX - 5.4, WZ, Math.PI / 2, 0xff5aa0, 'love1');
 }
 
@@ -1030,8 +1043,8 @@ function buildQuayProps(ctx: WorldContext) {
     const back = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.5, 0.12), wood); back.position.set(bx, 0.78, z + 0.26); ctx.scene.add(back);
     for (const lx of [-0.85, 0.85]) { const leg = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.46, 0.5), hoop); leg.position.set(bx + lx, 0.2, z); ctx.scene.add(leg); }
     ctx.addCollider({ x: bx, z, r: 0.6 });
-    // face the water (-z)
-    ctx.addSeat({ id: `bench${bx}`, x: bx, y: 0.56, z, yaw: Math.atan2(0, 30) });
+    // TWO seats per bench so a pair can sit side by side, both facing the water
+    for (const off of [-0.55, 0.55]) ctx.addSeat({ id: `bench${bx}_${off}`, x: bx + off, y: 0.56, z, yaw: Math.atan2(0, 30) });
   }
   // a second hug spot on the west promenade
   addHugSpot(ctx, -Q_HW + 6, 20, 0, 0xff7ab0, 'love2');
