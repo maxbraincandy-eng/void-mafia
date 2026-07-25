@@ -19,6 +19,8 @@ import { setupAtmosphere, type Mood } from './atmosphere';
 
 // ── dimensions ────────────────────────────────────────────────────────
 const Q_HW = 26, Q_Z0 = 9, Q_Z1 = 25;          // promenade extents
+const CA_X = 0, CA_Z = -150;                    // castle, on the top terrace
+const LH_X = -78, LH_Z = -28;                   // lighthouse, on the first terrace
 const WATER_R = 56;                            // the bay: riders/swimmers stay inside
 const LAND_R = 62;                             // all scenery land starts beyond this
 const PIER_HW = 2.5, PIER_Z = -10;             // main pier reaches to z = -10
@@ -178,40 +180,35 @@ function buildBasin(ctx: WorldContext) {
   ctx.onUpdate((_d, e) => { if (holder.shader && !ctx.perf.reduced) holder.shader.uniforms.uTime.value = e; });
 }
 
-// ── Terrain: ONE height field shared by the hills and the buildings ───
-// Houses used to float because they were lifted by an invented "terrace"
-// formula while the hills were unrelated random spheres. Now a single
-// groundAt() drives the hill mesh AND every building's Y, so nothing floats.
-type Bump = { x: number; z: number; r: number; a: number };
-let BUMPS: Bump[] = [];
-function groundAt(x: number, z: number): number {
-  let y = -9;                                    // sea floor
-  for (const b of BUMPS) {
-    const d2 = (x - b.x) * (x - b.x) + (z - b.z) * (z - b.z);
-    y += b.a * Math.exp(-d2 / (b.r * b.r));
-  }
-  return y;
-}
+// ── Land: EXACT stepped terraces (no height field, no floating) ───────
+// The previous attempt displaced a plane by a Gaussian height field. Two things
+// broke: the wide bumps summed to ABOVE water level out at the islands, so green
+// terrain covered the bay; and the mesh only sampled height every ~5 units, so
+// buildings placed from the analytic function floated over the interpolated
+// surface. Now the land is a set of FLAT annular terraces at known heights — a
+// building on terrace k sits at exactly T_H[k], so it can never float, and
+// everything inside LAND_R is left as open water.
+const T_R = [LAND_R, LAND_R + 20, LAND_R + 40, LAND_R + 60, LAND_R + 96];  // ring radii
+const T_H = [0, 7, 15, 24, 34];                                            // their heights
 function buildLand(ctx: WorldContext) {
-  // deterministic ring of hills, all beyond LAND_R so the bay stays open
-  BUMPS = [];
-  for (let i = 0; i < 15; i++) {
-    const a = (i / 15) * Math.PI * 2 + 0.2;
-    const d = rr(LAND_R + 16, LAND_R + 74);
-    BUMPS.push({ x: Math.cos(a) * d, z: Math.sin(a) * d - 24, r: rr(30, 58), a: rr(20, 44) });
+  const grass = new THREE.MeshStandardMaterial({ color: 0x54804a, roughness: 1 });
+  const rockM = new THREE.MeshStandardMaterial({ color: 0x8a7f6c, roughness: 1 });
+
+  // base shelf: an annulus at quay level filling everything outside the bay
+  const base = new THREE.Mesh(new THREE.RingGeometry(T_R[0], T_R[4] + 90, 64, 1), grass);
+  base.rotation.x = -Math.PI / 2; base.position.set(0, T_H[0], 0); base.receiveShadow = true; ctx.scene.add(base);
+  // fill the strip between the promenade and the ring on the landward side
+  const fillD = T_R[0] - Q_Z1 + 10;
+  const fill = new THREE.Mesh(new THREE.BoxGeometry(T_R[0] * 2, 2.4, fillD), grass);
+  fill.position.set(0, -1.2, Q_Z1 + fillD / 2 - 1); fill.receiveShadow = true; ctx.scene.add(fill);
+
+  // rising terraces: each a flat ring top plus a riser wall at its inner edge
+  for (let k = 1; k < T_R.length; k++) {
+    const top = new THREE.Mesh(new THREE.RingGeometry(T_R[k], T_R[4] + 90, 64, 1), grass);
+    top.rotation.x = -Math.PI / 2; top.position.set(0, T_H[k], 0); top.receiveShadow = true; ctx.scene.add(top);
+    const riser = new THREE.Mesh(new THREE.CylinderGeometry(T_R[k], T_R[k], T_H[k] - T_H[k - 1], 64, 1, true), rockM);
+    riser.position.set(0, (T_H[k] + T_H[k - 1]) / 2, 0); ctx.scene.add(riser);
   }
-  // one displaced plane for all the land — the buildings sample the same field
-  const SEG = ctx.perf.reduced ? 56 : 84;
-  const geo = new THREE.PlaneGeometry(430, 430, SEG, SEG);
-  const pa = geo.getAttribute('position') as THREE.BufferAttribute;
-  for (let i = 0; i < pa.count; i++) {
-    // the plane is built in XY then rotated, so its local Y is world -Z
-    const wx = pa.getX(i), wz = -pa.getY(i);
-    pa.setZ(i, groundAt(wx, wz));
-  }
-  geo.computeVertexNormals();
-  const land = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x53804a, roughness: 1 }));
-  land.rotation.x = -Math.PI / 2; land.receiveShadow = true; ctx.scene.add(land);
 }
 
 // ── Dense tiered old town: houses, domes, towers (all instanced) ──────
@@ -238,13 +235,15 @@ function buildOldTown(ctx: WorldContext) {
   while (placed < COUNT && tries < COUNT * 8) {
     tries++;
     const a = rr(0, Math.PI * 2);
-    const rad = rr(LAND_R + 2, LAND_R + 92);
-    const x = Math.cos(a) * rad, z = Math.sin(a) * rad - 24;
-    if (Math.hypot(x + 74, z + 20) < 22) continue;                        // lighthouse hill
-    if (Math.hypot(x, z + 96) < 26) continue;                             // castle mount
-    // sit ON the shared terrain; skip anything that would stand in the water
-    const hill = groundAt(x, z);
-    if (hill < 2) continue;
+    // pick a terrace, then a radius safely inside its flat top
+    const k = 1 + ((rnd() * (T_R.length - 1)) | 0);
+    const inner = T_R[k] + 3, outer = (k + 1 < T_R.length ? T_R[k + 1] : T_R[4] + 42) - 3;
+    const rad = rr(inner, outer);
+    const x = Math.cos(a) * rad, z = Math.sin(a) * rad;
+    if (Math.hypot(x - LH_X, z - LH_Z) < 20) continue;                    // lighthouse ground
+    if (Math.hypot(x - CA_X, z - CA_Z) < 24) continue;                    // castle ground
+    // exact terrace height — a building can never float above its ring
+    const hill = T_H[k];
     const h = rr(3.4, 8.5), w = rr(3.4, 6.2), dep = rr(3.4, 6);
     const ry = a + rr(-0.45, 0.45);
     d.position.set(x, hill + h / 2, z); d.scale.set(w, h, dep); d.rotation.set(0, ry, 0); d.updateMatrix(); bodies.setMatrixAt(placed, d.matrix);
@@ -268,8 +267,7 @@ function buildOldTown(ctx: WorldContext) {
 
 // ── Rotmundi Castle on the mount across the water ─────────────────────
 function buildCastle(ctx: WorldContext) {
-  const CX = 0, CZ = -96;
-  const g = new THREE.Group(); g.position.set(CX, groundAt(CX, CZ), CZ); ctx.scene.add(g);
+  const g = new THREE.Group(); g.position.set(CA_X, T_H[T_H.length - 1], CA_Z); ctx.scene.add(g);
   const stone = new THREE.MeshStandardMaterial({ color: 0xe0d6bc, roughness: 0.95 });
   const roof = new THREE.MeshStandardMaterial({ color: 0x3a6ea8, roughness: 0.7, metalness: 0.15 });
   const gold = new THREE.MeshStandardMaterial({ color: 0xd8b45a, roughness: 0.5, metalness: 0.6 });
@@ -293,17 +291,16 @@ function buildCastle(ctx: WorldContext) {
 
 // ── Lighthouse Hill (west) with a sweeping beam ───────────────────────
 function buildLighthouse(ctx: WorldContext) {
-  const LX = -74, LZ = -20;
-  const g = new THREE.Group(); g.position.set(LX, groundAt(LX, LZ), LZ); ctx.scene.add(g);
+  const g = new THREE.Group(); g.position.set(LH_X, T_H[1], LH_Z); ctx.scene.add(g);
   const rock = new THREE.Mesh(new THREE.CylinderGeometry(9, 15, 7, 12), new THREE.MeshStandardMaterial({ color: 0x7d7466, roughness: 1 })); rock.position.y = -1; g.add(rock);
   const tower = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 3.2, 22, 18), new THREE.MeshStandardMaterial({ color: 0xf6f2e6, roughness: 0.7 })); tower.position.y = 13; g.add(tower);
   for (let i = 0; i < 4; i++) { const band = new THREE.Mesh(new THREE.CylinderGeometry(2.45, 2.85, 2.1, 18), new THREE.MeshStandardMaterial({ color: 0xd6382e, roughness: 0.7 })); band.position.y = 5 + i * 5.2; g.add(band); }
   const room = new THREE.Mesh(new THREE.CylinderGeometry(2.7, 2.7, 2.6, 14), lit(0xffe6a0)); room.position.y = 25; g.add(room);
   const cap = new THREE.Mesh(new THREE.ConeGeometry(3.2, 2.6, 14), new THREE.MeshStandardMaterial({ color: 0x2f3a4a, metalness: 0.6, roughness: 0.4 })); cap.position.y = 27.6; g.add(cap);
-  const lampY = groundAt(LX, LZ) + 25;
-  const lamp = new THREE.PointLight(0xffe6a0, 1.8, 70, 2); lamp.position.set(LX, lampY, LZ); ctx.scene.add(lamp);
+  const lampY = T_H[1] + 25;
+  const lamp = new THREE.PointLight(0xffe6a0, 1.8, 70, 2); lamp.position.set(LH_X, lampY, LH_Z); ctx.scene.add(lamp);
   const beam = new THREE.Mesh(new THREE.ConeGeometry(5, 90, 18, 1, true), new THREE.MeshBasicMaterial({ color: 0xffe6a0, transparent: true, opacity: 0.07, side: THREE.DoubleSide, toneMapped: false, depthWrite: false }));
-  beam.rotation.z = Math.PI / 2; beam.position.set(LX, lampY, LZ); ctx.scene.add(beam);
+  beam.rotation.z = Math.PI / 2; beam.position.set(LH_X, lampY, LH_Z); ctx.scene.add(beam);
   ctx.onUpdate((_d, e) => { beam.rotation.y = e * 0.5; lamp.intensity = 1.6 + Math.sin(e * 3) * 0.25; });
 }
 
@@ -574,7 +571,7 @@ function buildFlagship(ctx: WorldContext) {
 }
 
 // ── SECRET COVE: a sandy shore across the basin you can land on ──────
-const COVE_X = -34, COVE_Z = -40;
+const COVE_X = -34, COVE_Z = -26;
 function buildSecretCove(ctx: WorldContext) {
   const sand = new THREE.MeshStandardMaterial({ color: 0xd8c496, roughness: 1 });
   const rock = new THREE.MeshStandardMaterial({ color: 0x7a7264, roughness: 1 });
@@ -622,7 +619,7 @@ function buildSecretCove(ctx: WorldContext) {
 // Reachable by boat. Its floor is exactly at walk height, it is OPEN-TOPPED so
 // the third-person camera never clips into black, and it holds a wall TV you can
 // put YouTube on, two 2-seat sofas, a lap-sitting loveseat and full furnishings.
-const VL_X = 32, VL_Z = -40;                  // island centre
+const VL_X = 24, VL_Z = -32;                  // island centre
 const V_HW = 9, V_HD = 7.5, V_WH = 3.0;       // villa interior half-extents / wall height
 function buildVilla(ctx: WorldContext) {
   const sand = new THREE.MeshStandardMaterial({ color: 0xd8c496, roughness: 1 });
@@ -1043,9 +1040,12 @@ function buildWater(ctx: WorldContext) {
   // ── seal the bay: swimmers used to be able to strike out past the shoreline
   // and end up standing inside distant hills. Ring the water, and close the
   // flanks so nobody gets around the quay onto the backing land.
-  for (let i = 0; i < 90; i++) {
-    const a = (i / 90) * Math.PI * 2;
-    const x = Math.cos(a) * (WATER_R - 1), z = Math.sin(a) * (WATER_R - 1);
+  // Ring the water just inside the shoreline. Radius 59 clears both islands
+  // (their outer edges reach ~57) while still stopping swimmers well short of
+  // the terraced land at 62 — otherwise you could stand on scenery.
+  for (let i = 0; i < 100; i++) {
+    const a = (i / 100) * Math.PI * 2;
+    const x = Math.cos(a) * 59, z = Math.sin(a) * 59;
     if (z > Q_Z0 - 2) continue;                 // the quay already closes the south
     ctx.addCollider({ x, z, r: 2.2 });
   }
