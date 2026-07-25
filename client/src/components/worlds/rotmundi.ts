@@ -19,6 +19,8 @@ import { setupAtmosphere, type Mood } from './atmosphere';
 
 // ── dimensions ────────────────────────────────────────────────────────
 const Q_HW = 26, Q_Z0 = 9, Q_Z1 = 25;          // promenade extents
+const WATER_R = 56;                            // the bay: riders/swimmers stay inside
+const LAND_R = 62;                             // all scenery land starts beyond this
 const PIER_HW = 2.5, PIER_Z = -10;             // main pier reaches to z = -10
 const DOCK_X0 = -20, DOCK_X1 = -13, DOCK_Z0 = 3;
 
@@ -57,6 +59,7 @@ export const rotmundi: WorldDef = {
   icon: '⚓',
   status: 'live',
   spawn: { x: 0, z: 21, yaw: 0 },     // on the promenade, facing the harbour
+  oceanR: WATER_R,                    // boats stay inside the bay
   fog: { color: 0xcfe0ee, density: 0.0055 },
   clear: 0xbcd8ee,
 
@@ -77,6 +80,7 @@ export const rotmundi: WorldDef = {
     buildGalleons(ctx);
     buildFlagship(ctx);
     buildSecretCove(ctx);
+    buildVilla(ctx);
     buildRowboats(ctx);
     buildWrecks(ctx);
     buildGhostSeals(ctx);
@@ -150,7 +154,7 @@ function buildMountains(ctx: WorldContext) {
   const snowMat = new THREE.MeshStandardMaterial({ color: 0xf2f7ff, roughness: 0.9 });
   for (let i = 0; i < 16; i++) {
     const a = rr(Math.PI * 0.62, Math.PI * 2.42);           // wrap the far side
-    const dist = rr(230, 330), h = rr(48, 100), rad = h * rr(0.75, 1.05);
+    const dist = rr(250, 350), h = rr(48, 100), rad = h * rr(0.75, 1.05);
     const x = Math.cos(a) * dist, z = Math.sin(a) * dist - 40;
     const m = new THREE.Mesh(new THREE.ConeGeometry(rad, h, 6), rockMat); m.position.set(x, h / 2 - 6, z); m.rotation.y = rnd() * Math.PI; ctx.scene.add(m);
     const cap = new THREE.Mesh(new THREE.ConeGeometry(rad * 0.4, h * 0.34, 6), snowMat); cap.position.set(x, h - h * 0.17 - 6, z); cap.rotation.y = m.rotation.y; ctx.scene.add(cap);
@@ -174,23 +178,40 @@ function buildBasin(ctx: WorldContext) {
   ctx.onUpdate((_d, e) => { if (holder.shader && !ctx.perf.reduced) holder.shader.uniforms.uTime.value = e; });
 }
 
-// ── Green land masses / hillsides the town is built on ────────────────
-function buildLand(ctx: WorldContext) {
-  const grass = new THREE.MeshStandardMaterial({ color: 0x4e7a42, roughness: 1 });
-  const rock = new THREE.MeshStandardMaterial({ color: 0x7d7466, roughness: 1 });
-  // the shore shelf the promenade sits on (behind + flanking the quay)
-  const shelf = new THREE.Mesh(new THREE.BoxGeometry(150, 6, 90), rock); shelf.position.set(0, -3, 68); ctx.scene.add(shelf);
-  for (const sx of [-1, 1]) { const wing = new THREE.Mesh(new THREE.BoxGeometry(70, 6, 120), rock); wing.position.set(sx * 62, -3, -20); ctx.scene.add(wing); }
-  const far = new THREE.Mesh(new THREE.BoxGeometry(230, 6, 90), rock); far.position.set(0, -3, -95); ctx.scene.add(far);
-  // rolling hills under the old town
-  for (let i = 0; i < 16; i++) {
-    const a = rr(Math.PI * 0.55, Math.PI * 2.45);
-    const dist = rr(56, 150), h = rr(12, 40), rad = rr(28, 62);
-    const hill = new THREE.Mesh(new THREE.SphereGeometry(rad, 14, 9), grass);
-    hill.position.set(Math.cos(a) * dist, -rad + h, Math.sin(a) * dist - 30);
-    hill.scale.set(1, (h + rad * 0.35) / rad, 1);
-    ctx.scene.add(hill);
+// ── Terrain: ONE height field shared by the hills and the buildings ───
+// Houses used to float because they were lifted by an invented "terrace"
+// formula while the hills were unrelated random spheres. Now a single
+// groundAt() drives the hill mesh AND every building's Y, so nothing floats.
+type Bump = { x: number; z: number; r: number; a: number };
+let BUMPS: Bump[] = [];
+function groundAt(x: number, z: number): number {
+  let y = -9;                                    // sea floor
+  for (const b of BUMPS) {
+    const d2 = (x - b.x) * (x - b.x) + (z - b.z) * (z - b.z);
+    y += b.a * Math.exp(-d2 / (b.r * b.r));
   }
+  return y;
+}
+function buildLand(ctx: WorldContext) {
+  // deterministic ring of hills, all beyond LAND_R so the bay stays open
+  BUMPS = [];
+  for (let i = 0; i < 15; i++) {
+    const a = (i / 15) * Math.PI * 2 + 0.2;
+    const d = rr(LAND_R + 16, LAND_R + 74);
+    BUMPS.push({ x: Math.cos(a) * d, z: Math.sin(a) * d - 24, r: rr(30, 58), a: rr(20, 44) });
+  }
+  // one displaced plane for all the land — the buildings sample the same field
+  const SEG = ctx.perf.reduced ? 56 : 84;
+  const geo = new THREE.PlaneGeometry(430, 430, SEG, SEG);
+  const pa = geo.getAttribute('position') as THREE.BufferAttribute;
+  for (let i = 0; i < pa.count; i++) {
+    // the plane is built in XY then rotated, so its local Y is world -Z
+    const wx = pa.getX(i), wz = -pa.getY(i);
+    pa.setZ(i, groundAt(wx, wz));
+  }
+  geo.computeVertexNormals();
+  const land = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x53804a, roughness: 1 }));
+  land.rotation.x = -Math.PI / 2; land.receiveShadow = true; ctx.scene.add(land);
 }
 
 // ── Dense tiered old town: houses, domes, towers (all instanced) ──────
@@ -212,21 +233,18 @@ function buildOldTown(ctx: WorldContext) {
   const domeCols = [0x3f7fb8, 0x2f6f96, 0x4a8fa8, 0x5a6fb8, 0x3a86a0];
 
   const d = new THREE.Object3D(); const c = new THREE.Color();
-  // hillside terracing: the further from the water, the higher the tier
-  const terrace = (rad: number) => Math.pow(Math.max(0, rad - 40) / 110, 0.95) * 34;
 
   let placed = 0, tries = 0, dn = 0;
-  while (placed < COUNT && tries < COUNT * 6) {
+  while (placed < COUNT && tries < COUNT * 8) {
     tries++;
     const a = rr(0, Math.PI * 2);
-    const rad = rr(40, 150);
-    const x = Math.cos(a) * rad, z = Math.sin(a) * rad - 30;
-    // keep the basin, the promenade and the quay approaches clear
-    if (z > -34 && z < Q_Z1 + 4 && Math.abs(x) < Q_HW + 12) continue;     // harbour + quay
-    if (z < -34 && Math.abs(x) < 16 && rad < 120) continue;               // the channel out to sea
-    if (Math.hypot(x + 78, z + 26) < 26) continue;                        // lighthouse hill
-    if (Math.hypot(x, z + 104) < 24) continue;                            // castle mount
-    const hill = terrace(rad);
+    const rad = rr(LAND_R + 2, LAND_R + 92);
+    const x = Math.cos(a) * rad, z = Math.sin(a) * rad - 24;
+    if (Math.hypot(x + 74, z + 20) < 22) continue;                        // lighthouse hill
+    if (Math.hypot(x, z + 96) < 26) continue;                             // castle mount
+    // sit ON the shared terrain; skip anything that would stand in the water
+    const hill = groundAt(x, z);
+    if (hill < 2) continue;
     const h = rr(3.4, 8.5), w = rr(3.4, 6.2), dep = rr(3.4, 6);
     const ry = a + rr(-0.45, 0.45);
     d.position.set(x, hill + h / 2, z); d.scale.set(w, h, dep); d.rotation.set(0, ry, 0); d.updateMatrix(); bodies.setMatrixAt(placed, d.matrix);
@@ -250,7 +268,8 @@ function buildOldTown(ctx: WorldContext) {
 
 // ── Rotmundi Castle on the mount across the water ─────────────────────
 function buildCastle(ctx: WorldContext) {
-  const g = new THREE.Group(); g.position.set(0, 26, -104); ctx.scene.add(g);
+  const CX = 0, CZ = -96;
+  const g = new THREE.Group(); g.position.set(CX, groundAt(CX, CZ), CZ); ctx.scene.add(g);
   const stone = new THREE.MeshStandardMaterial({ color: 0xe0d6bc, roughness: 0.95 });
   const roof = new THREE.MeshStandardMaterial({ color: 0x3a6ea8, roughness: 0.7, metalness: 0.15 });
   const gold = new THREE.MeshStandardMaterial({ color: 0xd8b45a, roughness: 0.5, metalness: 0.6 });
@@ -274,15 +293,17 @@ function buildCastle(ctx: WorldContext) {
 
 // ── Lighthouse Hill (west) with a sweeping beam ───────────────────────
 function buildLighthouse(ctx: WorldContext) {
-  const g = new THREE.Group(); g.position.set(-78, 18, -26); ctx.scene.add(g);
+  const LX = -74, LZ = -20;
+  const g = new THREE.Group(); g.position.set(LX, groundAt(LX, LZ), LZ); ctx.scene.add(g);
   const rock = new THREE.Mesh(new THREE.CylinderGeometry(9, 15, 7, 12), new THREE.MeshStandardMaterial({ color: 0x7d7466, roughness: 1 })); rock.position.y = -1; g.add(rock);
   const tower = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 3.2, 22, 18), new THREE.MeshStandardMaterial({ color: 0xf6f2e6, roughness: 0.7 })); tower.position.y = 13; g.add(tower);
   for (let i = 0; i < 4; i++) { const band = new THREE.Mesh(new THREE.CylinderGeometry(2.45, 2.85, 2.1, 18), new THREE.MeshStandardMaterial({ color: 0xd6382e, roughness: 0.7 })); band.position.y = 5 + i * 5.2; g.add(band); }
   const room = new THREE.Mesh(new THREE.CylinderGeometry(2.7, 2.7, 2.6, 14), lit(0xffe6a0)); room.position.y = 25; g.add(room);
   const cap = new THREE.Mesh(new THREE.ConeGeometry(3.2, 2.6, 14), new THREE.MeshStandardMaterial({ color: 0x2f3a4a, metalness: 0.6, roughness: 0.4 })); cap.position.y = 27.6; g.add(cap);
-  const lamp = new THREE.PointLight(0xffe6a0, 1.8, 70, 2); lamp.position.set(-78, 43, -26); ctx.scene.add(lamp);
+  const lampY = groundAt(LX, LZ) + 25;
+  const lamp = new THREE.PointLight(0xffe6a0, 1.8, 70, 2); lamp.position.set(LX, lampY, LZ); ctx.scene.add(lamp);
   const beam = new THREE.Mesh(new THREE.ConeGeometry(5, 90, 18, 1, true), new THREE.MeshBasicMaterial({ color: 0xffe6a0, transparent: true, opacity: 0.07, side: THREE.DoubleSide, toneMapped: false, depthWrite: false }));
-  beam.rotation.z = Math.PI / 2; beam.position.set(-78, 43, -26); ctx.scene.add(beam);
+  beam.rotation.z = Math.PI / 2; beam.position.set(LX, lampY, LZ); ctx.scene.add(beam);
   ctx.onUpdate((_d, e) => { beam.rotation.y = e * 0.5; lamp.intensity = 1.6 + Math.sin(e * 3) * 0.25; });
 }
 
@@ -443,7 +464,7 @@ function buildGalleons(ctx: WorldContext) {
 // Built so its DECK PLANE IS EXACTLY y = 0 (the engine's walkable height), with
 // a floating boarding jetty + gangplank alongside — ride a boat out, tie up,
 // walk aboard, and take the bow pose at the figurehead.
-const FS_X = -8, FS_Z = -34, FS_RY = 0.32;      // flagship pose/anchor
+const FS_X = -8, FS_Z = -32, FS_RY = 0.32;      // flagship pose/anchor
 const FS_HW = 2.6, FS_LEN = 9.5;                // half-width, half-length of the deck
 function buildFlagship(ctx: WorldContext) {
   const g = new THREE.Group(); g.position.set(FS_X, 0, FS_Z); g.rotation.y = FS_RY; ctx.scene.add(g);
@@ -477,7 +498,8 @@ function buildFlagship(ctx: WorldContext) {
   ctx.onUpdate((d) => { wheel.rotation.z += d * 0.25; });
   // gilded figurehead under the bowsprit
   const fig = new THREE.Mesh(new THREE.ConeGeometry(0.38, 1.3, 8), gold); fig.rotation.x = Math.PI / 2 + 0.4; fig.position.set(0, -0.2, -FS_LEN - 1.2); g.add(fig);
-  const bs = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 4.6, 6), mastMat); bs.position.set(0, 0.9, -FS_LEN - 1.7); bs.rotation.x = 1.28; g.add(bs);
+  // angled down and set low so it never crosses the bow sightline
+  const bs = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.15, 3.4, 6), mastMat); bs.position.set(0, -0.75, -FS_LEN - 1.5); bs.rotation.x = 1.05; g.add(bs);
   // three masts with yards, square sails and rigging
   for (const [mz, mh] of [[-4.6, 15], [0.6, 19], [4.8, 13]] as const) {
     const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.26, mh, 10), mastMat); mast.position.set(0, mh / 2, mz); g.add(mast);
@@ -488,8 +510,9 @@ function buildFlagship(ctx: WorldContext) {
       const sail = new THREE.Mesh(new THREE.PlaneGeometry(5.3, 3.1), sailMat); sail.position.set(0, y, mz); sail.rotation.y = Math.PI / 2; g.add(sail);
       ctx.onUpdate((_d, e) => { sail.scale.x = 1 + Math.sin(e * 1.25 + s + mz) * 0.045; });
     }
-    // rigging: shrouds down to the rail
-    for (const sx of [-FS_HW, FS_HW]) for (const off of [-1.1, 1.1]) {
+    // rigging: shrouds down to the rail (skipped on the foremast so the bow
+    // pose keeps a clean view forward)
+    if (mz > -4) for (const sx of [-FS_HW, FS_HW]) for (const off of [-1.1, 1.1]) {
       const l = Math.hypot(FS_HW, mh * 0.6);
       const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, l, 4), dark);
       rope.position.set(sx / 2, mh * 0.3, mz + off / 2); rope.rotation.z = Math.atan2(sx, mh * 0.6); rope.rotation.x = Math.atan2(off, mh * 0.6);
@@ -551,7 +574,7 @@ function buildFlagship(ctx: WorldContext) {
 }
 
 // ── SECRET COVE: a sandy shore across the basin you can land on ──────
-const COVE_X = -44, COVE_Z = -54;
+const COVE_X = -34, COVE_Z = -40;
 function buildSecretCove(ctx: WorldContext) {
   const sand = new THREE.MeshStandardMaterial({ color: 0xd8c496, roughness: 1 });
   const rock = new THREE.MeshStandardMaterial({ color: 0x7a7264, roughness: 1 });
@@ -593,6 +616,171 @@ function buildSecretCove(ctx: WorldContext) {
   // the cove is dry ground; a boat waits so you can head back
   ctx.addDryZone({ x: COVE_X, z: COVE_Z, r: 13.4 });
   ctx.addVehicle({ id: 'coveboat', kind: 'boat', x: COVE_X + 11, z: COVE_Z + 10, yaw: 0.6, waterY: -1.1 });
+}
+
+// ── THE VILLA: a furnished house on the island across the bay ─────────
+// Reachable by boat. Its floor is exactly at walk height, it is OPEN-TOPPED so
+// the third-person camera never clips into black, and it holds a wall TV you can
+// put YouTube on, two 2-seat sofas, a lap-sitting loveseat and full furnishings.
+const VL_X = 32, VL_Z = -40;                  // island centre
+const V_HW = 9, V_HD = 7.5, V_WH = 3.0;       // villa interior half-extents / wall height
+function buildVilla(ctx: WorldContext) {
+  const sand = new THREE.MeshStandardMaterial({ color: 0xd8c496, roughness: 1 });
+  const grass = new THREE.MeshStandardMaterial({ color: 0x54804a, roughness: 1 });
+
+  // the island pad — top exactly at walk height so you step out of the water
+  const isle = new THREE.Mesh(new THREE.CylinderGeometry(17, 19, 2.4, 36), sand);
+  isle.position.set(VL_X, -1.2, VL_Z); isle.receiveShadow = true; ctx.scene.add(isle);
+  const lawn = new THREE.Mesh(new THREE.CylinderGeometry(14.4, 14.4, 0.12, 36), grass);
+  lawn.position.set(VL_X, 0.02, VL_Z); ctx.scene.add(lawn);
+
+  // landing jetty on the west side, facing the harbour
+  const wood = new THREE.MeshStandardMaterial({ color: 0x8a6440, roughness: 1 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x4a3220, roughness: 1 });
+  const jetty = new THREE.Mesh(new THREE.BoxGeometry(4, 0.24, 8), wood);
+  jetty.position.set(VL_X - 18, -0.12, VL_Z); jetty.receiveShadow = true; ctx.scene.add(jetty);
+  for (const dz of [-3, 0, 3]) for (const dx of [-1.6, 1.6]) { const pile = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 3.2, 8), dark); pile.position.set(VL_X - 18 + dx, -1.7, VL_Z + dz); ctx.scene.add(pile); }
+
+  // ── the villa shell (open top) ──
+  const g = new THREE.Group(); g.position.set(VL_X, 0, VL_Z); ctx.scene.add(g);
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0xefe2c8, roughness: 0.9 });
+  const beamMat = new THREE.MeshStandardMaterial({ color: 0x6a4a30, roughness: 1 });
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(V_HW * 2, 0.12, V_HD * 2), new THREE.MeshStandardMaterial({ color: 0x8a6a46, roughness: 0.85 }));
+  floor.position.y = 0.06; floor.receiveShadow = true; g.add(floor);
+  for (let x = -V_HW + 0.6; x < V_HW; x += 1.2) { const pl = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.03, V_HD * 2 - 0.2), beamMat); pl.position.set(x, 0.13, 0); g.add(pl); }
+  const wall = (w: number, h: number, d: number, x: number, y: number, z: number) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMat); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; g.add(m); return m;
+  };
+  const TH = 0.3, DOOR = 3.2;
+  wall(V_HW * 2 + TH, V_WH, TH, 0, V_WH / 2, -V_HD);                 // back (the TV wall)
+  wall(TH, V_WH, V_HD * 2, V_HW, V_WH / 2, 0);                       // east
+  wall(TH, V_WH, V_HD * 2, -V_HW, V_WH / 2, 0);                      // west
+  const seg = (V_HW * 2 - DOOR) / 2;                                 // front with a wide doorway
+  wall(seg, V_WH, TH, -(DOOR / 2 + seg / 2), V_WH / 2, V_HD);
+  wall(seg, V_WH, TH, (DOOR / 2 + seg / 2), V_WH / 2, V_HD);
+  // open beam frame + eaves (reads as a roof, leaves the centre open)
+  for (const [px, pz] of [[-V_HW, -V_HD], [V_HW, -V_HD], [-V_HW, V_HD], [V_HW, V_HD]] as const) {
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.32, V_WH + 1.5, 0.32), beamMat); post.position.set(px, (V_WH + 1.5) / 2, pz); g.add(post);
+  }
+  for (const sgn of [-1, 1]) {
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(V_HW * 2 + 0.5, 0.22, 0.22), beamMat); beam.position.set(0, V_WH + 1.4, sgn * V_HD); g.add(beam);
+    const side = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.22, V_HD * 2), beamMat); side.position.set(sgn * V_HW, V_WH + 1.4, 0); g.add(side);
+    const eave = new THREE.Mesh(new THREE.BoxGeometry(V_HW * 2 + 1.4, 0.16, 1.6), new THREE.MeshStandardMaterial({ color: 0xb0432e, roughness: 1 }));
+    eave.position.set(0, V_WH + 1.6, sgn * (V_HD - 0.2)); eave.rotation.x = sgn * -0.5; g.add(eave);
+  }
+  // glowing side windows
+  for (const wz of [-3.4, 0, 3.4]) for (const sx of [-V_HW - 0.02, V_HW + 0.02]) {
+    const win = new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.2, 1.5), lit(0xffe0a8)); win.position.set(sx, 1.7, wz); g.add(win);
+  }
+
+  // ── the wall TV (world cinema: put YouTube on it) ──
+  const SW = 6.2, SH = 3.5, SCY = 2.0, SZ = -V_HD + 0.2;
+  const bezel = new THREE.Mesh(new THREE.BoxGeometry(SW + 0.4, SH + 0.4, 0.16), new THREE.MeshStandardMaterial({ color: 0x14151c, roughness: 0.5, metalness: 0.4 }));
+  bezel.position.set(0, SCY, SZ - 0.06); g.add(bezel);
+  const panel = new THREE.Mesh(new THREE.PlaneGeometry(SW, SH), new THREE.MeshBasicMaterial({ color: 0x0b1024, toneMapped: false }));
+  panel.position.set(0, SCY, SZ + 0.03); g.add(panel);
+  for (const [w, h, dx, dy] of [[SW + 0.4, 0.06, 0, SH / 2 + 0.2], [SW + 0.4, 0.06, 0, -SH / 2 - 0.2], [0.06, SH + 0.4, SW / 2 + 0.2, 0], [0.06, SH + 0.4, -SW / 2 - 0.2, 0]] as const) {
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.05), lit(0x9b5cff)); bar.position.set(dx, SCY + dy, SZ + 0.05); g.add(bar);
+  }
+  ctx.setScreen({ x: VL_X, y: SCY, z: VL_Z + SZ + 0.04, w: SW, h: SH, ry: 0 });
+  // the remote: id 'dj' is what opens the shared music/video panel
+  ctx.addInteractable({ id: 'dj', x: VL_X, z: VL_Z + SZ + 2.2, r: 2.4, label: '📺 ტელევიზორი', effect: () => { /* panel opens via onInteract('dj') */ } });
+  const tvGlow = new THREE.PointLight(0x7a8cff, 1.0, 14, 2); tvGlow.position.set(0, SCY, SZ + 2); g.add(tvGlow);
+  ctx.onUpdate((_d, e) => { tvGlow.intensity = 0.9 + Math.sin(e * 2.2) * 0.15; });
+
+  // ── seating facing the TV: TWO 2-SEAT SOFAS ──
+  const sofaMat = new THREE.MeshStandardMaterial({ color: 0x3f4657, roughness: 0.88 });
+  const faceTV = (wx: number, wz: number) => Math.atan2(wx - VL_X, wz - (VL_Z + SZ));
+  for (const [sx, sz] of [[-3.3, 1.4], [3.3, 1.4]] as const) {
+    const base = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.45, 1.1), sofaMat); base.position.set(sx, 0.35, sz); base.castShadow = true; g.add(base);
+    const back = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.7, 0.2), sofaMat); back.position.set(sx, 0.78, sz + 0.45); g.add(back);
+    for (const ax of [-1.4, 1.4]) { const arm = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.55, 1.1), sofaMat); arm.position.set(sx + ax, 0.5, sz); g.add(arm); }
+    // two seats per sofa → 2 + 2
+    for (const off of [-0.7, 0.7]) {
+      const wx = VL_X + sx + off, wz = VL_Z + sz;
+      ctx.addSeat({ id: `sofa${sx}${off}`, x: wx, y: 0.62, z: wz, yaw: faceTV(wx, wz) });
+    }
+    ctx.addCollider({ x: VL_X + sx, z: VL_Z + sz + 0.5, r: 0.6 });
+  }
+
+  // ── the LAP-SIT loveseat: one sits in the other's lap, both watch the TV ──
+  const lx = 0, lz = 3.4;
+  const lBase = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.45, 1.1), new THREE.MeshStandardMaterial({ color: 0x5a3f57, roughness: 0.88 }));
+  lBase.position.set(lx, 0.35, lz); lBase.castShadow = true; g.add(lBase);
+  const lBack = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.75, 0.2), (lBase.material as THREE.Material)); lBack.position.set(lx, 0.82, lz + 0.45); g.add(lBack);
+  for (const ax of [-0.85, 0.85]) { const arm = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.55, 1.1), (lBase.material as THREE.Material)); arm.position.set(lx + ax, 0.5, lz); g.add(arm); }
+  const lheart = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 12), lit(0xff4d6d)); lheart.scale.set(1, 0.9, 0.6); lheart.position.set(lx, 2.1, lz); g.add(lheart);
+  ctx.onUpdate((_d, e) => { lheart.position.y = 2.05 + Math.sin(e * 1.6) * 0.08; lheart.rotation.y = e * 0.7; });
+  {
+    const wx = VL_X + lx, wz = VL_Z + lz, yw = faceTV(wx, wz);
+    // the one underneath sits on the cushion; the one on top sits higher and a
+    // touch forward, so they end up on their partner's lap
+    ctx.addSeat({ id: 'lap-base', x: wx, y: 0.62, z: wz, yaw: yw, pose: 'lapBase' });
+    ctx.addSeat({ id: 'lap-top', x: wx, y: 1.0, z: wz - 0.28, yaw: yw, pose: 'lapTop' });
+    ctx.addCollider({ x: wx, z: wz + 0.55, r: 0.6 });
+  }
+
+  // ── furnishings ──
+  const woodDark = new THREE.MeshStandardMaterial({ color: 0x4a3527, roughness: 0.9 });
+  const rug = new THREE.Mesh(new THREE.CircleGeometry(4.2, 32), new THREE.MeshStandardMaterial({ color: 0x7a3b3b, roughness: 1 })); rug.rotation.x = -Math.PI / 2; rug.position.set(0, 0.14, 0.3); g.add(rug);
+  const table = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.16, 1.2), woodDark); table.position.set(0, 0.55, 0.2); g.add(table);
+  for (const [tx, tz] of [[-1.1, -0.4], [1.1, -0.4], [-1.1, 0.8], [1.1, 0.8]] as const) { const leg = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.5, 0.12), woodDark); leg.position.set(tx, 0.28, 0.2 + tz * 0.35); g.add(leg); }
+  ctx.addCollider({ x: VL_X, z: VL_Z + 0.2, r: 1.1 });
+  // kitchen counter along the east wall
+  const counter = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.0, 5.4), new THREE.MeshStandardMaterial({ color: 0x2f3540, roughness: 0.6, metalness: 0.25 }));
+  counter.position.set(V_HW - 0.9, 0.55, -1.5); g.add(counter);
+  const top = new THREE.Mesh(new THREE.BoxGeometry(1.35, 0.1, 5.5), new THREE.MeshStandardMaterial({ color: 0x1a1e26, roughness: 0.35, metalness: 0.5 })); top.position.set(V_HW - 0.9, 1.1, -1.5); g.add(top);
+  for (let i = 0; i < 4; i++) { const jar = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, 0.34, 8), lit([0x6aff9e, 0xffcf6a, 0x6ab0ff, 0xff6a8a][i])); jar.position.set(V_HW - 0.9, 1.32, -3.4 + i * 1.2); g.add(jar); }
+  for (let z = -3.6; z <= 0.6; z += 1.4) ctx.addCollider({ x: VL_X + V_HW - 0.9, z: VL_Z + z, r: 0.75 });
+  // bookshelf on the west wall
+  const shelf = new THREE.Mesh(new THREE.BoxGeometry(0.5, 2.4, 3.4), woodDark); shelf.position.set(-V_HW + 0.5, 1.2, -2.2); g.add(shelf);
+  for (let r2 = 0; r2 < 4; r2++) for (let b = 0; b < 7; b++) {
+    const book = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.44, 0.16), new THREE.MeshStandardMaterial({ color: [0xb0432e, 0x2f6a8a, 0x6a8a3a, 0x8a5aa0, 0xd8a83a][(r2 + b) % 5], roughness: 0.9 }));
+    book.position.set(-V_HW + 0.52, 0.5 + r2 * 0.6, -3.7 + b * 0.45); g.add(book);
+  }
+  for (let z = -3.4; z <= -1; z += 1.2) ctx.addCollider({ x: VL_X - V_HW + 0.5, z: VL_Z + z, r: 0.7 });
+  // standing lamps + hanging pendant
+  for (const [px2, pz2] of [[-V_HW + 1.6, 3.4], [V_HW - 1.6, 3.4]] as const) {
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.1, 1.9, 8), woodDark); pole.position.set(px2, 0.95, pz2); g.add(pole);
+    const shade = new THREE.Mesh(new THREE.ConeGeometry(0.42, 0.5, 12), lit(0xffe0a8)); shade.position.set(px2, 2.05, pz2); g.add(shade);
+  }
+  const pendant = new THREE.Mesh(new THREE.SphereGeometry(0.32, 12, 10), lit(0xffe0a8)); pendant.position.set(0, V_WH + 0.5, 0.3); g.add(pendant);
+  const roomLight = new THREE.PointLight(0xffd8a8, 1.9, 26, 2); roomLight.position.set(VL_X, V_WH - 0.2, VL_Z + 0.3); ctx.scene.add(roomLight);
+  ctx.onUpdate((_d, e) => { roomLight.intensity = 1.8 + Math.sin(e * 2.6) * 0.12; });
+  // potted plants
+  for (const [px2, pz2] of [[-V_HW + 1.1, -V_HD + 1.2], [V_HW - 1.1, V_HD - 1.2]] as const) {
+    const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.32, 0.66, 12), new THREE.MeshStandardMaterial({ color: 0xb56a48, roughness: 1 })); pot.position.set(px2, 0.4, pz2); g.add(pot);
+    const bush = new THREE.Mesh(new THREE.SphereGeometry(0.6, 10, 8), new THREE.MeshStandardMaterial({ color: 0x2f6a34, roughness: 1 })); bush.position.set(px2, 1.1, pz2); bush.scale.y = 1.2; g.add(bush);
+    ctx.addCollider({ x: VL_X + px2, z: VL_Z + pz2, r: 0.55 });
+  }
+
+  // ── zones + boundaries ──
+  ctx.addDryZone({ x: VL_X, z: VL_Z, r: 17.4 });          // the whole island (villa included)
+  ctx.addDryZone({ x: VL_X - 18, z: VL_Z, hw: 2.4, hd: 4.4 });   // landing jetty
+  // villa walls (front doorway kept clear)
+  const addWall = (ax: number, az: number, len: number, horiz: boolean, gap = 0) => {
+    const n = Math.max(1, Math.round(len / 1.1));
+    for (let i = 0; i <= n; i++) {
+      const t = (i / n - 0.5) * len;
+      if (gap > 0 && Math.abs(t) < gap / 2) continue;
+      ctx.addCollider({ x: VL_X + (horiz ? t : ax), z: VL_Z + (horiz ? az : t), r: 0.6 });
+    }
+  };
+  addWall(0, -V_HD, V_HW * 2, true);
+  addWall(-V_HW, 0, V_HD * 2, false);
+  addWall(V_HW, 0, V_HD * 2, false);
+  addWall(0, V_HD, V_HW * 2, true, DOOR + 1.2);
+  // island shoreline so you don't walk off into the sea
+  for (let i = 0; i < 44; i++) { const a = (i / 44) * Math.PI * 2; const x = VL_X + Math.cos(a) * 16.6, z = VL_Z + Math.sin(a) * 16.6; if (x < VL_X - 15) continue; ctx.addCollider({ x, z, r: 1.3 }); }
+  // palms + a boat home
+  for (let i = 0; i < 5; i++) {
+    const a = rr(0, Math.PI * 2), r2 = rr(11, 15.5);
+    const x = VL_X + Math.cos(a) * r2, z = VL_Z + Math.sin(a) * r2;
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.3, 6, 8), new THREE.MeshStandardMaterial({ color: 0x6a4a2c, roughness: 1 })); trunk.position.set(x, 3, z); trunk.rotation.z = rr(-0.1, 0.1); ctx.scene.add(trunk);
+    for (let f = 0; f < 6; f++) { const fr = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.09, 0.7), new THREE.MeshStandardMaterial({ color: 0x2f6a34, roughness: 1 })); const fa = (f / 6) * Math.PI * 2; fr.position.set(x + Math.cos(fa) * 1.5, 6, z + Math.sin(fa) * 1.5); fr.rotation.set(0, fa, -0.3); ctx.scene.add(fr); }
+    ctx.addCollider({ x, z, r: 0.5 });
+  }
+  ctx.addVehicle({ id: 'villaboat', kind: 'boat', x: VL_X - 21.5, z: VL_Z + 1, yaw: -Math.PI / 2, waterY: -1.1 });
 }
 
 // ── Little rowboats dotted about the basin ────────────────────────────
@@ -846,11 +1034,22 @@ function buildWater(ctx: WorldContext) {
   ctx.addDryZone({ x: (DOCK_X0 + DOCK_X1) / 2, z: (DOCK_Z0 + Q_Z0) / 2, hw: (DOCK_X1 - DOCK_X0) / 2 + 0.6, hd: (Q_Z0 - DOCK_Z0) / 2 + 0.8 });
 
   // Open water across the whole basin and out to sea.
-  for (let x = -60; x <= 60; x += 12) for (let z = 8; z >= -76; z -= 12) ctx.addSwimZone({ x, z, r: 9.5, waterY: -1.65 });
+  for (let x = -56; x <= 56; x += 11) for (let z = 8; z >= -56; z -= 11) { if (Math.hypot(x, z) > WATER_R + 6) continue; ctx.addSwimZone({ x, z, r: 9, waterY: -1.65 }); }
 
-  // moored rides at the pier head
-  ctx.addVehicle({ id: 'boat1', kind: 'boat', x: 5.2, z: PIER_Z + 3, yaw: 0, waterY: -1.1 });
-  ctx.addVehicle({ id: 'jetski1', kind: 'jetski', x: -5.0, z: PIER_Z + 2.5, yaw: 0, waterY: -1.1 });
+  // moored rides at the pier head (within boarding reach of the rails)
+  ctx.addVehicle({ id: 'boat1', kind: 'boat', x: 4.4, z: PIER_Z + 2.4, yaw: 0, waterY: -1.1 });
+  ctx.addVehicle({ id: 'jetski1', kind: 'jetski', x: -4.2, z: PIER_Z + 2.0, yaw: 0, waterY: -1.1 });
+
+  // ── seal the bay: swimmers used to be able to strike out past the shoreline
+  // and end up standing inside distant hills. Ring the water, and close the
+  // flanks so nobody gets around the quay onto the backing land.
+  for (let i = 0; i < 90; i++) {
+    const a = (i / 90) * Math.PI * 2;
+    const x = Math.cos(a) * (WATER_R - 1), z = Math.sin(a) * (WATER_R - 1);
+    if (z > Q_Z0 - 2) continue;                 // the quay already closes the south
+    ctx.addCollider({ x, z, r: 2.2 });
+  }
+  for (let z = Q_Z0 - 1; z <= Q_Z1 + 6; z += 1.6) { ctx.addCollider({ x: -Q_HW - 1.6, z, r: 1.1 }); ctx.addCollider({ x: Q_HW + 1.6, z, r: 1.1 }); }
 }
 
 // ── Keep players on the promenade, pier and dock ─────────────────────

@@ -585,8 +585,12 @@ export class WorldEngine {
         const nx = ((-sin) * my + cos * mx), nz = ((-cos) * my + (-sin) * mx);
         const len = Math.hypot(nx, nz) || 1; const ux = nx / len, uz = nz / len;
         let px = this.pos.x + ux * speed * dt, pz = this.pos.z + uz * speed * dt;
-        const rr = Math.hypot(px, pz); if (rr > OCEAN_R) { px = px / rr * OCEAN_R; pz = pz / rr * OCEAN_R; }
+        const bound = this.def.oceanR ?? OCEAN_R;
+        const rr = Math.hypot(px, pz); if (rr > bound) { px = px / rr * bound; pz = pz / rr * bound; }
+        // Refuse to drive onto dry ground (decks, piers, beaches).
+        const keepX = this.pos.x, keepZ = this.pos.z;
         this.pos.x = px; this.pos.z = pz;
+        if (this.onDryGround()) { this.pos.x = keepX; this.pos.z = keepZ; }
         const tf = Math.atan2(-ux, -uz); let d = tf - this.facing;
         while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2;
         this.facing += d * Math.min(1, dt * 6);

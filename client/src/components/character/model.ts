@@ -312,6 +312,24 @@ export function buildCharacter(spec: CharacterSpec): CharacterModel {
       // slow breathing sway so the hug feels alive rather than frozen
       torso.rotation.z = Math.sin(e * 1.1) * 0.045;
       torso.rotation.x = 0.06;
+    } else if (holdPose === 'lapBase') {
+      // seated with your partner on your lap: thighs forward to make the lap,
+      // both arms reaching around their waist to hold them
+      const k = Math.min(1, dt * 10);
+      legGroups.forEach(l => { l.rotation.x += (-1.5 - l.rotation.x) * k; });
+      kneeGroups.forEach(kn => { kn.rotation.x += (1.4 - kn.rotation.x) * k; });
+      armGroups[0].rotation.x += (-1.2 - armGroups[0].rotation.x) * k; armGroups[0].rotation.z += (0.52 - armGroups[0].rotation.z) * k;
+      armGroups[1].rotation.x += (-1.2 - armGroups[1].rotation.x) * k; armGroups[1].rotation.z += (-0.52 - armGroups[1].rotation.z) * k;
+      torso.rotation.z = Math.sin(e * 1.05) * 0.03;
+    } else if (holdPose === 'lapTop') {
+      // sitting on your partner's lap, leaning back into them, hands relaxed
+      const k = Math.min(1, dt * 10);
+      legGroups.forEach(l => { l.rotation.x += (-1.32 - l.rotation.x) * k; });
+      kneeGroups.forEach(kn => { kn.rotation.x += (1.15 - kn.rotation.x) * k; });
+      armGroups[0].rotation.x += (-0.32 - armGroups[0].rotation.x) * k; armGroups[0].rotation.z += (0.6 - armGroups[0].rotation.z) * k;
+      armGroups[1].rotation.x += (-0.32 - armGroups[1].rotation.x) * k; armGroups[1].rotation.z += (-0.6 - armGroups[1].rotation.z) * k;
+      torso.rotation.x = -0.12;
+      torso.rotation.z = Math.sin(e * 1.05) * 0.03;
     } else if (holdPose === 'sing') {
       // stand at the mic: one hand raised to the mouth, the other gesturing,
       // gentle sway to the beat.

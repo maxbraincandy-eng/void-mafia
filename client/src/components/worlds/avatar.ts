@@ -68,6 +68,10 @@ export class Avatar {
     // two bodies meet chest-to-chest instead of standing apart.
     else if (this.holdPose === 'hugL') { xRot = -0.1; zRot = 0.05; }
     else if (this.holdPose === 'hugR') { xRot = -0.1; zRot = -0.05; }
+    // Lap-sitting pair: the one underneath sits normally, the one on top leans
+    // back into them (their seat is placed higher + slightly forward).
+    else if (this.holdPose === 'lapBase') { xRot = 0; }
+    else if (this.holdPose === 'lapTop') { xRot = -0.16; }
     this.inner.position.y += (yTarget - this.inner.position.y) * Math.min(1, dt * 10);
     this.inner.rotation.x += (xRot - this.inner.rotation.x) * Math.min(1, dt * 8);
     this.inner.rotation.z += (zRot - this.inner.rotation.z) * Math.min(1, dt * 8);
