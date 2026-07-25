@@ -75,6 +75,8 @@ export const rotmundi: WorldDef = {
     buildPier(ctx);
     buildFishermanDock(ctx);
     buildGalleons(ctx);
+    buildFlagship(ctx);
+    buildSecretCove(ctx);
     buildRowboats(ctx);
     buildWrecks(ctx);
     buildGhostSeals(ctx);
@@ -435,6 +437,162 @@ function buildGalleons(ctx: WorldContext) {
     }
     ctx.onUpdate((_d, e) => { g.rotation.z = Math.sin(e * 0.55 + si) * 0.028; g.position.y = -1.3 + Math.sin(e * 0.68 + si * 2) * 0.09; });
   });
+}
+
+// ── THE FLAGSHIP: a galleon you can actually board ───────────────────
+// Built so its DECK PLANE IS EXACTLY y = 0 (the engine's walkable height), with
+// a floating boarding jetty + gangplank alongside — ride a boat out, tie up,
+// walk aboard, and take the bow pose at the figurehead.
+const FS_X = -8, FS_Z = -34, FS_RY = 0.32;      // flagship pose/anchor
+const FS_HW = 2.6, FS_LEN = 9.5;                // half-width, half-length of the deck
+function buildFlagship(ctx: WorldContext) {
+  const g = new THREE.Group(); g.position.set(FS_X, 0, FS_Z); g.rotation.y = FS_RY; ctx.scene.add(g);
+  const hullMat = new THREE.MeshStandardMaterial({ color: 0x6b4527, roughness: 0.85 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x35231a, roughness: 0.9 });
+  const deckMat = new THREE.MeshStandardMaterial({ color: 0x9a7248, roughness: 0.9 });
+  const sailMat = new THREE.MeshStandardMaterial({ color: 0xf4ecd8, roughness: 1, side: THREE.DoubleSide });
+  const mastMat = new THREE.MeshStandardMaterial({ color: 0x4a3320, roughness: 1 });
+  const gold = new THREE.MeshStandardMaterial({ color: 0xd8b45a, roughness: 0.45, metalness: 0.6 });
+
+  // hull below the deck plane (top exactly at y = 0)
+  const hull = new THREE.Mesh(new THREE.BoxGeometry(FS_HW * 2, 3.2, FS_LEN * 2), hullMat); hull.position.y = -1.6; hull.castShadow = true; g.add(hull);
+  const wale = new THREE.Mesh(new THREE.BoxGeometry(FS_HW * 2 + 0.16, 0.34, FS_LEN * 2), dark); wale.position.y = -0.55; g.add(wale);
+  const gild = new THREE.Mesh(new THREE.BoxGeometry(FS_HW * 2 + 0.2, 0.1, FS_LEN * 2), gold); gild.position.y = -0.3; g.add(gild);
+  const bow = new THREE.Mesh(new THREE.ConeGeometry(FS_HW, 5, 4), hullMat); bow.rotation.x = -Math.PI / 2; bow.rotation.y = Math.PI / 4; bow.position.set(0, -1.4, -FS_LEN - 1.6); bow.scale.set(1, 1, 0.55); g.add(bow);
+  // planked deck
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(FS_HW * 2, 0.12, FS_LEN * 2), deckMat); deck.position.y = -0.06; deck.receiveShadow = true; g.add(deck);
+  for (let z = -FS_LEN + 0.5; z < FS_LEN; z += 1.1) { const pl = new THREE.Mesh(new THREE.BoxGeometry(FS_HW * 2 - 0.1, 0.03, 0.09), dark); pl.position.set(0, 0.02, z); g.add(pl); }
+  // bulwarks (low side walls) with a boarding gap amidships to starboard
+  for (const sx of [-FS_HW, FS_HW]) for (let z = -FS_LEN; z <= FS_LEN; z += 1.2) {
+    if (sx > 0 && Math.abs(z - 1.5) < 1.6) continue;            // gangway gap
+    const w = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.75, 1.2), hullMat); w.position.set(sx, 0.34, z); g.add(w);
+    const cap = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.08, 1.2), dark); cap.position.set(sx, 0.75, z); g.add(cap);
+  }
+  const stern = new THREE.Mesh(new THREE.BoxGeometry(FS_HW * 2, 0.8, 0.18), hullMat); stern.position.set(0, 0.36, FS_LEN); g.add(stern);
+  // aft castle with a lantern + the ship's wheel
+  const castle = new THREE.Mesh(new THREE.BoxGeometry(FS_HW * 2 - 0.4, 1.5, 3), deckMat); castle.position.set(0, 0.75, FS_LEN - 2); g.add(castle);
+  const sternLantern = new THREE.Mesh(new THREE.SphereGeometry(0.26, 12, 10), lit(0xffd88a)); sternLantern.position.set(0, 2.0, FS_LEN - 0.6); g.add(sternLantern);
+  const wheel = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.06, 8, 18), mastMat); wheel.position.set(0, 2.05, FS_LEN - 3.4); wheel.rotation.x = 0.35; g.add(wheel);
+  for (let i = 0; i < 8; i++) { const sp = new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.1, 0.06), mastMat); sp.position.copy(wheel.position); sp.rotation.set(0.35, 0, (i / 8) * Math.PI * 2); g.add(sp); }
+  ctx.onUpdate((d) => { wheel.rotation.z += d * 0.25; });
+  // gilded figurehead under the bowsprit
+  const fig = new THREE.Mesh(new THREE.ConeGeometry(0.38, 1.3, 8), gold); fig.rotation.x = Math.PI / 2 + 0.4; fig.position.set(0, -0.2, -FS_LEN - 1.2); g.add(fig);
+  const bs = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 4.6, 6), mastMat); bs.position.set(0, 0.9, -FS_LEN - 1.7); bs.rotation.x = 1.28; g.add(bs);
+  // three masts with yards, square sails and rigging
+  for (const [mz, mh] of [[-4.6, 15], [0.6, 19], [4.8, 13]] as const) {
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.26, mh, 10), mastMat); mast.position.set(0, mh / 2, mz); g.add(mast);
+    const top = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.36, 0.3, 10), mastMat); top.position.set(0, mh * 0.62, mz); g.add(top);
+    for (let s = 0; s < 3; s++) {
+      const y = 3.8 + s * 4.2; if (y + 2.6 > mh) break;
+      const yard = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 5.6, 6), mastMat); yard.rotation.z = Math.PI / 2; yard.position.set(0, y + 1.5, mz); g.add(yard);
+      const sail = new THREE.Mesh(new THREE.PlaneGeometry(5.3, 3.1), sailMat); sail.position.set(0, y, mz); sail.rotation.y = Math.PI / 2; g.add(sail);
+      ctx.onUpdate((_d, e) => { sail.scale.x = 1 + Math.sin(e * 1.25 + s + mz) * 0.045; });
+    }
+    // rigging: shrouds down to the rail
+    for (const sx of [-FS_HW, FS_HW]) for (const off of [-1.1, 1.1]) {
+      const l = Math.hypot(FS_HW, mh * 0.6);
+      const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, l, 4), dark);
+      rope.position.set(sx / 2, mh * 0.3, mz + off / 2); rope.rotation.z = Math.atan2(sx, mh * 0.6); rope.rotation.x = Math.atan2(off, mh * 0.6);
+      g.add(rope);
+    }
+    const flagCol = [0x9b5cff, 0xd83a3a, 0x3a8ad8][Math.abs(Math.round(mz)) % 3];
+    const flag = new THREE.Mesh(new THREE.PlaneGeometry(2, 1.1), lit(flagCol)); flag.position.set(0.9, mh + 0.8, mz); g.add(flag);
+    ctx.onUpdate((_d, e) => { flag.rotation.y = Math.sin(e * 2.2 + mz) * 0.4; });
+  }
+  // deck lanterns so the ship glows at night
+  for (const lz of [-6, -1, 5]) { const l = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8), lit(0xffd88a)); l.position.set(0, 1.1, lz); g.add(l); }
+  const glow = new THREE.PointLight(0xffd08a, 1.1, 22, 2); glow.position.set(FS_X, 3, FS_Z); ctx.scene.add(glow);
+  ctx.onUpdate((_d, e) => { glow.intensity = 1.0 + Math.sin(e * 2.6) * 0.15; });
+
+  // ── boarding jetty alongside the gangway (also at deck level) ──
+  const cs = Math.cos(FS_RY), sn = Math.sin(FS_RY);
+  const jl = FS_HW + 2.4;                                     // offset to starboard
+  const jx = FS_X + jl * cs, jz = FS_Z - jl * sn + 1.5 * cs;
+  const jetty = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.24, 5), new THREE.MeshStandardMaterial({ color: 0x8a6440, roughness: 1 }));
+  jetty.position.set(jx, -0.12, jz); jetty.rotation.y = FS_RY; jetty.receiveShadow = true; ctx.scene.add(jetty);
+  for (const o of [-2, 2]) for (const s2 of [-1.4, 1.4]) { const pile = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 3.4, 8), dark); pile.position.set(jx + s2 * cs + o * sn, -1.7, jz - s2 * sn + o * cs); ctx.scene.add(pile); }
+  // gangplank bridging jetty → gangway gap
+  const plank = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.12, 1.5), new THREE.MeshStandardMaterial({ color: 0x9a7248, roughness: 1 }));
+  const px = FS_X + (FS_HW + 1.2) * cs, pz = FS_Z - (FS_HW + 1.2) * sn + 1.5 * cs;
+  plank.position.set(px, 0.02, pz); plank.rotation.y = FS_RY; ctx.scene.add(plank);
+
+  // dry ground: the deck, the gangplank and the jetty (rotated rects)
+  ctx.addDryZone({ x: FS_X, z: FS_Z, hw: FS_HW + 0.2, hd: FS_LEN + 0.3, yaw: FS_RY });
+  ctx.addDryZone({ x: px, z: pz, hw: 1.5, hd: 1.0, yaw: FS_RY });
+  ctx.addDryZone({ x: jx, z: jz, hw: 1.9, hd: 2.6, yaw: FS_RY });
+
+  // bulwark colliders so you can't walk off the deck (gangway stays open)
+  for (const sx of [-FS_HW - 0.1, FS_HW + 0.1]) for (let z = -FS_LEN; z <= FS_LEN; z += 1.3) {
+    if (sx > 0 && Math.abs(z - 1.5) < 1.7) continue;
+    ctx.addCollider({ x: FS_X + sx * cs + z * sn, z: FS_Z - sx * sn + z * cs, r: 0.45 });
+  }
+  for (const z of [-FS_LEN - 0.2, FS_LEN + 0.2]) for (let sx = -FS_HW; sx <= FS_HW; sx += 1.2) {
+    // leave the very bow clear for the pose spots
+    if (z < 0 && Math.abs(sx) < 1.2) continue;
+    ctx.addCollider({ x: FS_X + sx * cs + z * sn, z: FS_Z - sx * sn + z * cs, r: 0.45 });
+  }
+
+  // ── THE TITANIC PAIR at the bow ──
+  // Front stands at the rail with arms spread; the partner stands right behind
+  // with both arms wrapped around their waist. Both face the bow direction,
+  // which for a group rotated by FS_RY is exactly yaw = FS_RY.
+  const bowL = FS_LEN - 0.7;
+  const fx = FS_X - sn * bowL, fz = FS_Z - cs * bowL;
+  const bx = FS_X - sn * (bowL - 0.62), bz = FS_Z - cs * (bowL - 0.62);
+  ctx.addSeat({ id: 'titanic-front', x: fx, y: 0, z: fz, yaw: FS_RY, pose: 'titanic' });
+  ctx.addSeat({ id: 'titanic-back', x: bx, y: 0, z: bz, yaw: FS_RY, pose: 'titanicBack' });
+  // a heart marker so the spot reads as the couples pose
+  const heart = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 12), lit(0xff4d6d));
+  heart.scale.set(1, 0.9, 0.6); heart.position.set(0, 2.6, -bowL); g.add(heart);
+  ctx.onUpdate((_d, e) => { heart.position.y = 2.55 + Math.sin(e * 1.6) * 0.09; heart.rotation.y = e * 0.7; });
+
+  // moor a boat at the jetty so you can always get back
+  ctx.addVehicle({ id: 'flagboat', kind: 'boat', x: jx + 2.6 * cs, z: jz - 2.6 * sn, yaw: FS_RY, waterY: -1.1 });
+}
+
+// ── SECRET COVE: a sandy shore across the basin you can land on ──────
+const COVE_X = -44, COVE_Z = -54;
+function buildSecretCove(ctx: WorldContext) {
+  const sand = new THREE.MeshStandardMaterial({ color: 0xd8c496, roughness: 1 });
+  const rock = new THREE.MeshStandardMaterial({ color: 0x7a7264, roughness: 1 });
+  // the beach shelf — top exactly at y = 0 so you walk straight out of the water
+  const beach = new THREE.Mesh(new THREE.CylinderGeometry(13, 15, 2.4, 32), sand);
+  beach.position.set(COVE_X, -1.2, COVE_Z); beach.receiveShadow = true; ctx.scene.add(beach);
+  // a gentle wet ramp into the water so the landing reads naturally
+  const ramp = new THREE.Mesh(new THREE.BoxGeometry(9, 0.3, 5), sand);
+  ramp.position.set(COVE_X + 6, -0.6, COVE_Z + 8); ramp.rotation.x = -0.14; ramp.rotation.y = -0.6; ctx.scene.add(ramp);
+  // sheltering cliffs behind
+  for (let i = 0; i < 9; i++) {
+    const a = rr(Math.PI * 0.75, Math.PI * 1.95);
+    const r = rr(14, 20), h = rr(7, 18);
+    const c = new THREE.Mesh(new THREE.ConeGeometry(rr(5, 9), h, 7), rock);
+    c.position.set(COVE_X + Math.cos(a) * r, h / 2 - 1.5, COVE_Z + Math.sin(a) * r); c.rotation.y = rnd() * Math.PI; ctx.scene.add(c);
+    ctx.addCollider({ x: c.position.x, z: c.position.z, r: 4.5 });
+  }
+  // palms + a bonfire + log seats to make it a destination
+  for (let i = 0; i < 5; i++) {
+    const a = rr(0, Math.PI * 2), r = rr(5, 11);
+    const x = COVE_X + Math.cos(a) * r, z = COVE_Z + Math.sin(a) * r;
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.3, 6, 8), new THREE.MeshStandardMaterial({ color: 0x6a4a2c, roughness: 1 }));
+    trunk.position.set(x, 3, z); trunk.rotation.z = rr(-0.12, 0.12); ctx.scene.add(trunk);
+    for (let f = 0; f < 6; f++) { const fr = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.09, 0.7), new THREE.MeshStandardMaterial({ color: 0x2f6a34, roughness: 1 })); const fa = (f / 6) * Math.PI * 2; fr.position.set(x + Math.cos(fa) * 1.5, 6, z + Math.sin(fa) * 1.5); fr.rotation.set(0, fa, -0.3); ctx.scene.add(fr); }
+    ctx.addCollider({ x, z, r: 0.5 });
+  }
+  const fire = new THREE.Mesh(new THREE.ConeGeometry(0.5, 1.3, 8), lit(0xff9a3c)); fire.position.set(COVE_X, 0.75, COVE_Z); ctx.scene.add(fire);
+  const fl = new THREE.PointLight(0xff7a2a, 2.0, 16, 2); fl.position.set(COVE_X, 1.2, COVE_Z); ctx.scene.add(fl);
+  ctx.onUpdate((_d, e) => { if (ctx.perf.reduced) return; const f = 0.85 + Math.sin(e * 12) * 0.13; fire.scale.set(1, f, 1); fl.intensity = 1.9 + Math.sin(e * 15) * 0.4; });
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + 0.4, sx = COVE_X + Math.cos(a) * 2.8, sz = COVE_Z + Math.sin(a) * 2.8;
+    const log = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 1.3, 10), new THREE.MeshStandardMaterial({ color: 0x5a3a24, roughness: 1 }));
+    log.rotation.z = Math.PI / 2; log.rotation.y = a; log.position.set(sx, 0.3, sz); ctx.scene.add(log);
+    ctx.addCollider({ x: sx, z: sz, r: 0.42 });
+    ctx.addSeat({ id: `cove${i}`, x: sx, y: 0.58, z: sz, yaw: Math.atan2(sx - COVE_X, sz - COVE_Z) });
+  }
+  // a hug spot on the sand
+  addHugSpot(ctx, COVE_X + 5.5, COVE_Z - 4, 0.8, 0xffb877, 'cove-love');
+  // the cove is dry ground; a boat waits so you can head back
+  ctx.addDryZone({ x: COVE_X, z: COVE_Z, r: 13.4 });
+  ctx.addVehicle({ id: 'coveboat', kind: 'boat', x: COVE_X + 11, z: COVE_Z + 10, yaw: 0.6, waterY: -1.1 });
 }
 
 // ── Little rowboats dotted about the basin ────────────────────────────

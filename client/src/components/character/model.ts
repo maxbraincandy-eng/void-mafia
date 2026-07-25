@@ -259,6 +259,16 @@ export function buildCharacter(spec: CharacterSpec): CharacterModel {
       armGroups[0].rotation.x += (-0.05 - armGroups[0].rotation.x) * k; armGroups[0].rotation.z += (1.4 - armGroups[0].rotation.z) * k;
       armGroups[1].rotation.x += (-0.05 - armGroups[1].rotation.x) * k; armGroups[1].rotation.z += (-1.4 - armGroups[1].rotation.z) * k;
       chest.scale.y = 1 + br + 0.02;
+    } else if (holdPose === 'titanicBack') {
+      // the partner of the bow pose: stood close behind, both arms reaching
+      // forward and clasped around the front person's waist
+      const k = Math.min(1, dt * 8);
+      legGroups.forEach(l => { l.rotation.x *= 0.8; });
+      kneeGroups.forEach(kn => { kn.rotation.x *= 0.8; });
+      armGroups[0].rotation.x += (-1.34 - armGroups[0].rotation.x) * k; armGroups[0].rotation.z += (0.44 - armGroups[0].rotation.z) * k;
+      armGroups[1].rotation.x += (-1.34 - armGroups[1].rotation.x) * k; armGroups[1].rotation.z += (-0.44 - armGroups[1].rotation.z) * k;
+      torso.rotation.x = 0.06;
+      chest.scale.y = 1 + br + 0.01;
     } else if (holdPose === 'swim') {
       // upright but half-submerged (wrapper drops the body): flutter + paddle
       legGroups[0].rotation.x = Math.sin(e * 6) * 0.28; legGroups[1].rotation.x = -Math.sin(e * 6) * 0.28;

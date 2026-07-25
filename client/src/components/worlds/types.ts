@@ -12,7 +12,9 @@ export interface WorldCollider { x: number; z: number; r: number; h?: number; }
 // bow "titanic" arms-out stance) while still locked in place with a Stand button.
 // `hugL`/`hugR` are a standing face-to-face embrace: two spots placed close
 // together facing each other, arms wrapped around the partner.
-export interface WorldSeat { id: string; x: number; y: number; z: number; yaw: number; pose?: 'titanic' | 'hammock' | 'cuddleL' | 'cuddleR' | 'hugL' | 'hugR' | 'sing' | 'danceL' | 'danceR' | 'duelL' | 'duelR'; prop?: 'drink'; }
+// `titanic` is the arms-spread bow stance; `titanicBack` is its partner — stood
+// close behind with both arms wrapped around the front person's waist.
+export interface WorldSeat { id: string; x: number; y: number; z: number; yaw: number; pose?: 'titanic' | 'titanicBack' | 'hammock' | 'cuddleL' | 'cuddleR' | 'hugL' | 'hugR' | 'sing' | 'danceL' | 'danceR' | 'duelL' | 'duelR'; prop?: 'drink'; }
 // A tappable object. `effect` runs the visual/audio (locally AND when another
 // player triggers it over the network), so it must be idempotent/replayable.
 export interface WorldInteractable { id: string; x: number; z: number; r: number; label: string; effect: () => void; }

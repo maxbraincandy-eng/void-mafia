@@ -505,7 +505,10 @@ export class WorldEngine {
         if (dx * dx + dz * dz < z.r * z.r) return true;
       } else {
         let dx = this.pos.x - z.x, dz = this.pos.z - z.z;
-        if (z.yaw) { const c = Math.cos(-z.yaw), s = Math.sin(-z.yaw); const rx = dx * c - dz * s; dz = dx * s + dz * c; dx = rx; }
+        // A local offset (lx,lz) maps to world as dx = lx·cos + lz·sin,
+        // dz = −lx·sin + lz·cos, so the inverse is lx = dx·cos − dz·sin and
+        // lz = dx·sin + dz·cos (using +yaw, not −yaw).
+        if (z.yaw) { const c = Math.cos(z.yaw), s = Math.sin(z.yaw); const lx = dx * c - dz * s; dz = dx * s + dz * c; dx = lx; }
         if (Math.abs(dx) < (z.hw ?? 0) && Math.abs(dz) < (z.hd ?? 0)) return true;
       }
     }
@@ -518,14 +521,32 @@ export class WorldEngine {
     this.pos.set(v.mesh.position.x, v.seatY, v.mesh.position.z);
     this.vy = 0; this.input.move.x = 0; this.input.move.y = 0;
   }
+  /**
+   * Step off WHERE YOU ARE — the vehicle stays put. This is what lets you ride
+   * across the water and get out at the far shore (it used to teleport you back
+   * to the berth, so the other end was unreachable). We look for dry ground
+   * nearby first and step onto it; otherwise you slip into the water and swim.
+   */
   private dismount() {
     const v = this.riding; if (!v) return;
     this.riding = null;
-    // dock the vehicle back at its berth
-    v.mesh.position.set(v.homeX, v.floatY, v.homeZ); v.mesh.rotation.y = v.homeYaw; v.ry = v.homeYaw;
-    // step onto the deck, nudged inboard from the berth
-    this.pos.set(v.homeX - Math.sign(v.homeX || 1) * 1.6, 0, v.homeZ - Math.sign(v.homeZ || 1) * 1.6);
-    this.groundY = 0; this.pos.y = 0; this.vy = 0;
+    const px = v.mesh.position.x, pz = v.mesh.position.z;
+    // probe around the hull for a dry landing spot (ring of candidates)
+    const save = { x: this.pos.x, z: this.pos.z };
+    let landed = false;
+    for (const rad of [1.9, 2.8, 3.8]) {
+      for (let i = 0; i < 12 && !landed; i++) {
+        const a = (i / 12) * Math.PI * 2;
+        this.pos.x = px + Math.cos(a) * rad; this.pos.z = pz + Math.sin(a) * rad;
+        if (this.onDryGround()) landed = true;
+      }
+      if (landed) break;
+    }
+    if (!landed) {
+      // no shore in reach — slide into the water beside the hull and swim
+      this.pos.x = save.x + Math.cos(v.ry) * 1.6; this.pos.z = save.z - Math.sin(v.ry) * 1.6;
+    }
+    this.vy = 0;
   }
 
   // ── per-frame ───────────────────────────────────────────────────────
@@ -618,7 +639,7 @@ export class WorldEngine {
         const d = dx * dx + dz * dz;
         if (d < o.r * o.r && (!this.nearObj || d < (this.nearObj.x - this.pos.x) ** 2 + (this.nearObj.z - this.pos.z) ** 2)) this.nearObj = o;
       }
-      let vbd = 3.0 * 3.0;
+      let vbd = 4.2 * 4.2;
       for (const v of this.vehicles) {
         const dx = v.mesh.position.x - this.pos.x, dz = v.mesh.position.z - this.pos.z;
         const d = dx * dx + dz * dz;
