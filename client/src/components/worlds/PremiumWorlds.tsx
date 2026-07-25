@@ -79,6 +79,26 @@ export default function PremiumWorlds({ onClose, initialWorldId }: { onClose: ()
 // ── Lobby ─────────────────────────────────────────────────────────────
 function Lobby({ onEnter, onClose }: { onEnter: (id: string) => void; onClose: () => void }) {
   const t = useT();
+  // Live occupancy per world so you can see who's around BEFORE entering.
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  useEffect(() => {
+    let alive = true;
+    const poll = () => {
+      if (!socket.connected) connectSocket();
+      emitWithAck<void, { ok: boolean; data?: { id: string; count: number }[] }>('world:list' as any)
+        .then(res => {
+          if (!alive || !res?.ok || !res.data) return;
+          const next: Record<string, number> = {};
+          for (const w of res.data) next[w.id] = w.count;
+          setCounts(next);
+        })
+        .catch(() => {});
+    };
+    poll();
+    const iv = setInterval(poll, 5000);
+    return () => { alive = false; clearInterval(iv); };
+  }, []);
+
   return createPortal(
     <div style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'radial-gradient(ellipse at top, #12172e 0%, #05060d 100%)', display: 'flex', flexDirection: 'column', padding: '0 18px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: 'max(18px, env(safe-area-inset-top))', paddingBottom: 12 }}>
@@ -93,6 +113,7 @@ function Lobby({ onEnter, onClose }: { onEnter: (id: string) => void; onClose: (
       <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 24 }}>
         {PREMIUM_WORLDS.map(w => {
           const live = w.status === 'live';
+          const here = counts[w.id] ?? 0;
           return (
             <button key={w.id} disabled={!live} onClick={() => live && onEnter(w.id)}
               style={{
@@ -106,6 +127,19 @@ function Lobby({ onEnter, onClose }: { onEnter: (id: string) => void; onClose: (
                 : 'linear-gradient(135deg, #1a1a2e, #12121e)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
                 <span style={{ fontSize: 46, filter: live ? 'drop-shadow(0 4px 16px rgba(255,140,60,0.6))' : 'grayscale(1)' }}>{w.icon}</span>
                 {live && <span style={{ position: 'absolute', top: 10, right: 12, fontFamily: 'monospace', fontSize: 9, letterSpacing: 1, color: '#fff', background: 'rgba(124,58,237,0.9)', borderRadius: 8, padding: '3px 8px' }}>NEW</span>}
+                {/* live occupancy — who's in there right now */}
+                {live && (
+                  <span style={{
+                    position: 'absolute', bottom: 10, left: 12, display: 'flex', alignItems: 'center', gap: 5,
+                    fontFamily: 'monospace', fontSize: 11, padding: '4px 9px', borderRadius: 9,
+                    background: here > 0 ? 'rgba(16,185,129,0.22)' : 'rgba(0,0,0,0.4)',
+                    border: `1px solid ${here > 0 ? 'rgba(52,211,153,0.55)' : 'rgba(255,255,255,0.14)'}`,
+                    color: here > 0 ? '#6ee7b7' : 'rgba(255,255,255,0.45)',
+                  }}>
+                    {here > 0 && <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#34d399', boxShadow: '0 0 6px #34d399' }} />}
+                    👥 {here}
+                  </span>
+                )}
               </div>
               <div style={{ padding: '11px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>

@@ -311,8 +311,16 @@ function buildFountain(ctx: WorldContext) {
 
 // ── Swim zones + docked boats ─────────────────────────────────────────
 function buildSwim(ctx: WorldContext) {
-  for (let i = 0; i < 30; i++) { const a = (i / 30) * Math.PI * 2; ctx.addSwimZone({ x: Math.cos(a) * (PLAZA_R + 4), z: Math.sin(a) * (PLAZA_R + 4), r: 5.5, waterY: -0.9 }); }
-  ctx.addSwimZone({ x: 0, z: PLAZA_R + 18, r: 9, waterY: -0.9 });
+  // DRY ZONES first: the stone square and the whole pier. These veto any swim
+  // zone that overlaps them — previously the water ring reached ~1.5 units onto
+  // the square, so you'd suddenly "swim" while walking on stone.
+  ctx.addDryZone({ x: 0, z: 0, r: PLAZA_R + 1.2 });                    // the square
+  ctx.addDryZone({ x: 0, z: PLAZA_R + 5.5, hw: 2.9, hd: 8.2 });        // the pier
+
+  // Open water all around the harbour (safe to be generous now).
+  for (let i = 0; i < 30; i++) { const a = (i / 30) * Math.PI * 2; ctx.addSwimZone({ x: Math.cos(a) * (PLAZA_R + 9), z: Math.sin(a) * (PLAZA_R + 9), r: 11, waterY: -0.9 }); }
+  ctx.addSwimZone({ x: 0, z: PLAZA_R + 22, r: 12, waterY: -0.9 });      // off the pier head
+
   ctx.addVehicle({ id: 'boat1', kind: 'boat', x: 4.6, z: PLAZA_R + 12, yaw: 0 });
   ctx.addVehicle({ id: 'jetski1', kind: 'jetski', x: -4.6, z: PLAZA_R + 11, yaw: 0 });
 }

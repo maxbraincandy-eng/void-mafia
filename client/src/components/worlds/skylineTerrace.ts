@@ -14,6 +14,7 @@
 //    ctx.perf.reduced.
 import * as THREE from 'three';
 import type { WorldDef, WorldContext } from './types';
+import { addHugSpot } from './props';
 import { tNow } from '@/store/langStore';
 
 const DECK_R = 18;   // rooftop radius (glass railing sits here)
@@ -190,26 +191,11 @@ function buildLounge(ctx: WorldContext) {
   }
 }
 
-// ── Cuddle loveseats: two seats + embrace pose (cuddleL/cuddleR) ──────
-function loveseat(ctx: WorldContext, x: number, z: number, yaw: number, color: number, id: string) {
-  const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = yaw; ctx.scene.add(g);
-  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.85 });
-  const base = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.4, 1.0), mat); base.position.y = 0.26; base.castShadow = true; g.add(base);
-  const back = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.55, 0.2), mat); back.position.set(0, 0.6, -0.4); g.add(back);
-  for (const ax of [-0.85, 0.85]) { const arm = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.45, 1.0), mat); arm.position.set(ax, 0.45, 0); g.add(arm); }
-  // floating heart marks it as the couples spot
-  const heart = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 10), new THREE.MeshBasicMaterial({ color: 0xff4d6d, toneMapped: false })); heart.position.set(0, 1.6, 0); heart.scale.set(1, 0.9, 0.6); g.add(heart);
-  ctx.onUpdate((_d, e) => { heart.position.y = 1.55 + Math.sin(e * 1.6) * 0.08; heart.rotation.y = e * 0.7; });
-  ctx.addCollider({ x, z, r: 0.9 });
-  // two seats side by side (offset along the seat's local X), same yaw → embrace
-  const d = 0.34, cx = Math.cos(yaw), sx = Math.sin(yaw);
-  ctx.addSeat({ id: `${id}-l`, x: x + cx * d, y: 0.5, z: z - sx * d, yaw, pose: 'cuddleL' });
-  ctx.addSeat({ id: `${id}-r`, x: x - cx * d, y: 0.5, z: z + sx * d, yaw, pose: 'cuddleR' });
-}
+// ── Couples hug spots (face-to-face embrace) ──────────────────────────
 function buildLoveseats(ctx: WorldContext) {
-  loveseat(ctx, -11, 6, 2.4, 0x6a2f4a, 'love1');
-  loveseat(ctx, 12, -4, -1.0, 0x2f4a6a, 'love2');
-  loveseat(ctx, -3, 13, Math.PI, 0x4a2f6a, 'love3');
+  addHugSpot(ctx, -11, 6, 2.4, 0xff2bd6, 'love1');
+  addHugSpot(ctx, 12, -4, -1.0, 0x35e0e0, 'love2');
+  addHugSpot(ctx, -3, 13, Math.PI, 0x9b5cff, 'love3');
 }
 
 // ── Sleek lit bar with stools ─────────────────────────────────────────

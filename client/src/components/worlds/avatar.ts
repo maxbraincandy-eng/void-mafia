@@ -64,6 +64,10 @@ export class Avatar {
     else if (this.holdPose === 'hammock') xRot = -1.05;
     else if (this.holdPose === 'cuddleL') { xRot = -1.05; zRot = 0.22; }   // recline + roll toward partner
     else if (this.holdPose === 'cuddleR') { xRot = -1.05; zRot = -0.22; }
+    // Standing embrace: upright, leaning very slightly into the partner so the
+    // two bodies meet chest-to-chest instead of standing apart.
+    else if (this.holdPose === 'hugL') { xRot = -0.1; zRot = 0.05; }
+    else if (this.holdPose === 'hugR') { xRot = -0.1; zRot = -0.05; }
     this.inner.position.y += (yTarget - this.inner.position.y) * Math.min(1, dt * 10);
     this.inner.rotation.x += (xRot - this.inner.rotation.x) * Math.min(1, dt * 8);
     this.inner.rotation.z += (zRot - this.inner.rotation.z) * Math.min(1, dt * 8);

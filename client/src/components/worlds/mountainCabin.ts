@@ -13,6 +13,7 @@
 //    ctx.perf.reduced.
 import * as THREE from 'three';
 import type { WorldDef, WorldContext } from './types';
+import { addHugSpot } from './props';
 import { tNow } from '@/store/langStore';
 
 const R = 26;   // playable radius (clearing); forest + peaks live beyond it.
@@ -139,6 +140,8 @@ function buildGrass(ctx: WorldContext) {
     if (Math.hypot(x + 19, z - 14) < 11.5) continue;
     if (Math.hypot(x, z + 2) < 8.5) continue;
     if (Math.hypot(x - 15, z + 10) < 8) continue;
+    if (Math.hypot(x + 13, z - 9) < 1.6) continue;   // hug pads
+    if (Math.hypot(x - 8, z - 4) < 1.6) continue;
     dummy.position.set(x, 0, z);
     dummy.rotation.y = rnd() * Math.PI;
     const sc = rr(0.7, 1.5); dummy.scale.set(sc, rr(0.8, 1.4), sc);
@@ -339,23 +342,10 @@ function buildCampfire(ctx: WorldContext) {
   }
 }
 
-// ── Cuddle loveseats (log bench for two) — embrace pose ───────────────
-function loveseat(ctx: WorldContext, x: number, z: number, yaw: number, id: string) {
-  const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = yaw; ctx.scene.add(g);
-  const wood = new THREE.MeshStandardMaterial({ color: 0x5a3a24, roughness: 1 });
-  const bench = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.35, 0.9), wood); bench.position.y = 0.25; bench.castShadow = true; g.add(bench);
-  const back = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.5, 0.16), wood); back.position.set(0, 0.55, -0.37); g.add(back);
-  const fur = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.12, 0.8), new THREE.MeshStandardMaterial({ color: 0xcbb79a, roughness: 1 })); fur.position.y = 0.44; g.add(fur);
-  const heart = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 10), new THREE.MeshBasicMaterial({ color: 0xff4d6d, toneMapped: false })); heart.position.set(0, 1.4, 0); heart.scale.set(1, 0.9, 0.6); g.add(heart);
-  ctx.onUpdate((_d, e) => { heart.position.y = 1.35 + Math.sin(e * 1.6) * 0.08; heart.rotation.y = e * 0.7; });
-  ctx.addCollider({ x, z, r: 0.9 });
-  const d = 0.34, cx = Math.cos(yaw), sx = Math.sin(yaw);
-  ctx.addSeat({ id: `${id}-l`, x: x + cx * d, y: 0.55, z: z - sx * d, yaw, pose: 'cuddleL' });
-  ctx.addSeat({ id: `${id}-r`, x: x - cx * d, y: 0.55, z: z + sx * d, yaw, pose: 'cuddleR' });
-}
+// ── Couples hug spots (face-to-face embrace) ──────────────────────────
 function buildLoveseats(ctx: WorldContext) {
-  loveseat(ctx, -13, 9, -2.4, 'love1');   // by the lake, facing the water
-  loveseat(ctx, 8, 4, Math.PI + 0.4, 'love2');
+  addHugSpot(ctx, -13, 9, -2.4, 0xffb877, 'love1');   // by the lake
+  addHugSpot(ctx, 8, 4, Math.PI + 0.4, 0xffb877, 'love2');
 }
 
 // ── Invisible boundary so players stay in the clearing ────────────────

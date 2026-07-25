@@ -12,6 +12,7 @@
 // with emissive/unlit materials; per-frame CPU throttles on ctx.perf.reduced.
 import * as THREE from 'three';
 import type { WorldDef, WorldContext } from './types';
+import { addHugSpot } from './props';
 import { tNow } from '@/store/langStore';
 
 const HL = 23;    // half-length (bow -Z … stern +Z)
@@ -208,9 +209,11 @@ function buildHull(ctx: WorldContext) {
     const side = new THREE.Mesh(new THREE.BoxGeometry(0.5, 3.4, HL * 2 - 4), white); side.position.set(sgn * HW, -1.7, 2); side.castShadow = true; ctx.scene.add(side);
     const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.4, HL * 2 - 4), neon(VIOLET)); stripe.position.set(sgn * HW, -0.7, 2); ctx.scene.add(stripe);
   }
-  // bow wedge
-  const bow = new THREE.Mesh(new THREE.ConeGeometry(HW, 8, 4), white); bow.rotation.x = -Math.PI / 2; bow.rotation.y = Math.PI / 4; bow.scale.set(1, 1, 0.5); bow.position.set(0, -0.2, -HL - 1.5); ctx.scene.add(bow);
-  const bowHull = new THREE.Mesh(new THREE.ConeGeometry(HW, 7, 4), white); bowHull.rotation.x = -Math.PI / 2; bowHull.rotation.y = Math.PI / 4; bowHull.scale.set(1, 1, 0.5); bowHull.position.set(0, -1.9, -HL - 1); ctx.scene.add(bowHull);
+  // Bow wedge — must butt up against the deck box (which ends at z=-HL+4) or the
+  // hull has a see-through gap that players can still walk out onto.
+  const BOW_Z = -HL + 2;   // cone centre: with scale .5 it spans (BOW_Z ± 2)
+  const bow = new THREE.Mesh(new THREE.ConeGeometry(HW, 8, 4), white); bow.rotation.x = -Math.PI / 2; bow.rotation.y = Math.PI / 4; bow.scale.set(1, 1, 0.5); bow.position.set(0, -0.2, BOW_Z); ctx.scene.add(bow);
+  const bowHull = new THREE.Mesh(new THREE.ConeGeometry(HW, 8, 4), white); bowHull.rotation.x = -Math.PI / 2; bowHull.rotation.y = Math.PI / 4; bowHull.scale.set(1, 1, 0.5); bowHull.position.set(0, -1.9, BOW_Z + 0.4); ctx.scene.add(bowHull);
   // stern
   const stern = new THREE.Mesh(new THREE.BoxGeometry(HW * 2, 3.4, 1), white); stern.position.set(0, -1.7, HL - 1); ctx.scene.add(stern);
   void carbon;
@@ -373,23 +376,10 @@ function buildBow(ctx: WorldContext) {
   }
 }
 
-// ── Cuddle loveseats (embrace pose) ───────────────────────────────────
-function loveseat(ctx: WorldContext, x: number, z: number, yaw: number, col: number, id: string) {
-  const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = yaw; ctx.scene.add(g);
-  const mat = new THREE.MeshStandardMaterial({ color: 0x2b2e3a, roughness: 0.85 });
-  const base = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.4, 1.0), mat); base.position.y = 0.26; base.castShadow = true; g.add(base);
-  const back = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.55, 0.2), mat); back.position.set(0, 0.6, -0.4); g.add(back);
-  const glow = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.05, 0.1), neon(col)); glow.position.set(0, 0.04, 0.45); g.add(glow);
-  const heart = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 10), neon(PINK)); heart.position.set(0, 1.5, 0); heart.scale.set(1, 0.9, 0.6); g.add(heart);
-  ctx.onUpdate((_d, e) => { heart.position.y = 1.45 + Math.sin(e * 1.6) * 0.08; heart.rotation.y = e * 0.7; });
-  ctx.addCollider({ x, z, r: 0.9 });
-  const d = 0.34, cx = Math.cos(yaw), sx = Math.sin(yaw);
-  ctx.addSeat({ id: `${id}-l`, x: x + cx * d, y: 0.5, z: z - sx * d, yaw, pose: 'cuddleL' });
-  ctx.addSeat({ id: `${id}-r`, x: x - cx * d, y: 0.5, z: z + sx * d, yaw, pose: 'cuddleR' });
-}
+// ── Couples hug spots (face-to-face embrace) ──────────────────────────
 function buildLoveseats(ctx: WorldContext) {
-  loveseat(ctx, -6, -8, 1.0, VIOLET, 'love1');
-  loveseat(ctx, 6, -8, -1.0, CYAN, 'love2');
+  addHugSpot(ctx, -6, -8, 1.0, VIOLET, 'love1');
+  addHugSpot(ctx, 6, -8, -1.0, CYAN, 'love2');
 }
 
 // ── Outdoor cinema screen (on the superstructure face) ────────────────
@@ -436,22 +426,29 @@ function buildBoundary(ctx: WorldContext) {
 
 // ── Swim platform, water zones & docked vehicles (stern) ──────────────
 function buildWater(ctx: WorldContext) {
-  // low swim/boarding platform at the stern gap
-  const plat = new THREE.Mesh(new THREE.BoxGeometry(5, 0.2, 3), new THREE.MeshStandardMaterial({ color: 0x3a3228, roughness: 0.7 })); plat.position.set(0, -0.5, HL - 0.5); ctx.scene.add(plat);
-  // little ladder rails into the water
-  for (const lx of [-0.9, 0.9]) { const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.4, 6), new THREE.MeshStandardMaterial({ color: 0x2a2e3a, metalness: 0.8, roughness: 0.3 })); rail.position.set(lx, -0.9, HL + 1); rail.rotation.x = 0.5; ctx.scene.add(rail); }
+  // Boarding platform at the stern gap. Its top sits at deck level so you walk
+  // straight out onto it (it used to float below, leaving the avatar hovering).
+  const plat = new THREE.Mesh(new THREE.BoxGeometry(5.4, 0.24, 3.4), new THREE.MeshStandardMaterial({ color: 0x3a3228, roughness: 0.7 }));
+  plat.position.set(0, -0.12, HL - 0.4); plat.receiveShadow = true; ctx.scene.add(plat);
+  for (const lx of [-1.1, 1.1]) { const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.4, 6), new THREE.MeshStandardMaterial({ color: 0x2a2e3a, metalness: 0.8, roughness: 0.3 })); rail.position.set(lx, -0.5, HL + 1.4); rail.rotation.x = 0.5; ctx.scene.add(rail); }
 
-  // a contiguous ring of swim zones in the water all around the hull, so once
-  // you drop in at the stern you can swim the whole way around the yacht.
-  for (let i = 0; i < 26; i++) {
-    const a = (i / 26) * Math.PI * 2;
-    const x = Math.cos(a) * (HW + 4.5), z = Math.sin(a) * (HL + 4);
-    ctx.addSwimZone({ x, z, r: 5, waterY: -1.0 });
+  // DRY ZONES — the whole hull deck plus the stern platform. These veto any
+  // swim zone that overlaps them, so you can never "swim" on the deck.
+  // Each must OVERLAP its neighbour — a seam between them would let you swim on
+  // deck in the gap. Kept tight to the real walkable area so a swimmer alongside
+  // the hull isn't wrongly treated as standing.
+  ctx.addDryZone({ x: 0, z: 2, hw: HW + 0.6, hd: HL - 1 });        // main deck: z -20 … 24
+  ctx.addDryZone({ x: 0, z: -21.4, hw: 3.9, hd: 1.6 });            // bow taper: z -23 … -19.8
+  ctx.addDryZone({ x: 0, z: HL - 0.4, hw: 3, hd: 2.2 });           // stern boarding platform
+
+  // Open water all around the yacht — generous now that the deck is protected.
+  for (let i = 0; i < 30; i++) {
+    const a = (i / 30) * Math.PI * 2;
+    ctx.addSwimZone({ x: Math.cos(a) * (HW + 9), z: Math.sin(a) * (HL + 9), r: 11, waterY: -1.0 });
   }
-  // reach the deeper open water astern too
-  ctx.addSwimZone({ x: 0, z: HL + 10, r: 8, waterY: -1.0 });
+  ctx.addSwimZone({ x: 0, z: HL + 12, r: 12, waterY: -1.0 });
 
-  // docked water toys at the stern — walk to the platform edge and press E
-  ctx.addVehicle({ id: 'jetski', kind: 'jetski', x: 3.4, z: HL + 1, yaw: 0 });
-  ctx.addVehicle({ id: 'speedboat', kind: 'boat', x: -4.2, z: HL + 2, yaw: 0 });
+  // docked water toys just off the stern platform — walk to its edge and press E
+  ctx.addVehicle({ id: 'jetski', kind: 'jetski', x: 3.2, z: HL + 1.4, yaw: 0 });
+  ctx.addVehicle({ id: 'speedboat', kind: 'boat', x: -4.0, z: HL + 2.2, yaw: 0 });
 }

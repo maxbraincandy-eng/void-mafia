@@ -5,7 +5,7 @@
 // loop survive re-renders. Reused by every present and future Premium World.
 import * as THREE from 'three';
 import { Avatar, type EmoteKind } from './avatar';
-import type { WorldDef, WorldContext, WorldCollider, WorldSeat, WorldInteractable, AmbientSource, AvatarConfig, WorldScreen, WorldSwimZone, WorldVehicle, VehicleKind } from './types';
+import type { WorldDef, WorldContext, WorldCollider, WorldSeat, WorldInteractable, AmbientSource, AvatarConfig, WorldScreen, WorldSwimZone, WorldDryZone, WorldVehicle, VehicleKind } from './types';
 import type { CharacterSpec } from '../character/spec';
 import { tNow } from '@/store/langStore';
 
@@ -70,6 +70,7 @@ export class WorldEngine {
   private seated: WorldSeat | null = null;
   // swimming + vehicles
   private swimZones: WorldSwimZone[] = [];
+  private dryZones: WorldDryZone[] = [];
   private vehicles: VehicleInst[] = [];
   private riding: VehicleInst | null = null;
   private nearVehicle: VehicleInst | null = null;
@@ -457,6 +458,7 @@ export class WorldEngine {
       addInteractable: (o) => this.interactables.push(o),
       addAmbient: (a) => this.ambients.push(a),
       addSwimZone: (z) => this.swimZones.push(z),
+      addDryZone: (z) => this.dryZones.push(z),
       addVehicle: (v) => {
         const mesh = this.buildVehicle(v.kind);
         const yaw = v.yaw ?? 0;
@@ -494,6 +496,21 @@ export class WorldEngine {
     return g;
   }
 
+  /** True when standing on a registered dry region (deck / pier / plaza). */
+  private onDryGround(): boolean {
+    for (const z of this.dryZones) {
+      if (z.r !== undefined) {
+        const dx = this.pos.x - z.x, dz = this.pos.z - z.z;
+        if (dx * dx + dz * dz < z.r * z.r) return true;
+      } else {
+        let dx = this.pos.x - z.x, dz = this.pos.z - z.z;
+        if (z.yaw) { const c = Math.cos(-z.yaw), s = Math.sin(-z.yaw); const rx = dx * c - dz * s; dz = dx * s + dz * c; dx = rx; }
+        if (Math.abs(dx) < (z.hw ?? 0) && Math.abs(dz) < (z.hd ?? 0)) return true;
+      }
+    }
+    return false;
+  }
+
   private mount(v: VehicleInst) {
     this.riding = v; this.seated = null;
     this.facing = v.ry; this.camYaw = v.ry;
@@ -526,7 +543,7 @@ export class WorldEngine {
     // Beach keeps its original hardcoded shoreline swim (shore stays at y=0).
     const onPier = this.pos.x > -8 && this.pos.x < -4;
     let inZone: WorldSwimZone | null = null;
-    if (!this.riding && !this.seated) {
+    if (!this.riding && !this.seated && !this.onDryGround()) {
       for (const z of this.swimZones) { const dx = this.pos.x - z.x, dz = this.pos.z - z.z; if (dx * dx + dz * dz < z.r * z.r) { inZone = z; break; } }
     }
     const beachSwim = this.def.id === 'beach_camp' && this.pos.z < -34 && Math.abs(this.pos.x) < 42 && !onPier;

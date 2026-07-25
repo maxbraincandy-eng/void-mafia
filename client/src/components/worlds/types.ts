@@ -10,7 +10,9 @@ import type * as THREE from 'three';
 export interface WorldCollider { x: number; z: number; r: number; h?: number; }
 // `pose` seats aren't sit-downs: the avatar stands and holds a pose (e.g. the
 // bow "titanic" arms-out stance) while still locked in place with a Stand button.
-export interface WorldSeat { id: string; x: number; y: number; z: number; yaw: number; pose?: 'titanic' | 'hammock' | 'cuddleL' | 'cuddleR' | 'sing' | 'danceL' | 'danceR' | 'duelL' | 'duelR'; prop?: 'drink'; }
+// `hugL`/`hugR` are a standing face-to-face embrace: two spots placed close
+// together facing each other, arms wrapped around the partner.
+export interface WorldSeat { id: string; x: number; y: number; z: number; yaw: number; pose?: 'titanic' | 'hammock' | 'cuddleL' | 'cuddleR' | 'hugL' | 'hugR' | 'sing' | 'danceL' | 'danceR' | 'duelL' | 'duelR'; prop?: 'drink'; }
 // A tappable object. `effect` runs the visual/audio (locally AND when another
 // player triggers it over the network), so it must be idempotent/replayable.
 export interface WorldInteractable { id: string; x: number; z: number; r: number; label: string; effect: () => void; }
@@ -19,6 +21,11 @@ export interface AmbientSource { kind: AmbientKind; x: number; z: number; radius
 // A circular region of open water. Inside it the avatar drops to `waterY`
 // (default just below the surface), swims (slower, swim pose) and can dive.
 export interface WorldSwimZone { x: number; z: number; r: number; waterY?: number; }
+// A region that is ALWAYS dry, vetoing any swim zone that overlaps it. Decks,
+// piers, platforms and plazas register these so you never "swim" on solid
+// ground where a generously-sized swim zone happens to bleed over the edge.
+// Circle when `r` is given, otherwise an (optionally rotated) rectangle.
+export interface WorldDryZone { x: number; z: number; r?: number; hw?: number; hd?: number; yaw?: number; }
 // A rideable water vehicle docked at (x,z). Walk up, interact to board, drive
 // with WASD across the ocean, interact again to dock + step back onto the deck.
 export type VehicleKind = 'jetski' | 'boat';
@@ -40,6 +47,7 @@ export interface WorldContext {
   addInteractable(o: WorldInteractable): void;
   addAmbient(a: AmbientSource): void;
   addSwimZone(z: WorldSwimZone): void;
+  addDryZone(z: WorldDryZone): void;
   addVehicle(v: WorldVehicle): void;
   setScreen(s: WorldScreen): void;
   onUpdate(fn: (dt: number, elapsed: number) => void): void;
