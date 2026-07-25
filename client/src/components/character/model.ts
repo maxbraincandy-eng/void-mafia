@@ -313,23 +313,32 @@ export function buildCharacter(spec: CharacterSpec): CharacterModel {
       torso.rotation.z = Math.sin(e * 1.1) * 0.045;
       torso.rotation.x = 0.06;
     } else if (holdPose === 'lapBase') {
-      // seated with your partner on your lap: thighs forward to make the lap,
-      // both arms reaching around their waist to hold them
+      // The one UNDERNEATH: sits normally (feet on the floor, thighs forward to
+      // make the lap), with the near arm brought up around the partner's back
+      // and the far hand resting on their legs — as in classic lap-sitting.
       const k = Math.min(1, dt * 10);
       legGroups.forEach(l => { l.rotation.x += (-1.5 - l.rotation.x) * k; });
-      kneeGroups.forEach(kn => { kn.rotation.x += (1.4 - kn.rotation.x) * k; });
-      armGroups[0].rotation.x += (-1.2 - armGroups[0].rotation.x) * k; armGroups[0].rotation.z += (0.52 - armGroups[0].rotation.z) * k;
-      armGroups[1].rotation.x += (-1.2 - armGroups[1].rotation.x) * k; armGroups[1].rotation.z += (-0.52 - armGroups[1].rotation.z) * k;
-      torso.rotation.z = Math.sin(e * 1.05) * 0.03;
+      kneeGroups.forEach(kn => { kn.rotation.x += (1.42 - kn.rotation.x) * k; });
+      armGroups[0].rotation.x += (-1.75 - armGroups[0].rotation.x) * k;   // up around their back
+      armGroups[0].rotation.z += (0.85 - armGroups[0].rotation.z) * k;
+      armGroups[1].rotation.x += (-1.05 - armGroups[1].rotation.x) * k;   // hand on their legs
+      armGroups[1].rotation.z += (-0.3 - armGroups[1].rotation.z) * k;
+      torso.rotation.z = 0.06 + Math.sin(e * 1.05) * 0.025;
     } else if (holdPose === 'lapTop') {
-      // sitting on your partner's lap, leaning back into them, hands relaxed
+      // The one ON TOP: sits ACROSS the partner's lap — the seat is rotated a
+      // quarter turn so the legs hang off to one side — while the upper body
+      // tips back into the partner's shoulder, one arm around their neck.
       const k = Math.min(1, dt * 10);
-      legGroups.forEach(l => { l.rotation.x += (-1.32 - l.rotation.x) * k; });
-      kneeGroups.forEach(kn => { kn.rotation.x += (1.15 - kn.rotation.x) * k; });
-      armGroups[0].rotation.x += (-0.32 - armGroups[0].rotation.x) * k; armGroups[0].rotation.z += (0.6 - armGroups[0].rotation.z) * k;
-      armGroups[1].rotation.x += (-0.32 - armGroups[1].rotation.x) * k; armGroups[1].rotation.z += (-0.6 - armGroups[1].rotation.z) * k;
-      torso.rotation.x = -0.12;
-      torso.rotation.z = Math.sin(e * 1.05) * 0.03;
+      legGroups[0].rotation.x += (-1.5 - legGroups[0].rotation.x) * k;
+      legGroups[1].rotation.x += (-1.34 - legGroups[1].rotation.x) * k;
+      legGroups[0].rotation.z += (0.16 - legGroups[0].rotation.z) * k;    // legs together, angled
+      legGroups[1].rotation.z += (0.24 - legGroups[1].rotation.z) * k;
+      kneeGroups.forEach(kn => { kn.rotation.x += (0.95 - kn.rotation.x) * k; });
+      armGroups[0].rotation.x += (-2.15 - armGroups[0].rotation.x) * k;   // around their neck
+      armGroups[0].rotation.z += (-0.5 - armGroups[0].rotation.z) * k;
+      armGroups[1].rotation.x += (-0.5 - armGroups[1].rotation.x) * k;    // other hand relaxed
+      armGroups[1].rotation.z += (-0.42 - armGroups[1].rotation.z) * k;
+      torso.rotation.z = -0.2 + Math.sin(e * 1.05) * 0.03;               // lean into them
     } else if (holdPose === 'sing') {
       // stand at the mic: one hand raised to the mouth, the other gesturing,
       // gentle sway to the beat.

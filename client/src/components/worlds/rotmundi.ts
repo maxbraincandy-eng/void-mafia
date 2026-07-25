@@ -231,10 +231,17 @@ function buildOldTown(ctx: WorldContext) {
 
   const d = new THREE.Object3D(); const c = new THREE.Color();
 
+  // Neighbourhoods rather than an even ring: pick a handful of centres and
+  // cluster around them, leaving open gaps between so the town has silhouette
+  // instead of being one continuous band of boxes.
+  const HOODS = 9;
+  const hoodA: number[] = [];
+  for (let i = 0; i < HOODS; i++) hoodA.push((i / HOODS) * Math.PI * 2 + rr(-0.16, 0.16));
+
   let placed = 0, tries = 0, dn = 0;
   while (placed < COUNT && tries < COUNT * 8) {
     tries++;
-    const a = rr(0, Math.PI * 2);
+    const a = hoodA[(rnd() * HOODS) | 0] + rr(-0.2, 0.2);
     // pick a terrace, then a radius safely inside its flat top
     const k = 1 + ((rnd() * (T_R.length - 1)) | 0);
     const inner = T_R[k] + 3, outer = (k + 1 < T_R.length ? T_R[k + 1] : T_R[4] + 42) - 3;
@@ -244,7 +251,8 @@ function buildOldTown(ctx: WorldContext) {
     if (Math.hypot(x - CA_X, z - CA_Z) < 24) continue;                    // castle ground
     // exact terrace height — a building can never float above its ring
     const hill = T_H[k];
-    const h = rr(3.4, 8.5), w = rr(3.4, 6.2), dep = rr(3.4, 6);
+    // taller nearer the water, squatter up the hill, with a wide spread
+    const h = rr(3.0, 11.5) * (k <= 2 ? 1.15 : 0.85), w = rr(3.0, 6.6), dep = rr(3.0, 6.2);
     const ry = a + rr(-0.45, 0.45);
     d.position.set(x, hill + h / 2, z); d.scale.set(w, h, dep); d.rotation.set(0, ry, 0); d.updateMatrix(); bodies.setMatrixAt(placed, d.matrix);
     bodies.setColorAt(placed, c.setHex(plaster[(rnd() * plaster.length) | 0]));
@@ -428,8 +436,9 @@ function buildGalleons(ctx: WorldContext) {
   const mastMat = new THREE.MeshStandardMaterial({ color: 0x4a3320, roughness: 1 });
   const flagCols = [0xd83a3a, 0x3a8ad8, 0x9b5cff, 0xd8a83a];
 
+  // Two only, kept out near the harbour mouth — four of them filled the bay.
   const ships: Array<[number, number, number, number]> = [
-    [-13, -22, 0.42, 1.5], [15, -32, -0.55, 1.75], [-2, -50, 0.15, 2.0], [26, -14, -1.0, 1.15],
+    [-20, -46, 0.5, 1.6], [14, -50, -0.5, 1.8],
   ];
   ships.forEach(([sx, sz, ry, sc], si) => {
     const g = new THREE.Group(); g.position.set(sx, -1.3, sz); g.rotation.y = ry; g.scale.setScalar(sc); ctx.scene.add(g);
@@ -713,7 +722,9 @@ function buildVilla(ctx: WorldContext) {
     // the one underneath sits on the cushion; the one on top sits higher and a
     // touch forward, so they end up on their partner's lap
     ctx.addSeat({ id: 'lap-base', x: wx, y: 0.62, z: wz, yaw: yw, pose: 'lapBase' });
-    ctx.addSeat({ id: 'lap-top', x: wx, y: 1.0, z: wz - 0.28, yaw: yw, pose: 'lapTop' });
+    // up on the thighs and turned a quarter step, so the legs hang off to the
+    // side and the upper body tips back into the partner (see the reference)
+    ctx.addSeat({ id: 'lap-top', x: wx - Math.sin(yw) * 0.18, y: 1.02, z: wz - Math.cos(yw) * 0.18, yaw: yw + Math.PI / 2, pose: 'lapTop' });
     ctx.addCollider({ x: wx, z: wz + 0.55, r: 0.6 });
   }
 
@@ -767,8 +778,10 @@ function buildVilla(ctx: WorldContext) {
   addWall(-V_HW, 0, V_HD * 2, false);
   addWall(V_HW, 0, V_HD * 2, false);
   addWall(0, V_HD, V_HW * 2, true, DOOR + 1.2);
-  // island shoreline so you don't walk off into the sea
-  for (let i = 0; i < 44; i++) { const a = (i / 44) * Math.PI * 2; const x = VL_X + Math.cos(a) * 16.6, z = VL_Z + Math.sin(a) * 16.6; if (x < VL_X - 15) continue; ctx.addCollider({ x, z, r: 1.3 }); }
+  // No shoreline wall: the beach shelves straight into the sea, so you can wade
+  // or swim ashore from any side and walk back out again. The ring of colliders
+  // that used to be here blocked every approach but one narrow arc, which is
+  // what made getting onto the island so fiddly.
   // palms + a boat home
   for (let i = 0; i < 5; i++) {
     const a = rr(0, Math.PI * 2), r2 = rr(11, 15.5);
@@ -799,7 +812,7 @@ function buildRowboats(ctx: WorldContext) {
 function buildWrecks(ctx: WorldContext) {
   const wood = new THREE.MeshStandardMaterial({ color: 0x33261a, roughness: 1 });
   const sail = new THREE.MeshStandardMaterial({ color: 0x5a5344, roughness: 1, side: THREE.DoubleSide, transparent: true, opacity: 0.65 });
-  for (const [x, z, ry, tilt] of [[44, -12, 0.6, 0.22], [52, -28, -0.5, -0.3], [36, -34, 1.2, 0.16]] as const) {
+  for (const [x, z, ry, tilt] of [[46, -20, 0.6, 0.22], [40, -40, 1.2, 0.16]] as const) {
     const g = new THREE.Group(); g.position.set(x, -0.5, z); g.rotation.set(0, ry, tilt); ctx.scene.add(g);
     const hull = new THREE.Mesh(new THREE.BoxGeometry(3.2, 2.2, 10), wood); g.add(hull);
     // broken ribs poking out of the hull
