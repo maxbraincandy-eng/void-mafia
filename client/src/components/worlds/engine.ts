@@ -38,9 +38,29 @@ const CAM_DIST = 5.2, CAM_HEIGHT = 2.1;
 const VEH_Y = -0.5;                 // default hull float height (world may override)
 const OCEAN_R = 74;                 // how far you can roam on the water
 
-type VehicleInst = WorldVehicle & { mesh: THREE.Group; ry: number; homeX: number; homeZ: number; homeYaw: number; floatY: number; seatY: number; passZ: number };
-// How far BEHIND the helm the pillion/rear seat sits (local +Z is astern).
-const PASS_OFFSET: Record<VehicleKind, number> = { jetski: 0.9, boat: 1.5 };
+type VehicleInst = WorldVehicle & {
+  mesh: THREE.Group; ry: number; homeX: number; homeZ: number; homeYaw: number;
+  floatY: number; seatY: number; land: boolean;
+  drv: SeatOffset; pass: SeatOffset;
+  speed: number;                     // land only: current signed road speed (m/s)
+  wheels: THREE.Object3D[];          // land only: spun/steered per frame
+};
+/**
+ * Where a rider sits, in the vehicle's own frame: `dz` is how far ASTERN of the
+ * centre (local +Z points backwards, since the engine's forward is −Z) and `dx`
+ * how far to the rider's RIGHT. Water craft seat the pair in line; a car seats
+ * them shoulder to shoulder in two bucket seats.
+ */
+type SeatOffset = { dx: number; dz: number };
+const VEH_SEATS: Record<VehicleKind, { drv: SeatOffset; pass: SeatOffset; seatH: number }> = {
+  jetski: { drv: { dx: 0, dz: 0 }, pass: { dx: 0, dz: 0.9 }, seatH: 0.75 },
+  boat: { drv: { dx: 0, dz: 0 }, pass: { dx: 0, dz: 1.5 }, seatH: 0.75 },
+  car: { drv: { dx: -0.46, dz: 0.15 }, pass: { dx: 0.46, dz: 0.15 }, seatH: 0.98 },
+};
+// Land driving: top speeds (walk/boost), how briskly the throttle takes effect
+// and how hard it steers at speed.
+const CAR_TOP = 17, CAR_BOOST = 27, CAR_REV = 6.5, CAR_ACCEL = 2.1, CAR_STEER = 1.85;
+const CAR_PAD = 1.15;               // hull radius used against barriers/walls
 
 export class WorldEngine {
   input = { move: { x: 0, y: 0 }, run: false };
@@ -76,6 +96,7 @@ export class WorldEngine {
   private riding: VehicleInst | null = null;
   private ridingRole: 'driver' | 'passenger' = 'driver';
   private nearVehicle: VehicleInst | null = null;
+  private vehTextures: THREE.Texture[] = [];   // canvas textures (racing numbers)
   private groundY = 0;              // eased target floor height (0 = deck, <0 = water)
   private lastObjInteract = 0;
   onInteract: ((id: string) => void) | null = null;
@@ -329,13 +350,21 @@ export class WorldEngine {
       while (dry < -Math.PI) dry += Math.PI * 2;
       e.cur.ry += dry * k;
       const tag = e.target.seatId;
-      // A rider's tag names a vehicle rather than a seat. The driver's own
-      // position IS the hull, so use it to move the mesh for everyone.
+      // A rider's tag names a vehicle rather than a seat. The driver's broadcast
+      // position is their SEAT, so invert their seat offset to get the hull and
+      // move the mesh for everyone (identity for water craft, a half-metre to
+      // the side for a car, whose driver sits in the left bucket).
       const vehId = tag && (tag.startsWith('veh:') ? tag.slice(4) : tag.startsWith('vehp:') ? tag.slice(5) : null);
       const veh = vehId ? this.vehicles.find(v => v.id === vehId) : null;
       if (veh && tag!.startsWith('veh:')) {
-        veh.mesh.position.set(e.cur.x, veh.floatY, e.cur.z);
+        const hc = this.hullCentre(e.cur.x, e.cur.z, e.cur.ry, veh.drv);
+        veh.mesh.position.set(hc.x, veh.floatY, hc.z);
         veh.mesh.rotation.y = e.cur.ry; veh.ry = e.cur.ry;
+        if (veh.land) {
+          // roll the wheels from how far the hull actually moved this frame
+          const roll = Math.hypot(e.cur.x - px, e.cur.z - pz) / 0.44;
+          for (const w of veh.wheels) w.rotation.x -= roll;
+        }
       }
       const seat = !veh && tag ? this.seats.find(s => s.id === tag) : null;
       const pose = seat?.pose ?? null;
@@ -447,6 +476,7 @@ export class WorldEngine {
     this.audioStops.forEach(s => s());
     try { this.audioCtx?.close(); } catch { /* ignore */ }
     this.avatar.dispose();
+    this.vehTextures.forEach(t => t.dispose());
     this.scene.traverse(o => {
       const m = o as THREE.Mesh;
       if (m.geometry) m.geometry.dispose();
@@ -486,13 +516,19 @@ export class WorldEngine {
       addSwimZone: (z) => this.swimZones.push(z),
       addDryZone: (z) => this.dryZones.push(z),
       addVehicle: (v) => {
-        const mesh = this.buildVehicle(v.kind);
+        const wheels: THREE.Object3D[] = [];
+        const mesh = this.buildVehicle(v, wheels);
         const yaw = v.yaw ?? 0;
-        // float the hull slightly into the world's water surface
-        const floatY = v.waterY !== undefined ? v.waterY - 0.2 : VEH_Y;
+        const land = v.kind === 'car';
+        // Land vehicles sit ON the ground; hulls float slightly into the water.
+        const floatY = land ? 0 : v.waterY !== undefined ? v.waterY - 0.2 : VEH_Y;
+        const spec = VEH_SEATS[v.kind];
         mesh.position.set(v.x, floatY, v.z); mesh.rotation.y = yaw;
         this.scene.add(mesh);
-        this.vehicles.push({ ...v, mesh, ry: yaw, homeX: v.x, homeZ: v.z, homeYaw: yaw, floatY, seatY: floatY + 0.75, passZ: PASS_OFFSET[v.kind] });
+        this.vehicles.push({
+          ...v, mesh, ry: yaw, homeX: v.x, homeZ: v.z, homeYaw: yaw, floatY,
+          seatY: floatY + spec.seatH, land, drv: spec.drv, pass: spec.pass, speed: 0, wheels,
+        });
       },
       setScreen: (s) => { this.screen = s; },
       onUpdate: (fn) => this.updates.push(fn),
@@ -502,10 +538,12 @@ export class WorldEngine {
     this.def.build(ctx);
   }
 
-  // ── water vehicles ───────────────────────────────────────────────────
-  private buildVehicle(kind: VehicleKind): THREE.Group {
+  // ── vehicles ─────────────────────────────────────────────────────────
+  private buildVehicle(v: WorldVehicle, wheels: THREE.Object3D[]): THREE.Group {
+    const kind = v.kind;
     const g = new THREE.Group();
     const accent = new THREE.MeshBasicMaterial({ color: 0x35e0e0, toneMapped: false });
+    if (kind === 'car') { this.buildCar(g, v, wheels); return g; }
     if (kind === 'jetski') {
       const hullMat = new THREE.MeshStandardMaterial({ color: 0xff3b6a, roughness: 0.4, metalness: 0.3 });
       const hull = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.4, 2.0), hullMat); hull.position.y = 0.35; hull.castShadow = true; g.add(hull);
@@ -528,6 +566,89 @@ export class WorldEngine {
       const rearBack = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.42, 0.12), new THREE.MeshStandardMaterial({ color: 0x1a1a22, roughness: 0.8 })); rearBack.position.set(0, 1.13, 1.86); g.add(rearBack);
     }
     return g;
+  }
+
+  /**
+   * An open-top two-seat racer. Deliberately roofless: the riders' hips sit at
+   * `seatY`, so a closed cabin would slice through their heads — and open
+   * cockpits let everyone see who's driving and who's riding shotgun.
+   * Local −Z is the direction of travel.
+   */
+  private buildCar(g: THREE.Group, v: WorldVehicle, wheels: THREE.Object3D[]) {
+    const paint = new THREE.MeshStandardMaterial({ color: v.color ?? 0xe23b4e, roughness: 0.28, metalness: 0.45 });
+    const dark = new THREE.MeshStandardMaterial({ color: 0x14161c, roughness: 0.75 });
+    const rubber = new THREE.MeshStandardMaterial({ color: 0x0e0f13, roughness: 0.95 });
+    const chrome = new THREE.MeshStandardMaterial({ color: 0xb8c0cc, roughness: 0.3, metalness: 0.85 });
+    const carbon = new THREE.MeshStandardMaterial({ color: 0x1d2027, roughness: 0.5, metalness: 0.3 });
+
+    // floor pan + open cockpit tub (side pods either side of the two seats)
+    const pan = new THREE.Mesh(new THREE.BoxGeometry(1.62, 0.14, 3.5), carbon); pan.position.y = 0.31; pan.castShadow = true; g.add(pan);
+    for (const sx of [-0.95, 0.95]) {
+      const pod = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.58, 2.9), paint); pod.position.set(sx, 0.63, 0.1); pod.castShadow = true; g.add(pod);
+    }
+    // nose + splitter, tapering to the tip
+    const nose = new THREE.Mesh(new THREE.BoxGeometry(1.66, 0.44, 1.5), paint); nose.position.set(0, 0.6, -1.7); nose.castShadow = true; g.add(nose);
+    const tip = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.3, 0.7), paint); tip.position.set(0, 0.52, -2.6); g.add(tip);
+    const splitter = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.07, 0.5), carbon); splitter.position.set(0, 0.3, -2.75); g.add(splitter);
+    // engine deck + intake behind the seats
+    const deck = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.56, 1.35), paint); deck.position.set(0, 0.66, 1.75); deck.castShadow = true; g.add(deck);
+    const intake = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.3, 0.5), dark); intake.position.set(0, 1.05, 1.5); g.add(intake);
+    for (const sx of [-0.4, 0.4]) {
+      const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.5, 8), chrome);
+      pipe.rotation.x = Math.PI / 2; pipe.position.set(sx, 0.62, 2.5); g.add(pipe);
+    }
+    // roll bar behind the cockpit + rear wing on two struts
+    for (const sx of [-0.62, 0.62]) {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 1.05, 8), chrome); post.position.set(sx, 1.32, 1.02); g.add(post);
+      const strut = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.42, 0.1), carbon); strut.position.set(sx * 0.9, 1.16, 2.35); g.add(strut);
+    }
+    const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 1.28, 8), chrome); bar.rotation.z = Math.PI / 2; bar.position.set(0, 1.84, 1.02); g.add(bar);
+    const wing = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.06, 0.5), carbon); wing.position.set(0, 1.38, 2.35); wing.rotation.x = 0.16; g.add(wing);
+    // two bucket seats — cushion tops land just under the riders' hips (seatY)
+    for (const sx of [-0.46, 0.46]) {
+      const cushion = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.15, 0.6), dark); cushion.position.set(sx, 0.85, 0.25); g.add(cushion);
+      const back = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.7, 0.14), dark); back.position.set(sx, 1.27, 0.62); back.rotation.x = -0.09; g.add(back);
+      const belt = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.62, 0.03), new THREE.MeshStandardMaterial({ color: 0xd8d2c0, roughness: 0.9 })); belt.position.set(sx, 1.25, 0.53); belt.rotation.z = 0.3; g.add(belt);
+    }
+    // dash, wheel, mirrors
+    const dash = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.22, 0.22), dark); dash.position.set(0, 0.95, -0.85); g.add(dash);
+    const sw = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.032, 6, 18), dark); sw.position.set(-0.46, 1.06, -0.6); sw.rotation.x = 1.15; g.add(sw);
+    for (const sx of [-1.05, 1.05]) {
+      const mir = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.09, 0.05), chrome); mir.position.set(sx, 1.0, -0.75); g.add(mir);
+    }
+    // lights
+    const head = new THREE.MeshBasicMaterial({ color: 0xfff4d0, toneMapped: false });
+    const tail = new THREE.MeshBasicMaterial({ color: 0xff3020, toneMapped: false });
+    for (const sx of [-0.42, 0.42]) {
+      const hl = new THREE.Mesh(new THREE.CircleGeometry(0.15, 14), head); hl.position.set(sx, 0.56, -2.96); g.add(hl);
+      const tl = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.1, 0.05), tail); tl.position.set(sx, 0.78, 2.44); g.add(tl);
+    }
+    // racing number on the nose + both flanks
+    if (v.num !== undefined) {
+      const tex = numberTexture(v.num, v.color ?? 0xe23b4e);
+      const numMat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false });
+      this.vehTextures.push(tex);
+      const bonnet = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.8), numMat);
+      bonnet.rotation.x = -Math.PI / 2; bonnet.position.set(0, 0.83, -1.7); g.add(bonnet);
+      for (const sx of [-1, 1]) {
+        const flank = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.62), numMat);
+        flank.position.set(sx * 1.17, 0.68, 0.1); flank.rotation.y = sx * Math.PI / 2; g.add(flank);
+      }
+    }
+    // four wheels. Each lives in its own group: rotating the group about X rolls
+    // the wheel, about Y steers it (the fronts).
+    const tyre = new THREE.CylinderGeometry(0.44, 0.44, 0.32, 16);
+    const rim = new THREE.CylinderGeometry(0.24, 0.24, 0.34, 12);
+    for (const sz of [-1.55, 1.6]) for (const sx of [-1.16, 1.16]) {
+      const hub = new THREE.Group(); hub.position.set(sx, 0.44, sz); g.add(hub);
+      const t = new THREE.Mesh(tyre, rubber); t.rotation.z = Math.PI / 2; t.castShadow = true; hub.add(t);
+      const r = new THREE.Mesh(rim, chrome); r.rotation.z = Math.PI / 2; hub.add(r);
+      for (let i = 0; i < 5; i++) {
+        const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.05, 0.07), chrome);
+        spoke.rotation.x = (i / 5) * Math.PI; hub.add(spoke);
+      }
+      wheels.push(hub);
+    }
   }
 
   /** True when standing on a registered dry region (deck / pier / plaza). */
@@ -557,17 +678,30 @@ export class WorldEngine {
     for (const [sid, e] of this.remotes) if (e.target.seatId === `vehp:${id}`) return sid;
     return null;
   }
-  /** Rear-seat world position for a vehicle (astern of the helm). */
-  private pillionPos(v: VehicleInst) {
-    const m = v.mesh;
-    return { x: m.position.x + Math.sin(v.ry) * v.passZ, z: m.position.z + Math.cos(v.ry) * v.passZ };
+  /**
+   * A rider's world position. With yaw `ry` the vehicle's forward is
+   * −(sin ry, cos ry), so local +dz (astern) maps to +(sin, cos)·dz and the
+   * rider's right (+dx) to +(cos, −sin)·dx.
+   */
+  private seatWorld(cx: number, cz: number, ry: number, s: SeatOffset) {
+    const sn = Math.sin(ry), cs = Math.cos(ry);
+    return { x: cx + sn * s.dz + cs * s.dx, z: cz + cs * s.dz - sn * s.dx };
+  }
+  /** Inverse of `seatWorld`: the hull centre implied by a rider's position. */
+  private hullCentre(sx: number, sz: number, ry: number, s: SeatOffset) {
+    const sn = Math.sin(ry), cs = Math.cos(ry);
+    return { x: sx - sn * s.dz - cs * s.dx, z: sz - cs * s.dz + sn * s.dx };
+  }
+  private riderPos(v: VehicleInst, role: 'driver' | 'passenger') {
+    return this.seatWorld(v.mesh.position.x, v.mesh.position.z, v.ry, role === 'driver' ? v.drv : v.pass);
   }
 
   private mount(v: VehicleInst, role: 'driver' | 'passenger' = 'driver') {
     this.riding = v; this.ridingRole = role; this.seated = null;
     this.facing = v.ry; this.camYaw = v.ry;
-    if (role === 'driver') this.pos.set(v.mesh.position.x, v.seatY, v.mesh.position.z);
-    else { const p = this.pillionPos(v); this.pos.set(p.x, v.seatY, p.z); }
+    if (role === 'driver') v.speed = 0;
+    const p = this.riderPos(v, role);
+    this.pos.set(p.x, v.seatY, p.z);
     this.vy = 0; this.input.move.x = 0; this.input.move.y = 0;
   }
   /**
@@ -580,6 +714,16 @@ export class WorldEngine {
     const v = this.riding; if (!v) return;
     this.riding = null;
     const px = v.mesh.position.x, pz = v.mesh.position.z;
+    // Land vehicle: step out of your own door onto the ground beside it, then
+    // shove clear of anything solid. No water to fall into, so no shore probe.
+    if (v.land) {
+      v.speed = 0;
+      const side = this.ridingRole === 'passenger' ? 1 : -1;
+      const out = this.seatWorld(px, pz, v.ry, { dx: side * 2.1, dz: 0.4 });
+      this.pos.x = out.x; this.pos.z = out.z; this.pos.y = 0; this.vy = 0;
+      this.moveWithCollision(0, 0);
+      return;
+    }
     // probe around the hull for a dry landing spot (ring of candidates)
     const save = { x: this.pos.x, z: this.pos.z };
     let landed = false;
@@ -624,13 +768,50 @@ export class WorldEngine {
     // movement (camera-relative)
     let moveSpeed = 0;
     if (this.riding && this.ridingRole === 'passenger') {
-      // ── riding along in the rear seat ──
+      // ── riding along in the other seat ──
       // The hull is driven by whoever is at the helm (their networked position
-      // moves the mesh in updateRemotes), so we simply sit astern of it.
+      // moves the mesh in updateRemotes), so we simply sit in our own seat.
       const v = this.riding;
-      const p = this.pillionPos(v);
+      const p = this.riderPos(v, 'passenger');
       this.pos.set(p.x, v.seatY, p.z);
       this.facing = v.ry;
+      if (v.land) this.followCam(v.ry, dt);
+    } else if (this.riding && this.riding.land) {
+      // ── driving a car ──
+      // A proper car model: the stick's vertical axis is throttle/brake and the
+      // horizontal axis steers (only while actually rolling, like a real car),
+      // so the track can be driven in a line instead of crabbing sideways.
+      const v = this.riding;
+      let mx = this.input.move.x, my = this.input.move.y;
+      const mag = Math.hypot(mx, my); if (mag > 1) { mx /= mag; my /= mag; }
+      if (Math.abs(my) < 0.06) my = 0;
+      const top = this.input.run ? CAR_BOOST : CAR_TOP;
+      const want = my >= 0 ? my * top : my * CAR_REV;
+      v.speed += (want - v.speed) * Math.min(1, dt * CAR_ACCEL);
+      if (my === 0 && Math.abs(v.speed) < 0.25) v.speed = 0;
+      // steering authority ramps in with speed and flips in reverse
+      const grip = Math.min(1, Math.abs(v.speed) / 6) * (v.speed < 0 ? -1 : 1);
+      v.ry -= mx * CAR_STEER * grip * dt;
+      const c = v.mesh.position;
+      const step = v.speed * dt;
+      const p = { x: c.x - Math.sin(v.ry) * step, z: c.z - Math.cos(v.ry) * step };
+      // barriers stop it properly; the roam radius is just a backstop so a car
+      // can never be driven off past the edge of the scenery
+      const bound = this.def.oceanR ?? OCEAN_R;
+      const rr = Math.hypot(p.x, p.z);
+      if (rr > bound) { p.x = p.x / rr * bound; p.z = p.z / rr * bound; v.speed *= 0.4; }
+      if (this.pushOut(p, CAR_PAD)) v.speed *= 0.35;      // scraped a barrier
+      c.set(p.x, v.floatY, p.z); v.mesh.rotation.y = v.ry;
+      // spin the wheels with road speed; point the fronts where we're steering
+      const roll = step / 0.44;
+      for (let i = 0; i < v.wheels.length; i++) {
+        v.wheels[i].rotation.x -= roll;
+        if (i < 2) v.wheels[i].rotation.y = -mx * 0.5;     // first pair = front axle
+      }
+      const seat = this.riderPos(v, 'driver');
+      this.pos.set(seat.x, v.seatY, seat.z);
+      this.facing = v.ry;
+      this.followCam(v.ry, dt);
     } else if (this.riding) {
       // ── driving a water vehicle ──
       const v = this.riding;
@@ -749,10 +930,12 @@ export class WorldEngine {
       this.hudAccum = 0;
       this.nearScreen = !!this.screen && Math.hypot(this.screen.x - this.pos.x, this.screen.z - this.pos.z) < 9;
       const W = tNow().worlds;
+      const nv = this.nearVehicle;
+      const vIcon = nv?.land ? '🏎️' : '🛥️';
       const label = this.riding ? '🚪 გადმოსვლა'
         : this.seated ? (this.seated.pose ? W.shipDown : W.standUp)
-        : this.nearVehicle
-          ? (this.driverOf(this.nearVehicle.id) ? (this.passengerOf(this.nearVehicle.id) ? '🛥️ სავსეა' : '🛥️ მიჯექი') : '🛥️ მართვა')
+        : nv
+          ? (this.driverOf(nv.id) ? (this.passengerOf(nv.id) ? `${vIcon} სავსეა` : `${vIcon} მიჯექი`) : `${vIcon} მართვა`)
         : this.nearObj ? this.nearObj.label
         : this.nearSeat ? (this.nearSeat.pose ? W.shipStand : W.sit)
         : null;
@@ -780,8 +963,14 @@ export class WorldEngine {
     const dir = target.clone().sub(head);
     const full = dir.length(); dir.normalize();
     for (const c of this.colliders) {
-      const toC = new THREE.Vector2(c.x - head.x, c.z - head.z);
-      const along = toC.x * dir.x + toC.y * dir.z;
+      // Cheap exact reject first: nothing farther than the segment's own length
+      // (plus the collider) can possibly cross it. Worlds like the speedway ring
+      // themselves with hundreds of barrier colliders, and this keeps the
+      // per-frame sweep to a couple of comparisons for nearly all of them.
+      const cdx = c.x - head.x, cdz = c.z - head.z;
+      const reach = full + c.r + 0.3;
+      if (cdx > reach || cdx < -reach || cdz > reach || cdz < -reach) continue;
+      const along = cdx * dir.x + cdz * dir.z;
       if (along < 0 || along > full) continue;
       const px = head.x + dir.x * along, pz = head.z + dir.z * along;
       const perp = Math.hypot(c.x - px, c.z - pz);
@@ -799,22 +988,53 @@ export class WorldEngine {
     this.camera.lookAt(this.pos.x, lookY, this.pos.z);
   }
 
+  /**
+   * Shove a point out of every collider it overlaps (a wider radius than a
+   * pedestrian's, since a car is a metre-wide object). Returns true if anything
+   * was hit, which the driving code uses to scrub speed on a barrier scrape.
+   * Pushing out rather than reverting is what lets a car slide along a wall
+   * instead of sticking to it.
+   */
+  private pushOut(p: { x: number; z: number }, pad: number): boolean {
+    let hit = false;
+    for (const c of this.colliders) {
+      if (c.h !== undefined && c.h <= 0.34) continue;    // kerbs and low trim: drive over
+      const dx = p.x - c.x, dz = p.z - c.z;
+      const d = Math.hypot(dx, dz);
+      const min = c.r + pad;
+      if (d < min && d > 0.0001) { p.x = c.x + dx / d * min; p.z = c.z + dz / d * min; hit = true; }
+    }
+    return hit;
+  }
+
+  /** Ease the orbit camera back behind a steering vehicle (racing-game chase). */
+  private followCam(ry: number, dt: number) {
+    let d = ry - this.camYaw;
+    while (d > Math.PI) d -= Math.PI * 2;
+    while (d < -Math.PI) d += Math.PI * 2;
+    this.camYaw += d * Math.min(1, dt * 2.6);
+  }
+
   private moveWithCollision(sx: number, sz: number) {
     const y = this.pos.y;
     this.pos.x += sx;
     for (const c of this.colliders) {
       if (c.h !== undefined && y >= c.h) continue;   // jumped clear of a low obstacle
       const dx = this.pos.x - c.x, dz = this.pos.z - c.z;
-      const d = Math.hypot(dx, dz);
       const min = c.r + 0.34;
+      // exact reject: hypot(dx,dz) >= max(|dx|,|dz|), so either axis clearing the
+      // radius rules the collider out without the sqrt
+      if (dx > min || dx < -min || dz > min || dz < -min) continue;
+      const d = Math.hypot(dx, dz);
       if (d < min && d > 0.0001) { this.pos.x = c.x + dx / d * min; }
     }
     this.pos.z += sz;
     for (const c of this.colliders) {
       if (c.h !== undefined && y >= c.h) continue;
       const dx = this.pos.x - c.x, dz = this.pos.z - c.z;
-      const d = Math.hypot(dx, dz);
       const min = c.r + 0.34;
+      if (dx > min || dx < -min || dz > min || dz < -min) continue;
+      const d = Math.hypot(dx, dz);
       if (d < min && d > 0.0001) { this.pos.z = c.z + dz / d * min; }
     }
   }
@@ -924,6 +1144,21 @@ export class WorldEngine {
       pan.pan.setTargetAtTime(p, this.audioCtx.currentTime, 0.3);
     }
   }
+}
+
+/** A racing roundel: white disc, dark number, a ring in the car's own paint. */
+function numberTexture(n: number, paint: number): THREE.CanvasTexture {
+  const c = document.createElement('canvas'); c.width = 128; c.height = 128;
+  const g = c.getContext('2d')!;
+  const hex = `#${paint.toString(16).padStart(6, '0')}`;
+  g.fillStyle = '#f4f6f8'; g.beginPath(); g.arc(64, 64, 58, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = hex; g.lineWidth = 8; g.beginPath(); g.arc(64, 64, 53, 0, Math.PI * 2); g.stroke();
+  g.fillStyle = '#14161c'; g.font = 'bold 78px system-ui, sans-serif';
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(String(n), 64, 70);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
 }
 
 function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {

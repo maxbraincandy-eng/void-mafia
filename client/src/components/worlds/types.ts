@@ -30,12 +30,16 @@ export interface WorldSwimZone { x: number; z: number; r: number; waterY?: numbe
 // ground where a generously-sized swim zone happens to bleed over the edge.
 // Circle when `r` is given, otherwise an (optionally rotated) rectangle.
 export interface WorldDryZone { x: number; z: number; r?: number; hw?: number; hd?: number; yaw?: number; }
-// A rideable water vehicle docked at (x,z). Walk up, interact to board, drive
-// with WASD across the ocean, interact again to dock + step back onto the deck.
-export type VehicleKind = 'jetski' | 'boat';
+// A rideable vehicle parked at (x,z). Walk up, interact to board, drive with
+// WASD, interact again to step off. Water craft (`jetski`, `boat`) skim the sea
+// and refuse to drive onto dry ground; `car` is a LAND vehicle — it rolls on the
+// ground, is stopped by colliders (barriers, walls) and carries its passenger
+// side-by-side in the other bucket seat rather than astern.
+export type VehicleKind = 'jetski' | 'boat' | 'car';
 // `waterY` is the world's water surface, so the hull floats at the right height
-// (worlds put their sea at different levels).
-export interface WorldVehicle { id: string; x: number; z: number; yaw?: number; kind: VehicleKind; waterY?: number; }
+// (worlds put their sea at different levels). `color`/`num` dress a car (body
+// paint + racing number) so a starting grid isn't five identical machines.
+export interface WorldVehicle { id: string; x: number; z: number; yaw?: number; kind: VehicleKind; waterY?: number; color?: number; num?: number; }
 // A flat video screen the engine can project to the viewport (world cinema).
 export interface WorldScreen { x: number; y: number; z: number; w: number; h: number; ry: number; }
 
@@ -70,8 +74,9 @@ export interface WorldDef {
   icon: string;                 // emoji used in the lobby card
   status: 'live' | 'soon';
   spawn: { x: number; z: number; yaw: number };
-  // How far a rider may roam from the origin on the water (default 74). Worlds
-  // with a bounded bay set this so boats can't be driven out over the scenery.
+  // How far a rider may roam from the origin (default 74) — a bounded bay for
+  // boats, or the edge of the property for cars, so nothing can be driven out
+  // past the scenery.
   oceanR?: number;
   fog: { color: number; density: number };
   clear: number;                // renderer clear colour
