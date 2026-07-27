@@ -10,7 +10,7 @@
 import { randomBytes } from 'crypto';
 import { sql } from '../db.js';
 import { grantCoins } from './coinService.js';
-import { ALL_QUESTIONS, BY_LEVEL, getQuestion, LEVEL_RATING, LEVEL_WEIGHT, } from '../data/logic/index.js';
+import { ALL_QUESTIONS, BY_LEVEL, getQuestion, LEVEL_RATING, LEVEL_WEIGHT, timeFor, } from '../data/logic/index.js';
 const SESSION_TTL_MS = 45 * 60 * 1000;
 const START_RATING = 1200;
 const K_FACTOR = 26; // ranked rating swing per question
@@ -151,7 +151,7 @@ function viewOf(s) {
         question: q && cur ? {
             title: q.title, body: q.body, q: q.q,
             options: cur.order.map(i => q.options[i]),
-            level: q.level, cat: q.cat, seconds: q.seconds,
+            level: q.level, cat: q.cat, seconds: timeFor(q),
         } : null,
     };
 }
@@ -169,7 +169,8 @@ export async function answer(sessionId, userId, chosen, ms) {
         return null;
     const pos = Number.isFinite(chosen) ? Math.max(-1, Math.min(3, Math.trunc(chosen))) : -1;
     const correct = pos === cur.correctPos;
-    const elapsed = Math.max(0, Math.min(q.seconds * 1000 * 3, Number(ms) || 0));
+    const allowed = timeFor(q);
+    const elapsed = Math.max(0, Math.min(allowed * 1000 * 3, Number(ms) || 0));
     cur.answeredAt = Date.now();
     cur.chosen = pos;
     cur.correct = correct;
@@ -177,8 +178,8 @@ export async function answer(sessionId, userId, chosen, ms) {
     let gained = 0;
     if (correct) {
         gained = BASE_POINTS;
-        if (elapsed <= q.seconds * 500)
-            gained += SPEED_BONUS; // under half the allotted time
+        if (elapsed <= allowed * 500)
+            gained += SPEED_BONUS; // under half the clock the player saw
         gained += Math.round((LEVEL_WEIGHT[q.level] - 1) * 10); // difficulty bonus
         s.combo++;
         gained += Math.min(COMBO_CAP, (s.combo - 1) * COMBO_STEP); // combo bonus

@@ -2,6 +2,15 @@
 // Questions live ONLY on the server. A session sends the text with its options
 // already shuffled and the key withheld, so the answer never reaches the client
 // before it is submitted — that is the whole anti-cheat story.
+// The authored hints were sized for solving, not for READING: 35 s is not
+// enough to take in three premises and four full-sentence options, let alone
+// think. The real clock stretches them into a comfortable 90–120 s band, so the
+// timer creates mild pressure instead of racing the reader.
+export const MIN_SECONDS = 90;
+export const MAX_SECONDS = 120;
+export function timeFor(q) {
+    return Math.min(MAX_SECONDS, Math.max(MIN_SECONDS, Math.round(q.seconds * 1.8)));
+}
 export const LEVEL_LABEL = {
     beginner: 'დამწყები',
     medium: 'საშუალო',

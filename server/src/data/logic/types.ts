@@ -33,8 +33,21 @@ export interface LogicQuestion {
   why: string;
   /** Why the most tempting wrong option fails, keyed by its index. */
   trap?: Partial<Record<0 | 1 | 2 | 3, string>>;
-  /** Expected solve time in seconds; drives the timer and the speed bonus. */
+  /**
+   * Authored difficulty hint in seconds. This is NOT the timer — see `timeFor`.
+   * Read it as "how long this one deserves relative to the others".
+   */
   seconds: number;
+}
+
+// The authored hints were sized for solving, not for READING: 35 s is not
+// enough to take in three premises and four full-sentence options, let alone
+// think. The real clock stretches them into a comfortable 90–120 s band, so the
+// timer creates mild pressure instead of racing the reader.
+export const MIN_SECONDS = 90;
+export const MAX_SECONDS = 120;
+export function timeFor(q: { seconds: number }): number {
+  return Math.min(MAX_SECONDS, Math.max(MIN_SECONDS, Math.round(q.seconds * 1.8)));
 }
 
 export const LEVEL_LABEL: Record<LogicLevel, string> = {

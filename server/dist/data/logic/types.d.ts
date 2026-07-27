@@ -20,9 +20,17 @@ export interface LogicQuestion {
     why: string;
     /** Why the most tempting wrong option fails, keyed by its index. */
     trap?: Partial<Record<0 | 1 | 2 | 3, string>>;
-    /** Expected solve time in seconds; drives the timer and the speed bonus. */
+    /**
+     * Authored difficulty hint in seconds. This is NOT the timer — see `timeFor`.
+     * Read it as "how long this one deserves relative to the others".
+     */
     seconds: number;
 }
+export declare const MIN_SECONDS = 90;
+export declare const MAX_SECONDS = 120;
+export declare function timeFor(q: {
+    seconds: number;
+}): number;
 export declare const LEVEL_LABEL: Record<LogicLevel, string>;
 export declare const LEVEL_COLOR: Record<LogicLevel, string>;
 export declare const CAT_LABEL: Record<LogicCategory, string>;

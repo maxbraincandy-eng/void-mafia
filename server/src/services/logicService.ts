@@ -12,7 +12,7 @@ import { sql } from '../db.js';
 import { grantCoins } from './coinService.js';
 import {
   ALL_QUESTIONS, BY_LEVEL, getQuestion,
-  LEVEL_RATING, LEVEL_WEIGHT,
+  LEVEL_RATING, LEVEL_WEIGHT, timeFor,
   type LogicLevel, type LogicQuestion, type LogicCategory,
 } from '../data/logic/index.js';
 
@@ -190,7 +190,7 @@ function viewOf(s: LogicSession) {
     question: q && cur ? {
       title: q.title, body: q.body, q: q.q,
       options: cur.order.map(i => q.options[i]),
-      level: q.level, cat: q.cat, seconds: q.seconds,
+      level: q.level, cat: q.cat, seconds: timeFor(q),
     } : null,
   };
 }
@@ -225,13 +225,14 @@ export async function answer(sessionId: string, userId: string, chosen: number, 
 
   const pos = Number.isFinite(chosen) ? Math.max(-1, Math.min(3, Math.trunc(chosen))) : -1;
   const correct = pos === cur.correctPos;
-  const elapsed = Math.max(0, Math.min(q.seconds * 1000 * 3, Number(ms) || 0));
+  const allowed = timeFor(q);
+  const elapsed = Math.max(0, Math.min(allowed * 1000 * 3, Number(ms) || 0));
   cur.answeredAt = Date.now(); cur.chosen = pos; cur.correct = correct; cur.ms = elapsed;
 
   let gained = 0;
   if (correct) {
     gained = BASE_POINTS;
-    if (elapsed <= q.seconds * 500) gained += SPEED_BONUS;              // under half the allotted time
+    if (elapsed <= allowed * 500) gained += SPEED_BONUS;                // under half the clock the player saw
     gained += Math.round((LEVEL_WEIGHT[q.level] - 1) * 10);             // difficulty bonus
     s.combo++;
     gained += Math.min(COMBO_CAP, (s.combo - 1) * COMBO_STEP);          // combo bonus

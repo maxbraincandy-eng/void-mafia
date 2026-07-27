@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { emitWithAck } from '@/lib/socket';
+import { LogicLogo } from './LogicLogo';
 
 type Level = 'beginner' | 'medium' | 'hard' | 'expert';
 type Mode = 'practice' | 'ranked' | 'daily' | 'test';
@@ -176,7 +177,8 @@ export function LogicAcademy({ onClose }: { onClose: () => void }) {
         {/* header */}
         <div style={S.header}>
           <button style={S.icon} onClick={() => (view === 'hub' ? onClose() : setView('hub'))}>‹</button>
-          <div style={{ flex: 1 }}>
+          {view === 'hub' && <LogicLogo size={34} label={false} className="flex-shrink-0" />}
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div style={S.title}>ფორმალური ლოგიკის აკადემია</div>
             <div style={S.sub}>
               {view === 'hub' ? 'ლოგიკა, არგუმენტაცია, დედუქცია' : view === 'test' ? `კითხვა ${(q?.index ?? 0) + 1}/${q?.total ?? 0}` : ''}
