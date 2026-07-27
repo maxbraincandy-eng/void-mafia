@@ -4,4 +4,7 @@ node_modules
 npm-debug.log*
 yarn.lock
 .claude/
-data/
+# Root-only: this was swallowing every source directory named `data/` at any
+# depth (server/src/data/…), so those files silently never got committed and the
+# deploy crashed on a missing import.
+/data/
