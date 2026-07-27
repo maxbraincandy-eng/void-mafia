@@ -2,6 +2,7 @@
 // შვიდი განყოფილება ერთ ჰაბში. ტესტი პასუხის შემდეგ ხსნის, რომელი წესი
 // დაირღვა — ქულა მეორეხარისხოვანია, სწავლება მთავარია.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { emitWithAck } from '@/lib/socket';
 
@@ -156,8 +157,21 @@ export function LogicAcademy({ onClose }: { onClose: () => void }) {
   const p = hub?.profile;
   const bandInfo = useMemo(() => band(p?.rating ?? 1200), [p?.rating]);
 
-  return (
-    <div style={S.wrap}>
+  // The games tab sits inside a transformed ancestor, which makes `position:
+  // fixed` anchor to THAT box instead of the viewport — the panel opened
+  // scrolled past its own header and left the sidebar showing. A portal to
+  // <body> escapes the containing block entirely.
+  const scroller = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';          // no background scroll bleed
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+  // every screen change starts at the top, not wherever the last one was
+  useEffect(() => { scroller.current?.scrollTo({ top: 0 }); }, [view]);
+
+  return createPortal(
+    <div style={S.wrap} ref={scroller}>
       <div style={S.inner}>
         {/* header */}
         <div style={S.header}>
@@ -445,7 +459,8 @@ export function LogicAcademy({ onClose }: { onClose: () => void }) {
           )}
         </AnimatePresence>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

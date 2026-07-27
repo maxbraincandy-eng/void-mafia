@@ -1,7 +1,7 @@
 import type { LogicQuestion, LogicLevel, LogicCategory } from './types.js';
 export * from './types.js';
-export declare const BY_LEVEL: Record<LogicLevel, LogicQuestion[]>;
 export declare const ALL_QUESTIONS: LogicQuestion[];
+export declare const BY_LEVEL: Record<LogicLevel, LogicQuestion[]>;
 export declare function getQuestion(id: string): LogicQuestion | undefined;
 export declare function countBy(level?: LogicLevel, cat?: LogicCategory): number;
 /**

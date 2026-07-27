@@ -2,14 +2,17 @@ import { BEGINNER } from './beginner.js';
 import { MEDIUM } from './medium.js';
 import { HARD } from './hard.js';
 import { EXPERT } from './expert.js';
+import { MAFIA_NIGHT } from './mafiaNight.js';
 export * from './types.js';
+// Themed files can carry questions of any level; BY_LEVEL is derived rather
+// than hand-maintained, so adding a new file means one import and nothing else.
+export const ALL_QUESTIONS = [...BEGINNER, ...MEDIUM, ...HARD, ...EXPERT, ...MAFIA_NIGHT];
 export const BY_LEVEL = {
-    beginner: BEGINNER,
-    medium: MEDIUM,
-    hard: HARD,
-    expert: EXPERT,
+    beginner: ALL_QUESTIONS.filter(q => q.level === 'beginner'),
+    medium: ALL_QUESTIONS.filter(q => q.level === 'medium'),
+    hard: ALL_QUESTIONS.filter(q => q.level === 'hard'),
+    expert: ALL_QUESTIONS.filter(q => q.level === 'expert'),
 };
-export const ALL_QUESTIONS = [...BEGINNER, ...MEDIUM, ...HARD, ...EXPERT];
 const BY_ID = new Map(ALL_QUESTIONS.map(q => [q.id, q]));
 export function getQuestion(id) { return BY_ID.get(id); }
 export function countBy(level, cat) {

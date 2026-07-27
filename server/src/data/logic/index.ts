@@ -6,17 +6,20 @@ import { BEGINNER } from './beginner.js';
 import { MEDIUM } from './medium.js';
 import { HARD } from './hard.js';
 import { EXPERT } from './expert.js';
+import { MAFIA_NIGHT } from './mafiaNight.js';
 
 export * from './types.js';
 
-export const BY_LEVEL: Record<LogicLevel, LogicQuestion[]> = {
-  beginner: BEGINNER,
-  medium: MEDIUM,
-  hard: HARD,
-  expert: EXPERT,
-};
+// Themed files can carry questions of any level; BY_LEVEL is derived rather
+// than hand-maintained, so adding a new file means one import and nothing else.
+export const ALL_QUESTIONS: LogicQuestion[] = [...BEGINNER, ...MEDIUM, ...HARD, ...EXPERT, ...MAFIA_NIGHT];
 
-export const ALL_QUESTIONS: LogicQuestion[] = [...BEGINNER, ...MEDIUM, ...HARD, ...EXPERT];
+export const BY_LEVEL: Record<LogicLevel, LogicQuestion[]> = {
+  beginner: ALL_QUESTIONS.filter(q => q.level === 'beginner'),
+  medium: ALL_QUESTIONS.filter(q => q.level === 'medium'),
+  hard: ALL_QUESTIONS.filter(q => q.level === 'hard'),
+  expert: ALL_QUESTIONS.filter(q => q.level === 'expert'),
+};
 
 const BY_ID = new Map(ALL_QUESTIONS.map(q => [q.id, q]));
 export function getQuestion(id: string): LogicQuestion | undefined { return BY_ID.get(id); }
