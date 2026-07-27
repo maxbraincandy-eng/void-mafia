@@ -14,7 +14,11 @@ import {
   leaderboard, myRanks, setCountry, dailyStatus, getAchievements, categoryBreakdown,
   BANK_SIZE, type LogicMode, type BoardScope,
 } from './services/logicService.js';
-import { countBy, LEVEL_LABEL, CAT_LABEL, type LogicLevel } from './data/logic/index.js';
+import { countBy, LEVEL_LABEL, CAT_LABEL, HANDBOOK, HANDBOOK_CHAPTERS, HANDBOOK_SECTIONS, type LogicLevel } from './data/logic/index.js';
+import {
+  examStatus, startExam, answerExam, finishExam, getExam, examView, examLeaderboard,
+  EXAM_TOTAL, EXAM_MS,
+} from './services/logicExamService.js';
 
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -35,12 +39,14 @@ export function registerLogicHandlers(_io: AppServer, socket: AppSocket): void {
   socket.on('logic:hub' as any, async (cb: (r: any) => void) => {
     try {
       const id = requireUser(cb); if (!id) return;
-      const [profile, ranks, daily, achievements] = await Promise.all([
-        getProfile(id), myRanks(id), dailyStatus(id), getAchievements(id),
+      const [profile, ranks, daily, achievements, exam] = await Promise.all([
+        getProfile(id), myRanks(id), dailyStatus(id), getAchievements(id), examStatus(id),
       ]);
       cb(ok({
         profile, ranks, daily,
         achievements: achievements.map(a => ({ code: a.code, name: a.name, desc: a.desc, icon: a.icon, earned: a.earned, at: a.at })),
+        exam,
+        handbook: { chapters: HANDBOOK_CHAPTERS, sections: HANDBOOK_SECTIONS },
         bank: {
           total: BANK_SIZE,
           levels: (['beginner', 'medium', 'hard', 'expert'] as LogicLevel[]).map(l => ({ level: l, label: LEVEL_LABEL[l], count: countBy(l) })),
@@ -114,6 +120,66 @@ export function registerLogicHandlers(_io: AppServer, socket: AppSocket): void {
         accuracy: profile.answered ? Math.round((profile.correct / profile.answered) * 100) : 0,
         bank: BANK_SIZE,
       }));
+    } catch (e: any) { cb(err(e.message)); }
+  });
+
+  // ── სახელმძღვანელო: static reference text, no auth needed ──
+  socket.on('logic:handbook' as any, (cb: (r: any) => void) => {
+    try { cb(ok({ chapters: HANDBOOK })); } catch (e: any) { cb(err(e.message)); }
+  });
+
+  // ── გამოცდა ──
+  socket.on('logic:exam_status' as any, async (cb: (r: any) => void) => {
+    try {
+      const id = requireUser(cb); if (!id) return;
+      cb(ok(await examStatus(id)));
+    } catch (e: any) { cb(err(e.message)); }
+  });
+
+  socket.on('logic:exam_start' as any, async (cb: (r: any) => void) => {
+    try {
+      const id = requireUser(cb); if (!id) return;
+      const r = await startExam(id);
+      if ('error' in r) return cb(err(r.error));
+      cb(ok(r.view));
+    } catch (e: any) { cb(err(e.message)); }
+  });
+
+  socket.on('logic:exam_answer' as any, (data: { examId: string; choice: number }, cb: (r: any) => void) => {
+    try {
+      const id = requireUser(cb); if (!id) return;
+      const r = answerExam(String(data?.examId), id, Number(data?.choice));
+      if (!r) return cb(err('გამოცდა დასრულებულია ან დრო ამოიწურა'));
+      cb(ok(r));
+    } catch (e: any) { cb(err(e.message)); }
+  });
+
+  socket.on('logic:exam_finish' as any, async (data: { examId: string }, cb: (r: any) => void) => {
+    try {
+      const id = requireUser(cb); if (!id) return;
+      const r = await finishExam(String(data?.examId), id);
+      if (!r) return cb(err('გამოცდა ვერ მოიძებნა'));
+      cb(ok(r));
+    } catch (e: any) { cb(err(e.message)); }
+  });
+
+  /** Resume the paper after a refresh — the pooled clock keeps running. */
+  socket.on('logic:exam_resume' as any, (data: { examId: string }, cb: (r: any) => void) => {
+    try {
+      const id = requireUser(cb); if (!id) return;
+      const s = getExam(String(data?.examId));
+      if (!s || s.userId !== id) return cb(err('გამოცდა ვერ მოიძებნა'));
+      cb(ok(examView(s)));
+    } catch (e: any) { cb(err(e.message)); }
+  });
+
+  socket.on('logic:exam_board' as any, async (data: { scope?: string; limit?: number }, cb: (r: any) => void) => {
+    try {
+      const id = uid();
+      const scopes = ['all', 'week', 'country'] as const;
+      const scope = (scopes.includes(data?.scope as any) ? data!.scope : 'all') as 'all' | 'week' | 'country';
+      if (scope === 'country' && !id) return cb(err('საჭიროა ავტორიზაცია'));
+      cb(ok(await examLeaderboard(scope, id, Number(data?.limit ?? 50))));
     } catch (e: any) { cb(err(e.message)); }
   });
 

@@ -2,14 +2,18 @@
 // Questions live ONLY on the server. A session sends the text with its options
 // already shuffled and the key withheld, so the answer never reaches the client
 // before it is submitted — that is the whole anti-cheat story.
-// The authored hints were sized for solving, not for READING: 35 s is not
-// enough to take in three premises and four full-sentence options, let alone
-// think. The real clock stretches them into a comfortable 90–120 s band, so the
-// timer creates mild pressure instead of racing the reader.
-export const MIN_SECONDS = 90;
-export const MAX_SECONDS = 120;
+// The authored hints were sized for solving, not for READING: 35 s does not
+// cover taking in three premises and four full-sentence options, let alone
+// thinking. The real clock is per level — two minutes as the floor, and more
+// where the question genuinely needs working through on paper.
+export const LEVEL_SECONDS = {
+    beginner: 120,
+    medium: 120,
+    hard: 150,
+    expert: 180,
+};
 export function timeFor(q) {
-    return Math.min(MAX_SECONDS, Math.max(MIN_SECONDS, Math.round(q.seconds * 1.8)));
+    return LEVEL_SECONDS[q.level] ?? 120;
 }
 export const LEVEL_LABEL = {
     beginner: 'დამწყები',

@@ -5,12 +5,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { emitWithAck } from '@/lib/socket';
+import { useSocialStore } from '@/store/socialStore';
+import { useAuthStore } from '@/store/authStore';
 import { LogicLogo } from './LogicLogo';
 
 type Level = 'beginner' | 'medium' | 'hard' | 'expert';
 type Mode = 'practice' | 'ranked' | 'daily' | 'test';
 type Scope = 'world' | 'country' | 'friends' | 'week' | 'month' | 'all';
-type View = 'hub' | 'test' | 'result' | 'board' | 'stats' | 'achv' | 'levels';
+type View = 'hub' | 'test' | 'result' | 'board' | 'stats' | 'achv' | 'levels' | 'book' | 'chapter' | 'exam' | 'examResult' | 'examBoard';
 
 interface Profile {
   rating: number; peakRating: number; answered: number; correct: number; totalMs: number;
@@ -22,6 +24,8 @@ interface Achv { code: string; name: string; desc: string; icon: string; earned:
 interface Hub {
   profile: Profile; ranks: Ranks; daily: { done: boolean; date: string; streak: number };
   achievements: Achv[];
+  exam: ExamStatus;
+  handbook: { chapters: number; sections: number };
   bank: { total: number; levels: Array<{ level: Level; label: string; count: number }>; categories: Array<{ cat: string; label: string }> };
 }
 interface QView {
@@ -39,7 +43,13 @@ interface Result {
   achievements: string[];
   review: Array<{ title: string; body: string; q: string; options: string[]; correctPos: number; chosen: number; rule: string; why: string; trap: string | null; level: string; cat: string }>;
 }
-interface BoardRow { rank: number; userId: string; username: string; avatar: string; country: string | null; rating: number; accuracy: number; tests: number; score?: number }
+interface BoardRow { rank: number; userId: string; username: string; avatar: string; avatarUrl: string | null; country: string | null; rating: number; accuracy: number; tests: number; score?: number }
+interface ExamBoardRow { rank: number; userId: string; username: string; avatar: string; avatarUrl: string | null; country: string | null; score: number; correct: number; total: number; durationMs: number; at: number }
+interface ExamStatus { canSit: boolean; waitMs: number; lastAt: number | null; lastScore: number | null; best: { score: number; correct: number; total: number; at: number } | null; attempts: number; totalQuestions: number; examMs: number }
+interface ExamView { examId: string; index: number; total: number; endsAt: number; answered: number; question: { title: string; body: string; q: string; options: string[]; level: Level; cat: string } | null }
+interface ExamResult { score: number; correct: number; total: number; answered: number; timedOut: boolean; durationMs: number; grade: string; byLevel: Record<string, { correct: number; total: number }>; best: boolean; coins: number; nextSittingAt: number; review: Result['review'] }
+interface HbSection { h: string; p: string[]; formal?: string[]; example?: string; pitfall?: string; note?: string }
+interface HbChapter { id: string; icon: string; title: string; blurb: string; sections: HbSection[] }
 
 const LV_COLOR: Record<string, string> = { beginner: '#3fb950', medium: '#4d9fff', hard: '#a371f7', expert: '#ff4d5e' };
 const LV_LABEL: Record<string, string> = { beginner: 'დამწყები', medium: 'საშუალო', hard: 'რთული', expert: 'ექსპერტი' };
@@ -83,6 +93,23 @@ export function LogicAcademy({ onClose }: { onClose: () => void }) {
   const [scope, setScope] = useState<Scope>('world');
   const [board, setBoard] = useState<BoardRow[] | null>(null);
   const [stats, setStats] = useState<any>(null);
+
+  // handbook
+  const [book, setBook] = useState<HbChapter[] | null>(null);
+  const [chapter, setChapter] = useState<HbChapter | null>(null);
+
+  // exam — ONE pooled clock for the whole paper, not a timer per question
+  const [exam, setExam] = useState<ExamView | null>(null);
+  const [examLeft, setExamLeft] = useState(0);
+  const [examPicked, setExamPicked] = useState<number | null>(null);
+  const [examRes, setExamRes] = useState<ExamResult | null>(null);
+  const [examBoard, setExamBoard] = useState<ExamBoardRow[] | null>(null);
+  const [examScope, setExamScope] = useState<'all' | 'week' | 'country'>('all');
+  const examRef = useRef<ExamView | null>(null);
+  const examTimer = useRef<number | null>(null);
+
+  const openProfile = useSocialStore(s => s.openProfile);
+  const myId = useAuthStore(s => s.profile?.id ?? s.uid);
 
   const loadHub = useCallback(async () => {
     try { setHub(unwrap<Hub>(await emitWithAck('logic:hub'))); }
@@ -143,6 +170,69 @@ export function LogicAcademy({ onClose }: { onClose: () => void }) {
   const pickedRef = useRef<number | null>(null); useEffect(() => { pickedRef.current = picked; }, [picked]);
 
   const next = () => { if (fb?.next) beginQuestion(fb.next); };
+
+  // ── exam ──
+  useEffect(() => { examRef.current = exam; }, [exam]);
+  const stopExamTimer = () => { if (examTimer.current) { clearInterval(examTimer.current); examTimer.current = null; } };
+  useEffect(() => () => stopExamTimer(), []);
+
+  const finishExamNow = useCallback(async () => {
+    const cur = examRef.current;
+    if (!cur) return;
+    stopExamTimer();
+    try {
+      const r = unwrap<ExamResult>(await emitWithAck('logic:exam_finish', { examId: cur.examId }));
+      setExamRes(r); setExam(null); setView('examResult'); loadHub();
+    } catch (e: any) { setErr(e.message); setView('hub'); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadHub]);
+
+  /** The pooled clock is driven off the server's `endsAt`, so a refresh or a
+      backgrounded tab cannot buy extra time. */
+  const armExamClock = useCallback((v: ExamView) => {
+    stopExamTimer();
+    const tick = () => {
+      const ms = Math.max(0, v.endsAt - Date.now());
+      setExamLeft(Math.ceil(ms / 1000));
+      if (ms <= 0) { stopExamTimer(); finishExamNow(); }
+    };
+    tick();
+    examTimer.current = window.setInterval(tick, 500);
+  }, [finishExamNow]);
+
+  const startExam = async () => {
+    setBusy(true); setErr(null);
+    try {
+      const v = unwrap<ExamView>(await emitWithAck('logic:exam_start'));
+      setExam(v); setExamPicked(null); setExamRes(null); setView('exam');
+      armExamClock(v);
+    } catch (e: any) { setErr(e.message); }
+    finally { setBusy(false); }
+  };
+
+  const answerExam = async (choice: number) => {
+    const cur = examRef.current;
+    if (!cur || examPicked !== null) return;
+    setExamPicked(choice);
+    try {
+      const r = unwrap<{ done: boolean; next: ExamView | null }>(await emitWithAck('logic:exam_answer', { examId: cur.examId, choice }));
+      if (r.done) { await finishExamNow(); return; }
+      // same paper, same clock — only the question changes
+      setExam(r.next); setExamPicked(null);
+    } catch (e: any) { setErr(e.message); }
+  };
+
+  const openBook = async () => {
+    setView('book');
+    if (book) return;
+    try { setBook(unwrap<{ chapters: HbChapter[] }>(await emitWithAck('logic:handbook')).chapters); }
+    catch (e: any) { setErr(e.message); }
+  };
+  const loadExamBoard = async (sc: 'all' | 'week' | 'country') => {
+    setExamScope(sc); setExamBoard(null);
+    try { setExamBoard(unwrap<ExamBoardRow[]>(await emitWithAck('logic:exam_board', { scope: sc, limit: 50 }))); }
+    catch (e: any) { setErr(e.message); setExamBoard([]); }
+  };
 
   const loadBoard = async (s: Scope) => {
     setScope(s); setBoard(null);
@@ -208,7 +298,16 @@ export function LogicAcademy({ onClose }: { onClose: () => void }) {
                       accent="#ffd45a" disabled={hub.daily.done} onClick={() => start('daily', 'mixed', 8)} busy={busy} />
                     <Tile icon="🎯" title="სავარჯიშო რეჟიმი" sub="რეიტინგი არ იცვლება · ახსნა მაშინვე" accent="#3fb950" onClick={() => start('practice', 'mixed', 10)} busy={busy} />
                     <Tile icon="⚔️" title="რეიტინგული რეჟიმი" sub="რთული კითხვები · ახსნა ბოლოს" accent="#ff4d5e" onClick={() => start('ranked', 'mixed', 10)} busy={busy} />
+                    <Tile icon="🎓" title="გამოცდა"
+                      sub={hub.exam.canSit
+                        ? `${hub.exam.totalQuestions} კითხვა · ${Math.round(hub.exam.examMs / 60000)} წუთი ჯამში · 100 ქულა`
+                        : `გადაბარება ${Math.ceil(hub.exam.waitMs / 86400000)} დღეში${hub.exam.best ? ` · საუკეთესო ${hub.exam.best.score}/100` : ''}`}
+                      accent="#ffd45a" disabled={!hub.exam.canSit} onClick={startExam} busy={busy} />
+                    <Tile icon="📖" title="სახელმძღვანელო"
+                      sub={`${hub.handbook.chapters} თავი · ${hub.handbook.sections} განყოფილება`}
+                      accent="#4dd4c4" onClick={openBook} />
                     <Tile icon="🏆" title="ლიდერბორდი" sub="მსოფლიო · ქვეყანა · მეგობრები" accent="#a371f7" onClick={openBoard} />
+                    <Tile icon="🥇" title="გამოცდის ლიდერბორდი" sub="100-ქულიანი შეფასება" accent="#ff9f43" onClick={() => { setView('examBoard'); loadExamBoard(examScope); }} />
                     <Tile icon="📊" title="ჩემი სტატისტიკა" sub="სიზუსტე, დრო, სერიები" accent="#4d9fff" onClick={openStats} />
                     <Tile icon="🎖️" title="მიღწევები"
                       sub={`${hub.achievements.filter(a => a.earned).length}/${hub.achievements.length} მოპოვებული`}
@@ -309,6 +408,7 @@ export function LogicAcademy({ onClose }: { onClose: () => void }) {
                     პასუხი მიღებულია. რეიტინგულ რეჟიმში ახსნები ტესტის ბოლოს გამოჩნდება.
                   </motion.div>
                 )}
+      
               </AnimatePresence>
 
               {fb && !fb.done && (
@@ -356,26 +456,7 @@ export function LogicAcademy({ onClose }: { onClose: () => void }) {
               )}
 
               <div style={S.sectionTitle}>განხილვა</div>
-              {result.review.map((r, i) => (
-                <div key={i} style={{ ...S.reviewCard, borderColor: r.chosen === r.correctPos ? 'rgba(63,185,80,.3)' : 'rgba(255,77,94,.3)' }}>
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
-                    <span style={{ color: LV_COLOR[r.level], fontSize: 11 }}>{LV_DOT[r.level]}</span>
-                    <b style={{ fontSize: 13.5 }}>{r.title}</b>
-                    <span style={{ flex: 1 }} />
-                    <span style={{ fontSize: 16 }}>{r.chosen === r.correctPos ? '✅' : '❌'}</span>
-                  </div>
-                  <div style={{ fontSize: 12.5, color: '#b9c2d6', whiteSpace: 'pre-line' }}>{r.body}</div>
-                  <div style={{ fontSize: 12.5, color: '#e8edf7', marginTop: 4 }}>{r.q}</div>
-                  <div style={{ marginTop: 6, fontSize: 12.5 }}>
-                    <div style={{ color: '#3fb950' }}>✓ {r.options[r.correctPos]}</div>
-                    {r.chosen >= 0 && r.chosen !== r.correctPos && <div style={{ color: '#ff8fa0' }}>✕ {r.options[r.chosen]}</div>}
-                    {r.chosen < 0 && <div style={{ color: '#7d86a0' }}>— დრო ამოიწურა</div>}
-                  </div>
-                  <div style={{ ...S.ruleChip, marginTop: 8 }}>წესი: {r.rule}</div>
-                  <div style={{ marginTop: 5, fontSize: 12.5, lineHeight: 1.5, color: '#c9d3e6', whiteSpace: 'pre-line' }}>{r.why}</div>
-                  {r.trap && <div style={S.trap}>{r.trap}</div>}
-                </div>
-              ))}
+              {result.review.map((r, i) => <ReviewCard key={i} r={r} />)}
               <button style={S.nextBtn} onClick={() => { setView('hub'); loadHub(); }}>დასრულება</button>
             </motion.div>
           )}
@@ -391,13 +472,18 @@ export function LogicAcademy({ onClose }: { onClose: () => void }) {
               </div>
               {!board ? <div style={S.dim}>იტვირთება…</div> : board.length === 0 ? <div style={S.dim}>ჯერ ცარიელია</div> : (
                 board.map(r => (
-                  <div key={r.userId} style={{ ...S.boardRow, borderColor: r.rank <= 3 ? '#ffd45a44' : 'rgba(255,255,255,.07)' }}>
+                  <button key={r.userId} onClick={() => openProfile(r.userId)}
+                    style={{ ...S.boardRow, width: '100%', textAlign: 'left', cursor: 'pointer',
+                      borderColor: r.userId === myId ? '#7c9cff66' : r.rank <= 3 ? '#ffd45a44' : 'rgba(255,255,255,.07)',
+                      background: r.userId === myId ? 'rgba(124,156,255,.1)' : 'rgba(255,255,255,.03)' }}>
                     <span style={{ width: 30, fontWeight: 800, color: r.rank === 1 ? '#ffd45a' : r.rank <= 3 ? '#c9d3e6' : '#7d86a0' }}>
                       {r.rank <= 3 ? ['🥇', '🥈', '🥉'][r.rank - 1] : r.rank}
                     </span>
-                    <div style={S.avatar}>{r.avatar ? <img src={r.avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : (r.username[0] ?? '?')}</div>
+                    <Avatar row={r} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 14, color: '#e8edf7', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.username}</div>
+                      <div style={{ fontSize: 14, color: '#e8edf7', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {r.username}{r.userId === myId ? ' ●' : ''}
+                      </div>
                       <div style={{ fontSize: 11, color: '#7d86a0' }}>{r.accuracy}% სიზუსტე · {r.tests} ტესტი</div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
@@ -406,7 +492,7 @@ export function LogicAcademy({ onClose }: { onClose: () => void }) {
                       </div>
                       <div style={{ fontSize: 9.5, color: '#7d86a0', letterSpacing: 1 }}>{r.score !== undefined ? 'ქულა' : 'RATING'}</div>
                     </div>
-                  </div>
+                  </button>
                 ))
               )}
             </motion.div>
@@ -459,6 +545,185 @@ export function LogicAcademy({ onClose }: { onClose: () => void }) {
               ))}
             </motion.div>
           )}
+          {/* ── EXAM: one pooled clock, no feedback until it is handed in ── */}
+          {view === 'exam' && exam?.question && (
+            <motion.div key={`ex${exam.index}`} initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}>
+              <div style={S.examBar}>
+                <span style={{ color: '#ffd45a', fontWeight: 800 }}>🎓 გამოცდა</span>
+                <span style={{ flex: 1 }} />
+                <span style={{ color: '#7d86a0' }}>{exam.index + 1}/{exam.total}</span>
+                <span style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 800, fontSize: 16,
+                  color: examLeft <= 120 ? '#ff4d5e' : examLeft <= 300 ? '#ffb020' : '#e8edf7' }}>
+                  {Math.floor(examLeft / 60)}:{String(examLeft % 60).padStart(2, '0')}
+                </span>
+              </div>
+              <div style={S.timerTrack}>
+                <div style={{ ...S.timerFill, transition: 'width .5s linear',
+                  width: `${Math.max(0, Math.min(100, (examLeft / ((hub?.exam.examMs ?? 1800000) / 1000)) * 100))}%`,
+                  background: examLeft <= 120 ? '#ff4d5e' : '#ffd45a' }} />
+              </div>
+              <div style={{ ...S.dim, textAlign: 'left', padding: '2px 0 8px' }}>
+                დრო ჯამურია — თვითონ გადაანაწილე კითხვებზე. ახსნები ბოლოს გამოჩნდება.
+              </div>
+
+              <div style={S.qMeta}>
+                <span style={{ color: LV_COLOR[exam.question.level], fontWeight: 700 }}>
+                  {LV_DOT[exam.question.level]} {LV_LABEL[exam.question.level]}
+                </span>
+              </div>
+              <div style={S.qTitle}>{exam.question.title}</div>
+              <div style={S.qBody}>{exam.question.body.split('\n').map((l, i) => <div key={i}>{l}</div>)}</div>
+              <div style={S.qAsk}>{exam.question.q}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+                {exam.question.options.map((o, i) => (
+                  <motion.button key={i} whileTap={{ scale: 0.985 }} onClick={() => answerExam(i)} disabled={examPicked !== null}
+                    style={{ ...S.option, borderColor: examPicked === i ? '#ffd45a' : 'rgba(255,255,255,.11)',
+                      background: examPicked === i ? 'rgba(255,212,90,.14)' : 'rgba(255,255,255,.035)' }}>
+                    <span style={{ ...S.optLetter, background: examPicked === i ? '#ffd45a' : 'rgba(255,255,255,.08)', color: examPicked === i ? '#1a1206' : '#fff' }}>
+                      {'ABCD'[i]}
+                    </span>
+                    <span style={{ flex: 1, textAlign: 'left' }}>{o}</span>
+                  </motion.button>
+                ))}
+              </div>
+              <button style={{ ...S.btnGhostWide }} onClick={() => answerExam(-1)} disabled={examPicked !== null}>
+                გამოტოვება →
+              </button>
+            </motion.div>
+          )}
+
+          {/* ── EXAM RESULT ── */}
+          {view === 'examResult' && examRes && (
+            <motion.div key="exr" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} style={{ paddingBottom: 30 }}>
+              <div style={{ ...S.resultCard, borderColor: 'rgba(255,212,90,.35)' }}>
+                <div style={{ fontSize: 13, color: '#7d86a0', letterSpacing: 2 }}>გამოცდის შეფასება</div>
+                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 4 }}>
+                  <div style={{ fontSize: 56, fontWeight: 900, color: examRes.score >= 60 ? '#ffd45a' : '#ff8fa0', lineHeight: 1.1 }}>{examRes.score}</div>
+                  <div style={{ fontSize: 20, color: '#7d86a0', fontWeight: 700 }}>/100</div>
+                </div>
+                <div style={{ color: examRes.score >= 60 ? '#ffe9a8' : '#ffb3c0', fontWeight: 700, fontSize: 15 }}>{examRes.grade}</div>
+                {examRes.best && <div style={{ ...S.ruleChip, marginTop: 8, background: 'rgba(255,212,90,.16)', color: '#ffd45a' }}>ახალი პირადი რეკორდი</div>}
+                <div style={{ display: 'flex', gap: 14, justifyContent: 'center', marginTop: 12, flexWrap: 'wrap' }}>
+                  <Stat label="სწორი" value={`${examRes.correct}/${examRes.total}`} />
+                  <Stat label="ნაპასუხები" value={String(examRes.answered)} />
+                  <Stat label="დრო" value={`${Math.floor(examRes.durationMs / 60000)} წთ`} />
+                  <Stat label="ჯილდო" value={`${examRes.coins} 🪙`} />
+                </div>
+                {examRes.timedOut && <div style={{ ...S.dim, color: '#ffb020', marginTop: 8 }}>დრო ამოიწურა — დარჩენილი კითხვები არ ჩაითვალა</div>}
+                <div style={{ ...S.dim, marginTop: 10 }}>
+                  შემდეგი გამოცდა: {new Date(examRes.nextSittingAt).toLocaleDateString('ka-GE')}
+                </div>
+              </div>
+
+              <div style={S.sectionTitle}>დონეების მიხედვით</div>
+              {Object.entries(examRes.byLevel).map(([lv, b]) => (
+                <div key={lv} style={{ marginBottom: 8 }}>
+                  <div style={{ display: 'flex', fontSize: 12.5 }}>
+                    <span style={{ flex: 1, color: LV_COLOR[lv] }}>{LV_DOT[lv]} {LV_LABEL[lv]}</span>
+                    <span style={{ color: '#7d86a0' }}>{b.correct}/{b.total}</span>
+                  </div>
+                  <div style={S.barTrack}><div style={{ ...S.barFill, width: `${(b.correct / Math.max(1, b.total)) * 100}%`, background: LV_COLOR[lv] }} /></div>
+                </div>
+              ))}
+
+              <div style={S.sectionTitle}>განხილვა</div>
+              {examRes.review.map((r, i) => <ReviewCard key={i} r={r} />)}
+              <button style={S.nextBtn} onClick={() => { setView('hub'); loadHub(); }}>დასრულება</button>
+            </motion.div>
+          )}
+
+          {/* ── EXAM LEADERBOARD ── */}
+          {view === 'examBoard' && (
+            <motion.div key="exb" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ paddingBottom: 30 }}>
+              <div style={{ display: 'flex', gap: 6, paddingBottom: 8 }}>
+                {([['all', '🏆 ყველა დრო'], ['week', '📅 კვირა'], ['country', '🇬🇪 ქვეყანა']] as const).map(([id, label]) => (
+                  <button key={id} onClick={() => loadExamBoard(id)} style={{ ...S.chip, ...(examScope === id ? S.chipOn : {}) }}>{label}</button>
+                ))}
+              </div>
+              {!examBoard ? <div style={S.dim}>იტვირთება…</div> : examBoard.length === 0 ? <div style={S.dim}>ჯერ ვერავის ჩაუბარებია</div> : (
+                examBoard.map(r => (
+                  <button key={r.userId + r.at} onClick={() => openProfile(r.userId)}
+                    style={{ ...S.boardRow, width: '100%', textAlign: 'left', cursor: 'pointer',
+                      borderColor: r.userId === myId ? '#7c9cff66' : r.rank <= 3 ? '#ffd45a44' : 'rgba(255,255,255,.07)',
+                      background: r.userId === myId ? 'rgba(124,156,255,.1)' : 'rgba(255,255,255,.03)' }}>
+                    <span style={{ width: 30, fontWeight: 800, color: r.rank === 1 ? '#ffd45a' : r.rank <= 3 ? '#c9d3e6' : '#7d86a0' }}>
+                      {r.rank <= 3 ? ['🥇', '🥈', '🥉'][r.rank - 1] : r.rank}
+                    </span>
+                    <Avatar row={r} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, color: '#e8edf7', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {r.username}{r.userId === myId ? ' ●' : ''}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#7d86a0' }}>
+                        {r.correct}/{r.total} · {Math.floor(r.durationMs / 60000)} წთ · {new Date(r.at).toLocaleDateString('ka-GE')}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontWeight: 900, fontSize: 18, color: '#ffd45a', fontFamily: '"Space Grotesk",monospace' }}>{r.score}</div>
+                      <div style={{ fontSize: 9.5, color: '#7d86a0', letterSpacing: 1 }}>/100</div>
+                    </div>
+                  </button>
+                ))
+              )}
+            </motion.div>
+          )}
+
+          {/* ── HANDBOOK: chapter list ── */}
+          {view === 'book' && (
+            <motion.div key="bk" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ paddingBottom: 30 }}>
+              <div style={{ ...S.dim, textAlign: 'left', paddingTop: 0 }}>
+                ყოველი წესი, რომელსაც ტესტში შეხვდები, აქ ცალკე აიხსნება — ფორმალური ჩანაწერით, მაგალითით და იმ შეცდომით, რომელსაც ის იჭერს.
+              </div>
+              {!book ? <div style={S.dim}>იტვირთება…</div> : book.map(c => (
+                <button key={c.id} style={S.chapterRow} onClick={() => { setChapter(c); setView('chapter'); }}>
+                  <span style={{ fontSize: 24 }}>{c.icon}</span>
+                  <div style={{ flex: 1, textAlign: 'left' }}>
+                    <div style={{ color: '#4dd4c4', fontWeight: 700, fontSize: 14.5 }}>{c.title}</div>
+                    <div style={{ fontSize: 11.5, color: '#7d86a0', marginTop: 1 }}>{c.blurb}</div>
+                  </div>
+                  <span style={{ fontSize: 11, color: '#7d86a0', fontFamily: 'monospace' }}>{c.sections.length}</span>
+                </button>
+              ))}
+            </motion.div>
+          )}
+
+          {/* ── HANDBOOK: one chapter ── */}
+          {view === 'chapter' && chapter && (
+            <motion.div key={chapter.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} style={{ paddingBottom: 34 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                <span style={{ fontSize: 28 }}>{chapter.icon}</span>
+                <div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: '#fff' }}>{chapter.title}</div>
+                  <div style={{ fontSize: 12, color: '#7d86a0' }}>{chapter.blurb}</div>
+                </div>
+              </div>
+              {chapter.sections.map((sec, i) => (
+                <div key={i} style={S.bookSection}>
+                  <div style={{ color: '#4dd4c4', fontWeight: 700, fontSize: 15, marginBottom: 6 }}>{sec.h}</div>
+                  {sec.p.map((para, k) => (
+                    <p key={k} style={{ fontSize: 13.5, lineHeight: 1.65, color: '#d3dced', margin: '0 0 8px' }}>{para}</p>
+                  ))}
+                  {sec.formal && (
+                    <pre style={S.formal}>{sec.formal.join('\n')}</pre>
+                  )}
+                  {sec.example && (
+                    <div style={S.bookBox}><b style={{ color: '#8de04a' }}>მაგალითი: </b>{sec.example}</div>
+                  )}
+                  {sec.pitfall && (
+                    <div style={{ ...S.bookBox, background: 'rgba(255,77,94,.08)', borderColor: 'rgba(255,77,94,.28)' }}>
+                      <b style={{ color: '#ff8fa0' }}>ტიპური შეცდომა: </b>{sec.pitfall}
+                    </div>
+                  )}
+                  {sec.note && (
+                    <div style={{ ...S.bookBox, background: 'rgba(124,156,255,.08)', borderColor: 'rgba(124,156,255,.28)' }}>
+                      <b style={{ color: '#9db4ff' }}>საინტერესო: </b>{sec.note}
+                    </div>
+                  )}
+                </div>
+              ))}
+              <button style={S.nextBtn} onClick={() => setView('book')}>← თავების სია</button>
+            </motion.div>
+          )}
         </AnimatePresence>
       </div>
     </div>,
@@ -502,6 +767,46 @@ function RatingCard({ p, ranks, band: b }: { p: Profile; ranks: Ranks; band: { n
           <MiniStat icon="🔥" v={String(p.dailyStreak)} l="სერია" />
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * A leaderboard avatar. `players.avatar` is an EMOJI and `avatar_url` is the
+ * uploaded picture — rendering the emoji into an <img src> (the original bug)
+ * silently showed nothing at all.
+ */
+function Avatar({ row }: { row: { avatar: string; avatarUrl: string | null; username: string } }) {
+  const [broken, setBroken] = useState(false);
+  const url = row.avatarUrl && !broken ? row.avatarUrl : null;
+  return (
+    <div style={S.avatar}>
+      {url
+        ? <img src={url} alt="" onError={() => setBroken(true)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        : <span style={{ fontSize: row.avatar ? 18 : 14 }}>{row.avatar || (row.username[0] ?? '?').toUpperCase()}</span>}
+    </div>
+  );
+}
+
+function ReviewCard({ r }: { r: Result['review'][number] }) {
+  return (
+    <div style={{ ...S.reviewCard, borderColor: r.chosen === r.correctPos ? 'rgba(63,185,80,.3)' : 'rgba(255,77,94,.3)' }}>
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
+        <span style={{ color: LV_COLOR[r.level], fontSize: 11 }}>{LV_DOT[r.level]}</span>
+        <b style={{ fontSize: 13.5 }}>{r.title}</b>
+        <span style={{ flex: 1 }} />
+        <span style={{ fontSize: 16 }}>{r.chosen === r.correctPos ? '✅' : '❌'}</span>
+      </div>
+      <div style={{ fontSize: 12.5, color: '#b9c2d6', whiteSpace: 'pre-line' }}>{r.body}</div>
+      <div style={{ fontSize: 12.5, color: '#e8edf7', marginTop: 4 }}>{r.q}</div>
+      <div style={{ marginTop: 6, fontSize: 12.5 }}>
+        <div style={{ color: '#3fb950' }}>✓ {r.options[r.correctPos]}</div>
+        {r.chosen >= 0 && r.chosen !== r.correctPos && <div style={{ color: '#ff8fa0' }}>✕ {r.options[r.chosen]}</div>}
+        {r.chosen < 0 && <div style={{ color: '#7d86a0' }}>— უპასუხოდ</div>}
+      </div>
+      <div style={{ ...S.ruleChip, marginTop: 8 }}>წესი: {r.rule}</div>
+      <div style={{ marginTop: 5, fontSize: 12.5, lineHeight: 1.5, color: '#c9d3e6', whiteSpace: 'pre-line' }}>{r.why}</div>
+      {r.trap && <div style={S.trap}>{r.trap}</div>}
     </div>
   );
 }
@@ -575,6 +880,12 @@ const S: Record<string, any> = {
   bigStat: { padding: '11px 8px', borderRadius: 13, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.07)', textAlign: 'center' },
   barTrack: { height: 5, borderRadius: 3, background: 'rgba(255,255,255,.07)', overflow: 'hidden', marginTop: 3 },
   barFill: { height: '100%', borderRadius: 3, background: 'linear-gradient(90deg,#4d6cff,#a371f7)' },
+  examBar: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, marginBottom: 6 },
+  chapterRow: { display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '13px 14px', marginBottom: 8, borderRadius: 16, border: '1px solid rgba(77,212,196,.28)', background: 'rgba(255,255,255,.035)' },
+  bookSection: { padding: 14, borderRadius: 16, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.03)', marginTop: 10 },
+  formal: { margin: '8px 0', padding: '10px 12px', borderRadius: 12, background: 'rgba(0,0,0,.35)', border: '1px solid rgba(255,255,255,.09)', color: '#9fe8dd', fontFamily: 'ui-monospace,monospace', fontSize: 12.5, lineHeight: 1.7, overflowX: 'auto', whiteSpace: 'pre' },
+  bookBox: { marginTop: 8, padding: '9px 11px', borderRadius: 12, background: 'rgba(141,224,74,.08)', border: '1px solid rgba(141,224,74,.25)', fontSize: 12.5, lineHeight: 1.55, color: '#dbe3f2' },
+  btnGhostWide: { width: '100%', marginTop: 12, padding: '11px', borderRadius: 12, border: '1px solid rgba(255,255,255,.14)', background: 'rgba(255,255,255,.04)', color: '#c9d3e6', fontSize: 13.5 },
   achvRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '11px 13px', borderRadius: 14, border: '1px solid', background: 'rgba(255,255,255,.03)', marginBottom: 7 },
 };
 

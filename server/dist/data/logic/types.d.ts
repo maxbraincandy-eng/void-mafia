@@ -26,10 +26,10 @@ export interface LogicQuestion {
      */
     seconds: number;
 }
-export declare const MIN_SECONDS = 90;
-export declare const MAX_SECONDS = 120;
+export declare const LEVEL_SECONDS: Record<LogicLevel, number>;
 export declare function timeFor(q: {
     seconds: number;
+    level: LogicLevel;
 }): number;
 export declare const LEVEL_LABEL: Record<LogicLevel, string>;
 export declare const LEVEL_COLOR: Record<LogicLevel, string>;

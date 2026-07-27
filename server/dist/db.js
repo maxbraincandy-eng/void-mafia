@@ -1323,6 +1323,25 @@ export async function initializeDatabase() {
       PRIMARY KEY (user_id, code)
     )
   `;
+    // The exam is a separate, gated event: one sitting a week, scored out of 100,
+    // on its own leaderboard. `is_best` marks the row the board ranks, so a worse
+    // retake never costs a player their standing.
+    await sql `
+    CREATE TABLE IF NOT EXISTS logic_exam_attempts (
+      id           TEXT PRIMARY KEY,
+      user_id      TEXT NOT NULL,
+      score        INTEGER NOT NULL DEFAULT 0,
+      correct      INTEGER NOT NULL DEFAULT 0,
+      total        INTEGER NOT NULL DEFAULT 0,
+      by_level     TEXT NOT NULL DEFAULT '{}',
+      duration_ms  BIGINT  NOT NULL DEFAULT 0,
+      timed_out    BOOLEAN NOT NULL DEFAULT false,
+      is_best      BOOLEAN NOT NULL DEFAULT false,
+      created_at   BIGINT  NOT NULL
+    )
+  `;
+    await sql `CREATE INDEX IF NOT EXISTS idx_logic_exam_user ON logic_exam_attempts(user_id, created_at DESC)`;
+    await sql `CREATE INDEX IF NOT EXISTS idx_logic_exam_board ON logic_exam_attempts(is_best, score DESC)`;
     // Country is needed for the national board; nullable, set by the player.
     await sql `ALTER TABLE players ADD COLUMN IF NOT EXISTS country TEXT`;
     // Verify connection

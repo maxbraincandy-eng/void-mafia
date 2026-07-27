@@ -7,12 +7,14 @@ import { MEDIUM } from './medium.js';
 import { HARD } from './hard.js';
 import { EXPERT } from './expert.js';
 import { MAFIA_NIGHT } from './mafiaNight.js';
+import { FORMAL } from './formal.js';
 
 export * from './types.js';
+export * from './handbook.js';
 
 // Themed files can carry questions of any level; BY_LEVEL is derived rather
 // than hand-maintained, so adding a new file means one import and nothing else.
-export const ALL_QUESTIONS: LogicQuestion[] = [...BEGINNER, ...MEDIUM, ...HARD, ...EXPERT, ...MAFIA_NIGHT];
+export const ALL_QUESTIONS: LogicQuestion[] = [...BEGINNER, ...MEDIUM, ...HARD, ...EXPERT, ...MAFIA_NIGHT, ...FORMAL];
 
 export const BY_LEVEL: Record<LogicLevel, LogicQuestion[]> = {
   beginner: ALL_QUESTIONS.filter(q => q.level === 'beginner'),

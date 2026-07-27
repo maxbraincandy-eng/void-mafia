@@ -126,7 +126,8 @@ export interface BoardRow {
     rank: number;
     userId: string;
     username: string;
-    avatar: string;
+    /** emoji fallback */ avatar: string;
+    /** uploaded picture, when the player has one */ avatarUrl: string | null;
     country: string | null;
     rating: number;
     accuracy: number;

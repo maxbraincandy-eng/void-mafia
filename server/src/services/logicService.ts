@@ -415,7 +415,10 @@ export async function getAchievements(userId: string): Promise<Array<Achievement
 // ── leaderboards ──────────────────────────────────────────────────────
 export type BoardScope = 'world' | 'country' | 'friends' | 'week' | 'month' | 'all';
 export interface BoardRow {
-  rank: number; userId: string; username: string; avatar: string; country: string | null;
+  rank: number; userId: string; username: string;
+  /** emoji fallback */ avatar: string;
+  /** uploaded picture, when the player has one */ avatarUrl: string | null;
+  country: string | null;
   rating: number; accuracy: number; tests: number; score?: number;
 }
 
@@ -427,7 +430,7 @@ export async function leaderboard(scope: BoardScope, userId: string, limit = 50)
     // period boards rank by points EARNED in the window, not lifetime rating
     const since = Date.now() - (scope === 'week' ? 7 : 30) * 86400000;
     rows = await sql`
-      SELECT p.id AS user_id, p.username, p.avatar, p.country,
+      SELECT p.id AS user_id, p.username, p.avatar, p.avatar_url, p.country,
              COALESCE(lp.rating, 1200) AS rating,
              COALESCE(lp.answered, 0) AS answered, COALESCE(lp.correct, 0) AS correct,
              COALESCE(lp.tests, 0) AS tests,
@@ -436,13 +439,13 @@ export async function leaderboard(scope: BoardScope, userId: string, limit = 50)
       JOIN players p ON p.id = r.user_id
       LEFT JOIN logic_profiles lp ON lp.user_id = r.user_id
       WHERE r.created_at >= ${since} AND r.mode <> 'practice'
-      GROUP BY p.id, p.username, p.avatar, p.country, lp.rating, lp.answered, lp.correct, lp.tests
+      GROUP BY p.id, p.username, p.avatar, p.avatar_url, p.country, lp.rating, lp.answered, lp.correct, lp.tests
       ORDER BY score DESC
       LIMIT ${lim}
     ` as any[];
   } else if (scope === 'friends') {
     rows = await sql`
-      SELECT p.id AS user_id, p.username, p.avatar, p.country,
+      SELECT p.id AS user_id, p.username, p.avatar, p.avatar_url, p.country,
              lp.rating, lp.answered, lp.correct, lp.tests
       FROM logic_profiles lp
       JOIN players p ON p.id = lp.user_id
@@ -460,7 +463,7 @@ export async function leaderboard(scope: BoardScope, userId: string, limit = 50)
     const [me] = await sql`SELECT country FROM players WHERE id = ${userId}` as any[];
     const country = me?.country ?? 'GE';
     rows = await sql`
-      SELECT p.id AS user_id, p.username, p.avatar, p.country,
+      SELECT p.id AS user_id, p.username, p.avatar, p.avatar_url, p.country,
              lp.rating, lp.answered, lp.correct, lp.tests
       FROM logic_profiles lp
       JOIN players p ON p.id = lp.user_id
@@ -470,7 +473,7 @@ export async function leaderboard(scope: BoardScope, userId: string, limit = 50)
     ` as any[];
   } else {
     rows = await sql`
-      SELECT p.id AS user_id, p.username, p.avatar, p.country,
+      SELECT p.id AS user_id, p.username, p.avatar, p.avatar_url, p.country,
              lp.rating, lp.answered, lp.correct, lp.tests
       FROM logic_profiles lp
       JOIN players p ON p.id = lp.user_id
@@ -485,6 +488,7 @@ export async function leaderboard(scope: BoardScope, userId: string, limit = 50)
     userId: r.user_id,
     username: r.username ?? '—',
     avatar: r.avatar ?? '',
+    avatarUrl: r.avatar_url ?? null,
     country: r.country ?? null,
     rating: Number(r.rating ?? 1200),
     accuracy: Number(r.answered) > 0 ? Math.round((Number(r.correct) / Number(r.answered)) * 100) : 0,
