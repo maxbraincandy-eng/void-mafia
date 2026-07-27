@@ -423,6 +423,21 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
             </div>
           </button>
 
+          {/* NOTE: this block is hand-written, one card per entry. Adding an id to
+              FEATURED only REMOVES it from its category section — the card has to
+              be written here too, or it disappears entirely. */}
+          <button onClick={() => openGame(byId('logic')!)} className="w-full text-left rounded-2xl overflow-hidden transition-all active:scale-[0.99]"
+            style={{ border: '1px solid rgba(249,200,28,0.45)', boxShadow: '0 6px 34px rgba(249,200,28,0.16)' }}>
+            <div style={{ height: 92, background: 'linear-gradient(135deg, #3a2f08 0%, #241a2e 55%, #12101c 100%)', display: 'flex', alignItems: 'center', gap: 14, padding: '0 18px', position: 'relative' }}>
+              <LogicLogo size={58} label={false} className="flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="font-display font-black text-white text-base leading-tight tracking-[0.08em]" style={{ background: 'linear-gradient(90deg,#fff4c2,#F9C81C)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>ლოგიკის აკადემია</p>
+                <p className="font-mono text-[12px] text-white/55 mt-0.5">სილოგიზმები · არგუმენტაცია · Logic Rating</p>
+              </div>
+              <span style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 1, color: '#1a1206', background: 'rgba(249,200,28,0.92)', borderRadius: 8, padding: '3px 8px' }}>NEW</span>
+            </div>
+          </button>
+
           {onOpenPremium && (
             <button onClick={() => openGame(byId('premium')!)} className="w-full text-left rounded-2xl overflow-hidden transition-all active:scale-[0.99]"
               style={{ border: '1px solid rgba(192,132,252,0.4)', boxShadow: '0 6px 30px rgba(124,58,237,0.18)' }}>
