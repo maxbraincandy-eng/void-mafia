@@ -11,6 +11,7 @@ import { registerWWWHandlers, handleWWWDisconnect } from './www.js';
 import { registerUnoHandlers, handleUnoDisconnect } from './uno.js';
 import { registerBlackoutHandlers, handleBlackoutDisconnect } from './blackout.js';
 import { registerDeathrunHandlers } from './deathrun.js';
+import { registerLogicHandlers } from './logic.js';
 import { registerAliasHandlers, handleAliasDisconnect } from './alias.js';
 import { registerDrawHandlers, handleDrawDisconnect } from './draw.js';
 import { registerCodenamesHandlers, handleCodenamesDisconnect } from './codenames.js';
@@ -8210,6 +8211,8 @@ export function attachSocketHandlers(io) {
         registerBlackoutHandlers(io, socket);
         // ── Deathrun / bhop ──────────────────────────────────────────────
         registerDeathrunHandlers(io, socket);
+        // ── ფორმალური ლოგიკის აკადემია ──────────────────────────────────
+        registerLogicHandlers(io, socket);
         // ── Alias word game ──────────────────────────────────────────────
         registerAliasHandlers(io, socket);
         // ── Draw & Guess ─────────────────────────────────────────────────

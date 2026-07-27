@@ -1363,6 +1363,73 @@ export async function initializeDatabase(): Promise<void> {
     )
   `;
 
+  // ── ფორმალური ლოგიკის აკადემია ────────────────────────────────────
+  // One row per player: the Logic Rating plus every lifetime counter the
+  // profile screen shows, so a stats read is a single primary-key lookup.
+  await sql`
+    CREATE TABLE IF NOT EXISTS logic_profiles (
+      user_id           TEXT PRIMARY KEY,
+      rating            INTEGER NOT NULL DEFAULT 1200,
+      peak_rating       INTEGER NOT NULL DEFAULT 1200,
+      answered          INTEGER NOT NULL DEFAULT 0,
+      correct           INTEGER NOT NULL DEFAULT 0,
+      total_ms          BIGINT  NOT NULL DEFAULT 0,
+      tests             INTEGER NOT NULL DEFAULT 0,
+      streak            INTEGER NOT NULL DEFAULT 0,
+      best_streak       INTEGER NOT NULL DEFAULT 0,
+      daily_streak      INTEGER NOT NULL DEFAULT 0,
+      best_daily_streak INTEGER NOT NULL DEFAULT 0,
+      last_daily        TEXT,
+      hardest           TEXT NOT NULL DEFAULT '',
+      xp                INTEGER NOT NULL DEFAULT 0,
+      created_at        BIGINT  NOT NULL,
+      updated_at        BIGINT  NOT NULL
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_logic_rating ON logic_profiles(rating DESC)`;
+
+  // Which questions a player has already seen, so the picker can avoid
+  // repeating them until the bank is exhausted.
+  await sql`
+    CREATE TABLE IF NOT EXISTS logic_seen (
+      user_id     TEXT NOT NULL,
+      question_id TEXT NOT NULL,
+      seen_at     BIGINT NOT NULL,
+      PRIMARY KEY (user_id, question_id)
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_logic_seen_user ON logic_seen(user_id, seen_at DESC)`;
+
+  // One row per finished session — the weekly/monthly boards sum over this.
+  await sql`
+    CREATE TABLE IF NOT EXISTS logic_results (
+      id           TEXT PRIMARY KEY,
+      user_id      TEXT NOT NULL,
+      mode         TEXT NOT NULL,
+      level        TEXT NOT NULL DEFAULT '',
+      score        INTEGER NOT NULL DEFAULT 0,
+      correct      INTEGER NOT NULL DEFAULT 0,
+      total        INTEGER NOT NULL DEFAULT 0,
+      rating_delta INTEGER NOT NULL DEFAULT 0,
+      duration_ms  BIGINT  NOT NULL DEFAULT 0,
+      created_at   BIGINT  NOT NULL
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_logic_results_user ON logic_results(user_id, created_at DESC)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_logic_results_window ON logic_results(created_at DESC)`;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS logic_achievements (
+      user_id   TEXT NOT NULL,
+      code      TEXT NOT NULL,
+      earned_at BIGINT NOT NULL,
+      PRIMARY KEY (user_id, code)
+    )
+  `;
+
+  // Country is needed for the national board; nullable, set by the player.
+  await sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS country TEXT`;
+
   // Verify connection
   const [{ cnt }] = await sql`SELECT COUNT(*) as cnt FROM players` as any[];
   console.log(`[Database] connected successfully`);
