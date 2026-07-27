@@ -401,7 +401,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
         <>
           <button onClick={() => openGame(byId('watchparty')!)} className="w-full text-left rounded-2xl overflow-hidden transition-all active:scale-[0.99]"
             style={{ border: '1px solid rgba(255,93,93,0.45)', boxShadow: '0 6px 34px rgba(255,60,70,0.18)' }}>
-            <div style={{ height: 92, background: 'linear-gradient(135deg, #3a0f14 0%, #24101c 55%, #120a10 100%)', display: 'flex', alignItems: 'center', gap: 14, padding: '0 18px', position: 'relative' }}>
+            <div style={{ minHeight: 92, background: 'linear-gradient(135deg, #3a0f14 0%, #24101c 55%, #120a10 100%)', display: 'flex', alignItems: 'center', gap: 14, padding: '13px 18px', position: 'relative' }}>
               <span style={{ fontSize: 44, filter: 'drop-shadow(0 4px 14px rgba(255,93,93,0.5))' }} className="flex-shrink-0">🎬</span>
               <div className="flex-1 min-w-0">
                 <p className="font-display font-black text-white text-base leading-tight tracking-[0.1em]" style={{ background: 'linear-gradient(90deg,#ffe3e3,#ff5d5d)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>კინო სივრცე</p>
@@ -413,7 +413,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
 
           <button onClick={() => openGame(byId('voidiq')!)} className="w-full text-left rounded-2xl overflow-hidden transition-all active:scale-[0.99]"
             style={{ border: '1px solid rgba(79,184,255,0.45)', boxShadow: '0 6px 34px rgba(0,150,255,0.18)' }}>
-            <div style={{ height: 92, background: 'linear-gradient(135deg, #0a2a4a 0%, #1a1a4a 55%, #2a1a5a 100%)', display: 'flex', alignItems: 'center', gap: 14, padding: '0 18px', position: 'relative' }}>
+            <div style={{ minHeight: 92, background: 'linear-gradient(135deg, #0a2a4a 0%, #1a1a4a 55%, #2a1a5a 100%)', display: 'flex', alignItems: 'center', gap: 14, padding: '13px 18px', position: 'relative' }}>
               <IQLogo size={58} className="flex-shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="font-display font-black text-white text-base leading-tight tracking-[0.12em]" style={{ background: 'linear-gradient(90deg,#eaffff,#4fb8ff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>VOID IQ</p>
@@ -428,11 +428,13 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
               be written here too, or it disappears entirely. */}
           <button onClick={() => openGame(byId('logic')!)} className="w-full text-left rounded-2xl overflow-hidden transition-all active:scale-[0.99]"
             style={{ border: '1px solid rgba(249,200,28,0.45)', boxShadow: '0 6px 34px rgba(249,200,28,0.16)' }}>
-            <div style={{ height: 92, background: 'linear-gradient(135deg, #3a2f08 0%, #241a2e 55%, #12101c 100%)', display: 'flex', alignItems: 'center', gap: 14, padding: '0 18px', position: 'relative' }}>
+            <div style={{ minHeight: 92, background: 'linear-gradient(135deg, #3a2f08 0%, #241a2e 55%, #12101c 100%)', display: 'flex', alignItems: 'center', gap: 14, padding: '13px 18px', position: 'relative' }}>
               <LogicLogo size={58} label={false} className="flex-shrink-0" />
               <div className="flex-1 min-w-0">
-                <p className="font-display font-black text-white text-base leading-tight tracking-[0.08em]" style={{ background: 'linear-gradient(90deg,#fff4c2,#F9C81C)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>ლოგიკის აკადემია</p>
-                <p className="font-mono text-[12px] text-white/55 mt-0.5">სილოგიზმები · არგუმენტაცია · Logic Rating</p>
+                {/* no letter-spacing here: Georgian is already wide and the extra
+                    tracking pushed this title onto a second wrapped line */}
+                <p className="font-display font-black text-white text-base leading-tight" style={{ background: 'linear-gradient(90deg,#fff4c2,#F9C81C)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>ლოგიკის აკადემია</p>
+                <p className="font-mono text-[12px] text-white/55 mt-0.5">სილოგიზმები · Logic Rating</p>
               </div>
               <span style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 1, color: '#1a1206', background: 'rgba(249,200,28,0.92)', borderRadius: 8, padding: '3px 8px' }}>NEW</span>
             </div>
@@ -441,7 +443,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
           {onOpenPremium && (
             <button onClick={() => openGame(byId('premium')!)} className="w-full text-left rounded-2xl overflow-hidden transition-all active:scale-[0.99]"
               style={{ border: '1px solid rgba(192,132,252,0.4)', boxShadow: '0 6px 30px rgba(124,58,237,0.18)' }}>
-              <div style={{ height: 84, background: 'linear-gradient(135deg, #1a2b4a 0%, #4a2c1a 55%, #6b3a1a 100%)', display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px', position: 'relative' }}>
+              <div style={{ minHeight: 84, background: 'linear-gradient(135deg, #1a2b4a 0%, #4a2c1a 55%, #6b3a1a 100%)', display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', position: 'relative' }}>
                 <span style={{ fontSize: 38, filter: 'drop-shadow(0 4px 14px rgba(255,140,60,0.6))' }}>🔥</span>
                 <div className="flex-1 min-w-0">
                   <p className="font-display font-bold text-white text-sm leading-tight">Premium Worlds ✨</p>
@@ -454,7 +456,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
 
           <button onClick={() => openGame(byId('maxpuzzle')!)} className="w-full text-left rounded-2xl overflow-hidden transition-all active:scale-[0.99]"
             style={{ border: '1px solid rgba(217,180,90,0.45)', boxShadow: '0 6px 30px rgba(217,180,90,0.14)' }}>
-            <div style={{ height: 84, background: 'linear-gradient(135deg, #2a1f4a 0%, #1c1230 55%, #2e2410 100%)', display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px', position: 'relative' }}>
+            <div style={{ minHeight: 84, background: 'linear-gradient(135deg, #2a1f4a 0%, #1c1230 55%, #2e2410 100%)', display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', position: 'relative' }}>
               <MaxSeal size={52} className="flex-shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="font-display font-bold text-sm leading-tight" style={{ background: 'linear-gradient(90deg,#f7ecd0,#d9b45a)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>ბატონი მაქსის თავსატეხი</p>
