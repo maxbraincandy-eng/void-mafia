@@ -31,6 +31,7 @@ import { registerUnoHandlers, handleUnoDisconnect } from './uno.js';
 import { registerBlackoutHandlers, handleBlackoutDisconnect } from './blackout.js';
 import { registerDeathrunHandlers } from './deathrun.js';
 import { registerLogicHandlers } from './logic.js';
+import { registerMergeHandlers } from './merge.js';
 import { registerAliasHandlers, handleAliasDisconnect } from './alias.js';
 import { registerDrawHandlers, handleDrawDisconnect } from './draw.js';
 import { registerCodenamesHandlers, handleCodenamesDisconnect } from './codenames.js';
@@ -7170,6 +7171,9 @@ export function attachSocketHandlers(io: AppServer): void {
 
     // ── ფორმალური ლოგიკის აკადემია ──────────────────────────────────
     registerLogicHandlers(io, socket);
+
+    // ── Merge Evolution ─────────────────────────────────────────────
+    registerMergeHandlers(io, socket);
 
     // ── Alias word game ──────────────────────────────────────────────
     registerAliasHandlers(io, socket);

@@ -1447,6 +1447,44 @@ export async function initializeDatabase(): Promise<void> {
   await sql`CREATE INDEX IF NOT EXISTS idx_logic_exam_user ON logic_exam_attempts(user_id, created_at DESC)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_logic_exam_board ON logic_exam_attempts(is_best, score DESC)`;
 
+  // ── Merge Evolution ───────────────────────────────────────────────
+  // One row per player holds the whole organism. Resources and upgrades are
+  // JSON because their shape is game-design, not schema — adding a resource
+  // tier should not need a migration.
+  await sql`
+    CREATE TABLE IF NOT EXISTS merge_profiles (
+      user_id        TEXT PRIMARY KEY,
+      stage          INTEGER NOT NULL DEFAULT 0,
+      xp             INTEGER NOT NULL DEFAULT 0,
+      energy         INTEGER NOT NULL DEFAULT 40,
+      energy_at      BIGINT  NOT NULL DEFAULT 0,
+      chest_meter    INTEGER NOT NULL DEFAULT 0,
+      resources      TEXT    NOT NULL DEFAULT '{}',
+      chests         TEXT    NOT NULL DEFAULT '{}',
+      upgrades       TEXT    NOT NULL DEFAULT '{}',
+      taps           INTEGER NOT NULL DEFAULT 0,
+      merges         INTEGER NOT NULL DEFAULT 0,
+      opened         INTEGER NOT NULL DEFAULT 0,
+      last_social    TEXT,
+      created_at     BIGINT  NOT NULL,
+      updated_at     BIGINT  NOT NULL
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_merge_stage ON merge_profiles(stage DESC, xp DESC)`;
+
+  // A completed test may be converted into a chest upgrade exactly ONCE. Without
+  // this ledger a single old IQ attempt would boost every chest forever, which
+  // rewards having taken a test rather than keeping at it.
+  await sql`
+    CREATE TABLE IF NOT EXISTS merge_boosts (
+      user_id    TEXT NOT NULL,
+      source     TEXT NOT NULL,
+      source_ref TEXT NOT NULL,
+      used_at    BIGINT NOT NULL,
+      PRIMARY KEY (user_id, source, source_ref)
+    )
+  `;
+
   // Country is needed for the national board; nullable, set by the player.
   await sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS country TEXT`;
 
