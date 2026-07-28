@@ -462,7 +462,7 @@ export function LogicAcademy({ onClose }: { onClose: () => void }) {
           {/* ── LEADERBOARD ── */}
           {view === 'board' && (
             <motion.div key="bd" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ paddingBottom: 30 }}>
-              <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 8 }}>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', paddingBottom: 8 }}>
                 {SCOPES.map(s => (
                   <button key={s.id} onClick={() => loadBoard(s.id)}
                     style={{ ...S.chip, ...(scope === s.id ? S.chipOn : {}) }}>{s.label}</button>
@@ -881,7 +881,7 @@ const S: Record<string, any> = {
   examBar: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, marginBottom: 6 },
   chapterRow: { display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '13px 14px', marginBottom: 8, borderRadius: 16, border: '1px solid rgba(77,212,196,.28)', background: 'rgba(255,255,255,.035)' },
   bookSection: { padding: 14, borderRadius: 16, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.03)', marginTop: 10 },
-  formal: { margin: '8px 0', padding: '10px 12px', borderRadius: 12, background: 'rgba(0,0,0,.35)', border: '1px solid rgba(255,255,255,.09)', color: '#9fe8dd', fontFamily: 'ui-monospace,monospace', fontSize: 12.5, lineHeight: 1.7, overflowX: 'auto', whiteSpace: 'pre' },
+  formal: { margin: '8px 0', padding: '10px 12px', borderRadius: 12, background: 'rgba(0,0,0,.35)', border: '1px solid rgba(255,255,255,.09)', color: '#9fe8dd', fontFamily: 'ui-monospace,monospace', fontSize: 12.5, lineHeight: 1.7, overflowX: 'auto', whiteSpace: 'pre', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y' },
   bookBox: { marginTop: 8, padding: '9px 11px', borderRadius: 12, background: 'rgba(141,224,74,.08)', border: '1px solid rgba(141,224,74,.25)', fontSize: 12.5, lineHeight: 1.55, color: '#dbe3f2' },
   btnGhostWide: { width: '100%', marginTop: 12, padding: '11px', borderRadius: 12, border: '1px solid rgba(255,255,255,.14)', background: 'rgba(255,255,255,.04)', color: '#c9d3e6', fontSize: 13.5 },
   achvRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '11px 13px', borderRadius: 14, border: '1px solid', background: 'rgba(255,255,255,.03)', marginBottom: 7 },

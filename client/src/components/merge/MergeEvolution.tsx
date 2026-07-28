@@ -317,7 +317,7 @@ export function MergeEvolution({ onClose }: { onClose: () => void }) {
         )}
 
         {/* ── tabs ── */}
-        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 8 }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', paddingBottom: 8 }}>
           {([['lab', 'ლაბორატორია'], ['merge', 'შერწყმა'], ['chests', `ყუთები${chestCount ? ` (${chestCount})` : ''}`], ['upgrades', 'გაუმჯობესება']] as const).map(([id, label]) => (
             <button key={id} onClick={() => setTab(id)} style={{ ...S.chip, ...(tab === id ? { ...S.chipOn, borderColor: `hsl(${hue},90%,60%)` } : {}) }}>{label}</button>
           ))}
@@ -338,7 +338,7 @@ export function MergeEvolution({ onClose }: { onClose: () => void }) {
                   animate={{ scale: pulse, y: [0, -6, 0] }}
                   transition={{ scale: { duration: 0.13 }, y: { duration: 4.2, repeat: Infinity, ease: 'easeInOut' } }}
                   onPointerDown={onTapCore}
-                  style={{ cursor: 'pointer', touchAction: 'pan-y', WebkitTapHighlightColor: 'transparent' }}>
+                  style={{ cursor: 'pointer', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}>
                   <EvolutionCore stage={stage} hue={hue} size={236} pulse={pulse} />
                 </motion.div>
 
@@ -684,7 +684,7 @@ const S: Record<string, any> = {
     position: 'fixed', inset: 0, zIndex: 72,
     background: 'radial-gradient(ellipse at 50% 18%, #0b1626 0%, #070912 55%, #05060c 100%)',
     overflowY: 'auto', overflowX: 'hidden',
-    WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', touchAction: 'pan-y',
+    WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', touchAction: 'manipulation',
   },
   grid: { position: 'absolute', inset: 0, backgroundSize: '38px 38px', pointerEvents: 'none', maskImage: 'radial-gradient(ellipse at 50% 30%, #000 20%, transparent 78%)' },
   inner: { position: 'relative', maxWidth: 540, margin: '0 auto', padding: '14px 14px calc(env(safe-area-inset-bottom, 0px) + 72px)' },
@@ -707,7 +707,7 @@ const S: Record<string, any> = {
   float: { position: 'absolute', top: '38%', fontFamily: '"Space Grotesk",monospace', fontWeight: 700, fontSize: 13, textShadow: '0 2px 10px rgba(0,0,0,.8)', whiteSpace: 'nowrap' },
   evolveBtn: { width: '100%', marginTop: 12, padding: '14px', borderRadius: 16, border: 'none', color: '#fff', fontWeight: 800, fontSize: 15 },
   evolveNeed: { marginTop: 12, padding: '11px 13px', borderRadius: 14, background: 'rgba(255,212,90,.08)', border: '1px solid rgba(255,212,90,.24)', color: '#e8edf7', fontSize: 13, textAlign: 'center' },
-  resStrip: { display: 'flex', gap: 7, overflowX: 'auto', marginTop: 12, paddingBottom: 4 },
+  resStrip: { display: 'flex', gap: 7, overflowX: 'auto', marginTop: 12, paddingBottom: 4, WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y', scrollbarWidth: 'none' },
   resPill: { display: 'flex', alignItems: 'center', gap: 5, padding: '5px 9px 5px 5px', borderRadius: 12, background: 'rgba(255,255,255,.045)', border: '1px solid rgba(255,255,255,.08)', color: '#e8edf7', flexShrink: 0 },
   socialBtn: { display: 'flex', alignItems: 'center', gap: 12, width: '100%', marginTop: 12, padding: '10px 13px', borderRadius: 16, border: '1px solid rgba(255,107,138,.35)', background: 'rgba(255,107,138,.07)' },
   mergeRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '11px 12px', borderRadius: 16, background: 'rgba(255,255,255,.035)', border: '1px solid rgba(255,255,255,.08)', marginTop: 8 },
