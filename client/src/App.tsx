@@ -77,6 +77,7 @@ import { useSettingsStore } from '@/store/settingsStore';
 import { socket } from '@/lib/socket';
 import type { GiftReceivedNotification } from '@/types/index';
 import { CLIENT_VERSION } from './version';
+import { overlayOpen } from '@/lib/overlayGuard';
 import { haptic } from '@/lib/haptics';
 import { YourTurnToast } from '@/components/ui/YourTurnToast';
 import { NotificationPrompt } from '@/components/ui/NotificationPrompt';
@@ -486,6 +487,11 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
   }
 
   function handleTouchEnd(e: React.TouchEvent) {
+    // A full-screen panel (Logic Academy, Merge Evolution, Deathrun, …) is
+    // portalled to <body>, but React still bubbles its touches up to here — so
+    // without this check a swipe inside a panel navigated the tab underneath and
+    // the panel appeared to close itself.
+    if (overlayOpen()) return;
     if (swipeLocked.current || inGame || page === 'community' || page === 'economy') return;
     const dx = e.changedTouches[0].clientX - touchStartX.current;
     const dy = e.changedTouches[0].clientY - touchStartY.current;

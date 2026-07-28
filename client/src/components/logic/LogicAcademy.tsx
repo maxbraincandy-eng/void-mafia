@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { emitWithAck } from '@/lib/socket';
+import { useFullscreenOverlay } from '@/lib/overlayGuard';
 import { useSocialStore } from '@/store/socialStore';
 import { useAuthStore } from '@/store/authStore';
 import { LogicLogo } from './LogicLogo';
@@ -253,11 +254,8 @@ export function LogicAcademy({ onClose }: { onClose: () => void }) {
   // scrolled past its own header and left the sidebar showing. A portal to
   // <body> escapes the containing block entirely.
   const scroller = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';          // no background scroll bleed
-    return () => { document.body.style.overflow = prev; };
-  }, []);
+  // locks background scroll AND the app's swipe-to-navigate gesture
+  useFullscreenOverlay();
   // every screen change starts at the top, not wherever the last one was
   useEffect(() => { scroller.current?.scrollTo({ top: 0 }); }, [view]);
 

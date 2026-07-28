@@ -5,6 +5,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useT } from '@/store/langStore';
 import { useBackroomsVoice, applyBackroomsSpatial, leaveBackroomsVoice } from '@/hooks/useBackroomsVoice';
 import { BackroomsEngine, type HudState, type RemotePlayerState } from './engine';
+import { useFullscreenOverlay } from '@/lib/overlayGuard';
 
 // ── Backrooms (Phase 2) — 3D liminal world with multiplayer presence ───
 // Flow: instance lobby → shared 3D world. Each instance has a numeric seed so
@@ -70,6 +71,7 @@ interface InstanceRow { id: string; name: string; seed: number; maxPlayers: numb
 interface JoinData { seed: number; name: string; mySocketId: string; players: RemotePlayerState[]; }
 
 export default function Backrooms({ onClose }: { onClose: () => void }) {
+  useFullscreenOverlay();   // block swipe-to-navigate behind the overlay
   const [instance, setInstance] = useState<{ id: string; name: string } | null>(null);
 
   if (!instance) {

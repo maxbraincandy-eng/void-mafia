@@ -4,6 +4,7 @@
 // right half looks, and the action buttons sit under the right thumb.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { socket, emitWithAck } from '@/lib/socket';
+import { useFullscreenOverlay } from '@/lib/overlayGuard';
 import { DeathrunEngine, type DrHud } from './engine';
 import { temple } from './maps/temple';
 import { CS } from './physics';
@@ -35,6 +36,9 @@ export default function DeathrunGame({ nickname, onClose }: { nickname: string; 
   const [joy, setJoy] = useState({ active: false, ox: 0, oy: 0, kx: 0, ky: 0 });
   const [now, setNow] = useState(Date.now());
   const [toast, setToast] = useState<string | null>(null);
+
+  // swipes here aim the camera — they must never reach the app's tab navigation
+  useFullscreenOverlay();
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<DeathrunEngine | null>(null);

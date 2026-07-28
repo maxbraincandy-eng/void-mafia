@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { emitWithAck } from '@/lib/socket';
+import { useFullscreenOverlay } from '@/lib/overlayGuard';
 import { useSocialStore } from '@/store/socialStore';
 import { useAuthStore } from '@/store/authStore';
 import { EvolutionCore, Chest, RES_ART, UpgradeGlyph, LabMotes, hueOf } from './art';
@@ -206,12 +207,8 @@ export function MergeEvolution({ onClose }: { onClose: () => void }) {
     catch (e: any) { setErr(e.message); setBoard([]); }
   };
 
-  // lock the page behind the overlay
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prev; };
-  }, []);
+  // locks background scroll AND the app's swipe-to-navigate gesture
+  useFullscreenOverlay();
 
   const resList = useMemo(() => {
     if (!p || !cat) return [];
