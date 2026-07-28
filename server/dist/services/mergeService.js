@@ -1,12 +1,24 @@
 import { sql } from '../db.js';
 import { deductCoins, getCoins } from './coinService.js';
+// The first six keep their INDEX and name so nobody's saved stage shifts under
+// them; 'ultimate' simply stops being the ceiling and gains a cost like the
+// rest. Costs climb steeply after it: the old cap was 19 upgrades cumulative,
+// the full twelve is 189. A chest is worth ~0.30 upgrades at every stage
+// (measured — the drop table's stage bonus converts to crystals, not to chain
+// resources, so the rate stays flat), so the tail is long but never starves.
 export const STAGES = [
     { key: 'primitive', name: 'Primitive Cell', ka: 'პირველადი უჯრედი', needs: 1 },
     { key: 'advanced', name: 'Advanced Cell', ka: 'განვითარებული უჯრედი', needs: 2 },
     { key: 'neural', name: 'Neural Core', ka: 'ნეირონული ბირთვი', needs: 3 },
     { key: 'network', name: 'Brain Network', ka: 'ნეირონული ქსელი', needs: 5 },
     { key: 'conscious', name: 'Digital Consciousness', ka: 'ციფრული ცნობიერება', needs: 8 },
-    { key: 'ultimate', name: 'Ultimate Evolution', ka: 'უმაღლესი ევოლუცია', needs: 0 },
+    { key: 'ultimate', name: 'Ultimate Evolution', ka: 'უმაღლესი ევოლუცია', needs: 12 },
+    { key: 'quantum', name: 'Quantum Mind', ka: 'კვანტური გონება', needs: 17 },
+    { key: 'collective', name: 'Collective Intelligence', ka: 'კოლექტიური ინტელექტი', needs: 23 },
+    { key: 'stellar', name: 'Stellar Entity', ka: 'ვარსკვლავური არსება', needs: 30 },
+    { key: 'dimensional', name: 'Dimensional Being', ka: 'განზომილებათა არსება', needs: 38 },
+    { key: 'architect', name: 'Cosmic Architect', ka: 'კოსმიური არქიტექტორი', needs: 50 },
+    { key: 'singularity', name: 'Singularity', ka: 'სინგულარობა', needs: 0 },
 ];
 // ── resources ─────────────────────────────────────────────────────────
 /** The merge chain: three of one make one of the next. */
@@ -34,27 +46,27 @@ export const CHEST_META = {
 export const UPGRADES = [
     {
         key: 'energyCap', name: 'Energy Capacity', ka: 'ენერგიის მოცულობა',
-        desc: 'ზრდის მაქსიმალურ ენერგიას +25-ით', max: 8,
+        desc: 'ზრდის მაქსიმალურ ენერგიას +25-ით', max: 14,
         cost: l => ({ particle: 2 + l * 2, cell: 3 + l * 3 }),
     },
     {
         key: 'chestQuality', name: 'Chest Quality', ka: 'ყუთის ხარისხი',
-        desc: 'ზრდის უკეთესი ყუთის შანსს', max: 6,
+        desc: 'ზრდის უკეთესი ყუთის შანსს', max: 10,
         cost: l => ({ particle: 3 + l * 3, crystal: l }),
     },
     {
         key: 'mergeSpeed', name: 'Merge Speed', ka: 'შერწყმის სიჩქარე',
-        desc: 'ამცირებს შერწყმის ანიმაციას და აძლევს ბონუს XP-ს', max: 5,
+        desc: 'ამცირებს შერწყმის ანიმაციას და აძლევს ბონუს XP-ს', max: 8,
         cost: l => ({ particle: 2 + l * 2, adna: 1 + l }),
     },
     {
         key: 'rareChance', name: 'Rare Item Chance', ka: 'იშვიათის შანსი',
-        desc: 'ზრდის მაღალი დონის რესურსის შანსს', max: 6,
+        desc: 'ზრდის მაღალი დონის რესურსის შანსს', max: 10,
         cost: l => ({ crystal: 1 + l, particle: 4 + l * 3 }),
     },
     {
         key: 'appearance', name: 'Evolution Appearance', ka: 'ევოლუციის იერსახე',
-        desc: 'ცვლის ორგანიზმის ფერსა და ბზინვარებას', max: 5,
+        desc: 'ცვლის ორგანიზმის ფერსა და ბზინვარებას', max: 8,
         cost: l => ({ crystal: 1 + l, ncore: 1 + l }),
     },
 ];

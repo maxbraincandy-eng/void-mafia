@@ -8,14 +8,18 @@
 // the organism and its resources together instead of recolouring one sprite.
 import { memo } from 'react';
 
-export const HUES = [188, 276, 152, 32, 348] as const;   // cyan, violet, jade, amber, rose
+export const HUES = [188, 276, 152, 32, 348, 210, 62, 300] as const;   // cyan, violet, jade, amber, rose, azure, gold, magenta
 export const hueOf = (lvl = 0) => HUES[Math.min(HUES.length - 1, Math.max(0, lvl))];
 const c = (h: number, s: number, l: number, a = 1) => `hsla(${h},${s}%,${l}%,${a})`;
 
 let uid = 0;
 const nid = (p: string) => `${p}${++uid}`;
 
-// ── Evolution Core: six stages, each a different organism ──────────────
+// ── Evolution Core: twelve stages, each a different organism ───────────
+// Stages 0–5 are the original lab organisms (cell → ultimate). 6–11 carry the
+// progression past the old ceiling and deliberately break silhouette rather
+// than just growing: superposed phases, a bodiless swarm, a star, a tesseract
+// projection, an accretion disc, and finally a horizon around a dark interior.
 export const EvolutionCore = memo(function EvolutionCore({
   stage = 0, hue = 188, size = 240, pulse = 1,
 }: { stage?: number; hue?: number; size?: number; pulse?: number }) {
@@ -136,7 +140,7 @@ export const EvolutionCore = memo(function EvolutionCore({
         </g>
       )}
 
-      {stage >= 5 && (
+      {stage === 5 && (
         <g>
           {/* ultimate: everything at once, haloed */}
           {Array.from({ length: 3 }, (_, k) => (
@@ -157,6 +161,142 @@ export const EvolutionCore = memo(function EvolutionCore({
           <circle cx="100" cy="100" r="34" fill={`url(#${g})`} />
           <circle cx="100" cy="100" r="34" fill="none" stroke={c(h, 100, 96, 0.9)} strokeWidth="2.5" />
           <circle cx="100" cy="100" r="14" fill={c(h, 100, 97, 0.95)} />
+        </g>
+      )}
+
+      {stage === 6 && (
+        <g>
+          {/* Quantum Mind — the same mind in three superposed phases */}
+          {[-1, 0, 1].map((k, i) => (
+            <g key={i} opacity={k === 0 ? 1 : 0.42} transform={`translate(${k * 11} ${k * -6})`}>
+              <circle cx="100" cy="100" r="32" fill={`url(#${g})`} />
+              <circle cx="100" cy="100" r="32" fill="none" stroke={c(h, 100, 92, k === 0 ? 0.9 : 0.4)} strokeWidth="1.8" />
+            </g>
+          ))}
+          {/* probability shells */}
+          {[46, 60, 74].map((r, i) => (
+            <ellipse key={i} cx="100" cy="100" rx={r} ry={r * 0.44} fill="none"
+              stroke={c(h, 95, 70, 0.3 - i * 0.06)} strokeWidth="1.4"
+              transform={`rotate(${i * 60} 100 100)`} />
+          ))}
+          {Array.from({ length: 7 }, (_, i) => {
+            const a = (i / 7) * Math.PI * 2 + 0.5;
+            return <circle key={i} cx={100 + Math.cos(a) * 66} cy={100 + Math.sin(a) * 30} r="2.8" fill={c(h, 100, 92)} />;
+          })}
+        </g>
+      )}
+
+      {stage === 7 && (
+        <g>
+          {/* Collective Intelligence — a swarm of minds, no single body */}
+          {(() => {
+            const N = 14;
+            const pts = Array.from({ length: N }, (_, i) => {
+              const a = (i / N) * Math.PI * 2 + 0.2;
+              const r = 26 + (i % 3) * 22;
+              return [100 + Math.cos(a) * r, 100 + Math.sin(a) * r] as const;
+            });
+            return (
+              <>
+                {pts.map(([x, y], i) => pts.slice(i + 1).map(([x2, y2], j) => {
+                  if (Math.hypot(x - x2, y - y2) > 40) return null;
+                  return <line key={`${i}-${j}`} x1={x} y1={y} x2={x2} y2={y2} stroke={c(h, 92, 66, 0.35)} strokeWidth="1.2" />;
+                }))}
+                {pts.map(([x, y], i) => (
+                  <g key={i}>
+                    <circle cx={x} cy={y} r={i % 3 === 0 ? 9 : 6} fill={`url(#${g})`} />
+                    <circle cx={x} cy={y} r={i % 3 === 0 ? 9 : 6} fill="none" stroke={c(h, 100, 88, 0.7)} strokeWidth="1.2" />
+                  </g>
+                ))}
+              </>
+            );
+          })()}
+        </g>
+      )}
+
+      {stage === 8 && (
+        <g>
+          {/* Stellar Entity — a star with a corona */}
+          {Array.from({ length: 24 }, (_, i) => {
+            const a = (i / 24) * Math.PI * 2;
+            const len = i % 2 ? 88 : 68;
+            return <line key={i} x1={100 + Math.cos(a) * 40} y1={100 + Math.sin(a) * 40}
+              x2={100 + Math.cos(a) * len} y2={100 + Math.sin(a) * len}
+              stroke={c((h + 20) % 360, 100, 72, i % 2 ? 0.5 : 0.3)} strokeWidth={i % 2 ? 2.4 : 1.4} strokeLinecap="round" />;
+          })}
+          <circle cx="100" cy="100" r="52" fill={c(h, 100, 62, 0.2)} />
+          <circle cx="100" cy="100" r="38" fill={`url(#${g})`} />
+          <circle cx="100" cy="100" r="38" fill="none" stroke={c(h, 100, 96, 0.9)} strokeWidth="2" />
+          <circle cx="100" cy="100" r="18" fill={c(h, 100, 98, 0.95)} />
+        </g>
+      )}
+
+      {stage === 9 && (
+        <g>
+          {/* Dimensional Being — a tesseract projection */}
+          {[70, 44].map((r, k) => (
+            <g key={k} transform={`rotate(${k * 22} 100 100)`}>
+              <rect x={100 - r} y={100 - r} width={r * 2} height={r * 2} rx="6"
+                fill="none" stroke={c(h, 95, 72, 0.55 - k * 0.15)} strokeWidth="1.8" />
+            </g>
+          ))}
+          {/* struts joining the two cubes */}
+          {[[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([sx, sy], i) => (
+            <line key={i} x1={100 + sx * 70} y1={100 + sy * 70} x2={100 + sx * 41} y2={100 + sy * 41}
+              stroke={c(h, 95, 78, 0.4)} strokeWidth="1.4" />
+          ))}
+          <circle cx="100" cy="100" r="26" fill={`url(#${g})`} />
+          <circle cx="100" cy="100" r="26" fill="none" stroke={c(h, 100, 94, 0.85)} strokeWidth="2" />
+          {[[-70, -70], [70, -70], [70, 70], [-70, 70]].map(([dx, dy], i) => (
+            <circle key={i} cx={100 + dx} cy={100 + dy} r="3.4" fill={c(h, 100, 90)} />
+          ))}
+        </g>
+      )}
+
+      {stage === 10 && (
+        <g>
+          {/* Cosmic Architect — an accretion disc of built structures */}
+          <ellipse cx="100" cy="100" rx="88" ry="26" fill="none" stroke={c(h, 95, 66, 0.34)} strokeWidth="7" />
+          <ellipse cx="100" cy="100" rx="88" ry="26" fill="none" stroke={c(h, 100, 88, 0.5)} strokeWidth="1.4" />
+          {Array.from({ length: 10 }, (_, i) => {
+            const a = (i / 10) * Math.PI * 2;
+            const x = 100 + Math.cos(a) * 88, y = 100 + Math.sin(a) * 26;
+            return (
+              <g key={i}>
+                <rect x={x - 4} y={y - 7} width="8" height="14" rx="2" fill={c((h + i * 14) % 360, 95, 70)} />
+                <rect x={x - 1.4} y={y - 12} width="2.8" height="6" fill={c(h, 100, 92)} />
+              </g>
+            );
+          })}
+          <circle cx="100" cy="100" r="34" fill={`url(#${g})`} />
+          <circle cx="100" cy="100" r="34" fill="none" stroke={c(h, 100, 95, 0.9)} strokeWidth="2.2" />
+          {/* polar jets */}
+          {[-1, 1].map(s2 => (
+            <path key={s2} d={`M100 ${100 + s2 * 34} L96 ${100 + s2 * 86} h8z`} fill={c(h, 100, 88, 0.55)} />
+          ))}
+        </g>
+      )}
+
+      {stage >= 11 && (
+        <g>
+          {/* Singularity — a dark core, an event horizon, matter falling in */}
+          {Array.from({ length: 5 }, (_, k) => (
+            <circle key={k} cx="100" cy="100" r={44 + k * 12} fill="none"
+              stroke={c((h + k * 12) % 360, 100, 70, 0.3 - k * 0.05)} strokeWidth={1.6}
+              strokeDasharray={`${2 + k * 4} ${8 + k * 3}`} />
+          ))}
+          {Array.from({ length: 10 }, (_, i) => {
+            const a = (i / 10) * Math.PI * 2;
+            const r0 = 92, r1 = 42;
+            const mx = 100 + Math.cos(a + 0.7) * 68, my = 100 + Math.sin(a + 0.7) * 68;
+            return <path key={i}
+              d={`M${100 + Math.cos(a) * r0} ${100 + Math.sin(a) * r0} Q${mx} ${my} ${100 + Math.cos(a + 1.5) * r1} ${100 + Math.sin(a + 1.5) * r1}`}
+              fill="none" stroke={c((h + i * 8) % 360, 100, 76, 0.6)} strokeWidth="2" strokeLinecap="round" />;
+          })}
+          {/* the horizon itself: bright rim, black interior */}
+          <circle cx="100" cy="100" r="40" fill="none" stroke={c(h, 100, 97)} strokeWidth="4" />
+          <circle cx="100" cy="100" r="38" fill="#04060c" />
+          <circle cx="100" cy="100" r="38" fill="none" stroke={c(h, 100, 90, 0.5)} strokeWidth="1.2" />
         </g>
       )}
     </svg>
