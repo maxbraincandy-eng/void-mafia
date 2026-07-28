@@ -131,6 +131,39 @@ export declare function claimSocial(userId: string): Promise<{
 } | {
     error: string;
 }>;
+/**
+ * Chests for the app's ordinary mafia coins. Prices sit here, not on the
+ * client, and the coin deduction runs BEFORE the chest is granted so a failed
+ * payment can never hand out a free chest.
+ */
+export declare const SHOP: Array<{
+    tier: ChestTier;
+    coins: number;
+}>;
+/** Energy top-up, for when the tank is dry and you want to keep going. */
+export declare const ENERGY_REFILL_COINS = 120;
+export declare function shopState(userId: string): Promise<{
+    coins: number;
+    chests: {
+        name: string;
+        tier: ChestTier;
+        coins: number;
+    }[];
+    energyRefill: number;
+}>;
+export declare function buyChest(userId: string, tier: string): Promise<{
+    profile: MergeProfile;
+    coins: number;
+    tier: ChestTier;
+} | {
+    error: string;
+}>;
+export declare function buyEnergy(userId: string): Promise<{
+    profile: MergeProfile;
+    coins: number;
+} | {
+    error: string;
+}>;
 export declare function buyUpgrade(userId: string, key: string): Promise<{
     profile: MergeProfile;
     level: number;

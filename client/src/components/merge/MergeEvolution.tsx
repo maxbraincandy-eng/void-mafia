@@ -15,7 +15,7 @@ import { EvolutionCore, Chest, RES_ART, UpgradeGlyph, LabMotes, hueOf } from './
 type ResKey = 'frag' | 'cell' | 'adna' | 'ncore' | 'energyCell' | 'particle' | 'crystal' | 'upgrade';
 type ChestTier = 'common' | 'advanced' | 'legendary' | 'social';
 type UpKey = 'energyCap' | 'chestQuality' | 'mergeSpeed' | 'rareChance' | 'appearance';
-type Tab = 'lab' | 'merge' | 'chests' | 'upgrades' | 'board';
+type Tab = 'lab' | 'merge' | 'chests' | 'shop' | 'upgrades' | 'board';
 
 interface Profile {
   stage: number; xp: number; energy: number; energyMax: number; nextEnergyInMs: number;
@@ -43,6 +43,26 @@ interface BoardRow {
 const unwrap = <T,>(r: any): T => { if (r?.ok === false || r?.error) throw new Error(r.error ?? 'შეცდომა'); return (r?.data ?? r) as T; };
 const CHEST_COL: Record<ChestTier, string> = { common: '#8fb3ff', advanced: '#4dd4c4', legendary: '#ffd45a', social: '#ff6b8a' };
 
+/** The app's coin, drawn to match the rest of the set rather than an emoji. */
+function CoinMark({ size = 20 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 32 32" width={size} height={size} style={{ display: 'block', flexShrink: 0 }}>
+      <circle cx="16" cy="16" r="13" fill="#c8901c" />
+      <circle cx="16" cy="16" r="13" fill="none" stroke="#ffe9a8" strokeWidth="1.6" />
+      <circle cx="16" cy="16" r="9" fill="#ffd45a" />
+      <path d="M16 9 l2.2 4.6 5 .7 -3.6 3.5 .9 5 -4.5-2.4 -4.5 2.4 .9-5 -3.6-3.5 5-.7z" fill="#8a5f0c" opacity="0.55" />
+    </svg>
+  );
+}
+function EnergyBolt({ size = 28 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 32 32" width={size} height={size} style={{ display: 'block' }}>
+      <path d="M18 3 L8 18 h6 l-3 11 12-16 h-6z" fill="#5ce1a0" />
+      <path d="M18 3 L8 18 h6" fill="none" stroke="#d8ffe9" strokeWidth="1.2" />
+    </svg>
+  );
+}
+
 /** A short-lived floating label, used for drops and merge results. */
 interface Float { id: number; text: string; x: number; color: string }
 
@@ -59,6 +79,7 @@ export function MergeEvolution({ onClose }: { onClose: () => void }) {
   const [opening, setOpening] = useState<{ tier: ChestTier; phase: number; res?: OpenResult } | null>(null);
   const [evolveFx, setEvolveFx] = useState(false);
   const [board, setBoard] = useState<BoardRow[] | null>(null);
+  const [shop, setShop] = useState<{ coins: number; chests: Array<{ tier: ChestTier; coins: number; name: string }>; energyRefill: number } | null>(null);
 
   const floatId = useRef(0);
   const tapQueue = useRef(0);
@@ -201,6 +222,35 @@ export function MergeEvolution({ onClose }: { onClose: () => void }) {
     finally { setBusy(false); }
   };
 
+  const loadShop = async () => {
+    setTab('shop');
+    try { setShop(unwrap<any>(await emitWithAck('merge:shop'))); }
+    catch (e: any) { setErr(e.message); }
+  };
+  const buyChest = async (tier: ChestTier) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const r = unwrap<any>(await emitWithAck('merge:buy_chest', { tier }));
+      setP(r.profile);
+      setShop(sh => sh ? { ...sh, coins: r.coins } : sh);
+      pushFloat(`${cat?.chests[tier as ChestTier].ka} ნაყიდია`, CHEST_COL[tier]);
+      setTab('chests');
+    } catch (e: any) { pushFloat(e.message, '#ff8fa0'); }
+    finally { setBusy(false); }
+  };
+  const buyEnergy = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const r = unwrap<any>(await emitWithAck('merge:buy_energy'));
+      setP(r.profile);
+      setShop(sh => sh ? { ...sh, coins: r.coins } : sh);
+      pushFloat('ენერგია შევსებულია', '#5ce1a0');
+    } catch (e: any) { pushFloat(e.message, '#ff8fa0'); }
+    finally { setBusy(false); }
+  };
+
   const loadBoard = async () => {
     setTab('board'); setBoard(null);
     try { setBoard(unwrap<BoardRow[]>(await emitWithAck('merge:board', { limit: 50 }))); }
@@ -271,6 +321,7 @@ export function MergeEvolution({ onClose }: { onClose: () => void }) {
           {([['lab', 'ლაბორატორია'], ['merge', 'შერწყმა'], ['chests', `ყუთები${chestCount ? ` (${chestCount})` : ''}`], ['upgrades', 'გაუმჯობესება']] as const).map(([id, label]) => (
             <button key={id} onClick={() => setTab(id)} style={{ ...S.chip, ...(tab === id ? { ...S.chipOn, borderColor: `hsl(${hue},90%,60%)` } : {}) }}>{label}</button>
           ))}
+          <button onClick={loadShop} style={{ ...S.chip, ...(tab === 'shop' ? S.chipOn : {}) }}>🪙 მაღაზია</button>
           <button onClick={loadBoard} style={{ ...S.chip, ...(tab === 'board' ? S.chipOn : {}) }}>რეიტინგი</button>
         </div>
 
@@ -287,7 +338,7 @@ export function MergeEvolution({ onClose }: { onClose: () => void }) {
                   animate={{ scale: pulse, y: [0, -6, 0] }}
                   transition={{ scale: { duration: 0.13 }, y: { duration: 4.2, repeat: Infinity, ease: 'easeInOut' } }}
                   onPointerDown={onTapCore}
-                  style={{ cursor: 'pointer', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}>
+                  style={{ cursor: 'pointer', touchAction: 'pan-y', WebkitTapHighlightColor: 'transparent' }}>
                   <EvolutionCore stage={stage} hue={hue} size={236} pulse={pulse} />
                 </motion.div>
 
@@ -472,6 +523,67 @@ export function MergeEvolution({ onClose }: { onClose: () => void }) {
             </motion.div>
           )}
 
+
+          {/* ── SHOP: chests for the app's mafia coins ── */}
+          {tab === 'shop' && cat && (
+            <motion.div key="sh" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ paddingBottom: 30 }}>
+              <div style={S.coinBar}>
+                <CoinMark size={26} />
+                <span style={{ flex: 1, fontSize: 12.5, color: '#9fb0c8' }}>ჩემი მონეტები</span>
+                <span style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 800, fontSize: 18, color: '#ffd45a' }}>
+                  {shop ? shop.coins.toLocaleString() : '…'}
+                </span>
+              </div>
+              <div style={{ ...S.dim, textAlign: 'left', paddingTop: 4 }}>
+                იგივე მონეტები, რაც აპლიკაციაში სხვაგან — ყუთი პირდაპირ ინვენტარში ჩაგივარდება.
+              </div>
+
+              {!shop ? <div style={S.dim}>იტვირთება…</div> : (
+                <>
+                  {shop.chests.map(item => {
+                    const afford = shop.coins >= item.coins;
+                    return (
+                      <div key={item.tier} style={{ ...S.chestRow, borderColor: `${CHEST_COL[item.tier]}55`, cursor: 'default' }}>
+                        <Chest tier={item.tier} size={58} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ color: CHEST_COL[item.tier], fontWeight: 700, fontSize: 14 }}>{item.name}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                            <CoinMark size={15} />
+                            <span style={{ fontSize: 12.5, color: afford ? '#e8edf7' : '#ff8fa0', fontFamily: '"Space Grotesk",monospace', fontWeight: 700 }}>
+                              {item.coins.toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                        <button disabled={!afford || busy} onClick={() => buyChest(item.tier)}
+                          style={{ ...S.buyCoinBtn, opacity: afford ? 1 : 0.4 }}>ყიდვა</button>
+                      </div>
+                    );
+                  })}
+
+                  <div style={{ ...S.chestRow, borderColor: 'rgba(92,225,160,.4)', cursor: 'default' }}>
+                    <div style={S.energyIcon}><EnergyBolt size={34} /></div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ color: '#5ce1a0', fontWeight: 700, fontSize: 14 }}>ენერგიის სრული შევსება</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                        <CoinMark size={15} />
+                        <span style={{ fontSize: 12.5, color: shop.coins >= shop.energyRefill ? '#e8edf7' : '#ff8fa0', fontFamily: '"Space Grotesk",monospace', fontWeight: 700 }}>
+                          {shop.energyRefill}
+                        </span>
+                        {p && <span style={{ fontSize: 11, color: '#7d86a0' }}>· ახლა {p.energy}/{p.energyMax}</span>}
+                      </div>
+                    </div>
+                    <button disabled={busy || shop.coins < shop.energyRefill || (p ? p.energy >= p.energyMax : true)}
+                      onClick={buyEnergy}
+                      style={{ ...S.buyCoinBtn, borderColor: 'rgba(92,225,160,.5)', background: 'rgba(92,225,160,.14)', color: '#b8f5d4',
+                        opacity: (shop.coins >= shop.energyRefill && p && p.energy < p.energyMax) ? 1 : 0.4 }}>
+                      შევსება
+                    </button>
+                  </div>
+                </>
+              )}
+            </motion.div>
+          )}
+
           {/* ── BOARD ── */}
           {tab === 'board' && (
             <motion.div key="bd" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ paddingBottom: 30 }}>
@@ -564,9 +676,18 @@ export function MergeEvolution({ onClose }: { onClose: () => void }) {
 }
 
 const S: Record<string, any> = {
-  wrap: { position: 'fixed', inset: 0, zIndex: 72, background: 'radial-gradient(ellipse at 50% 18%, #0b1626 0%, #070912 55%, #05060c 100%)', overflowY: 'auto', overflowX: 'hidden' },
+  // html/body are locked (`position: fixed; overflow: hidden`) so this container
+  // must opt into scrolling itself: touchAction pan-y overrides the global
+  // `* { touch-action: manipulation }`, and -webkit-overflow-scrolling gives the
+  // momentum the rest of the app gets from #root.
+  wrap: {
+    position: 'fixed', inset: 0, zIndex: 72,
+    background: 'radial-gradient(ellipse at 50% 18%, #0b1626 0%, #070912 55%, #05060c 100%)',
+    overflowY: 'auto', overflowX: 'hidden',
+    WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', touchAction: 'pan-y',
+  },
   grid: { position: 'absolute', inset: 0, backgroundSize: '38px 38px', pointerEvents: 'none', maskImage: 'radial-gradient(ellipse at 50% 30%, #000 20%, transparent 78%)' },
-  inner: { position: 'relative', maxWidth: 540, margin: '0 auto', padding: '14px 14px 40px' },
+  inner: { position: 'relative', maxWidth: 540, margin: '0 auto', padding: '14px 14px calc(env(safe-area-inset-bottom, 0px) + 72px)' },
   header: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, position: 'sticky', top: 0, zIndex: 6, background: 'rgba(7,9,18,.9)', backdropFilter: 'blur(10px)', padding: '8px 0' },
   icon: { width: 36, height: 36, borderRadius: 12, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#c9d3e6', fontSize: 22, lineHeight: 1 },
   title: { fontFamily: '"Space Grotesk",monospace', fontSize: 15.5, fontWeight: 800, color: '#fff', letterSpacing: 2 },
@@ -578,7 +699,7 @@ const S: Record<string, any> = {
   fill: { height: '100%', borderRadius: 4, transition: 'width .3s' },
   chip: { padding: '7px 12px', borderRadius: 20, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.04)', color: '#c9d3e6', fontSize: 12.5, whiteSpace: 'nowrap' },
   chipOn: { background: 'rgba(255,255,255,.1)', color: '#fff' },
-  stage: { position: 'relative', height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  stage: { position: 'relative', height: 264, display: 'flex', alignItems: 'center', justifyContent: 'center' },
   ring: { position: 'absolute', borderRadius: '50%', border: '1px solid', pointerEvents: 'none' },
   burstWrap: { position: 'absolute', left: '50%', top: '50%', width: 0, height: 0, pointerEvents: 'none' },
   spark: { position: 'absolute', width: 6, height: 6, borderRadius: '50%' },
@@ -598,6 +719,9 @@ const S: Record<string, any> = {
   buyBtn: { minWidth: 46, padding: '9px 0', borderRadius: 12, border: '1px solid rgba(163,113,247,.45)', background: 'rgba(163,113,247,.16)', color: '#d9c2ff', fontWeight: 800, fontSize: 13 },
   boardRow: { display: 'flex', alignItems: 'center', gap: 9, width: '100%', padding: '8px 10px', borderRadius: 14, border: '1px solid', background: 'rgba(255,255,255,.03)', marginBottom: 6 },
   avatar: { width: 32, height: 32, borderRadius: '50%', background: 'rgba(143,179,255,.16)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#c9d3e6', fontWeight: 700, flexShrink: 0, overflow: 'hidden', fontSize: 14 },
+  coinBar: { display: 'flex', alignItems: 'center', gap: 9, padding: '11px 13px', borderRadius: 16, background: 'rgba(255,212,90,.08)', border: '1px solid rgba(255,212,90,.3)' },
+  buyCoinBtn: { padding: '9px 15px', borderRadius: 12, border: '1px solid rgba(255,212,90,.5)', background: 'rgba(255,212,90,.16)', color: '#ffe9a8', fontWeight: 800, fontSize: 13 },
+  energyIcon: { width: 58, height: 58, borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(92,225,160,.1)', border: '1px solid rgba(92,225,160,.3)', flexShrink: 0 },
   openWrap: { position: 'fixed', inset: 0, zIndex: 80, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(4,6,12,.92)', backdropFilter: 'blur(6px)', padding: 20 },
   beam: { position: 'absolute', top: '18%', width: 130, height: '34%', filter: 'blur(22px)', pointerEvents: 'none' },
   rewardPanel: { marginTop: 22, width: 'min(460px,94vw)', padding: 16, borderRadius: 20, background: 'rgba(12,16,30,.9)', border: '1px solid rgba(255,255,255,.12)' },

@@ -15,6 +15,7 @@ const MergeEvolution = lazy(() => import('@/components/merge/MergeEvolution').th
 const MaxPuzzleExperience = lazy(() => import('@/components/maxpuzzle/MaxPuzzleExperience').then(m => ({ default: m.MaxPuzzleExperience })));
 import { IQLogo } from '@/components/iq/IQLogo';
 import { LogicLogo } from '@/components/logic/LogicLogo';
+import { EvolutionCore } from '@/components/merge/art';
 import { MaxSeal } from '@/components/maxpuzzle/MaxSeal';
 import { VRBustIcon } from '@/components/ui/VRBustIcon';
 import { PhilosopherIcon } from '@/components/philosophy/PhilosopherIcon';
@@ -361,7 +362,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   defs.push({ id: 'watchparty', title: 'კინო სივრცე', sub: 'ერთად უყურეთ ვიდეოს · სინქრონში + ხმა', cat: 'worlds', kind: 'launch', accent: '#ff5d5d', emoji: '🎬', badge: true, keywords: 'watch party კინო ფილმი youtube ვიდეო together სინქრონი co-watch cinema', launch: () => setWatchPartyOpen(true) });
 
   const byId = (id: string) => defs.find(d => d.id === id);
-  const FEATURED = ['watchparty', 'voidiq', 'logic', ...(onOpenPremium ? ['premium'] : []), 'maxpuzzle'];
+  const FEATURED = ['watchparty', 'voidiq', 'logic', 'mergeevo', ...(onOpenPremium ? ['premium'] : []), 'maxpuzzle'];
 
   const q = query.trim().toLowerCase();
   const matchesQ = (d: GameDef) => !q || d.title.toLowerCase().includes(q) || d.keywords.toLowerCase().includes(q) || d.sub.toLowerCase().includes(q);
@@ -440,6 +441,20 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
                 <p className="font-mono text-[12px] text-white/55 mt-0.5">სილოგიზმები · Logic Rating</p>
               </div>
               <span style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 1, color: '#1a1206', background: 'rgba(249,200,28,0.92)', borderRadius: 8, padding: '3px 8px' }}>NEW</span>
+            </div>
+          </button>
+
+          <button onClick={() => openGame(byId('mergeevo')!)} className="w-full text-left rounded-2xl overflow-hidden transition-all active:scale-[0.99]"
+            style={{ border: '1px solid rgba(77,212,196,0.45)', boxShadow: '0 6px 34px rgba(77,212,196,0.16)' }}>
+            <div style={{ minHeight: 92, background: 'linear-gradient(135deg, #082b32 0%, #101a34 55%, #0c1020 100%)', display: 'flex', alignItems: 'center', gap: 14, padding: '13px 18px', position: 'relative' }}>
+              <div style={{ width: 58, height: 58, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <EvolutionCore stage={3} hue={188} size={64} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-display font-black text-white text-base leading-tight tracking-[0.08em]" style={{ background: 'linear-gradient(90deg,#d8fffa,#4dd4c4)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>MERGE EVOLUTION</p>
+                <p className="font-mono text-[12px] text-white/55 mt-0.5">გაზარდე ციფრული ორგანიზმი · ყუთები</p>
+              </div>
+              <span style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 1, color: '#04211f', background: 'rgba(77,212,196,0.92)', borderRadius: 8, padding: '3px 8px' }}>NEW</span>
             </div>
           </button>
 

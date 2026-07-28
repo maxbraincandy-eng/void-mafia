@@ -1,4 +1,5 @@
 import { sql } from '../db.js';
+import { deductCoins, getCoins } from './coinService.js';
 export const STAGES = [
     { key: 'primitive', name: 'Primitive Cell', ka: 'პირველადი უჯრედი', needs: 1 },
     { key: 'advanced', name: 'Advanced Cell', ka: 'განვითარებული უჯრედი', needs: 2 },
@@ -396,6 +397,67 @@ export async function claimSocial(userId) {
     chests.social = (chests.social ?? 0) + 1;
     await save(userId, { chests, lastSocial: today });
     return { profile: await getProfile(userId) };
+}
+// ── coin shop ─────────────────────────────────────────────────────────
+/**
+ * Chests for the app's ordinary mafia coins. Prices sit here, not on the
+ * client, and the coin deduction runs BEFORE the chest is granted so a failed
+ * payment can never hand out a free chest.
+ */
+export const SHOP = [
+    { tier: 'common', coins: 150 },
+    { tier: 'advanced', coins: 400 },
+    { tier: 'legendary', coins: 1000 },
+];
+/** Energy top-up, for when the tank is dry and you want to keep going. */
+export const ENERGY_REFILL_COINS = 120;
+export async function shopState(userId) {
+    return {
+        coins: await getCoins(userId),
+        chests: SHOP.map(s => ({ ...s, name: CHEST_META[s.tier].ka })),
+        energyRefill: ENERGY_REFILL_COINS,
+    };
+}
+export async function buyChest(userId, tier) {
+    const item = SHOP.find(s => s.tier === tier);
+    if (!item)
+        return { error: 'ეს ყუთი არ იყიდება' };
+    const have = await getCoins(userId);
+    if (have < item.coins)
+        return { error: `საჭიროა ${item.coins} მონეტა (გაქვს ${have})` };
+    // charge first; if this throws, nothing was granted
+    let coins = have;
+    try {
+        const r = await deductCoins(userId, userId, item.coins, `Merge Evolution — ${CHEST_META[item.tier].name}`);
+        coins = r.newBalance;
+    }
+    catch (e) {
+        return { error: e?.message ?? 'გადახდა ვერ შესრულდა' };
+    }
+    const row = await rowOf(userId);
+    const chests = jparse(row.chests, {});
+    chests[item.tier] = (chests[item.tier] ?? 0) + 1;
+    await save(userId, { chests });
+    return { profile: await getProfile(userId), coins, tier: item.tier };
+}
+export async function buyEnergy(userId) {
+    const row = await rowOf(userId);
+    const e = settleEnergy(row);
+    if (e.energy >= e.energyMax)
+        return { error: 'ენერგია სავსეა' };
+    const have = await getCoins(userId);
+    if (have < ENERGY_REFILL_COINS)
+        return { error: `საჭიროა ${ENERGY_REFILL_COINS} მონეტა (გაქვს ${have})` };
+    let coins = have;
+    try {
+        const r = await deductCoins(userId, userId, ENERGY_REFILL_COINS, 'Merge Evolution — ენერგიის შევსება');
+        coins = r.newBalance;
+    }
+    catch (er) {
+        return { error: er?.message ?? 'გადახდა ვერ შესრულდა' };
+    }
+    await save(userId, { energy: e.energyMax, energyAt: Date.now() });
+    return { profile: await getProfile(userId), coins };
 }
 // ── upgrades ──────────────────────────────────────────────────────────
 export async function buyUpgrade(userId, key) {

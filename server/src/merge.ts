@@ -10,6 +10,7 @@ import {
 } from './types/index.js';
 import {
   getProfile, tap, merge, evolve, openChest, claimSocial, buyUpgrade, catalog, leaderboard,
+  shopState, buyChest, buyEnergy,
 } from './services/mergeService.js';
 
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -81,6 +82,32 @@ export function registerMergeHandlers(_io: AppServer, socket: AppSocket): void {
     try {
       const id = need(cb); if (!id) return;
       const r = await buyUpgrade(id, String(data?.key));
+      if (isErr(r)) return cb(err(r.error));
+      cb(ok(r));
+    } catch (e: any) { cb(err(e.message)); }
+  });
+
+  // ── coin shop: chests for the app's ordinary mafia coins ──
+  socket.on('merge:shop' as any, async (cb: (r: any) => void) => {
+    try {
+      const id = need(cb); if (!id) return;
+      cb(ok(await shopState(id)));
+    } catch (e: any) { cb(err(e.message)); }
+  });
+
+  socket.on('merge:buy_chest' as any, async (data: { tier: string }, cb: (r: any) => void) => {
+    try {
+      const id = need(cb); if (!id) return;
+      const r = await buyChest(id, String(data?.tier));
+      if (isErr(r)) return cb(err(r.error));
+      cb(ok(r));
+    } catch (e: any) { cb(err(e.message)); }
+  });
+
+  socket.on('merge:buy_energy' as any, async (cb: (r: any) => void) => {
+    try {
+      const id = need(cb); if (!id) return;
+      const r = await buyEnergy(id);
       if (isErr(r)) return cb(err(r.error));
       cb(ok(r));
     } catch (e: any) { cb(err(e.message)); }
