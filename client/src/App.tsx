@@ -338,6 +338,13 @@ function RoomInviteToast() {
 }
 
 const NAV_ORDER: NavTab[] = ['community', 'games', 'clans', 'rooms', 'leaderboard', 'profile'];
+// Tabs where a horizontal drag means something else, so it must NOT change tab.
+// These are the screens built from rows that scroll sideways — the games hub has
+// its category chips and the "recently played" strip, community its feed rails —
+// and on a phone a drag on or near one of those reads as "scroll this row", not
+// "leave this screen". Being thrown to another tab mid-scroll is the bug.
+// Nothing is lost by opting out: the bottom nav already reaches every tab.
+const NO_SWIPE_NAV: NavTab[] = ['community', 'games', 'economy'];
 
 function PageTransition({ children, direction }: { children: React.ReactNode; direction: 1 | -1 }) {
   return (
@@ -492,7 +499,7 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
     // without this check a swipe inside a panel navigated the tab underneath and
     // the panel appeared to close itself.
     if (overlayOpen()) return;
-    if (swipeLocked.current || inGame || page === 'community' || page === 'economy') return;
+    if (swipeLocked.current || inGame || NO_SWIPE_NAV.includes(page)) return;
     const dx = e.changedTouches[0].clientX - touchStartX.current;
     const dy = e.changedTouches[0].clientY - touchStartY.current;
     if (Math.abs(dx) < 50 || Math.abs(dy) > Math.abs(dx) * 0.7) return;
