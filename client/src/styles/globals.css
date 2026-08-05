@@ -5,6 +5,47 @@
 :root {
   --vm-banner-h: 0px;
 
+  /* ── Design tokens: primitives ────────────────────────────────────────
+     Fallback copy of the `minimal-glass` primitives (the default theme).
+     ThemeProvider overwrites these on <html> before React mounts; these keep
+     the app looking right if that early script is blocked or localStorage
+     throws. Consumed from TS through `T` in design/tokens.ts — change a value
+     in ThemeProvider.tsx and mirror it here. */
+  --vm-text: #ffffff;
+  --vm-text-2: rgba(255,255,255,0.80);
+  --vm-text-3: #aeb8cc;
+  --vm-text-4: rgba(255,255,255,0.42);
+  --vm-text-on-accent: #ffffff;
+  --vm-bg-page: #0f1629;
+  --vm-bg-page-blur: rgba(15,22,41,0.90);
+  --vm-surface-1: rgba(255,255,255,0.07);
+  --vm-surface-2: rgba(255,255,255,0.12);
+  --vm-surface-3: rgba(255,255,255,0.05);
+  --vm-hairline: rgba(255,255,255,0.14);
+  --vm-hairline-strong: rgba(255,255,255,0.24);
+  --vm-accent: #a78bfa;
+  --vm-accent-soft: rgba(139,92,246,0.18);
+  --vm-accent-2: #22d3ee;
+  --vm-accent-2-soft: rgba(34,211,238,0.14);
+  --vm-success: #34d399;
+  --vm-success-soft: rgba(52,211,153,0.15);
+  --vm-warn: #fbbf24;
+  --vm-warn-soft: rgba(251,191,36,0.15);
+  --vm-danger: #f87171;
+  --vm-danger-soft: rgba(248,113,113,0.15);
+  --vm-gold: #fbbf24;
+  --vm-text-on-gold: #1a1206;
+  --vm-gold-soft: rgba(251,191,36,0.15);
+  --vm-grad-accent: linear-gradient(135deg, #8b5cf6, #22d3ee);
+  --vm-grad-gold: linear-gradient(135deg, #fbbf24, #fde68a);
+  --vm-grad-success: linear-gradient(135deg, #34d399, #10b981);
+  --vm-grad-danger: linear-gradient(135deg, #f87171, #fb7185);
+  --vm-shadow-card: inset 0 1px 0 rgba(255,255,255,0.10), 0 4px 20px rgba(0,0,0,0.28);
+  --vm-shadow-raised: inset 0 1px 0 rgba(255,255,255,0.14), 0 16px 48px rgba(0,0,0,0.45);
+  --vm-glow-accent: 0 0 18px rgba(139,92,246,0.30);
+  --vm-glow-gold: 0 0 16px rgba(251,191,36,0.26);
+  --vm-glow-danger: 0 0 16px rgba(248,113,113,0.28);
+
   /* ── Void Neon defaults (match existing hardcoded values exactly) ── */
   --bg-main: #03000d;
   --glass-bg: rgba(10, 5, 32, 0.7);

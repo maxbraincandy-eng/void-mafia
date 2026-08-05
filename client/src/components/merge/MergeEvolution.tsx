@@ -11,6 +11,7 @@ import { useFullscreenOverlay } from '@/lib/overlayGuard';
 import { useSocialStore } from '@/store/socialStore';
 import { useAuthStore } from '@/store/authStore';
 import { EvolutionCore, Chest, RES_ART, UpgradeGlyph, LabMotes, hueOf } from './art';
+import { T, hairline, overlay } from '@/design/tokens';
 
 type ResKey = 'frag' | 'cell' | 'adna' | 'ncore' | 'energyCell' | 'particle' | 'crystal' | 'upgrade';
 type ChestTier = 'common' | 'advanced' | 'legendary' | 'social';
@@ -132,19 +133,19 @@ export function MergeEvolution({ onClose }: { onClose: () => void }) {
       const r = unwrap<any>(await emitWithAck('merge:tap', { count: Math.min(10, n) }));
       setP(r.profile);
       if (r.drop) {
-        pushFloat(`+${r.drop.amount} ${cat?.res[r.drop.key as ResKey].ka ?? ''}`, '#8fe3ff');
+        pushFloat(`+${r.drop.amount} ${cat?.res[r.drop.key as ResKey].ka ?? ''}`, T.color.accent2);
         setBurst(b => b + 1);
       }
       if (r.chestEarned) pushFloat(`${cat?.chests[r.chestEarned as ChestTier].ka ?? 'ყუთი'}!`, CHEST_COL[r.chestEarned as ChestTier]);
     } catch (e: any) {
       if (!/ენერგია/.test(e.message)) setErr(e.message);
-      else pushFloat('ენერგია ამოიწურა', '#ff8fa0');
+      else pushFloat('ენერგია ამოიწურა', T.color.danger);
       load();
     }
   }, [cat, load]);
 
   const onTapCore = () => {
-    if (!p || p.energy < 1) { pushFloat('ენერგია ამოიწურა', '#ff8fa0'); return; }
+    if (!p || p.energy < 1) { pushFloat('ენერგია ამოიწურა', T.color.danger); return; }
     // optimistic feel: the organism reacts NOW, the server confirms in a moment
     setPulse(1.16);
     setTimeout(() => setPulse(1), 130);
@@ -166,8 +167,8 @@ export function MergeEvolution({ onClose }: { onClose: () => void }) {
       const r = unwrap<any>(await emitWithAck('merge:merge', { key, times: Math.max(1, times) }));
       setP(r.profile);
       setBurst(b => b + 1);
-      pushFloat(`+${r.made} ${cat?.res[r.to as ResKey].ka ?? ''}`, '#7ff0e0');
-    } catch (e: any) { pushFloat(e.message, '#ff8fa0'); }
+      pushFloat(`+${r.made} ${cat?.res[r.to as ResKey].ka ?? ''}`, T.color.accent2);
+    } catch (e: any) { pushFloat(e.message, T.color.danger); }
     finally { setBusy(false); }
   };
 
@@ -181,7 +182,7 @@ export function MergeEvolution({ onClose }: { onClose: () => void }) {
       setTimeout(() => setEvolveFx(false), 2200);
       setP(r.profile);
       setTab('lab');
-    } catch (e: any) { pushFloat(e.message, '#ff8fa0'); }
+    } catch (e: any) { pushFloat(e.message, T.color.danger); }
     finally { setBusy(false); }
   };
 
@@ -197,7 +198,7 @@ export function MergeEvolution({ onClose }: { onClose: () => void }) {
       setTimeout(() => setP(r.profile), 1200);
     } catch (e: any) {
       setOpening(null);
-      pushFloat(e.message, '#ff8fa0');
+      pushFloat(e.message, T.color.danger);
     }
   };
 
@@ -205,9 +206,9 @@ export function MergeEvolution({ onClose }: { onClose: () => void }) {
     try {
       const r = unwrap<any>(await emitWithAck('merge:social'));
       setP(r.profile);
-      pushFloat('გაზიარების ყუთი მიღებულია', '#ff6b8a');
+      pushFloat('გაზიარების ყუთი მიღებულია', T.color.danger);
       setTab('chests');
-    } catch (e: any) { pushFloat(e.message, '#ff8fa0'); }
+    } catch (e: any) { pushFloat(e.message, T.color.danger); }
   };
 
   const buyUpgrade = async (key: UpKey) => {
@@ -216,9 +217,9 @@ export function MergeEvolution({ onClose }: { onClose: () => void }) {
     try {
       const r = unwrap<any>(await emitWithAck('merge:upgrade', { key }));
       setP(r.profile);
-      pushFloat(`${cat?.upgrades.find(u => u.key === key)?.ka} → ${r.level}`, '#c9a6ff');
+      pushFloat(`${cat?.upgrades.find(u => u.key === key)?.ka} → ${r.level}`, T.color.accent);
       setBurst(b => b + 1);
-    } catch (e: any) { pushFloat(e.message, '#ff8fa0'); }
+    } catch (e: any) { pushFloat(e.message, T.color.danger); }
     finally { setBusy(false); }
   };
 
@@ -236,7 +237,7 @@ export function MergeEvolution({ onClose }: { onClose: () => void }) {
       setShop(sh => sh ? { ...sh, coins: r.coins } : sh);
       pushFloat(`${cat?.chests[tier as ChestTier].ka} ნაყიდია`, CHEST_COL[tier]);
       setTab('chests');
-    } catch (e: any) { pushFloat(e.message, '#ff8fa0'); }
+    } catch (e: any) { pushFloat(e.message, T.color.danger); }
     finally { setBusy(false); }
   };
   const buyEnergy = async () => {
@@ -246,8 +247,8 @@ export function MergeEvolution({ onClose }: { onClose: () => void }) {
       const r = unwrap<any>(await emitWithAck('merge:buy_energy'));
       setP(r.profile);
       setShop(sh => sh ? { ...sh, coins: r.coins } : sh);
-      pushFloat('ენერგია შევსებულია', '#5ce1a0');
-    } catch (e: any) { pushFloat(e.message, '#ff8fa0'); }
+      pushFloat('ენერგია შევსებულია', T.color.success);
+    } catch (e: any) { pushFloat(e.message, T.color.danger); }
     finally { setBusy(false); }
   };
 
@@ -285,7 +286,7 @@ export function MergeEvolution({ onClose }: { onClose: () => void }) {
           {p && (
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 800, fontSize: 15, color: `hsl(${hue},90%,72%)` }}>{p.xp.toLocaleString()}</div>
-              <div style={{ fontSize: 9, color: '#7d86a0', letterSpacing: 1 }}>XP</div>
+              <div style={{ fontSize: T.font.micro, color: T.text.muted, letterSpacing: 1 }}>XP</div>
             </div>
           )}
         </div>
@@ -296,22 +297,22 @@ export function MergeEvolution({ onClose }: { onClose: () => void }) {
         {p && (
           <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
             <div style={S.gauge}>
-              <div style={{ display: 'flex', fontSize: 10.5, color: '#9fb0c8', marginBottom: 3 }}>
+              <div style={{ display: 'flex', fontSize: T.font.caption, color: T.text.secondary, marginBottom: 3 }}>
                 <span style={{ flex: 1 }}>ენერგია</span>
                 <span style={{ fontFamily: 'monospace' }}>{p.energy}/{p.energyMax}</span>
               </div>
-              <div style={S.track}><div style={{ ...S.fill, width: `${(p.energy / p.energyMax) * 100}%`, background: 'linear-gradient(90deg,#5ce1a0,#8fe3ff)' }} /></div>
+              <div style={S.track}><div style={{ ...S.fill, width: `${(p.energy / p.energyMax) * 100}%`, background: T.gradient.success }} /></div>
               {p.energy < p.energyMax && (
-                <div style={{ fontSize: 9.5, color: '#6b7690', marginTop: 2 }}>+1 · {Math.ceil(p.nextEnergyInMs / 1000)}წმ</div>
+                <div style={{ fontSize: T.font.micro, color: T.text.faint, marginTop: 2 }}>+1 · {Math.ceil(p.nextEnergyInMs / 1000)}წმ</div>
               )}
             </div>
             <div style={S.gauge}>
-              <div style={{ display: 'flex', fontSize: 10.5, color: '#9fb0c8', marginBottom: 3 }}>
+              <div style={{ display: 'flex', fontSize: T.font.caption, color: T.text.secondary, marginBottom: 3 }}>
                 <span style={{ flex: 1 }}>ყუთის მზადყოფნა</span>
                 <span style={{ fontFamily: 'monospace' }}>{p.chestMeter}%</span>
               </div>
-              <div style={S.track}><div style={{ ...S.fill, width: `${p.chestMeter}%`, background: 'linear-gradient(90deg,#ffb020,#ffd45a)' }} /></div>
-              {p.boosts > 0 && <div style={{ fontSize: 9.5, color: '#ffd45a', marginTop: 2 }}>⚡ {p.boosts} ტესტის ბონუსი მზადაა</div>}
+              <div style={S.track}><div style={{ ...S.fill, width: `${p.chestMeter}%`, background: T.gradient.gold }} /></div>
+              {p.boosts > 0 && <div style={{ fontSize: T.font.micro, color: T.color.gold, marginTop: 2 }}>⚡ {p.boosts} ტესტის ბონუსი მზადაა</div>}
             </div>
           </div>
         )}
@@ -383,7 +384,7 @@ export function MergeEvolution({ onClose }: { onClose: () => void }) {
               )}
               {!canEvolve && needUpgrades > 0 && (
                 <div style={S.evolveNeed}>
-                  შემდეგ დონემდე: <b style={{ color: '#ffd45a' }}>{haveUpgrades}/{needUpgrades}</b> {cat?.res.upgrade.ka}
+                  შემდეგ დონემდე: <b style={{ color: T.color.gold }}>{haveUpgrades}/{needUpgrades}</b> {cat?.res.upgrade.ka}
                 </div>
               )}
 
@@ -407,8 +408,8 @@ export function MergeEvolution({ onClose }: { onClose: () => void }) {
                 style={{ ...S.socialBtn, opacity: p?.socialAvailable ? 1 : 0.45 }}>
                 <Chest tier="social" size={44} />
                 <div style={{ flex: 1, textAlign: 'left' }}>
-                  <div style={{ color: '#ff9fb4', fontWeight: 700, fontSize: 13.5 }}>გაზიარების ყუთი</div>
-                  <div style={{ fontSize: 11, color: '#7d86a0' }}>
+                  <div style={{ color: T.color.danger, fontWeight: 700, fontSize: 13.5 }}>გაზიარების ყუთი</div>
+                  <div style={{ fontSize: 11, color: T.text.muted }}>
                     {p?.socialAvailable ? 'გააზიარე ევოლუცია და აიღე — დღეში ერთხელ' : 'დღეს უკვე აღებულია'}
                   </div>
                 </div>
@@ -434,14 +435,14 @@ export function MergeEvolution({ onClose }: { onClose: () => void }) {
                       <span style={S.countBadge}>{have}</span>
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, color: '#e8edf7', fontWeight: 600 }}>{cat.res[key].ka}</div>
-                      <div style={{ fontSize: 11, color: '#7d86a0' }}>{cat.mergeCost}x → 1x {cat.res[to].ka}</div>
+                      <div style={{ fontSize: 13, color: T.text.secondary, fontWeight: 600 }}>{cat.res[key].ka}</div>
+                      <div style={{ fontSize: 11, color: T.text.muted }}>{cat.mergeCost}x → 1x {cat.res[to].ka}</div>
                     </div>
-                    <span style={{ color: '#4dd4c4', fontSize: 18 }}>→</span>
+                    <span style={{ color: T.color.accent2, fontSize: 18 }}>→</span>
                     <B size={38} />
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                       <button disabled={can < 1 || busy} onClick={() => doMerge(key)} style={{ ...S.mergeBtn, opacity: can < 1 ? 0.4 : 1 }}>×1</button>
-                      {can > 1 && <button disabled={busy} onClick={() => doMerge(key, true)} style={{ ...S.mergeBtn, background: 'rgba(77,212,196,.2)' }}>×{can}</button>}
+                      {can > 1 && <button disabled={busy} onClick={() => doMerge(key, true)} style={{ ...S.mergeBtn, background: T.color.accent2Soft }}>×{can}</button>}
                     </div>
                   </div>
                 );
@@ -465,7 +466,7 @@ export function MergeEvolution({ onClose }: { onClose: () => void }) {
                     <Chest tier={t} size={62} />
                     <div style={{ flex: 1, textAlign: 'left' }}>
                       <div style={{ color: CHEST_COL[t], fontWeight: 700, fontSize: 14 }}>{cat.chests[t].ka}</div>
-                      <div style={{ fontSize: 11, color: '#7d86a0' }}>დააჭირე გასახსნელად</div>
+                      <div style={{ fontSize: 11, color: T.text.muted }}>დააჭირე გასახსნელად</div>
                     </div>
                     <span style={{ ...S.countBadge, position: 'static' }}>{n}</span>
                   </button>
@@ -492,8 +493,8 @@ export function MergeEvolution({ onClose }: { onClose: () => void }) {
                   <div key={u.key} style={S.upRow}>
                     <UpgradeGlyph kind={u.key} size={36} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13.5, color: '#e8edf7', fontWeight: 700 }}>{u.ka}</div>
-                      <div style={{ fontSize: 11, color: '#7d86a0' }}>{u.desc}</div>
+                      <div style={{ fontSize: T.font.body, color: T.text.secondary, fontWeight: 700 }}>{u.ka}</div>
+                      <div style={{ fontSize: 11, color: T.text.muted }}>{u.desc}</div>
                       <div style={{ display: 'flex', gap: 3, marginTop: 5 }}>
                         {Array.from({ length: u.max }, (_, i) => (
                           <span key={i} style={{ width: 14, height: 4, borderRadius: 2, background: i < lvl ? `hsl(${hue},90%,62%)` : 'rgba(255,255,255,.12)' }} />
@@ -505,7 +506,7 @@ export function MergeEvolution({ onClose }: { onClose: () => void }) {
                             const A = RES_ART[k as ResKey];
                             const enough = (p.resources[k as ResKey] ?? 0) >= (n as number);
                             return (
-                              <span key={k} style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11.5, color: enough ? '#c9d3e6' : '#ff8fa0' }}>
+                              <span key={k} style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: T.font.caption, color: enough ? T.text.secondary : T.color.danger }}>
                                 <A size={18} />{n}
                               </span>
                             );
@@ -529,8 +530,8 @@ export function MergeEvolution({ onClose }: { onClose: () => void }) {
             <motion.div key="sh" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ paddingBottom: 30 }}>
               <div style={S.coinBar}>
                 <CoinMark size={26} />
-                <span style={{ flex: 1, fontSize: 12.5, color: '#9fb0c8' }}>ჩემი მონეტები</span>
-                <span style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 800, fontSize: 18, color: '#ffd45a' }}>
+                <span style={{ flex: 1, fontSize: T.font.small, color: T.text.secondary }}>ჩემი მონეტები</span>
+                <span style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 800, fontSize: 18, color: T.color.gold }}>
                   {shop ? shop.coins.toLocaleString() : '…'}
                 </span>
               </div>
@@ -549,7 +550,7 @@ export function MergeEvolution({ onClose }: { onClose: () => void }) {
                           <div style={{ color: CHEST_COL[item.tier], fontWeight: 700, fontSize: 14 }}>{item.name}</div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
                             <CoinMark size={15} />
-                            <span style={{ fontSize: 12.5, color: afford ? '#e8edf7' : '#ff8fa0', fontFamily: '"Space Grotesk",monospace', fontWeight: 700 }}>
+                            <span style={{ fontSize: T.font.small, color: afford ? T.text.secondary : T.color.danger, fontFamily: '"Space Grotesk",monospace', fontWeight: 700 }}>
                               {item.coins.toLocaleString()}
                             </span>
                           </div>
@@ -563,18 +564,18 @@ export function MergeEvolution({ onClose }: { onClose: () => void }) {
                   <div style={{ ...S.chestRow, borderColor: 'rgba(92,225,160,.4)', cursor: 'default' }}>
                     <div style={S.energyIcon}><EnergyBolt size={34} /></div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ color: '#5ce1a0', fontWeight: 700, fontSize: 14 }}>ენერგიის სრული შევსება</div>
+                      <div style={{ color: T.color.success, fontWeight: 700, fontSize: 14 }}>ენერგიის სრული შევსება</div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
                         <CoinMark size={15} />
-                        <span style={{ fontSize: 12.5, color: shop.coins >= shop.energyRefill ? '#e8edf7' : '#ff8fa0', fontFamily: '"Space Grotesk",monospace', fontWeight: 700 }}>
+                        <span style={{ fontSize: T.font.small, color: shop.coins >= shop.energyRefill ? T.text.secondary : T.color.danger, fontFamily: '"Space Grotesk",monospace', fontWeight: 700 }}>
                           {shop.energyRefill}
                         </span>
-                        {p && <span style={{ fontSize: 11, color: '#7d86a0' }}>· ახლა {p.energy}/{p.energyMax}</span>}
+                        {p && <span style={{ fontSize: 11, color: T.text.muted }}>· ახლა {p.energy}/{p.energyMax}</span>}
                       </div>
                     </div>
                     <button disabled={busy || shop.coins < shop.energyRefill || (p ? p.energy >= p.energyMax : true)}
                       onClick={buyEnergy}
-                      style={{ ...S.buyCoinBtn, borderColor: 'rgba(92,225,160,.5)', background: 'rgba(92,225,160,.14)', color: '#b8f5d4',
+                      style={{ ...S.buyCoinBtn, borderColor: T.color.success, background: T.color.successSoft, color: T.color.success,
                         opacity: (shop.coins >= shop.energyRefill && p && p.energy < p.energyMax) ? 1 : 0.4 }}>
                       შევსება
                     </button>
@@ -590,18 +591,18 @@ export function MergeEvolution({ onClose }: { onClose: () => void }) {
               {!board ? <div style={S.dim}>იტვირთება…</div> : board.length === 0 ? <div style={S.dim}>ჯერ ცარიელია</div> : board.map(r => (
                 <button key={r.userId} onClick={() => openProfile(r.userId)}
                   style={{ ...S.boardRow, borderColor: r.userId === myId ? `hsl(${hue},90%,60%)` : 'rgba(255,255,255,.07)' }}>
-                  <span style={{ width: 26, fontWeight: 800, color: r.rank <= 3 ? '#ffd45a' : '#7d86a0' }}>{r.rank}</span>
+                  <span style={{ width: 26, fontWeight: 800, color: r.rank <= 3 ? T.color.gold : T.text.muted }}>{r.rank}</span>
                   <div style={S.avatar}>
                     {r.avatarUrl ? <img src={r.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       : <span>{r.avatar || (r.username[0] ?? '?').toUpperCase()}</span>}
                   </div>
                   <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
-                    <div style={{ fontSize: 13.5, color: '#e8edf7', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.username}</div>
-                    <div style={{ fontSize: 11, color: '#7d86a0' }}>{r.stageName} · {r.merges} შერწყმა</div>
+                    <div style={{ fontSize: T.font.body, color: T.text.secondary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.username}</div>
+                    <div style={{ fontSize: 11, color: T.text.muted }}>{r.stageName} · {r.merges} შერწყმა</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontWeight: 800, fontSize: 14, color: `hsl(${hue},90%,72%)`, fontFamily: '"Space Grotesk",monospace' }}>{r.xp.toLocaleString()}</div>
-                    <div style={{ fontSize: 9, color: '#7d86a0' }}>XP</div>
+                    <div style={{ fontSize: T.font.micro, color: T.text.muted }}>XP</div>
                   </div>
                 </button>
               ))}
@@ -643,7 +644,7 @@ export function MergeEvolution({ onClose }: { onClose: () => void }) {
                         transition={{ delay: i * 0.09, type: 'spring', stiffness: 200 }} style={S.rewardItem}>
                         <A size={46} />
                         <span style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 800, fontSize: 14 }}>×{rw.amount}</span>
-                        <span style={{ fontSize: 9.5, color: '#7d86a0', textAlign: 'center', lineHeight: 1.2 }}>{cat?.res[rw.key].ka}</span>
+                        <span style={{ fontSize: T.font.micro, color: T.text.muted, textAlign: 'center', lineHeight: 1.2 }}>{cat?.res[rw.key].ka}</span>
                       </motion.div>
                     );
                   })}
@@ -664,7 +665,7 @@ export function MergeEvolution({ onClose }: { onClose: () => void }) {
             </motion.div>
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}
               style={{ textAlign: 'center', marginTop: 16 }}>
-              <div style={{ fontSize: 12, letterSpacing: 3, color: '#7d86a0' }}>ევოლუცია დასრულდა</div>
+              <div style={{ fontSize: 12, letterSpacing: 3, color: T.text.muted }}>ევოლუცია დასრულდა</div>
               <div style={{ fontSize: 24, fontWeight: 900, color: `hsl(${hue},95%,72%)` }}>{stageDef?.ka}</div>
             </motion.div>
           </motion.div>
@@ -675,59 +676,66 @@ export function MergeEvolution({ onClose }: { onClose: () => void }) {
   );
 }
 
+// Migrated to design tokens. Every colour below now resolves through the theme
+// on <html>, so this screen follows void-neon / minimal-glass / graphite like
+// the rest of the app instead of staying on its own private palette. The
+// layout numbers are unchanged; radii and type snapped to T's scale.
 const S: Record<string, any> = {
   // html/body are locked (`position: fixed; overflow: hidden`) so this container
   // must opt into scrolling itself: touchAction pan-y overrides the global
   // `* { touch-action: manipulation }`, and -webkit-overflow-scrolling gives the
   // momentum the rest of the app gets from #root.
+  //
+  // The lab atmosphere is now an accent wash over the themed page rather than a
+  // fixed navy gradient — same mood, and it re-tints with the theme.
   wrap: {
     position: 'fixed', inset: 0, zIndex: 72,
-    background: 'radial-gradient(ellipse at 50% 18%, #0b1626 0%, #070912 55%, #05060c 100%)',
+    background: `radial-gradient(ellipse at 50% 18%, ${T.color.accentSoft} 0%, transparent 62%), ${T.surface.page}`,
     overflowY: 'auto', overflowX: 'hidden',
     WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', touchAction: 'manipulation',
   },
   grid: { position: 'absolute', inset: 0, backgroundSize: '38px 38px', pointerEvents: 'none', maskImage: 'radial-gradient(ellipse at 50% 30%, #000 20%, transparent 78%)' },
   inner: { position: 'relative', maxWidth: 540, margin: '0 auto', padding: '14px 14px calc(env(safe-area-inset-bottom, 0px) + 72px)' },
-  header: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, position: 'sticky', top: 0, zIndex: 6, background: 'rgba(7,9,18,.9)', backdropFilter: 'blur(10px)', padding: '8px 0' },
-  icon: { width: 36, height: 36, borderRadius: 12, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#c9d3e6', fontSize: 22, lineHeight: 1 },
-  title: { fontFamily: '"Space Grotesk",monospace', fontSize: 15.5, fontWeight: 800, color: '#fff', letterSpacing: 2 },
-  sub: { fontSize: 11.5, color: '#7d86a0' },
-  dim: { color: '#7d86a0', fontSize: 12.5, padding: '10px 0' },
-  err: { padding: '9px 12px', borderRadius: 12, background: 'rgba(255,77,94,.14)', color: '#ff8fa0', fontSize: 13, marginBottom: 10 },
-  gauge: { flex: 1, padding: '8px 10px', borderRadius: 14, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)' },
-  track: { height: 6, borderRadius: 4, background: 'rgba(255,255,255,.09)', overflow: 'hidden' },
+  header: { display: 'flex', alignItems: 'center', gap: T.space.lg, marginBottom: T.space.xl, position: 'sticky', top: 0, zIndex: 6, background: T.surface.pageBlur, backdropFilter: 'blur(10px)', padding: '8px 0' },
+  icon: { width: 36, height: 36, borderRadius: T.radius.md, border: `1px solid ${T.surface.lineStrong}`, background: T.surface.sunken, color: T.text.secondary, fontSize: T.font.headline, lineHeight: 1 },
+  title: { fontFamily: '"Space Grotesk",monospace', fontSize: T.font.subhead, fontWeight: T.weight.heavy, color: T.text.primary, letterSpacing: 2 },
+  sub: { fontSize: T.font.caption, color: T.text.muted },
+  dim: { color: T.text.muted, fontSize: T.font.small, padding: '10px 0' },
+  err: { padding: '9px 12px', borderRadius: T.radius.md, background: T.color.dangerSoft, color: T.color.danger, fontSize: T.font.body, marginBottom: T.space.lg },
+  gauge: { flex: 1, padding: '8px 10px', borderRadius: T.radius.md, background: T.surface.sunken, border: hairline },
+  track: { height: 6, borderRadius: 4, background: T.surface.line, overflow: 'hidden' },
   fill: { height: '100%', borderRadius: 4, transition: 'width .3s' },
-  chip: { padding: '7px 12px', borderRadius: 20, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.04)', color: '#c9d3e6', fontSize: 12.5, whiteSpace: 'nowrap' },
-  chipOn: { background: 'rgba(255,255,255,.1)', color: '#fff' },
+  chip: { padding: '7px 12px', borderRadius: T.radius.xl, border: `1px solid ${T.surface.lineStrong}`, background: T.surface.sunken, color: T.text.secondary, fontSize: T.font.small, whiteSpace: 'nowrap' },
+  chipOn: { background: T.surface.raised, color: T.text.primary },
   stage: { position: 'relative', height: 264, display: 'flex', alignItems: 'center', justifyContent: 'center' },
   ring: { position: 'absolute', borderRadius: '50%', border: '1px solid', pointerEvents: 'none' },
   burstWrap: { position: 'absolute', left: '50%', top: '50%', width: 0, height: 0, pointerEvents: 'none' },
   spark: { position: 'absolute', width: 6, height: 6, borderRadius: '50%' },
   floatWrap: { position: 'absolute', inset: 0, pointerEvents: 'none' },
-  float: { position: 'absolute', top: '38%', fontFamily: '"Space Grotesk",monospace', fontWeight: 700, fontSize: 13, textShadow: '0 2px 10px rgba(0,0,0,.8)', whiteSpace: 'nowrap' },
-  evolveBtn: { width: '100%', marginTop: 12, padding: '14px', borderRadius: 16, border: 'none', color: '#fff', fontWeight: 800, fontSize: 15 },
-  evolveNeed: { marginTop: 12, padding: '11px 13px', borderRadius: 14, background: 'rgba(255,212,90,.08)', border: '1px solid rgba(255,212,90,.24)', color: '#e8edf7', fontSize: 13, textAlign: 'center' },
-  resStrip: { display: 'flex', gap: 7, overflowX: 'auto', marginTop: 12, paddingBottom: 4, WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y', scrollbarWidth: 'none' },
-  resPill: { display: 'flex', alignItems: 'center', gap: 5, padding: '5px 9px 5px 5px', borderRadius: 12, background: 'rgba(255,255,255,.045)', border: '1px solid rgba(255,255,255,.08)', color: '#e8edf7', flexShrink: 0 },
-  socialBtn: { display: 'flex', alignItems: 'center', gap: 12, width: '100%', marginTop: 12, padding: '10px 13px', borderRadius: 16, border: '1px solid rgba(255,107,138,.35)', background: 'rgba(255,107,138,.07)' },
-  mergeRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '11px 12px', borderRadius: 16, background: 'rgba(255,255,255,.035)', border: '1px solid rgba(255,255,255,.08)', marginTop: 8 },
-  mergeBtn: { padding: '6px 11px', borderRadius: 10, border: '1px solid rgba(77,212,196,.4)', background: 'rgba(77,212,196,.12)', color: '#7ff0e0', fontWeight: 700, fontSize: 12.5 },
-  countBadge: { position: 'absolute', right: -4, bottom: -4, minWidth: 20, padding: '1px 5px', borderRadius: 10, background: '#12172a', border: '1px solid rgba(255,255,255,.18)', color: '#e8edf7', fontSize: 11, fontWeight: 700, textAlign: 'center' },
-  chestRow: { display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '10px 13px', borderRadius: 16, border: '1px solid', background: 'rgba(255,255,255,.035)', marginTop: 8 },
-  boostNote: { padding: '10px 12px', borderRadius: 14, background: 'rgba(255,212,90,.1)', border: '1px solid rgba(255,212,90,.3)', color: '#ffe9a8', fontSize: 12.5, lineHeight: 1.5, marginBottom: 6 },
-  upRow: { display: 'flex', alignItems: 'flex-start', gap: 11, padding: '12px', borderRadius: 16, background: 'rgba(255,255,255,.035)', border: '1px solid rgba(255,255,255,.08)', marginTop: 8 },
-  buyBtn: { minWidth: 46, padding: '9px 0', borderRadius: 12, border: '1px solid rgba(163,113,247,.45)', background: 'rgba(163,113,247,.16)', color: '#d9c2ff', fontWeight: 800, fontSize: 13 },
-  boardRow: { display: 'flex', alignItems: 'center', gap: 9, width: '100%', padding: '8px 10px', borderRadius: 14, border: '1px solid', background: 'rgba(255,255,255,.03)', marginBottom: 6 },
-  avatar: { width: 32, height: 32, borderRadius: '50%', background: 'rgba(143,179,255,.16)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#c9d3e6', fontWeight: 700, flexShrink: 0, overflow: 'hidden', fontSize: 14 },
-  coinBar: { display: 'flex', alignItems: 'center', gap: 9, padding: '11px 13px', borderRadius: 16, background: 'rgba(255,212,90,.08)', border: '1px solid rgba(255,212,90,.3)' },
-  buyCoinBtn: { padding: '9px 15px', borderRadius: 12, border: '1px solid rgba(255,212,90,.5)', background: 'rgba(255,212,90,.16)', color: '#ffe9a8', fontWeight: 800, fontSize: 13 },
-  energyIcon: { width: 58, height: 58, borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(92,225,160,.1)', border: '1px solid rgba(92,225,160,.3)', flexShrink: 0 },
-  openWrap: { position: 'fixed', inset: 0, zIndex: 80, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(4,6,12,.92)', backdropFilter: 'blur(6px)', padding: 20 },
+  float: { position: 'absolute', top: '38%', fontFamily: '"Space Grotesk",monospace', fontWeight: T.weight.bold, fontSize: T.font.body, textShadow: '0 2px 10px rgba(0,0,0,.8)', whiteSpace: 'nowrap' },
+  evolveBtn: { width: '100%', marginTop: T.space.xl, padding: '14px', borderRadius: T.radius.lg, border: 'none', color: T.text.onAccent, fontWeight: T.weight.heavy, fontSize: T.font.subhead },
+  evolveNeed: { marginTop: T.space.xl, padding: '11px 13px', borderRadius: T.radius.md, background: T.color.goldSoft, border: `1px solid ${T.color.goldSoft}`, color: T.text.secondary, fontSize: T.font.body, textAlign: 'center' },
+  resStrip: { display: 'flex', gap: 7, overflowX: 'auto', marginTop: T.space.xl, paddingBottom: 4, WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y', scrollbarWidth: 'none' },
+  resPill: { display: 'flex', alignItems: 'center', gap: 5, padding: '5px 9px 5px 5px', borderRadius: T.radius.md, background: T.surface.sunken, border: hairline, color: T.text.secondary, flexShrink: 0 },
+  socialBtn: { display: 'flex', alignItems: 'center', gap: T.space.xl, width: '100%', marginTop: T.space.xl, padding: '10px 13px', borderRadius: T.radius.lg, border: `1px solid ${T.color.dangerSoft}`, background: T.color.dangerSoft },
+  mergeRow: { display: 'flex', alignItems: 'center', gap: T.space.lg, padding: '11px 12px', borderRadius: T.radius.lg, background: T.surface.card, border: hairline, marginTop: T.space.md },
+  mergeBtn: { padding: '6px 11px', borderRadius: T.radius.sm, border: `1px solid ${T.color.accent2Soft}`, background: T.color.accent2Soft, color: T.color.accent2, fontWeight: T.weight.bold, fontSize: T.font.small },
+  countBadge: { position: 'absolute', right: -4, bottom: -4, minWidth: 20, padding: '1px 5px', borderRadius: T.radius.sm, background: T.surface.raised, border: `1px solid ${T.surface.lineStrong}`, color: T.text.secondary, fontSize: T.font.caption, fontWeight: T.weight.bold, textAlign: 'center' },
+  chestRow: { display: 'flex', alignItems: 'center', gap: T.space.xl, width: '100%', padding: '10px 13px', borderRadius: T.radius.lg, border: '1px solid', background: T.surface.card, marginTop: T.space.md },
+  boostNote: { padding: '10px 12px', borderRadius: T.radius.md, background: T.color.goldSoft, border: `1px solid ${T.color.goldSoft}`, color: T.color.gold, fontSize: T.font.small, lineHeight: 1.5, marginBottom: T.space.sm },
+  upRow: { display: 'flex', alignItems: 'flex-start', gap: 11, padding: '12px', borderRadius: T.radius.lg, background: T.surface.card, border: hairline, marginTop: T.space.md },
+  buyBtn: { minWidth: 46, padding: '9px 0', borderRadius: T.radius.md, border: `1px solid ${T.color.accentSoft}`, background: T.color.accentSoft, color: T.color.accent, fontWeight: T.weight.heavy, fontSize: T.font.body },
+  boardRow: { display: 'flex', alignItems: 'center', gap: 9, width: '100%', padding: '8px 10px', borderRadius: T.radius.md, border: '1px solid', background: T.surface.card, marginBottom: T.space.sm },
+  avatar: { width: 32, height: 32, borderRadius: '50%', background: T.color.accentSoft, display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.text.secondary, fontWeight: T.weight.bold, flexShrink: 0, overflow: 'hidden', fontSize: 14 },
+  coinBar: { display: 'flex', alignItems: 'center', gap: 9, padding: '11px 13px', borderRadius: T.radius.lg, background: T.color.goldSoft, border: `1px solid ${T.color.goldSoft}` },
+  buyCoinBtn: { padding: '9px 15px', borderRadius: T.radius.md, border: `1px solid ${T.color.gold}`, background: T.color.goldSoft, color: T.color.gold, fontWeight: T.weight.heavy, fontSize: T.font.body },
+  energyIcon: { width: 58, height: 58, borderRadius: T.radius.md, display: 'flex', alignItems: 'center', justifyContent: 'center', background: T.color.successSoft, border: `1px solid ${T.color.successSoft}`, flexShrink: 0 },
+  openWrap: { position: 'fixed', inset: 0, zIndex: 80, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: overlay.scrimHeavy, backdropFilter: 'blur(6px)', padding: 20 },
   beam: { position: 'absolute', top: '18%', width: 130, height: '34%', filter: 'blur(22px)', pointerEvents: 'none' },
-  rewardPanel: { marginTop: 22, width: 'min(460px,94vw)', padding: 16, borderRadius: 20, background: 'rgba(12,16,30,.9)', border: '1px solid rgba(255,255,255,.12)' },
-  rewardItem: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, width: 74, color: '#e8edf7' },
-  boostBadge: { padding: '7px 10px', borderRadius: 12, background: 'rgba(255,212,90,.14)', border: '1px solid rgba(255,212,90,.4)', color: '#ffe9a8', fontSize: 12, textAlign: 'center', marginBottom: 12 },
-  evolveWrap: { position: 'fixed', inset: 0, zIndex: 82, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(4,6,12,.9)', pointerEvents: 'none' },
+  rewardPanel: { marginTop: 22, width: 'min(460px,94vw)', padding: T.space['2xl'], borderRadius: T.radius.xl, background: T.surface.raised, border: `1px solid ${T.surface.lineStrong}`, boxShadow: T.shadow.raised },
+  rewardItem: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, width: 74, color: T.text.secondary },
+  boostBadge: { padding: '7px 10px', borderRadius: T.radius.md, background: T.color.goldSoft, border: `1px solid ${T.color.gold}`, color: T.color.gold, fontSize: T.font.small, textAlign: 'center', marginBottom: T.space.xl },
+  evolveWrap: { position: 'fixed', inset: 0, zIndex: 82, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: overlay.scrimHeavy, pointerEvents: 'none' },
 };
 
 export default MergeEvolution;

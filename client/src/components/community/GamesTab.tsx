@@ -50,6 +50,7 @@ import type { JokerMatchListItem } from '@/types/joker';
 import type { LudoMatchListItem } from '@/types/ludo';
 import type { WWWListItem } from '@/types/www';
 import type { UnoListItem } from '@/types/uno';
+import { T } from '@/design/tokens';
 
 const RED_XM = '#ff3b47'; // სხვა მაფია accent
 
@@ -362,7 +363,61 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   defs.push({ id: 'watchparty', title: 'კინო სივრცე', sub: 'ერთად უყურეთ ვიდეოს · სინქრონში + ხმა', cat: 'worlds', kind: 'launch', accent: '#ff5d5d', emoji: '🎬', badge: true, keywords: 'watch party კინო ფილმი youtube ვიდეო together სინქრონი co-watch cinema', launch: () => setWatchPartyOpen(true) });
 
   const byId = (id: string) => defs.find(d => d.id === id);
-  const FEATURED = ['watchparty', 'voidiq', 'logic', 'mergeevo', ...(onOpenPremium ? ['premium'] : []), 'maxpuzzle'];
+  // Order here is the order on screen. Adding a game to the hub's flagship strip
+  // is one entry — the card and the "remove from its category" behaviour both
+  // follow from it.
+  const FEATURED_CARDS: FeaturedDef[] = [
+    {
+      id: 'watchparty', title: 'კინო სივრცე', sub: 'ერთად უყურეთ ვიდეოს · სინქრონში + ხმა',
+      art: <span style={{ fontSize: 44, filter: 'drop-shadow(0 4px 14px rgba(255,93,93,0.5))' }}>🎬</span>,
+      titleGrad: 'linear-gradient(90deg,#ffe3e3,#ff5d5d)', tracking: '0.1em',
+      bg: 'linear-gradient(135deg, #3a0f14 0%, #24101c 55%, #120a10 100%)',
+      edge: 'rgba(255,93,93,0.45)', glow: 'rgba(255,60,70,0.18)',
+      badgeBg: 'rgba(255,60,70,0.9)', badgeFg: '#fff',
+    },
+    {
+      id: 'voidiq', title: 'VOID IQ', sub: 'გაზომე შენი გონება · ლიდერბორდი',
+      art: <IQLogo size={58} />,
+      titleGrad: 'linear-gradient(90deg,#eaffff,#4fb8ff)', tracking: '0.12em',
+      bg: 'linear-gradient(135deg, #0a2a4a 0%, #1a1a4a 55%, #2a1a5a 100%)',
+      edge: 'rgba(79,184,255,0.45)', glow: 'rgba(0,150,255,0.18)',
+      badgeBg: 'rgba(0,150,255,0.9)', badgeFg: '#fff',
+    },
+    {
+      id: 'logic', title: 'ლოგიკის აკადემია', sub: 'სილოგიზმები · Logic Rating',
+      art: <LogicLogo size={58} label={false} />,
+      titleGrad: 'linear-gradient(90deg,#fff4c2,#F9C81C)',
+      bg: 'linear-gradient(135deg, #3a2f08 0%, #241a2e 55%, #12101c 100%)',
+      edge: 'rgba(249,200,28,0.45)', glow: 'rgba(249,200,28,0.16)',
+      badgeBg: 'rgba(249,200,28,0.92)', badgeFg: '#1a1206',
+    },
+    {
+      id: 'mergeevo', title: 'MERGE EVOLUTION', sub: 'გაზარდე ციფრული ორგანიზმი · ყუთები',
+      art: <EvolutionCore stage={3} hue={188} size={64} />,
+      titleGrad: 'linear-gradient(90deg,#d8fffa,#4dd4c4)', tracking: '0.08em',
+      bg: 'linear-gradient(135deg, #082b32 0%, #101a34 55%, #0c1020 100%)',
+      edge: 'rgba(77,212,196,0.45)', glow: 'rgba(77,212,196,0.16)',
+      badgeBg: 'rgba(77,212,196,0.92)', badgeFg: '#04211f',
+    },
+    // Premium Worlds only exists when the host screen can open it.
+    ...(onOpenPremium ? [{
+      id: 'premium', title: 'Premium Worlds ✨', sub: `Beach Camp 3D · ${t.commB.premiumSub}`,
+      art: <span style={{ fontSize: 38, filter: 'drop-shadow(0 4px 14px rgba(255,140,60,0.6))' }}>🔥</span>,
+      titleGrad: 'linear-gradient(90deg,#ffe8d0,#ff9d4d)',
+      bg: 'linear-gradient(135deg, #1a2b4a 0%, #4a2c1a 55%, #6b3a1a 100%)',
+      edge: 'rgba(192,132,252,0.4)', glow: 'rgba(124,58,237,0.18)',
+      badgeBg: 'rgba(124,58,237,0.9)', badgeFg: '#fff',
+    } as FeaturedDef] : []),
+    {
+      id: 'maxpuzzle', title: 'ბატონი მაქსის თავსატეხი', sub: 'კითხვები სწორი პასუხების გარეშე',
+      art: <MaxSeal size={52} />,
+      titleGrad: 'linear-gradient(90deg,#f7ecd0,#d9b45a)',
+      bg: 'linear-gradient(135deg, #2a1f4a 0%, #1c1230 55%, #2e2410 100%)',
+      edge: 'rgba(217,180,90,0.45)', glow: 'rgba(217,180,90,0.14)',
+      badgeBg: 'rgba(217,180,90,0.92)', badgeFg: '#1a1206',
+    },
+  ];
+  const FEATURED = FEATURED_CARDS.map(c => c.id);
 
   const q = query.trim().toLowerCase();
   const matchesQ = (d: GameDef) => !q || d.title.toLowerCase().includes(q) || d.keywords.toLowerCase().includes(q) || d.sub.toLowerCase().includes(q);
@@ -403,86 +458,9 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
       {/* Flagship banners — only in the default view */}
       {cat === 'all' && !q && (
         <>
-          <button onClick={() => openGame(byId('watchparty')!)} className="w-full text-left rounded-2xl overflow-hidden transition-all active:scale-[0.99]"
-            style={{ border: '1px solid rgba(255,93,93,0.45)', boxShadow: '0 6px 34px rgba(255,60,70,0.18)' }}>
-            <div style={{ minHeight: 92, background: 'linear-gradient(135deg, #3a0f14 0%, #24101c 55%, #120a10 100%)', display: 'flex', alignItems: 'center', gap: 14, padding: '13px 18px', position: 'relative' }}>
-              <span style={{ fontSize: 44, filter: 'drop-shadow(0 4px 14px rgba(255,93,93,0.5))' }} className="flex-shrink-0">🎬</span>
-              <div className="flex-1 min-w-0">
-                <p className="font-display font-black text-white text-base leading-tight tracking-[0.1em]" style={{ background: 'linear-gradient(90deg,#ffe3e3,#ff5d5d)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>კინო სივრცე</p>
-                <p className="font-mono text-[12px] text-white/55 mt-0.5">ერთად უყურეთ ვიდეოს · სინქრონში + ხმა</p>
-              </div>
-              <span style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 1, color: '#fff', background: 'rgba(255,60,70,0.9)', borderRadius: 8, padding: '3px 8px' }}>NEW</span>
-            </div>
-          </button>
-
-          <button onClick={() => openGame(byId('voidiq')!)} className="w-full text-left rounded-2xl overflow-hidden transition-all active:scale-[0.99]"
-            style={{ border: '1px solid rgba(79,184,255,0.45)', boxShadow: '0 6px 34px rgba(0,150,255,0.18)' }}>
-            <div style={{ minHeight: 92, background: 'linear-gradient(135deg, #0a2a4a 0%, #1a1a4a 55%, #2a1a5a 100%)', display: 'flex', alignItems: 'center', gap: 14, padding: '13px 18px', position: 'relative' }}>
-              <IQLogo size={58} className="flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="font-display font-black text-white text-base leading-tight tracking-[0.12em]" style={{ background: 'linear-gradient(90deg,#eaffff,#4fb8ff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>VOID IQ</p>
-                <p className="font-mono text-[12px] text-white/55 mt-0.5">გაზომე შენი გონება · ლიდერბორდი</p>
-              </div>
-              <span style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 1, color: '#fff', background: 'rgba(0,150,255,0.9)', borderRadius: 8, padding: '3px 8px' }}>NEW</span>
-            </div>
-          </button>
-
-          {/* NOTE: this block is hand-written, one card per entry. Adding an id to
-              FEATURED only REMOVES it from its category section — the card has to
-              be written here too, or it disappears entirely. */}
-          <button onClick={() => openGame(byId('logic')!)} className="w-full text-left rounded-2xl overflow-hidden transition-all active:scale-[0.99]"
-            style={{ border: '1px solid rgba(249,200,28,0.45)', boxShadow: '0 6px 34px rgba(249,200,28,0.16)' }}>
-            <div style={{ minHeight: 92, background: 'linear-gradient(135deg, #3a2f08 0%, #241a2e 55%, #12101c 100%)', display: 'flex', alignItems: 'center', gap: 14, padding: '13px 18px', position: 'relative' }}>
-              <LogicLogo size={58} label={false} className="flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                {/* no letter-spacing here: Georgian is already wide and the extra
-                    tracking pushed this title onto a second wrapped line */}
-                <p className="font-display font-black text-white text-base leading-tight" style={{ background: 'linear-gradient(90deg,#fff4c2,#F9C81C)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>ლოგიკის აკადემია</p>
-                <p className="font-mono text-[12px] text-white/55 mt-0.5">სილოგიზმები · Logic Rating</p>
-              </div>
-              <span style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 1, color: '#1a1206', background: 'rgba(249,200,28,0.92)', borderRadius: 8, padding: '3px 8px' }}>NEW</span>
-            </div>
-          </button>
-
-          <button onClick={() => openGame(byId('mergeevo')!)} className="w-full text-left rounded-2xl overflow-hidden transition-all active:scale-[0.99]"
-            style={{ border: '1px solid rgba(77,212,196,0.45)', boxShadow: '0 6px 34px rgba(77,212,196,0.16)' }}>
-            <div style={{ minHeight: 92, background: 'linear-gradient(135deg, #082b32 0%, #101a34 55%, #0c1020 100%)', display: 'flex', alignItems: 'center', gap: 14, padding: '13px 18px', position: 'relative' }}>
-              <div style={{ width: 58, height: 58, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <EvolutionCore stage={3} hue={188} size={64} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-display font-black text-white text-base leading-tight tracking-[0.08em]" style={{ background: 'linear-gradient(90deg,#d8fffa,#4dd4c4)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>MERGE EVOLUTION</p>
-                <p className="font-mono text-[12px] text-white/55 mt-0.5">გაზარდე ციფრული ორგანიზმი · ყუთები</p>
-              </div>
-              <span style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 1, color: '#04211f', background: 'rgba(77,212,196,0.92)', borderRadius: 8, padding: '3px 8px' }}>NEW</span>
-            </div>
-          </button>
-
-          {onOpenPremium && (
-            <button onClick={() => openGame(byId('premium')!)} className="w-full text-left rounded-2xl overflow-hidden transition-all active:scale-[0.99]"
-              style={{ border: '1px solid rgba(192,132,252,0.4)', boxShadow: '0 6px 30px rgba(124,58,237,0.18)' }}>
-              <div style={{ minHeight: 84, background: 'linear-gradient(135deg, #1a2b4a 0%, #4a2c1a 55%, #6b3a1a 100%)', display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', position: 'relative' }}>
-                <span style={{ fontSize: 38, filter: 'drop-shadow(0 4px 14px rgba(255,140,60,0.6))' }}>🔥</span>
-                <div className="flex-1 min-w-0">
-                  <p className="font-display font-bold text-white text-sm leading-tight">Premium Worlds ✨</p>
-                  <p className="font-mono text-[12px] text-white/60">Beach Camp 3D · {t.commB.premiumSub}</p>
-                </div>
-                <span style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 1, color: '#fff', background: 'rgba(124,58,237,0.9)', borderRadius: 8, padding: '3px 8px' }}>NEW</span>
-              </div>
-            </button>
-          )}
-
-          <button onClick={() => openGame(byId('maxpuzzle')!)} className="w-full text-left rounded-2xl overflow-hidden transition-all active:scale-[0.99]"
-            style={{ border: '1px solid rgba(217,180,90,0.45)', boxShadow: '0 6px 30px rgba(217,180,90,0.14)' }}>
-            <div style={{ minHeight: 84, background: 'linear-gradient(135deg, #2a1f4a 0%, #1c1230 55%, #2e2410 100%)', display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', position: 'relative' }}>
-              <MaxSeal size={52} className="flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="font-display font-bold text-sm leading-tight" style={{ background: 'linear-gradient(90deg,#f7ecd0,#d9b45a)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>ბატონი მაქსის თავსატეხი</p>
-                <p className="font-mono text-[12px] text-white/55 mt-0.5">კითხვები სწორი პასუხების გარეშე</p>
-              </div>
-              <span style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 1, color: '#1a1206', background: 'rgba(217,180,90,0.92)', borderRadius: 8, padding: '3px 8px' }}>NEW</span>
-            </div>
-          </button>
+          {FEATURED_CARDS.map(def => (
+            <FeaturedCard key={def.id} def={def} onClick={() => openGame(byId(def.id)!)} />
+          ))}
 
         </>
       )}
@@ -728,6 +706,70 @@ function TujituriLauncher({ cfg, onClose, onRecord }: { cfg: LauncherCfg; onClos
       </div>
     </motion.div>,
     document.body,
+  );
+}
+
+/**
+ * A flagship banner in the Games hub.
+ *
+ * Extracted because the five of these were hand-written copies that had drifted
+ * apart — minHeight 92 vs 84, gap 14 vs 12, padding 13/18 vs 12/16, glow 34 vs
+ * 30px — which is precisely what makes a hub read as assembled rather than
+ * designed. More importantly, the old arrangement had a trap: `FEATURED` only
+ * REMOVES an id from its category section, so adding one there without also
+ * hand-writing a card here made the game disappear from the hub completely.
+ * That happened twice. Now the card list IS the FEATURED list, so the two
+ * cannot disagree.
+ *
+ * Per-game gradients stay bespoke on purpose: this is cover art, and a hub of
+ * identical cards is a worse hub. The structure around the art is what's shared.
+ */
+interface FeaturedDef {
+  id: string;
+  art: React.ReactNode;
+  title: string;
+  /** Two stops for the title's gradient text — the game's own colours. */
+  titleGrad: string;
+  sub: string;
+  /** Hero background. */
+  bg: string;
+  /** Border + outer glow, from the game's accent. */
+  edge: string;
+  glow: string;
+  /** The NEW pill. */
+  badgeBg: string;
+  badgeFg: string;
+  /** Georgian titles are already wide; extra tracking wraps them to a second
+   *  line, so it is opt-in per card rather than a default. */
+  tracking?: string;
+}
+
+function FeaturedCard({ def, onClick }: { def: FeaturedDef; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="w-full text-left rounded-2xl overflow-hidden transition-all active:scale-[0.99]"
+      style={{ border: `1px solid ${def.edge}`, boxShadow: `0 6px 34px ${def.glow}` }}>
+      {/* minHeight (never a fixed height) + vertical padding: Georgian wraps to
+          two lines on narrow phones and a fixed height clipped it at both ends. */}
+      <div style={{
+        minHeight: 92, background: def.bg, display: 'flex', alignItems: 'center',
+        gap: 14, padding: '13px 18px', position: 'relative',
+      }}>
+        <div style={{ width: 58, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          {def.art}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-display font-black text-white text-base leading-tight"
+            style={{ background: def.titleGrad, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', letterSpacing: def.tracking }}>
+            {def.title}
+          </p>
+          <p className="font-mono text-[12px] text-white/55 mt-0.5">{def.sub}</p>
+        </div>
+        <span style={{
+          fontFamily: 'monospace', fontSize: T.font.micro, letterSpacing: 1,
+          color: def.badgeFg, background: def.badgeBg, borderRadius: T.radius.sm, padding: '3px 8px',
+        }}>NEW</span>
+      </div>
+    </button>
   );
 }
 

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "node scripts/check-tokens.mjs && tsc && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "android:sync": "npx cap sync android",

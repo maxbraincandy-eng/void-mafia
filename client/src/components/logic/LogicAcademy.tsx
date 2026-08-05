@@ -9,6 +9,7 @@ import { useFullscreenOverlay } from '@/lib/overlayGuard';
 import { useSocialStore } from '@/store/socialStore';
 import { useAuthStore } from '@/store/authStore';
 import { LogicLogo } from './LogicLogo';
+import { T, hairline } from '@/design/tokens';
 
 type Level = 'beginner' | 'medium' | 'hard' | 'expert';
 type Mode = 'practice' | 'ranked' | 'daily' | 'test';
@@ -52,7 +53,7 @@ interface ExamResult { score: number; correct: number; total: number; answered: 
 interface HbSection { h: string; p: string[]; formal?: string[]; example?: string; pitfall?: string; note?: string }
 interface HbChapter { id: string; icon: string; title: string; blurb: string; sections: HbSection[] }
 
-const LV_COLOR: Record<string, string> = { beginner: '#3fb950', medium: '#4d9fff', hard: '#a371f7', expert: '#ff4d5e' };
+const LV_COLOR: Record<string, string> = { beginner: T.color.success, medium: T.color.accent, hard: T.color.accent, expert: T.color.danger };
 const LV_LABEL: Record<string, string> = { beginner: 'დამწყები', medium: 'საშუალო', hard: 'რთული', expert: 'ექსპერტი' };
 const LV_DOT: Record<string, string> = { beginner: '🟢', medium: '🔵', hard: '🟣', expert: '🔴' };
 const SCOPES: Array<{ id: Scope; label: string }> = [
@@ -65,13 +66,13 @@ const fmtMs = (ms: number) => ms >= 1000 ? `${(ms / 1000).toFixed(1)}წმ` : `
 
 /** Rating band — what the number actually means, in words. */
 function band(r: number): { name: string; color: string } {
-  if (r >= 2200) return { name: 'ლოგიკის ლეგენდა', color: '#ffd45a' };
-  if (r >= 2000) return { name: 'ექსპერტი', color: '#ff4d5e' };
-  if (r >= 1800) return { name: 'ანალიტიკოსი', color: '#a371f7' };
-  if (r >= 1600) return { name: 'სტრატეგი', color: '#7c9cff' };
-  if (r >= 1400) return { name: 'ფორმალური მოაზროვნე', color: '#4d9fff' };
-  if (r >= 1200) return { name: 'მოსწავლე', color: '#3fb950' };
-  return { name: 'დამწყები', color: '#8b93a7' };
+  if (r >= 2200) return { name: 'ლოგიკის ლეგენდა', color: T.color.gold };
+  if (r >= 2000) return { name: 'ექსპერტი', color: T.color.danger };
+  if (r >= 1800) return { name: 'ანალიტიკოსი', color: T.color.accent };
+  if (r >= 1600) return { name: 'სტრატეგი', color: T.color.accent };
+  if (r >= 1400) return { name: 'ფორმალური მოაზროვნე', color: T.color.accent };
+  if (r >= 1200) return { name: 'მოსწავლე', color: T.color.success };
+  return { name: 'დამწყები', color: T.text.muted };
 }
 
 export function LogicAcademy({ onClose }: { onClose: () => void }) {
@@ -275,7 +276,7 @@ export function LogicAcademy({ onClose }: { onClose: () => void }) {
           {view === 'hub' && p && (
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontFamily: '"Space Grotesk",monospace', fontSize: 22, fontWeight: 800, color: bandInfo.color }}>{p.rating}</div>
-              <div style={{ fontSize: 10, color: '#7d86a0', letterSpacing: 1 }}>LOGIC RATING</div>
+              <div style={{ fontSize: 10, color: T.text.muted, letterSpacing: 1 }}>LOGIC RATING</div>
             </div>
           )}
         </div>
@@ -290,26 +291,26 @@ export function LogicAcademy({ onClose }: { onClose: () => void }) {
                 <>
                   <RatingCard p={hub.profile} ranks={hub.ranks} band={bandInfo} />
                   <div style={S.grid}>
-                    <Tile icon="📝" title="ტესტის დაწყება" sub="შერეული, 10 კითხვა" accent="#7c9cff" onClick={() => setView('levels')} busy={busy} />
+                    <Tile icon="📝" title="ტესტის დაწყება" sub="შერეული, 10 კითხვა" accent={T.color.accent} onClick={() => setView('levels')} busy={busy} />
                     <Tile icon="🗓️" title="ყოველდღიური გამოწვევა"
                       sub={hub.daily.done ? `დასრულებულია · სერია ${hub.daily.streak}` : 'ახალი ტესტი ყოველდღე'}
-                      accent="#ffd45a" disabled={hub.daily.done} onClick={() => start('daily', 'mixed', 8)} busy={busy} />
-                    <Tile icon="🎯" title="სავარჯიშო რეჟიმი" sub="რეიტინგი არ იცვლება · ახსნა მაშინვე" accent="#3fb950" onClick={() => start('practice', 'mixed', 10)} busy={busy} />
-                    <Tile icon="⚔️" title="რეიტინგული რეჟიმი" sub="რთული კითხვები · ახსნა ბოლოს" accent="#ff4d5e" onClick={() => start('ranked', 'mixed', 10)} busy={busy} />
+                      accent={T.color.gold} disabled={hub.daily.done} onClick={() => start('daily', 'mixed', 8)} busy={busy} />
+                    <Tile icon="🎯" title="სავარჯიშო რეჟიმი" sub="რეიტინგი არ იცვლება · ახსნა მაშინვე" accent={T.color.success} onClick={() => start('practice', 'mixed', 10)} busy={busy} />
+                    <Tile icon="⚔️" title="რეიტინგული რეჟიმი" sub="რთული კითხვები · ახსნა ბოლოს" accent={T.color.danger} onClick={() => start('ranked', 'mixed', 10)} busy={busy} />
                     <Tile icon="🎓" title="გამოცდა"
                       sub={hub.exam.canSit
                         ? `${hub.exam.totalQuestions} კითხვა · ${Math.round(hub.exam.examMs / 60000)} წუთი ჯამში · 100 ქულა`
                         : `გადაბარება ${Math.ceil(hub.exam.waitMs / 86400000)} დღეში${hub.exam.best ? ` · საუკეთესო ${hub.exam.best.score}/100` : ''}`}
-                      accent="#ffd45a" disabled={!hub.exam.canSit} onClick={startExam} busy={busy} />
+                      accent={T.color.warn} disabled={!hub.exam.canSit} onClick={startExam} busy={busy} />
                     <Tile icon="📖" title="სახელმძღვანელო"
                       sub={`${hub.handbook.chapters} თავი · ${hub.handbook.sections} განყოფილება`}
-                      accent="#4dd4c4" onClick={openBook} />
-                    <Tile icon="🏆" title="ლიდერბორდი" sub="მსოფლიო · ქვეყანა · მეგობრები" accent="#a371f7" onClick={openBoard} />
-                    <Tile icon="🥇" title="გამოცდის ლიდერბორდი" sub="100-ქულიანი შეფასება" accent="#ff9f43" onClick={() => { setView('examBoard'); loadExamBoard(examScope); }} />
-                    <Tile icon="📊" title="ჩემი სტატისტიკა" sub="სიზუსტე, დრო, სერიები" accent="#4d9fff" onClick={openStats} />
+                      accent={T.color.accent2} onClick={openBook} />
+                    <Tile icon="🏆" title="ლიდერბორდი" sub="მსოფლიო · ქვეყანა · მეგობრები" accent={T.color.accent} onClick={openBoard} />
+                    <Tile icon="🥇" title="გამოცდის ლიდერბორდი" sub="100-ქულიანი შეფასება" accent={T.color.gold} onClick={() => { setView('examBoard'); loadExamBoard(examScope); }} />
+                    <Tile icon="📊" title="ჩემი სტატისტიკა" sub="სიზუსტე, დრო, სერიები" accent={T.color.accent2} onClick={openStats} />
                     <Tile icon="🎖️" title="მიღწევები"
                       sub={`${hub.achievements.filter(a => a.earned).length}/${hub.achievements.length} მოპოვებული`}
-                      accent="#ff9f43" onClick={() => setView('achv')} />
+                      accent={T.color.warn} onClick={() => setView('achv')} />
                   </div>
                   <div style={{ ...S.dim, marginTop: 14, textAlign: 'center' }}>
                     ბაზაში {hub.bank.total} კითხვაა · კითხვები არ მეორდება სანამ ბაზა არ ამოიწურება
@@ -328,18 +329,18 @@ export function LogicAcademy({ onClose }: { onClose: () => void }) {
                   <span style={{ fontSize: 20 }}>{LV_DOT[l.level]}</span>
                   <div style={{ flex: 1, textAlign: 'left' }}>
                     <div style={{ color: LV_COLOR[l.level], fontWeight: 700 }}>{l.label}</div>
-                    <div style={{ fontSize: 11.5, color: '#7d86a0' }}>{levelBlurb(l.level)}</div>
+                    <div style={{ fontSize: T.font.caption, color: T.text.muted }}>{levelBlurb(l.level)}</div>
                   </div>
-                  <span style={{ fontSize: 12, color: '#7d86a0', fontFamily: 'monospace' }}>{l.count}</span>
+                  <span style={{ fontSize: 12, color: T.text.muted, fontFamily: 'monospace' }}>{l.count}</span>
                 </button>
               ))}
-              <button style={{ ...S.levelRow, borderColor: '#7c9cff55' }} onClick={() => start('test', 'mixed', 12)} disabled={busy}>
+              <button style={{ ...S.levelRow, borderColor: T.color.accent }} onClick={() => start('test', 'mixed', 12)} disabled={busy}>
                 <span style={{ fontSize: 20 }}>🎲</span>
                 <div style={{ flex: 1, textAlign: 'left' }}>
-                  <div style={{ color: '#7c9cff', fontWeight: 700 }}>შერეული ტესტი</div>
-                  <div style={{ fontSize: 11.5, color: '#7d86a0' }}>თანდათან რთულდება — დამწყებიდან ექსპერტამდე</div>
+                  <div style={{ color: T.color.accent, fontWeight: 700 }}>შერეული ტესტი</div>
+                  <div style={{ fontSize: T.font.caption, color: T.text.muted }}>თანდათან რთულდება — დამწყებიდან ექსპერტამდე</div>
                 </div>
-                <span style={{ fontSize: 12, color: '#7d86a0', fontFamily: 'monospace' }}>12</span>
+                <span style={{ fontSize: 12, color: T.text.muted, fontFamily: 'monospace' }}>12</span>
               </button>
             </motion.div>
           )}
@@ -351,10 +352,10 @@ export function LogicAcademy({ onClose }: { onClose: () => void }) {
                 <span style={{ color: LV_COLOR[q.question.level], fontWeight: 700 }}>{LV_DOT[q.question.level]} {LV_LABEL[q.question.level]}</span>
                 <span style={{ flex: 1 }} />
                 {q.combo > 1 && <span style={S.combo}>🔥 {q.combo}x</span>}
-                <span style={{ fontFamily: 'monospace', color: left <= 5 ? '#ff4d5e' : '#7d86a0' }}>{left}წმ</span>
+                <span style={{ fontFamily: 'monospace', color: left <= 5 ? T.color.danger : T.text.muted }}>{left}წმ</span>
               </div>
               <div style={S.timerTrack}>
-                <div style={{ ...S.timerFill, width: `${(left / q.question.seconds) * 100}%`, background: left <= 5 ? '#ff4d5e' : '#7c9cff' }} />
+                <div style={{ ...S.timerFill, width: `${(left / q.question.seconds) * 100}%`, background: left <= 5 ? T.color.danger : T.color.accent }} />
               </div>
 
               <div style={S.qTitle}>{q.question.title}</div>
@@ -371,10 +372,10 @@ export function LogicAcademy({ onClose }: { onClose: () => void }) {
                       onClick={() => submit(i)} disabled={picked !== null}
                       style={{
                         ...S.option,
-                        borderColor: isRight ? '#3fb950' : isWrong ? '#ff4d5e' : isPicked ? '#7c9cff' : 'rgba(255,255,255,.11)',
+                        borderColor: isRight ? T.color.success : isWrong ? T.color.danger : isPicked ? T.color.accent : 'rgba(255,255,255,.11)',
                         background: isRight ? 'rgba(63,185,80,.14)' : isWrong ? 'rgba(255,77,94,.14)' : 'rgba(255,255,255,.035)',
                       }}>
-                      <span style={{ ...S.optLetter, background: isRight ? '#3fb950' : isWrong ? '#ff4d5e' : 'rgba(255,255,255,.08)' }}>
+                      <span style={{ ...S.optLetter, background: isRight ? T.color.success : isWrong ? T.color.danger : T.surface.line }}>
                         {isRight ? '✓' : isWrong ? '✕' : 'ABCD'[i]}
                       </span>
                       <span style={{ flex: 1, textAlign: 'left' }}>{o}</span>
@@ -388,9 +389,9 @@ export function LogicAcademy({ onClose }: { onClose: () => void }) {
                 {fb && fb.explain && (
                   <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0 }}
                     style={{ ...S.explain, borderColor: fb.correct ? 'rgba(63,185,80,.4)' : 'rgba(255,77,94,.4)' }}>
-                    <div style={{ fontWeight: 800, color: fb.correct ? '#3fb950' : '#ff4d5e', marginBottom: 4 }}>
+                    <div style={{ fontWeight: 800, color: fb.correct ? T.color.success : T.color.danger, marginBottom: 4 }}>
                       {fb.correct ? `სწორია  +${fb.gained}` : 'არასწორია'}
-                      {fb.ratingDelta !== 0 && <span style={{ marginLeft: 8, fontSize: 12, color: fb.ratingDelta > 0 ? '#3fb950' : '#ff4d5e' }}>{fb.ratingDelta > 0 ? '+' : ''}{fb.ratingDelta} რეიტინგი</span>}
+                      {fb.ratingDelta !== 0 && <span style={{ marginLeft: 8, fontSize: 12, color: fb.ratingDelta > 0 ? T.color.success : T.color.danger }}>{fb.ratingDelta > 0 ? '+' : ''}{fb.ratingDelta} რეიტინგი</span>}
                     </div>
                     <div style={S.ruleChip}>წესი: {fb.rule}</div>
                     <div style={{ marginTop: 6, lineHeight: 1.55, whiteSpace: 'pre-line' }}>{fb.why}</div>
@@ -419,8 +420,8 @@ export function LogicAcademy({ onClose }: { onClose: () => void }) {
           {view === 'result' && result && (
             <motion.div key="res" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} style={{ paddingBottom: 30 }}>
               <div style={S.resultCard}>
-                <div style={{ fontSize: 13, color: '#7d86a0', letterSpacing: 2 }}>შედეგი</div>
-                <div style={{ fontSize: 46, fontWeight: 900, color: '#fff', lineHeight: 1.1 }}>{result.correct}/{result.total}</div>
+                <div style={{ fontSize: 13, color: T.text.muted, letterSpacing: 2 }}>შედეგი</div>
+                <div style={{ fontSize: 46, fontWeight: 900, color: T.text.primary, lineHeight: 1.1 }}>{result.correct}/{result.total}</div>
                 <div style={{ display: 'flex', gap: 14, justifyContent: 'center', marginTop: 10, flexWrap: 'wrap' }}>
                   <Stat label="ქულა" value={String(result.score)} />
                   <Stat label="სიზუსტე" value={`${result.accuracy}%`} />
@@ -429,23 +430,23 @@ export function LogicAcademy({ onClose }: { onClose: () => void }) {
                 </div>
                 {result.ratingDelta !== 0 && (
                   <div style={{ marginTop: 14, fontSize: 15 }}>
-                    <span style={{ color: '#7d86a0' }}>რეიტინგი </span>
-                    <b style={{ color: '#fff' }}>{result.ratingBefore}</b>
-                    <span style={{ color: '#7d86a0' }}> → </span>
-                    <b style={{ color: result.ratingDelta > 0 ? '#3fb950' : '#ff4d5e' }}>{result.ratingAfter}</b>
-                    <span style={{ color: result.ratingDelta > 0 ? '#3fb950' : '#ff4d5e', marginLeft: 6 }}>
+                    <span style={{ color: T.text.muted }}>რეიტინგი </span>
+                    <b style={{ color: T.text.primary }}>{result.ratingBefore}</b>
+                    <span style={{ color: T.text.muted }}> → </span>
+                    <b style={{ color: result.ratingDelta > 0 ? T.color.success : T.color.danger }}>{result.ratingAfter}</b>
+                    <span style={{ color: result.ratingDelta > 0 ? T.color.success : T.color.danger, marginLeft: 6 }}>
                       ({result.ratingDelta > 0 ? '+' : ''}{result.ratingDelta})
                     </span>
                   </div>
                 )}
-                <div style={{ marginTop: 8, fontSize: 13, color: '#7d86a0' }}>
+                <div style={{ marginTop: 8, fontSize: 13, color: T.text.muted }}>
                   +{result.xp} XP{result.coins > 0 ? ` · +${result.coins} 🪙` : ''}
                 </div>
               </div>
 
               {result.achievements.length > 0 && hub && (
                 <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} style={S.achvPop}>
-                  <div style={{ fontWeight: 800, color: '#ffd45a', marginBottom: 6 }}>🎖️ ახალი მიღწევა!</div>
+                  <div style={{ fontWeight: 800, color: T.color.gold, marginBottom: 6 }}>🎖️ ახალი მიღწევა!</div>
                   {result.achievements.map(code => {
                     const a = hub.achievements.find(x => x.code === code);
                     return <div key={code} style={{ fontSize: 14 }}>{a?.icon} {a?.name}</div>;
@@ -472,23 +473,23 @@ export function LogicAcademy({ onClose }: { onClose: () => void }) {
                 board.map(r => (
                   <button key={r.userId} onClick={() => openProfile(r.userId)}
                     style={{ ...S.boardRow, width: '100%', textAlign: 'left', cursor: 'pointer',
-                      borderColor: r.userId === myId ? '#7c9cff66' : r.rank <= 3 ? '#ffd45a44' : 'rgba(255,255,255,.07)',
+                      borderColor: r.userId === myId ? T.color.accent : r.rank <= 3 ? T.color.gold : T.surface.line,
                       background: r.userId === myId ? 'rgba(124,156,255,.1)' : 'rgba(255,255,255,.03)' }}>
-                    <span style={{ width: 30, fontWeight: 800, color: r.rank === 1 ? '#ffd45a' : r.rank <= 3 ? '#c9d3e6' : '#7d86a0' }}>
+                    <span style={{ width: 30, fontWeight: 800, color: r.rank === 1 ? T.color.gold : r.rank <= 3 ? T.text.secondary : T.text.muted }}>
                       {r.rank <= 3 ? ['🥇', '🥈', '🥉'][r.rank - 1] : r.rank}
                     </span>
                     <Avatar row={r} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 14, color: '#e8edf7', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div style={{ fontSize: 14, color: T.text.secondary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {r.username}{r.userId === myId ? ' ●' : ''}
                       </div>
-                      <div style={{ fontSize: 11, color: '#7d86a0' }}>{r.accuracy}% სიზუსტე · {r.tests} ტესტი</div>
+                      <div style={{ fontSize: 11, color: T.text.muted }}>{r.accuracy}% სიზუსტე · {r.tests} ტესტი</div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ fontWeight: 800, color: band(r.rating).color, fontFamily: '"Space Grotesk",monospace' }}>
                         {r.score !== undefined ? r.score : r.rating}
                       </div>
-                      <div style={{ fontSize: 9.5, color: '#7d86a0', letterSpacing: 1 }}>{r.score !== undefined ? 'ქულა' : 'RATING'}</div>
+                      <div style={{ fontSize: T.font.micro, color: T.text.muted, letterSpacing: 1 }}>{r.score !== undefined ? 'ქულა' : 'RATING'}</div>
                     </div>
                   </button>
                 ))
@@ -517,8 +518,8 @@ export function LogicAcademy({ onClose }: { onClose: () => void }) {
                   <div style={S.sectionTitle}>კატეგორიები</div>
                   {stats.categories.length === 0 ? <div style={S.dim}>ჯერ არაფერი გიცდია</div> : stats.categories.map((c: any) => (
                     <div key={c.cat} style={{ marginBottom: 8 }}>
-                      <div style={{ display: 'flex', fontSize: 12.5, color: '#c9d3e6' }}>
-                        <span style={{ flex: 1 }}>{c.label}</span><span style={{ color: '#7d86a0' }}>{c.seen}</span>
+                      <div style={{ display: 'flex', fontSize: T.font.small, color: T.text.secondary }}>
+                        <span style={{ flex: 1 }}>{c.label}</span><span style={{ color: T.text.muted }}>{c.seen}</span>
                       </div>
                       <div style={S.barTrack}><div style={{ ...S.barFill, width: `${Math.min(100, (c.seen / Math.max(1, stats.bank)) * 400)}%` }} /></div>
                     </div>
@@ -532,11 +533,11 @@ export function LogicAcademy({ onClose }: { onClose: () => void }) {
           {view === 'achv' && hub && (
             <motion.div key="ac" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ paddingBottom: 30 }}>
               {hub.achievements.map(a => (
-                <div key={a.code} style={{ ...S.achvRow, opacity: a.earned ? 1 : 0.45, borderColor: a.earned ? '#ffd45a44' : 'rgba(255,255,255,.07)' }}>
+                <div key={a.code} style={{ ...S.achvRow, opacity: a.earned ? 1 : 0.45, borderColor: a.earned ? T.color.gold : T.surface.line }}>
                   <span style={{ fontSize: 26, filter: a.earned ? 'none' : 'grayscale(1)' }}>{a.icon}</span>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, color: a.earned ? '#ffd45a' : '#c9d3e6', fontSize: 14 }}>{a.name}</div>
-                    <div style={{ fontSize: 12, color: '#7d86a0' }}>{a.desc}</div>
+                    <div style={{ fontWeight: 700, color: a.earned ? T.color.gold : T.text.secondary, fontSize: 14 }}>{a.name}</div>
+                    <div style={{ fontSize: 12, color: T.text.muted }}>{a.desc}</div>
                   </div>
                   {a.earned && <span style={{ fontSize: 18 }}>✓</span>}
                 </div>
@@ -547,18 +548,18 @@ export function LogicAcademy({ onClose }: { onClose: () => void }) {
           {view === 'exam' && exam?.question && (
             <motion.div key={`ex${exam.index}`} initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}>
               <div style={S.examBar}>
-                <span style={{ color: '#ffd45a', fontWeight: 800 }}>🎓 გამოცდა</span>
+                <span style={{ color: T.color.gold, fontWeight: 800 }}>🎓 გამოცდა</span>
                 <span style={{ flex: 1 }} />
-                <span style={{ color: '#7d86a0' }}>{exam.index + 1}/{exam.total}</span>
+                <span style={{ color: T.text.muted }}>{exam.index + 1}/{exam.total}</span>
                 <span style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 800, fontSize: 16,
-                  color: examLeft <= 120 ? '#ff4d5e' : examLeft <= 300 ? '#ffb020' : '#e8edf7' }}>
+                  color: examLeft <= 120 ? T.color.danger : examLeft <= 300 ? T.color.gold : T.text.secondary }}>
                   {Math.floor(examLeft / 60)}:{String(examLeft % 60).padStart(2, '0')}
                 </span>
               </div>
               <div style={S.timerTrack}>
                 <div style={{ ...S.timerFill, transition: 'width .5s linear',
                   width: `${Math.max(0, Math.min(100, (examLeft / ((hub?.exam.examMs ?? 1800000) / 1000)) * 100))}%`,
-                  background: examLeft <= 120 ? '#ff4d5e' : '#ffd45a' }} />
+                  background: examLeft <= 120 ? T.color.danger : T.color.gold }} />
               </div>
               <div style={{ ...S.dim, textAlign: 'left', padding: '2px 0 8px' }}>
                 დრო ჯამურია — თვითონ გადაანაწილე კითხვებზე. ახსნები ბოლოს გამოჩნდება.
@@ -575,9 +576,9 @@ export function LogicAcademy({ onClose }: { onClose: () => void }) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
                 {exam.question.options.map((o, i) => (
                   <motion.button key={i} whileTap={{ scale: 0.985 }} onClick={() => answerExam(i)} disabled={examPicked !== null}
-                    style={{ ...S.option, borderColor: examPicked === i ? '#ffd45a' : 'rgba(255,255,255,.11)',
+                    style={{ ...S.option, borderColor: examPicked === i ? T.color.gold : 'rgba(255,255,255,.11)',
                       background: examPicked === i ? 'rgba(255,212,90,.14)' : 'rgba(255,255,255,.035)' }}>
-                    <span style={{ ...S.optLetter, background: examPicked === i ? '#ffd45a' : 'rgba(255,255,255,.08)', color: examPicked === i ? '#1a1206' : '#fff' }}>
+                    <span style={{ ...S.optLetter, background: examPicked === i ? T.color.gold : T.surface.line, color: examPicked === i ? T.text.onGold : T.text.primary }}>
                       {'ABCD'[i]}
                     </span>
                     <span style={{ flex: 1, textAlign: 'left' }}>{o}</span>
@@ -594,20 +595,20 @@ export function LogicAcademy({ onClose }: { onClose: () => void }) {
           {view === 'examResult' && examRes && (
             <motion.div key="exr" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} style={{ paddingBottom: 30 }}>
               <div style={{ ...S.resultCard, borderColor: 'rgba(255,212,90,.35)' }}>
-                <div style={{ fontSize: 13, color: '#7d86a0', letterSpacing: 2 }}>გამოცდის შეფასება</div>
+                <div style={{ fontSize: 13, color: T.text.muted, letterSpacing: 2 }}>გამოცდის შეფასება</div>
                 <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 4 }}>
-                  <div style={{ fontSize: 56, fontWeight: 900, color: examRes.score >= 60 ? '#ffd45a' : '#ff8fa0', lineHeight: 1.1 }}>{examRes.score}</div>
-                  <div style={{ fontSize: 20, color: '#7d86a0', fontWeight: 700 }}>/100</div>
+                  <div style={{ fontSize: 56, fontWeight: 900, color: examRes.score >= 60 ? T.color.gold : T.color.danger, lineHeight: 1.1 }}>{examRes.score}</div>
+                  <div style={{ fontSize: 20, color: T.text.muted, fontWeight: 700 }}>/100</div>
                 </div>
-                <div style={{ color: examRes.score >= 60 ? '#ffe9a8' : '#ffb3c0', fontWeight: 700, fontSize: 15 }}>{examRes.grade}</div>
-                {examRes.best && <div style={{ ...S.ruleChip, marginTop: 8, background: 'rgba(255,212,90,.16)', color: '#ffd45a' }}>ახალი პირადი რეკორდი</div>}
+                <div style={{ color: examRes.score >= 60 ? T.color.gold : T.color.danger, fontWeight: 700, fontSize: 15 }}>{examRes.grade}</div>
+                {examRes.best && <div style={{ ...S.ruleChip, marginTop: 8, background: 'rgba(255,212,90,.16)', color: T.color.gold }}>ახალი პირადი რეკორდი</div>}
                 <div style={{ display: 'flex', gap: 14, justifyContent: 'center', marginTop: 12, flexWrap: 'wrap' }}>
                   <Stat label="სწორი" value={`${examRes.correct}/${examRes.total}`} />
                   <Stat label="ნაპასუხები" value={String(examRes.answered)} />
                   <Stat label="დრო" value={`${Math.floor(examRes.durationMs / 60000)} წთ`} />
                   <Stat label="ჯილდო" value={`${examRes.coins} 🪙`} />
                 </div>
-                {examRes.timedOut && <div style={{ ...S.dim, color: '#ffb020', marginTop: 8 }}>დრო ამოიწურა — დარჩენილი კითხვები არ ჩაითვალა</div>}
+                {examRes.timedOut && <div style={{ ...S.dim, color: T.color.gold, marginTop: 8 }}>დრო ამოიწურა — დარჩენილი კითხვები არ ჩაითვალა</div>}
                 <div style={{ ...S.dim, marginTop: 10 }}>
                   შემდეგი გამოცდა: {new Date(examRes.nextSittingAt).toLocaleDateString('ka-GE')}
                 </div>
@@ -618,7 +619,7 @@ export function LogicAcademy({ onClose }: { onClose: () => void }) {
                 <div key={lv} style={{ marginBottom: 8 }}>
                   <div style={{ display: 'flex', fontSize: 12.5 }}>
                     <span style={{ flex: 1, color: LV_COLOR[lv] }}>{LV_DOT[lv]} {LV_LABEL[lv]}</span>
-                    <span style={{ color: '#7d86a0' }}>{b.correct}/{b.total}</span>
+                    <span style={{ color: T.text.muted }}>{b.correct}/{b.total}</span>
                   </div>
                   <div style={S.barTrack}><div style={{ ...S.barFill, width: `${(b.correct / Math.max(1, b.total)) * 100}%`, background: LV_COLOR[lv] }} /></div>
                 </div>
@@ -642,23 +643,23 @@ export function LogicAcademy({ onClose }: { onClose: () => void }) {
                 examBoard.map(r => (
                   <button key={r.userId + r.at} onClick={() => openProfile(r.userId)}
                     style={{ ...S.boardRow, width: '100%', textAlign: 'left', cursor: 'pointer',
-                      borderColor: r.userId === myId ? '#7c9cff66' : r.rank <= 3 ? '#ffd45a44' : 'rgba(255,255,255,.07)',
+                      borderColor: r.userId === myId ? T.color.accent : r.rank <= 3 ? T.color.gold : T.surface.line,
                       background: r.userId === myId ? 'rgba(124,156,255,.1)' : 'rgba(255,255,255,.03)' }}>
-                    <span style={{ width: 30, fontWeight: 800, color: r.rank === 1 ? '#ffd45a' : r.rank <= 3 ? '#c9d3e6' : '#7d86a0' }}>
+                    <span style={{ width: 30, fontWeight: 800, color: r.rank === 1 ? T.color.gold : r.rank <= 3 ? T.text.secondary : T.text.muted }}>
                       {r.rank <= 3 ? ['🥇', '🥈', '🥉'][r.rank - 1] : r.rank}
                     </span>
                     <Avatar row={r} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 14, color: '#e8edf7', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div style={{ fontSize: 14, color: T.text.secondary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {r.username}{r.userId === myId ? ' ●' : ''}
                       </div>
-                      <div style={{ fontSize: 11, color: '#7d86a0' }}>
+                      <div style={{ fontSize: 11, color: T.text.muted }}>
                         {r.correct}/{r.total} · {Math.floor(r.durationMs / 60000)} წთ · {new Date(r.at).toLocaleDateString('ka-GE')}
                       </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontWeight: 900, fontSize: 18, color: '#ffd45a', fontFamily: '"Space Grotesk",monospace' }}>{r.score}</div>
-                      <div style={{ fontSize: 9.5, color: '#7d86a0', letterSpacing: 1 }}>/100</div>
+                      <div style={{ fontWeight: 900, fontSize: 18, color: T.color.gold, fontFamily: '"Space Grotesk",monospace' }}>{r.score}</div>
+                      <div style={{ fontSize: T.font.micro, color: T.text.muted, letterSpacing: 1 }}>/100</div>
                     </div>
                   </button>
                 ))
@@ -676,10 +677,10 @@ export function LogicAcademy({ onClose }: { onClose: () => void }) {
                 <button key={c.id} style={S.chapterRow} onClick={() => { setChapter(c); setView('chapter'); }}>
                   <span style={{ fontSize: 24 }}>{c.icon}</span>
                   <div style={{ flex: 1, textAlign: 'left' }}>
-                    <div style={{ color: '#4dd4c4', fontWeight: 700, fontSize: 14.5 }}>{c.title}</div>
-                    <div style={{ fontSize: 11.5, color: '#7d86a0', marginTop: 1 }}>{c.blurb}</div>
+                    <div style={{ color: T.color.accent2, fontWeight: 700, fontSize: 14.5 }}>{c.title}</div>
+                    <div style={{ fontSize: T.font.caption, color: T.text.muted, marginTop: 1 }}>{c.blurb}</div>
                   </div>
-                  <span style={{ fontSize: 11, color: '#7d86a0', fontFamily: 'monospace' }}>{c.sections.length}</span>
+                  <span style={{ fontSize: 11, color: T.text.muted, fontFamily: 'monospace' }}>{c.sections.length}</span>
                 </button>
               ))}
             </motion.div>
@@ -691,30 +692,30 @@ export function LogicAcademy({ onClose }: { onClose: () => void }) {
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
                 <span style={{ fontSize: 28 }}>{chapter.icon}</span>
                 <div>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: '#fff' }}>{chapter.title}</div>
-                  <div style={{ fontSize: 12, color: '#7d86a0' }}>{chapter.blurb}</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: T.text.primary }}>{chapter.title}</div>
+                  <div style={{ fontSize: 12, color: T.text.muted }}>{chapter.blurb}</div>
                 </div>
               </div>
               {chapter.sections.map((sec, i) => (
                 <div key={i} style={S.bookSection}>
-                  <div style={{ color: '#4dd4c4', fontWeight: 700, fontSize: 15, marginBottom: 6 }}>{sec.h}</div>
+                  <div style={{ color: T.color.accent2, fontWeight: 700, fontSize: 15, marginBottom: 6 }}>{sec.h}</div>
                   {sec.p.map((para, k) => (
-                    <p key={k} style={{ fontSize: 13.5, lineHeight: 1.65, color: '#d3dced', margin: '0 0 8px' }}>{para}</p>
+                    <p key={k} style={{ fontSize: T.font.body, lineHeight: 1.65, color: T.text.secondary, margin: '0 0 8px' }}>{para}</p>
                   ))}
                   {sec.formal && (
                     <pre style={S.formal}>{sec.formal.join('\n')}</pre>
                   )}
                   {sec.example && (
-                    <div style={S.bookBox}><b style={{ color: '#8de04a' }}>მაგალითი: </b>{sec.example}</div>
+                    <div style={S.bookBox}><b style={{ color: T.color.success }}>მაგალითი: </b>{sec.example}</div>
                   )}
                   {sec.pitfall && (
                     <div style={{ ...S.bookBox, background: 'rgba(255,77,94,.08)', borderColor: 'rgba(255,77,94,.28)' }}>
-                      <b style={{ color: '#ff8fa0' }}>ტიპური შეცდომა: </b>{sec.pitfall}
+                      <b style={{ color: T.color.danger }}>ტიპური შეცდომა: </b>{sec.pitfall}
                     </div>
                   )}
                   {sec.note && (
                     <div style={{ ...S.bookBox, background: 'rgba(124,156,255,.08)', borderColor: 'rgba(124,156,255,.28)' }}>
-                      <b style={{ color: '#9db4ff' }}>საინტერესო: </b>{sec.note}
+                      <b style={{ color: T.color.accent }}>საინტერესო: </b>{sec.note}
                     </div>
                   )}
                 </div>
@@ -751,13 +752,13 @@ function RatingCard({ p, ranks, band: b }: { p: Profile; ranks: Ranks; band: { n
             transition={{ duration: 0.9, ease: 'easeOut' }} />
         </svg>
         <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ fontFamily: '"Space Grotesk",monospace', fontSize: 26, fontWeight: 900, color: '#fff' }}>{p.rating}</div>
-          <div style={{ fontSize: 9, color: '#7d86a0', letterSpacing: 1 }}>RATING</div>
+          <div style={{ fontFamily: '"Space Grotesk",monospace', fontSize: 26, fontWeight: 900, color: T.text.primary }}>{p.rating}</div>
+          <div style={{ fontSize: 9, color: T.text.muted, letterSpacing: 1 }}>RATING</div>
         </div>
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ color: b.color, fontWeight: 800, fontSize: 15 }}>{b.name}</div>
-        <div style={{ fontSize: 12, color: '#7d86a0', marginTop: 2 }}>პიკი {p.peakRating}</div>
+        <div style={{ fontSize: 12, color: T.text.muted, marginTop: 2 }}>პიკი {p.peakRating}</div>
         <div style={{ display: 'flex', gap: 12, marginTop: 8, flexWrap: 'wrap' }}>
           <MiniStat icon="🌍" v={ranks.world ? `#${ranks.world}` : '—'} l="მსოფლიო" />
           <MiniStat icon="🏳️" v={ranks.country ? `#${ranks.country}` : '—'} l={ranks.countryCode ?? 'ქვეყანა'} />
@@ -795,15 +796,15 @@ function ReviewCard({ r }: { r: Result['review'][number] }) {
         <span style={{ flex: 1 }} />
         <span style={{ fontSize: 16 }}>{r.chosen === r.correctPos ? '✅' : '❌'}</span>
       </div>
-      <div style={{ fontSize: 12.5, color: '#b9c2d6', whiteSpace: 'pre-line' }}>{r.body}</div>
-      <div style={{ fontSize: 12.5, color: '#e8edf7', marginTop: 4 }}>{r.q}</div>
+      <div style={{ fontSize: T.font.small, color: T.text.muted, whiteSpace: 'pre-line' }}>{r.body}</div>
+      <div style={{ fontSize: T.font.small, color: T.text.secondary, marginTop: 4 }}>{r.q}</div>
       <div style={{ marginTop: 6, fontSize: 12.5 }}>
-        <div style={{ color: '#3fb950' }}>✓ {r.options[r.correctPos]}</div>
-        {r.chosen >= 0 && r.chosen !== r.correctPos && <div style={{ color: '#ff8fa0' }}>✕ {r.options[r.chosen]}</div>}
-        {r.chosen < 0 && <div style={{ color: '#7d86a0' }}>— უპასუხოდ</div>}
+        <div style={{ color: T.color.success }}>✓ {r.options[r.correctPos]}</div>
+        {r.chosen >= 0 && r.chosen !== r.correctPos && <div style={{ color: T.color.danger }}>✕ {r.options[r.chosen]}</div>}
+        {r.chosen < 0 && <div style={{ color: T.text.muted }}>— უპასუხოდ</div>}
       </div>
       <div style={{ ...S.ruleChip, marginTop: 8 }}>წესი: {r.rule}</div>
-      <div style={{ marginTop: 5, fontSize: 12.5, lineHeight: 1.5, color: '#c9d3e6', whiteSpace: 'pre-line' }}>{r.why}</div>
+      <div style={{ marginTop: 5, fontSize: T.font.small, lineHeight: 1.5, color: T.text.secondary, whiteSpace: 'pre-line' }}>{r.why}</div>
       {r.trap && <div style={S.trap}>{r.trap}</div>}
     </div>
   );
@@ -811,20 +812,20 @@ function ReviewCard({ r }: { r: Result['review'][number] }) {
 
 const MiniStat = ({ icon, v, l }: { icon: string; v: string; l: string }) => (
   <div style={{ textAlign: 'center' }}>
-    <div style={{ fontSize: 13, color: '#e8edf7', fontWeight: 700 }}>{icon} {v}</div>
-    <div style={{ fontSize: 9.5, color: '#7d86a0' }}>{l}</div>
+    <div style={{ fontSize: 13, color: T.text.secondary, fontWeight: 700 }}>{icon} {v}</div>
+    <div style={{ fontSize: T.font.micro, color: T.text.muted }}>{l}</div>
   </div>
 );
 const Stat = ({ label, value }: { label: string; value: string }) => (
   <div style={{ textAlign: 'center' }}>
-    <div style={{ fontSize: 18, fontWeight: 800, color: '#e8edf7' }}>{value}</div>
-    <div style={{ fontSize: 10, color: '#7d86a0' }}>{label}</div>
+    <div style={{ fontSize: 18, fontWeight: 800, color: T.text.secondary }}>{value}</div>
+    <div style={{ fontSize: 10, color: T.text.muted }}>{label}</div>
   </div>
 );
 const Big = ({ label, value }: { label: string; value: string }) => (
   <div style={S.bigStat}>
-    <div style={{ fontSize: 17, fontWeight: 800, color: '#e8edf7' }}>{value}</div>
-    <div style={{ fontSize: 10.5, color: '#7d86a0', marginTop: 2 }}>{label}</div>
+    <div style={{ fontSize: 17, fontWeight: 800, color: T.text.secondary }}>{value}</div>
+    <div style={{ fontSize: T.font.caption, color: T.text.muted, marginTop: 2 }}>{label}</div>
   </div>
 );
 function Tile({ icon, title, sub, accent, onClick, disabled, busy }: { icon: string; title: string; sub: string; accent: string; onClick: () => void; disabled?: boolean; busy?: boolean }) {
@@ -834,57 +835,65 @@ function Tile({ icon, title, sub, accent, onClick, disabled, busy }: { icon: str
       <span style={{ fontSize: 24 }}>{icon}</span>
       <div style={{ flex: 1, textAlign: 'left' }}>
         <div style={{ color: accent, fontWeight: 700, fontSize: 14 }}>{title}</div>
-        <div style={{ fontSize: 11.5, color: '#7d86a0', marginTop: 1 }}>{sub}</div>
+        <div style={{ fontSize: T.font.caption, color: T.text.muted, marginTop: 1 }}>{sub}</div>
       </div>
     </motion.button>
   );
 }
 
+// Migrated to design tokens — this screen used to carry its own periwinkle
+// palette (#7c9cff / #4d6cff→#a371f7) that matched neither the app theme nor
+// the other game screens. Roles now map onto T: accent for the academy's own
+// identity colour, gold for rewards, success/danger for verdicts.
 const S: Record<string, any> = {
-  wrap: { position: 'fixed', inset: 0, zIndex: 70, background: 'linear-gradient(160deg,#080a14 0%,#0d1024 50%,#120e22 100%)', overflowY: 'auto' },
+  wrap: { position: 'fixed', inset: 0, zIndex: 70, background: `radial-gradient(ellipse at 50% 0%, ${T.color.accentSoft} 0%, transparent 58%), ${T.surface.page}`, overflowY: 'auto' },
   inner: { maxWidth: 560, margin: '0 auto', padding: '14px 14px 40px' },
-  header: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, position: 'sticky', top: 0, background: 'rgba(8,10,20,.92)', backdropFilter: 'blur(10px)', padding: '8px 0', zIndex: 5 },
-  icon: { width: 36, height: 36, borderRadius: 12, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.05)', color: '#c9d3e6', fontSize: 22, lineHeight: 1 },
-  title: { fontFamily: '"Space Grotesk",monospace', fontSize: 16.5, fontWeight: 800, color: '#fff', letterSpacing: 0.3 },
-  sub: { fontSize: 11.5, color: '#7d86a0' },
-  dim: { color: '#7d86a0', fontSize: 13, padding: '18px 0', textAlign: 'center' },
-  err: { padding: '9px 12px', borderRadius: 12, background: 'rgba(255,77,94,.14)', color: '#ff8fa0', fontSize: 13, marginBottom: 10 },
-  grid: { display: 'flex', flexDirection: 'column', gap: 8, marginTop: 14 },
-  tile: { display: 'flex', alignItems: 'center', gap: 12, padding: '13px 14px', borderRadius: 16, border: '1px solid', background: 'rgba(255,255,255,.035)', width: '100%' },
-  ratingCard: { display: 'flex', alignItems: 'center', gap: 14, padding: 14, borderRadius: 18, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(124,156,255,.2)' },
-  sectionTitle: { fontSize: 12, letterSpacing: 2, color: '#7d86a0', margin: '18px 0 8px' },
-  levelRow: { display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '13px 14px', marginBottom: 8, borderRadius: 16, border: '1px solid', background: 'rgba(255,255,255,.035)' },
-  qMeta: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, marginBottom: 6 },
-  combo: { padding: '2px 8px', borderRadius: 20, background: 'rgba(255,159,67,.16)', color: '#ff9f43', fontWeight: 700, fontSize: 11.5 },
-  timerTrack: { height: 3, borderRadius: 2, background: 'rgba(255,255,255,.08)', overflow: 'hidden', marginBottom: 14 },
+  header: { display: 'flex', alignItems: 'center', gap: T.space.lg, marginBottom: 14, position: 'sticky', top: 0, background: T.surface.pageBlur, backdropFilter: 'blur(10px)', padding: '8px 0', zIndex: 5 },
+  icon: { width: 36, height: 36, borderRadius: T.radius.md, border: `1px solid ${T.surface.lineStrong}`, background: T.surface.sunken, color: T.text.secondary, fontSize: T.font.headline, lineHeight: 1 },
+  title: { fontFamily: '"Space Grotesk",monospace', fontSize: T.font.title, fontWeight: T.weight.heavy, color: T.text.primary, letterSpacing: 0.3 },
+  sub: { fontSize: T.font.caption, color: T.text.muted },
+  dim: { color: T.text.muted, fontSize: T.font.body, padding: '18px 0', textAlign: 'center' },
+  err: { padding: '9px 12px', borderRadius: T.radius.md, background: T.color.dangerSoft, color: T.color.danger, fontSize: T.font.body, marginBottom: T.space.lg },
+  grid: { display: 'flex', flexDirection: 'column', gap: T.space.md, marginTop: 14 },
+  tile: { display: 'flex', alignItems: 'center', gap: T.space.xl, padding: '13px 14px', borderRadius: T.radius.lg, border: '1px solid', background: T.surface.card, width: '100%' },
+  ratingCard: { display: 'flex', alignItems: 'center', gap: 14, padding: 14, borderRadius: T.radius.xl, background: T.surface.card, border: `1px solid ${T.color.accentSoft}` },
+  sectionTitle: { fontSize: T.font.small, letterSpacing: 2, color: T.text.muted, margin: '18px 0 8px' },
+  levelRow: { display: 'flex', alignItems: 'center', gap: T.space.xl, width: '100%', padding: '13px 14px', marginBottom: T.space.md, borderRadius: T.radius.lg, border: '1px solid', background: T.surface.card },
+  qMeta: { display: 'flex', alignItems: 'center', gap: T.space.md, fontSize: T.font.small, marginBottom: T.space.sm },
+  combo: { padding: '2px 8px', borderRadius: T.radius.xl, background: T.color.warnSoft, color: T.color.warn, fontWeight: T.weight.bold, fontSize: T.font.caption },
+  timerTrack: { height: 3, borderRadius: 2, background: T.surface.line, overflow: 'hidden', marginBottom: 14 },
   timerFill: { height: '100%', borderRadius: 2, transition: 'width 1s linear' },
-  qTitle: { fontSize: 13, color: '#7c9cff', fontWeight: 700, letterSpacing: 0.5 },
-  qBody: { marginTop: 6, padding: 12, borderRadius: 14, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', color: '#dbe3f2', fontSize: 14.5, lineHeight: 1.6 },
-  qAsk: { marginTop: 10, fontSize: 15, color: '#fff', fontWeight: 600 },
-  option: { display: 'flex', alignItems: 'center', gap: 10, padding: '12px 13px', borderRadius: 14, border: '1px solid', color: '#e8edf7', fontSize: 14, lineHeight: 1.45, width: '100%' },
-  optLetter: { width: 26, height: 26, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 800, color: '#fff', flexShrink: 0 },
-  explain: { marginTop: 12, padding: 13, borderRadius: 14, border: '1px solid', background: 'rgba(255,255,255,.035)', color: '#c9d3e6', fontSize: 13.5, overflow: 'hidden' },
-  ruleChip: { display: 'inline-block', padding: '3px 9px', borderRadius: 20, background: 'rgba(124,156,255,.14)', color: '#7c9cff', fontSize: 11.5, fontWeight: 700 },
-  trap: { marginTop: 8, padding: '8px 10px', borderRadius: 10, background: 'rgba(255,77,94,.1)', color: '#ffb3c0', fontSize: 12.5, lineHeight: 1.5 },
-  nextBtn: { width: '100%', marginTop: 14, padding: '13px', borderRadius: 14, border: 'none', background: 'linear-gradient(135deg,#4d6cff,#a371f7)', color: '#fff', fontWeight: 700, fontSize: 15 },
-  resultCard: { textAlign: 'center', padding: 20, borderRadius: 18, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(124,156,255,.22)' },
-  achvPop: { marginTop: 12, padding: 14, borderRadius: 16, background: 'rgba(255,212,90,.1)', border: '1px solid rgba(255,212,90,.35)', textAlign: 'center', color: '#ffe9a8' },
-  reviewCard: { padding: 12, borderRadius: 14, border: '1px solid', background: 'rgba(255,255,255,.03)', marginBottom: 8, color: '#dbe3f2' },
-  chip: { padding: '7px 12px', borderRadius: 20, border: '1px solid rgba(255,255,255,.12)', background: 'rgba(255,255,255,.04)', color: '#c9d3e6', fontSize: 12.5, whiteSpace: 'nowrap' },
-  chipOn: { background: 'rgba(124,156,255,.18)', borderColor: '#7c9cff', color: '#fff' },
-  boardRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '9px 11px', borderRadius: 14, border: '1px solid', background: 'rgba(255,255,255,.03)', marginBottom: 6 },
-  avatar: { width: 34, height: 34, borderRadius: '50%', background: 'rgba(124,156,255,.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#c9d3e6', fontWeight: 700, flexShrink: 0, overflow: 'hidden' },
-  statGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(96px,1fr))', gap: 8, marginTop: 14 },
-  bigStat: { padding: '11px 8px', borderRadius: 13, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.07)', textAlign: 'center' },
-  barTrack: { height: 5, borderRadius: 3, background: 'rgba(255,255,255,.07)', overflow: 'hidden', marginTop: 3 },
-  barFill: { height: '100%', borderRadius: 3, background: 'linear-gradient(90deg,#4d6cff,#a371f7)' },
-  examBar: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, marginBottom: 6 },
-  chapterRow: { display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '13px 14px', marginBottom: 8, borderRadius: 16, border: '1px solid rgba(77,212,196,.28)', background: 'rgba(255,255,255,.035)' },
-  bookSection: { padding: 14, borderRadius: 16, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.03)', marginTop: 10 },
-  formal: { margin: '8px 0', padding: '10px 12px', borderRadius: 12, background: 'rgba(0,0,0,.35)', border: '1px solid rgba(255,255,255,.09)', color: '#9fe8dd', fontFamily: 'ui-monospace,monospace', fontSize: 12.5, lineHeight: 1.7, overflowX: 'auto', whiteSpace: 'pre', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y' },
-  bookBox: { marginTop: 8, padding: '9px 11px', borderRadius: 12, background: 'rgba(141,224,74,.08)', border: '1px solid rgba(141,224,74,.25)', fontSize: 12.5, lineHeight: 1.55, color: '#dbe3f2' },
-  btnGhostWide: { width: '100%', marginTop: 12, padding: '11px', borderRadius: 12, border: '1px solid rgba(255,255,255,.14)', background: 'rgba(255,255,255,.04)', color: '#c9d3e6', fontSize: 13.5 },
-  achvRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '11px 13px', borderRadius: 14, border: '1px solid', background: 'rgba(255,255,255,.03)', marginBottom: 7 },
+  qTitle: { fontSize: T.font.body, color: T.color.accent, fontWeight: T.weight.bold, letterSpacing: 0.5 },
+  // The question body is the thing being read for two minutes: it gets the
+  // most legible surface and the loosest line height on the screen.
+  qBody: { marginTop: T.space.sm, padding: T.space.xl, borderRadius: T.radius.md, background: T.surface.sunken, border: hairline, color: T.text.secondary, fontSize: 14.5, lineHeight: 1.6 },
+  qAsk: { marginTop: T.space.lg, fontSize: T.font.subhead, color: T.text.primary, fontWeight: T.weight.medium },
+  option: { display: 'flex', alignItems: 'center', gap: T.space.lg, padding: '12px 13px', borderRadius: T.radius.md, border: '1px solid', color: T.text.secondary, fontSize: 14, lineHeight: 1.45, width: '100%' },
+  optLetter: { width: 26, height: 26, borderRadius: T.radius.sm, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: T.font.small, fontWeight: T.weight.heavy, color: T.text.onAccent, flexShrink: 0 },
+  explain: { marginTop: T.space.xl, padding: 13, borderRadius: T.radius.md, border: '1px solid', background: T.surface.card, color: T.text.secondary, fontSize: T.font.body, overflow: 'hidden' },
+  ruleChip: { display: 'inline-block', padding: '3px 9px', borderRadius: T.radius.xl, background: T.color.accentSoft, color: T.color.accent, fontSize: T.font.caption, fontWeight: T.weight.bold },
+  trap: { marginTop: T.space.md, padding: '8px 10px', borderRadius: T.radius.sm, background: T.color.dangerSoft, color: T.color.danger, fontSize: T.font.small, lineHeight: 1.5 },
+  nextBtn: { width: '100%', marginTop: 14, padding: '13px', borderRadius: T.radius.md, border: 'none', background: T.gradient.accent, color: T.text.onAccent, fontWeight: T.weight.bold, fontSize: T.font.subhead },
+  resultCard: { textAlign: 'center', padding: T.space['3xl'], borderRadius: T.radius.xl, background: T.surface.card, border: `1px solid ${T.color.accentSoft}` },
+  achvPop: { marginTop: T.space.xl, padding: 14, borderRadius: T.radius.lg, background: T.color.goldSoft, border: `1px solid ${T.color.gold}`, textAlign: 'center', color: T.color.gold },
+  reviewCard: { padding: T.space.xl, borderRadius: T.radius.md, border: '1px solid', background: T.surface.card, marginBottom: T.space.md, color: T.text.secondary },
+  chip: { padding: '7px 12px', borderRadius: T.radius.xl, border: `1px solid ${T.surface.lineStrong}`, background: T.surface.sunken, color: T.text.secondary, fontSize: T.font.small, whiteSpace: 'nowrap' },
+  chipOn: { background: T.color.accentSoft, borderColor: T.color.accent, color: T.text.primary },
+  boardRow: { display: 'flex', alignItems: 'center', gap: T.space.lg, padding: '9px 11px', borderRadius: T.radius.md, border: '1px solid', background: T.surface.card, marginBottom: T.space.sm },
+  avatar: { width: 34, height: 34, borderRadius: '50%', background: T.color.accentSoft, display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.text.secondary, fontWeight: T.weight.bold, flexShrink: 0, overflow: 'hidden' },
+  statGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(96px,1fr))', gap: T.space.md, marginTop: 14 },
+  bigStat: { padding: '11px 8px', borderRadius: T.radius.md, background: T.surface.sunken, border: hairline, textAlign: 'center' },
+  barTrack: { height: 5, borderRadius: 3, background: T.surface.line, overflow: 'hidden', marginTop: 3 },
+  barFill: { height: '100%', borderRadius: 3, background: T.gradient.accent },
+  examBar: { display: 'flex', alignItems: 'center', gap: T.space.md, fontSize: T.font.small, marginBottom: T.space.sm },
+  chapterRow: { display: 'flex', alignItems: 'center', gap: T.space.xl, width: '100%', padding: '13px 14px', marginBottom: T.space.md, borderRadius: T.radius.lg, border: `1px solid ${T.color.accent2Soft}`, background: T.surface.card },
+  bookSection: { padding: 14, borderRadius: T.radius.lg, border: hairline, background: T.surface.card, marginTop: T.space.lg },
+  // Formal notation is code: monospace on a recessed surface, and it scrolls
+  // sideways rather than wrapping, because wrapping a proof changes it.
+  formal: { margin: '8px 0', padding: '10px 12px', borderRadius: T.radius.md, background: 'rgba(0,0,0,.35)', border: hairline, color: T.color.accent2, fontFamily: 'ui-monospace,monospace', fontSize: T.font.small, lineHeight: 1.7, overflowX: 'auto', whiteSpace: 'pre', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y' },
+  bookBox: { marginTop: T.space.md, padding: '9px 11px', borderRadius: T.radius.md, background: T.color.successSoft, border: `1px solid ${T.color.successSoft}`, fontSize: T.font.small, lineHeight: 1.55, color: T.text.secondary },
+  btnGhostWide: { width: '100%', marginTop: T.space.xl, padding: '11px', borderRadius: T.radius.md, border: `1px solid ${T.surface.lineStrong}`, background: T.surface.sunken, color: T.text.secondary, fontSize: T.font.body },
+  achvRow: { display: 'flex', alignItems: 'center', gap: T.space.xl, padding: '11px 13px', borderRadius: T.radius.md, border: '1px solid', background: T.surface.card, marginBottom: 7 },
 };
 
 export default LogicAcademy;
