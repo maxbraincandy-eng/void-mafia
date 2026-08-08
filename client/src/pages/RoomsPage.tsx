@@ -332,13 +332,21 @@ export function RoomsPage() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.04 }}
                     className={`${SURFACE} px-4 py-3.5 flex items-center gap-3`}
-                    style={SURFACE_BG}
+                    style={room.spotlight
+                      ? { ...SURFACE_BG, border: '1px solid rgba(250,204,21,0.35)', boxShadow: '0 0 18px rgba(250,204,21,0.12)' }
+                      : SURFACE_BG}
                   >
                     {/* Status dot */}
                     <div className={`w-2 h-2 rounded-full shrink-0 ${isLobby ? 'bg-neon-cyan/50' : 'bg-neon-red/50'}`} />
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
+                        {room.spotlight && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded font-mono tracking-wider uppercase flex-shrink-0 flex items-center gap-0.5"
+                            style={{ background: 'rgba(250,204,21,0.12)', color: '#facc15', border: '1px solid rgba(250,204,21,0.3)' }}>
+                            📡 VIP
+                          </span>
+                        )}
                         <span className="font-medium text-sm text-white/70 truncate">
                           {room.name || room.hostName}
                         </span>

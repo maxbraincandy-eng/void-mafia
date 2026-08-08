@@ -97,6 +97,20 @@ export interface PlayerCosmetics {
   equippedWallpaper: string | null;
   equippedBorder: string | null;
   unlockedItems: string[];
+  /** Perk state (owned toggles, VIP expiry, XP-boost games). Optional so old
+   *  rows without it parse cleanly; perkService fills defaults. Managed by
+   *  perkService, not the cosmetics equip path. */
+  perks?: PlayerPerksState;
+}
+
+/** Canonical perk state shape (perkService is the authority on the rules). */
+export interface PlayerPerksState {
+  ownsInvisible: boolean;
+  invisibleMode: 'off' | 'always';
+  ownsAnon: boolean;
+  anonMode: 'off' | 'always';
+  vipUntil: number | null;
+  xpBoostGames: number;
 }
 
 // ── XP Gain ───────────────────────────────────────────────────────────
@@ -107,6 +121,8 @@ export interface XPGain {
   leveledUp: boolean;
   challengeCompleted: boolean;
   challengeBonus: number;
+  /** The XP Booster perk doubled this award. */
+  xpBoosted?: boolean;
 }
 
 // ── Friend ────────────────────────────────────────────────────────────
@@ -310,6 +326,13 @@ export interface Player {
   deathType: 'night' | 'vote' | 'foul' | null;
   foulCount: number;
   isBot?: boolean;
+  // ── perk runtime flags (resolved from perkService at join / game start) ──
+  /** Invisibility perk: this spectator is hidden from everyone but themselves.
+   *  Runtime only — never persisted; re-resolved each spectator join. */
+  invisibleSpectator?: boolean;
+  /** Anonymous perk: alias shown to others in place of name/avatar until the
+   *  game is over. null/undefined = show the real identity. */
+  anonAlias?: string | null;
 }
 
 export interface NightAction {
@@ -486,6 +509,9 @@ export interface Room {
   daySkipVotes: string[];
   createdAt: number;
   isPaused: boolean;
+  /** VIP "Room Spotlight" perk: epoch-ms until this room floats to the top of
+   *  the public list. Stamped at create time from the host's perk state. */
+  spotlightUntil?: number | null;
   dousedPlayers: Set<string>;
   newlyConvertedCultists: string[];
   deadChat: ChatMessage[];
@@ -540,6 +566,12 @@ export interface PlayerPublic {
   deathType: 'night' | 'vote' | 'foul' | null;
   foulCount: number;
   isBot?: boolean;
+  /** This row is shown under an anonymous alias (the viewer is not this player,
+   *  the game is live, and the viewer is not a moderator). Lets the UI mark it. */
+  isAnon?: boolean;
+  /** Self-only: the viewer is this invisible spectator. Others never receive
+   *  this row at all. Drives the "you are invisible" indicator + toggle. */
+  invisibleSpectator?: boolean;
 }
 
 export interface RoomPublic {
@@ -593,6 +625,8 @@ export interface RoomListItem {
   createdAt: number;
   hostName: string;
   isPrivate: boolean;
+  /** VIP spotlight active (host's Room Spotlight perk). Sorted to top + badged. */
+  spotlight?: boolean;
 }
 
 export interface NightResult {

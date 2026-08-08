@@ -105,6 +105,10 @@ import {
   getPinnedGifts, pinGift, unpinGift, hideGift, unhideGift, getHiddenGifts,
   purchaseCosmeticItem, checkProfileCompletionBonus,
 } from './services/coinService.js';
+import {
+  PERK_ITEMS, getPerks, buyPerk, setPerkMode,
+  resolveSpectatorInvisible, resolveAnon, consumeXpBoost, resolveSpotlightUntil, aliasFor,
+} from './services/perkService.js';
 import { applyReferral, getReferralCount } from './services/referralService.js';
 import { updateRatingsAfterGame, getPlayerRating, getRankedLeaderboard, getRankTier } from './services/ratingService.js';
 import { getActiveSeason, getSeasonLeaderboard, getMySeasonHistory } from './services/seasonService.js';
@@ -1389,6 +1393,14 @@ async function emitGameOver(io: AppServer, room: Room): Promise<void> {
         const challengeBonus = totalBonus;
         xpAmount += challengeBonus;
 
+        // XP Booster perk: double this game's level-XP if the player has boost
+        // games left. Consumed exactly once here — the single level-XP award
+        // site — so one game burns one boost. (Elo/season rating is untouched:
+        // this is account level-XP only, so the ranked ladder stays fair.)
+        let xpBoosted = false;
+        try { xpBoosted = await consumeXpBoost(p.profileId); } catch { /* non-fatal */ }
+        if (xpBoosted) xpAmount *= 2;
+
         const xpResult = await addXP(p.profileId, xpAmount);
 
         if (p.socketId) {
@@ -1399,6 +1411,7 @@ async function emitGameOver(io: AppServer, room: Room): Promise<void> {
             leveledUp: xpResult.leveledUp,
             challengeCompleted,
             challengeBonus,
+            xpBoosted,
           });
         }
 
@@ -2076,6 +2089,10 @@ export function attachSocketHandlers(io: AppServer): void {
         const hostInRoom = [...room.players.values()][0];
         if (hostInRoom && playerProfile?.avatarUrl) hostInRoom.avatarUrl = playerProfile.avatarUrl;
 
+        // VIP "Room Spotlight" perk: if the host has it active, stamp the room so
+        // it floats to the top of the public list until the perk expires.
+        try { room.spotlightUntil = await resolveSpotlightUntil(profileId); } catch { /* non-fatal */ }
+
         socket.join(room.id);
         socket.data.playerId = room.hostId;
         socket.data.roomId = room.id;
@@ -2172,11 +2189,16 @@ export function attachSocketHandlers(io: AppServer): void {
               player.isModerator = playerProfile.isModerator;
               player.moderatorLevel = playerProfile.moderatorLevel;
             }
+            // Invisibility perk (default "always"): watch without appearing in
+            // anyone's list. Resolved here from the profile's saved preference.
+            try { player.invisibleSpectator = await resolveSpectatorInvisible(profileId); } catch { /* non-fatal */ }
             socket.join(room.id);
             socket.join(`spec:${room.id}`);
             socket.data.playerId = player.id;
             socket.data.roomId = room.id;
-            broadcastSystemMsg(io, room, `${player.name} joined as spectator.`);
+            // An invisible spectator's arrival is not announced — the system
+            // message would give them away.
+            if (!player.invisibleSpectator) broadcastSystemMsg(io, room, `${player.name} joined as spectator.`);
             broadcastRoom(io, room);
             cb(ok(toPublicRoom(room, player.id)));
             return;
@@ -2436,7 +2458,7 @@ export function attachSocketHandlers(io: AppServer): void {
     });
 
     // ── Start Game ──────────────────────────────────────────────────
-    socket.on('game:start', (cb) => {
+    socket.on('game:start', async (cb) => {
       try {
         const room = getRoomFromSocket(socket);
         const host = getPlayerOrError(socket, room);
@@ -2446,6 +2468,19 @@ export function attachSocketHandlers(io: AppServer): void {
         startGame(room);
         room.startedAt = Date.now();
         setPhase(room, 'role_reveal');
+
+        // Anonymous perk: give each opted-in active player a stable alias for
+        // this game. Seed = player id + game start, so the alias is consistent
+        // all game but leaks nothing. Resolved before any state is broadcast.
+        for (const player of room.players.values()) {
+          player.anonAlias = null;
+          if (player.isSpectator || !player.role || !player.profileId) continue;
+          try {
+            if (await resolveAnon(player.profileId)) {
+              player.anonAlias = aliasFor(`${player.id}:${room.startedAt}`);
+            }
+          } catch { /* non-fatal */ }
+        }
 
         // ── Replay: start recording ──────────────────────────────────
         startReplay(room.id, room.code, room.startedAt);
@@ -4784,6 +4819,53 @@ export function attachSocketHandlers(io: AppServer): void {
         await sql`UPDATE players SET cosmetics = ${JSON.stringify(cosmetics)} WHERE id = ${profileId}`;
         socket.emit('coins:updated', { coins: newBalance });
         cb(ok({ cosmetics, newBalance }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Perks (shop "Items" tab) ───────────────────────────────────────
+    socket.on('perks:get' as any, async (cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        cb(ok({ perks: await getPerks(profileId), catalog: Object.values(PERK_ITEMS) }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('perks:buy' as any, async ({ perkId }: { perkId: string }, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        const r = await buyPerk(profileId, String(perkId));
+        socket.emit('coins:updated', { coins: r.coins });
+        cb(ok(r));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('perks:configure' as any, async ({ which, mode }: { which: 'invisible' | 'anon'; mode: 'off' | 'always' }, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        if (which !== 'invisible' && which !== 'anon') throw new Error('უცნობი პარამეტრი');
+        if (mode !== 'off' && mode !== 'always') throw new Error('უცნობი რეჟიმი');
+        cb(ok({ perks: await setPerkMode(profileId, which, mode) }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // Live invisibility toggle while spectating — flips the runtime flag for the
+    // current session only (does not change the saved default). Requires owning
+    // the perk. Lets a spectator vanish/reappear mid-watch.
+    socket.on('spectator:toggle_invisible' as any, async ({ on }: { on: boolean }, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        const room = getRoomFromSocket(socket);
+        const player = room.players.get(socket.data.playerId ?? '');
+        if (!player || !player.isSpectator) throw new Error('მხოლოდ დამკვირვებელს შეუძლია.');
+        const perks = await getPerks(profileId);
+        if (!perks.ownsInvisible) throw new Error('ჯერ იყიდე უჩინარობა.');
+        player.invisibleSpectator = !!on;
+        broadcastRoom(io, room);
+        cb(ok({ invisible: player.invisibleSpectator }));
       } catch (e: any) { cb(err(e.message)); }
     });
 

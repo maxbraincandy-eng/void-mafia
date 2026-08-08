@@ -37,6 +37,7 @@ import { TutorialOverlay } from '@/components/ui/TutorialOverlay';
 import { InGamePlayersPanel } from '@/components/game/InGamePlayersPanel';
 import { SpectatorTheater } from '@/components/game/SpectatorTheater';
 import { SpectatorTheaterPanel } from '@/components/game/SpectatorTheaterPanel';
+import { SpectatorInvisibilityBar } from '@/components/game/SpectatorInvisibilityBar';
 import { DynamicEventBanner } from '@/components/game/DynamicEventBanner';
 import { useT } from '@/store/langStore';
 import { useSocialStore } from '@/store/socialStore';
@@ -586,6 +587,8 @@ export function GamePage() {
   // Voice panel — shown in sidebar (desktop) and action tab (mobile)
   const VoicePanel = (
     <div className="mt-4">
+      {/* Invisibility control (spectators only) */}
+      {amSpectator && <SpectatorInvisibilityBar invisible={!!myPlayer?.invisibleSpectator} />}
       {/* Night phase notice for spectators and non-mafia */}
       {isNight && amSpectator && (
         <div className="mb-2 px-3 py-1.5 rounded-lg border border-white/10 bg-white/5 flex items-center gap-2">

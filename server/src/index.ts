@@ -57,7 +57,7 @@ const PORT = Number(process.env.PORT ?? 3000);
 const CLIENT_URL = process.env.CLIENT_URL ?? 'http://localhost:5173';
 const IS_PROD = process.env.NODE_ENV === 'production';
 
-const CLIENT_BUILD = '2026-07-28-v543';
+const CLIENT_BUILD = '2026-07-28-v544';
 console.log('[Startup] Void Mafia server starting');
 console.log(`[Startup] Client build: ${CLIENT_BUILD}`);
 console.log(`[Startup] NODE_ENV=${process.env.NODE_ENV ?? 'development'}`);
@@ -187,7 +187,10 @@ app.get('/api/webrtc', (_req, res) => {
 app.get('/api/rooms', (_req, res) => {
   const list = getAllRooms()
     .filter(r => !r.settings.isPrivate && r.phase !== 'game_over')
-    .map(toRoomListItem);
+    .map(toRoomListItem)
+    // VIP "Room Spotlight" perk: spotlighted rooms float to the top. Within each
+    // group the pre-existing order (creation) is preserved by the stable sort.
+    .sort((a, b) => Number(b.spotlight ?? false) - Number(a.spotlight ?? false));
   res.json({ ok: true, data: list });
 });
 

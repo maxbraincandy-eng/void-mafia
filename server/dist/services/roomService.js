@@ -463,44 +463,63 @@ export function toPublicRoom(room, viewerPlayerId) {
     const isMafia = viewer?.team === 'mafia';
     const isCultLeader = viewer?.role === 'cult_leader';
     const isYakuza = viewer?.team === 'yakuza';
-    const mapToPublic = (p) => ({
-        id: p.id,
-        socketId: p.socketId,
-        name: p.name,
-        avatar: p.avatar,
-        avatarUrl: p.avatarUrl,
-        isHost: p.isHost,
-        isAlive: p.isAlive,
-        isConnected: p.isConnected,
-        isReady: p.isReady,
-        // Roles are revealed only to the player themselves and once the game is over.
-        // Spectators and next-round queued players must NOT see anyone's role mid-game.
-        role: (p.id === viewerPlayerId || isGameOver) ? p.role : null,
-        team: (p.id === viewerPlayerId || isGameOver) ? p.team : null,
-        // Mafia sees fellow mafia roles
-        ...(isMafia && p.team === 'mafia' ? { role: p.role, team: p.team } : {}),
-        // Cult leader sees all cult members
-        ...(isCultLeader && p.team === 'cult' ? { role: p.role, team: p.team } : {}),
-        // Yakuza team members see each other
-        ...(isYakuza && p.team === 'yakuza' ? { role: p.role, team: p.team } : {}),
-        // Votes are SECRET while the tribunal runs: each player only sees their
-        // OWN pick; who-voted-for-whom is revealed after voting ends via
-        // game:vote_breakdown. hasVoted lets the UI show voting progress.
-        voteTarget: (room.phase === 'voting' && p.id === viewerPlayerId) ? p.voteTarget : null,
-        hasVoted: room.phase === 'voting' ? !!p.voteTarget : false,
-        hasActed: p.id === viewerPlayerId ? p.hasActedThisPhase : false,
-        seat: p.seat,
-        profileId: p.profileId,
-        isModerator: p.isModerator,
-        moderatorLevel: p.moderatorLevel,
-        isSpectator: p.isSpectator,
-        isQueuedNextRound: p.isQueuedNextRound,
-        queuePosition: p.queuePosition,
-        deathType: p.deathType,
-        foulCount: p.foulCount ?? 0,
-        ...(p.isBot ? { isBot: true } : {}),
-    });
+    // Moderators (and the host running the table) see through the anonymous perk,
+    // so a player can't use an alias to dodge moderation.
+    const viewerSeesThroughAnon = !!(viewer?.isModerator || viewer?.isHost);
+    const mapToPublic = (p) => {
+        // Anonymous perk: replace name/avatar for everyone but the player themselves,
+        // while the game is live and the viewer isn't a mod. Roles already unlock at
+        // game over via isGameOver, and identity unmasks at the same moment.
+        const anon = !!p.anonAlias && p.id !== viewerPlayerId && !isGameOver && !viewerSeesThroughAnon;
+        return {
+            id: p.id,
+            socketId: p.socketId,
+            name: anon ? p.anonAlias : p.name,
+            avatar: anon ? '🎭' : p.avatar,
+            avatarUrl: anon ? null : p.avatarUrl,
+            isHost: p.isHost,
+            isAlive: p.isAlive,
+            isConnected: p.isConnected,
+            isReady: p.isReady,
+            // Roles are revealed only to the player themselves and once the game is over.
+            // Spectators and next-round queued players must NOT see anyone's role mid-game.
+            role: (p.id === viewerPlayerId || isGameOver) ? p.role : null,
+            team: (p.id === viewerPlayerId || isGameOver) ? p.team : null,
+            // Mafia sees fellow mafia roles
+            ...(isMafia && p.team === 'mafia' ? { role: p.role, team: p.team } : {}),
+            // Cult leader sees all cult members
+            ...(isCultLeader && p.team === 'cult' ? { role: p.role, team: p.team } : {}),
+            // Yakuza team members see each other
+            ...(isYakuza && p.team === 'yakuza' ? { role: p.role, team: p.team } : {}),
+            // Votes are SECRET while the tribunal runs: each player only sees their
+            // OWN pick; who-voted-for-whom is revealed after voting ends via
+            // game:vote_breakdown. hasVoted lets the UI show voting progress.
+            voteTarget: (room.phase === 'voting' && p.id === viewerPlayerId) ? p.voteTarget : null,
+            hasVoted: room.phase === 'voting' ? !!p.voteTarget : false,
+            hasActed: p.id === viewerPlayerId ? p.hasActedThisPhase : false,
+            seat: p.seat,
+            profileId: p.profileId,
+            isModerator: p.isModerator,
+            moderatorLevel: p.moderatorLevel,
+            isSpectator: p.isSpectator,
+            isQueuedNextRound: p.isQueuedNextRound,
+            queuePosition: p.queuePosition,
+            deathType: p.deathType,
+            foulCount: p.foulCount ?? 0,
+            ...(p.isBot ? { isBot: true } : {}),
+            ...(anon ? { isAnon: true } : {}),
+            // Self-only: tell the invisible spectator they ARE invisible so the UI can
+            // show the indicator + toggle. Never leaked to others (they don't get this
+            // row at all — see isHiddenFrom).
+            ...(p.id === viewerPlayerId && p.invisibleSpectator ? { invisibleSpectator: true } : {}),
+        };
+    };
+    // Invisibility perk: an invisible spectator is dropped from the list entirely
+    // for every viewer except themselves. They still get full state (they ARE a
+    // viewer), they just don't appear in anyone else's player/spectator list.
+    const isHiddenFrom = (p) => !!p.invisibleSpectator && p.isSpectator && p.id !== viewerPlayerId;
     const players = [...room.players.values()]
+        .filter(p => !isHiddenFrom(p))
         .sort((a, b) => a.seat - b.seat)
         .map(mapToPublic);
     const nextRoundQueue = room.nextRoundQueue.map(mapToPublic);
@@ -527,7 +546,9 @@ export function toPublicRoom(room, viewerPlayerId) {
         activeRoleCounts: computeActiveRoleCounts(room),
         currentSpeakerId: room.speechOrder[room.currentSpeakerIdx] ?? null,
         daySkipVoteCount: room.daySkipVotes.length,
-        spectatorCount: [...room.players.values()].filter(p => p.isSpectator).length,
+        // Invisible spectators are not counted for anyone but themselves — the
+        // count must match the list, which hides them.
+        spectatorCount: [...room.players.values()].filter(p => p.isSpectator && (!p.invisibleSpectator || p.id === viewerPlayerId)).length,
         isPaused: room.isPaused,
         nominations: Object.fromEntries(room.nominations),
         tribunalCandidates: room.tribunalCandidates,
@@ -578,6 +599,7 @@ export function toRoomListItem(room) {
         createdAt: room.createdAt,
         hostName: host?.name ?? 'Unknown',
         isPrivate: room.settings.isPrivate ?? false,
+        spotlight: room.spotlightUntil != null && room.spotlightUntil > Date.now(),
     };
 }
 function computeActiveRoleCounts(room) {

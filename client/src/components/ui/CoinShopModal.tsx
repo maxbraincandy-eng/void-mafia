@@ -16,6 +16,19 @@ interface CoinPackage {
   bonus: string;
 }
 
+// Mirrors server perkService PerkState / PerkDef.
+interface PerkState {
+  ownsInvisible: boolean; invisibleMode: 'off' | 'always';
+  ownsAnon: boolean; anonMode: 'off' | 'always';
+  vipUntil: number | null; xpBoostGames: number;
+}
+interface PerkDef {
+  id: 'invisible' | 'anon' | 'vip' | 'xpboost';
+  name: string; ka: string; desc: string; price: number;
+  kind: 'toggle' | 'duration' | 'consumable'; hours?: number; units?: number;
+}
+const PERK_EMOJI: Record<string, string> = { invisible: '🕵️', anon: '🎭', vip: '📡', xpboost: '⚡' };
+
 const RARITY_GLOW: Record<number, string> = {
   0: 'rgba(255,255,255,0.06)',
   1: 'rgba(0,229,255,0.1)',
@@ -32,7 +45,7 @@ interface Props {
 }
 
 export function CoinShopModal({ open, onClose, profileId, coins: propCoins, onCoinsChange }: Props) {
-  const [shopTab, setShopTab] = useState<'coins' | 'backgrounds' | 'names' | 'spaces'>('coins');
+  const [shopTab, setShopTab] = useState<'coins' | 'items' | 'backgrounds' | 'names' | 'spaces'>('coins');
   const [packages, setPackages] = useState<CoinPackage[]>([]);
   const [loading, setLoading] = useState(false);
   const [buying, setBuying] = useState<string | null>(null);
@@ -46,6 +59,12 @@ export function CoinShopModal({ open, onClose, profileId, coins: propCoins, onCo
   // Space themes tab state
   const [busySp, setBusySp] = useState<string | null>(null);
   const [spMsg, setSpMsg] = useState<string | null>(null);
+  // Items (perks) tab state
+  const [perks, setPerks] = useState<PerkState | null>(null);
+  const [perkCatalog, setPerkCatalog] = useState<PerkDef[]>([]);
+  const [perkBusy, setPerkBusy] = useState<string | null>(null);
+  const [perkMsg, setPerkMsg] = useState<string | null>(null);
+  const [configuring, setConfiguring] = useState<'invisible' | 'anon' | null>(null);
   const profile = useAuthStore(s => s.profile);
   // Inside the native app, Stripe/card checkout for digital goods is not allowed
   // by Google Play / Apple. Store billing (RevenueCat) is wired separately; until
@@ -63,6 +82,38 @@ export function CoinShopModal({ open, onClose, profileId, coins: propCoins, onCo
       .catch(() => setError('Failed to load packages.'))
       .finally(() => setLoading(false));
   }, [open]);
+
+  // ── Items (perks) tab ──────────────────────────────────────────────
+  const loadPerks = async () => {
+    try {
+      // No payload — server handler is (cb)=>…, so emitWithAck must send only the ack.
+      const res = await emitWithAck<undefined, Res<{ perks: PerkState; catalog: PerkDef[] }>>('perks:get');
+      if ('ok' in res && res.ok) { setPerks(res.data.perks); setPerkCatalog(res.data.catalog); }
+    } catch { /* leave prior state */ }
+  };
+  useEffect(() => { if (open && shopTab === 'items') loadPerks(); }, [open, shopTab]);
+
+  const buyPerk = async (perkId: string) => {
+    if (perkBusy) return;
+    setPerkBusy(perkId); setPerkMsg(null);
+    try {
+      const res = await emitWithAck<{ perkId: string }, Res<{ perks: PerkState; coins: number }>>('perks:buy', { perkId });
+      if ('ok' in res && res.ok) {
+        setPerks(res.data.perks);
+        onCoinsChange?.(res.data.coins);
+        setPerkMsg('შეძენილია ✓');
+      } else setPerkMsg(('error' in res && res.error) || 'ვერ შესრულდა');
+    } catch (e: any) { setPerkMsg(e?.message ?? 'ვერ შესრულდა'); }
+    finally { setPerkBusy(null); }
+  };
+
+  const configurePerk = async (which: 'invisible' | 'anon', mode: 'off' | 'always') => {
+    try {
+      const res = await emitWithAck<{ which: string; mode: string }, Res<{ perks: PerkState }>>('perks:configure', { which, mode });
+      if ('ok' in res && res.ok) setPerks(res.data.perks);
+    } catch { /* ignore */ }
+    setConfiguring(null);
+  };
 
   const handleBuy = async (pkg: CoinPackage) => {
     // Never route to Stripe from inside the native app (store-policy violation).
@@ -230,9 +281,10 @@ export function CoinShopModal({ open, onClose, profileId, coins: propCoins, onCo
                   </button>
                 </div>
                 {/* Tabs */}
-                <div className="flex gap-1 pb-3">
+                <div className="flex gap-1 pb-3 flex-wrap">
                   {[
                     { id: 'coins', label: 'Buy Coins' },
+                    { id: 'items', label: 'ნივთები' },
                     { id: 'backgrounds', label: 'Backgrounds' },
                     { id: 'names', label: 'Name Colors' },
                     { id: 'spaces', label: 'Spaces' },
@@ -357,6 +409,85 @@ export function CoinShopModal({ open, onClose, profileId, coins: propCoins, onCo
                   Purchases are processed securely via Stripe.
                 </p>
                 </>
+                )}
+
+                {/* ── Items (perks) tab ── */}
+                {shopTab === 'items' && (
+                <div className="space-y-2">
+                  <p className="font-mono text-[12px] text-white/30 tracking-widest text-center pb-1">
+                    სპეციალური შესაძლებლობები
+                  </p>
+                  {perkMsg && <p className="text-center font-mono text-[12px] text-amber-300 pb-1">{perkMsg}</p>}
+                  {perkCatalog.length === 0 && <p className="text-center font-mono text-[12px] text-white/25 py-6">იტვირთება…</p>}
+                  {perkCatalog.map(item => {
+                    const owned = item.id === 'invisible' ? perks?.ownsInvisible : item.id === 'anon' ? perks?.ownsAnon : false;
+                    const isToggle = item.kind === 'toggle';
+                    const mode = item.id === 'invisible' ? perks?.invisibleMode : item.id === 'anon' ? perks?.anonMode : 'off';
+                    const vipActive = item.id === 'vip' && perks?.vipUntil != null && perks.vipUntil > Date.now();
+                    const boostLeft = item.id === 'xpboost' ? (perks?.xpBoostGames ?? 0) : 0;
+                    // status line under the name: what the player currently has
+                    const status =
+                      isToggle && owned ? (mode === 'always' ? '✓ ჩართულია' : 'შეძენილია · გამორთულია')
+                      : vipActive ? `აქტიურია კიდევ ${Math.max(1, Math.ceil((perks!.vipUntil! - Date.now()) / 3_600_000))} სთ`
+                      : boostLeft > 0 ? `დარჩა ${boostLeft} თამაში`
+                      : item.desc;
+                    return (
+                      <div key={item.id} className="rounded-2xl p-3"
+                        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                        <div className="flex items-start gap-3">
+                          <div className="w-11 h-11 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
+                            style={{ background: 'rgba(155,0,255,0.12)', border: '1px solid rgba(155,0,255,0.25)' }}>
+                            {PERK_EMOJI[item.id]}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="font-display font-bold text-white text-[14px] leading-tight">{item.ka}</p>
+                              {isToggle && owned && (
+                                <span className="font-mono text-[9px] px-1.5 py-0.5 rounded"
+                                  style={{ background: 'rgba(0,255,136,0.12)', color: '#5ce1a0' }}>OWNED</span>
+                              )}
+                            </div>
+                            <p className="font-mono text-[11px] text-white/45 mt-0.5 leading-snug">{status}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 mt-2.5">
+                          {/* Toggles: buy once, then Configure. Consumables/duration: (re)buy. */}
+                          {isToggle && owned ? (
+                            <button onClick={() => setConfiguring(item.id as 'invisible' | 'anon')}
+                              className="flex-1 py-2 rounded-xl font-mono text-[12px] font-bold transition-all active:scale-[0.98]"
+                              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: '#e8edf7' }}>
+                              Configure
+                            </button>
+                          ) : (
+                            <button onClick={() => buyPerk(item.id)} disabled={perkBusy === item.id}
+                              className="flex-1 py-2 rounded-xl font-mono text-[12px] font-bold transition-all active:scale-[0.98] disabled:opacity-50"
+                              style={{ background: 'rgba(250,204,21,0.14)', border: '1px solid rgba(250,204,21,0.4)', color: '#facc15' }}>
+                              {perkBusy === item.id ? '…' : `${item.price} 🪙${(vipActive || boostLeft > 0) ? ' · კიდევ' : ''}`}
+                            </button>
+                          )}
+                        </div>
+                        {/* Configure dialog (Yes = always on / No = off) */}
+                        {configuring === item.id && (
+                          <div className="mt-2 flex gap-2">
+                            <button onClick={() => configurePerk(item.id as 'invisible' | 'anon', 'always')}
+                              className="flex-1 py-2 rounded-lg font-mono text-[12px] font-bold"
+                              style={{ background: 'rgba(0,255,136,0.14)', border: '1px solid rgba(0,255,136,0.35)', color: '#5ce1a0' }}>
+                              ყოველთვის ჩართე
+                            </button>
+                            <button onClick={() => configurePerk(item.id as 'invisible' | 'anon', 'off')}
+                              className="flex-1 py-2 rounded-lg font-mono text-[12px] font-bold"
+                              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', color: '#e8edf7' }}>
+                              გამორთე
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  <p className="font-mono text-[10px] text-white/25 leading-relaxed pt-1 text-center">
+                    უჩინარობა/ანონიმურობა ერთხელ იყიდება, მერე ჩართე/გამორთე „Configure"-ით. პროჟექტორი და ბუსტერი ხელახლა იყიდება.
+                  </p>
+                </div>
                 )}
 
                 {/* ── Backgrounds tab ── */}

@@ -497,13 +497,21 @@ export function toPublicRoom(room: Room, viewerPlayerId: string): RoomPublic {
   const isMafia = viewer?.team === 'mafia';
   const isCultLeader = viewer?.role === 'cult_leader';
   const isYakuza = viewer?.team === 'yakuza';
+  // Moderators (and the host running the table) see through the anonymous perk,
+  // so a player can't use an alias to dodge moderation.
+  const viewerSeesThroughAnon = !!(viewer?.isModerator || viewer?.isHost);
 
-  const mapToPublic = (p: Player): PlayerPublic => ({
+  const mapToPublic = (p: Player): PlayerPublic => {
+    // Anonymous perk: replace name/avatar for everyone but the player themselves,
+    // while the game is live and the viewer isn't a mod. Roles already unlock at
+    // game over via isGameOver, and identity unmasks at the same moment.
+    const anon = !!p.anonAlias && p.id !== viewerPlayerId && !isGameOver && !viewerSeesThroughAnon;
+    return {
     id: p.id,
     socketId: p.socketId,
-    name: p.name,
-    avatar: p.avatar,
-    avatarUrl: p.avatarUrl,
+    name: anon ? p.anonAlias! : p.name,
+    avatar: anon ? '🎭' : p.avatar,
+    avatarUrl: anon ? null : p.avatarUrl,
     isHost: p.isHost,
     isAlive: p.isAlive,
     isConnected: p.isConnected,
@@ -534,9 +542,22 @@ export function toPublicRoom(room: Room, viewerPlayerId: string): RoomPublic {
     deathType: p.deathType,
     foulCount: p.foulCount ?? 0,
     ...(p.isBot ? { isBot: true } : {}),
-  });
+    ...(anon ? { isAnon: true } : {}),
+    // Self-only: tell the invisible spectator they ARE invisible so the UI can
+    // show the indicator + toggle. Never leaked to others (they don't get this
+    // row at all — see isHiddenFrom).
+    ...(p.id === viewerPlayerId && p.invisibleSpectator ? { invisibleSpectator: true } : {}),
+  };
+  };
+
+  // Invisibility perk: an invisible spectator is dropped from the list entirely
+  // for every viewer except themselves. They still get full state (they ARE a
+  // viewer), they just don't appear in anyone else's player/spectator list.
+  const isHiddenFrom = (p: Player): boolean =>
+    !!p.invisibleSpectator && p.isSpectator && p.id !== viewerPlayerId;
 
   const players: PlayerPublic[] = [...room.players.values()]
+    .filter(p => !isHiddenFrom(p))
     .sort((a, b) => a.seat - b.seat)
     .map(mapToPublic);
 
@@ -567,7 +588,9 @@ export function toPublicRoom(room: Room, viewerPlayerId: string): RoomPublic {
     activeRoleCounts: computeActiveRoleCounts(room),
     currentSpeakerId: room.speechOrder[room.currentSpeakerIdx] ?? null,
     daySkipVoteCount: room.daySkipVotes.length,
-    spectatorCount: [...room.players.values()].filter(p => p.isSpectator).length,
+    // Invisible spectators are not counted for anyone but themselves — the
+    // count must match the list, which hides them.
+    spectatorCount: [...room.players.values()].filter(p => p.isSpectator && (!p.invisibleSpectator || p.id === viewerPlayerId)).length,
     isPaused: room.isPaused,
     nominations: Object.fromEntries(room.nominations),
     tribunalCandidates: room.tribunalCandidates,
@@ -618,6 +641,7 @@ export function toRoomListItem(room: Room): RoomListItem {
     createdAt: room.createdAt,
     hostName: host?.name ?? 'Unknown',
     isPrivate: room.settings.isPrivate ?? false,
+    spotlight: room.spotlightUntil != null && room.spotlightUntil > Date.now(),
   };
 }
 

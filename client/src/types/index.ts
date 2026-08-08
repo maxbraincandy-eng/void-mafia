@@ -194,6 +194,10 @@ export interface PlayerPublic {
   deathType: 'night' | 'vote' | 'foul' | null;
   foulCount: number;
   isBot?: boolean;
+  /** Shown under an anonymous alias (Anonymous perk; viewer isn't this player/mod). */
+  isAnon?: boolean;
+  /** Self-only: you are this invisible spectator (Invisibility perk). */
+  invisibleSpectator?: boolean;
 }
 
 export interface DynamicEventAllowed {
@@ -374,6 +378,8 @@ export interface RoomListItem {
   createdAt: number;
   hostName: string;
   isPrivate: boolean;
+  /** VIP "Room Spotlight" perk active — sorted to the top of the list + badged. */
+  spotlight?: boolean;
 }
 
 export interface NightResult {
