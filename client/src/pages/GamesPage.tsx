@@ -33,7 +33,9 @@ export function GamesPage({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onO
             >
               {t.nav.games}
             </h1>
-            <p className="font-mono text-[12px] uppercase tracking-widest text-white/25 mt-0.5">
+            {/* One line, always: at 12px + widest tracking this wrapped onto a
+                third row on a phone and pushed the whole catalogue down. */}
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-white/25 mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis">
               ინტელექტი · სტრატეგია · სოციალური
             </p>
           </div>

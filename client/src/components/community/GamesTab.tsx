@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 
@@ -58,9 +58,12 @@ const RED_XM = '#ff3b47'; // სხვა მაფია accent
 type GCat = 'mind' | 'logic' | 'maxpuzzle' | 'deduction' | 'party' | 'classic' | 'bhop' | 'worlds' | 'solo';
 const CAT_ORDER: GCat[] = ['logic', 'mind', 'maxpuzzle', 'deduction', 'party', 'classic', 'bhop', 'worlds', 'solo'];
 const CAT_META: Record<GCat, { section: string; chip: string; emoji: string }> = {
-  mind:      { section: 'გონება & ცოდნა',     chip: 'ინტელექტი', emoji: '🧠' },
-  logic:     { section: 'ფორმალური ლოგიკის აკადემია', chip: 'ლოგიკა', emoji: '🧠' },
-  maxpuzzle: { section: 'ბატონი მაქსის თავსატეხი', chip: 'ბ. მაქსი', emoji: '🎩' },
+  // `section` is a CATEGORY name, not a game name — two of these used to repeat
+  // the title of their single game. Icons must also be distinct: logic and mind
+  // both showed 🧠, so the two chips were indistinguishable at a glance.
+  mind:      { section: 'გონება & ცოდნა',      chip: 'ინტელექტი', emoji: '🧠' },
+  logic:     { section: 'ლოგიკა & მსჯელობა',   chip: 'ლოგიკა',    emoji: '🧩' },
+  maxpuzzle: { section: 'ბატონი მაქსი',        chip: 'ბ. მაქსი',  emoji: '🎩' },
   deduction: { section: 'სოციალური დედუქცია', chip: 'დედუქცია',  emoji: '🕵️' },
   party:     { section: 'წვეულება & გუნდური', chip: 'წვეულება',  emoji: '🎉' },
   classic:   { section: 'კლასიკა',            chip: 'კლასიკა',   emoji: '♟' },
@@ -434,13 +437,16 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
     return (
       <button onClick={() => openGame(d)}
         className="relative flex flex-col justify-between rounded-2xl p-3 text-left overflow-hidden transition-all active:scale-[0.97]"
-        style={{ minHeight: 104, background: 'rgba(12,10,24,0.72)', border: `1px solid ${d.accent}40`, boxShadow: `0 4px 18px ${d.accent}12` }}>
-        {d.badge && <span style={{ position: 'absolute', top: 8, right: 8, fontFamily: 'monospace', fontSize: 8, letterSpacing: 1, color: '#fff', background: 'rgba(124,58,237,0.9)', borderRadius: 6, padding: '2px 6px' }}>NEW</span>}
+        style={{ minHeight: 118, background: 'rgba(12,10,24,0.72)', border: `1px solid ${d.accent}40`, boxShadow: `0 4px 18px ${d.accent}12` }}>
+        {NEW_GAMES.has(d.id) && <span style={{ position: 'absolute', top: 8, right: 8, fontFamily: 'monospace', fontSize: 8, letterSpacing: 1, color: '#fff', background: 'rgba(124,58,237,0.9)', borderRadius: 6, padding: '2px 6px' }}>NEW</span>}
         <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-2" style={{ background: `${d.accent}1f` }}>
-          {d.logo === 'iq' ? <IQLogo size={34} /> : d.logo === 'logic' ? <LogicLogo size={34} label={false} /> : d.logo === 'vspace' ? <VRBustIcon size={36} /> : d.logo === 'philosophy' ? <PhilosopherIcon size={34} /> : d.logo === 'uno' ? <UnoLogo size={36} /> : d.logo === 'codenames' ? <NinjaEmblem size={36} /> : d.logo === 'sage' ? <SageIcon size={36} /> : d.logo === 'maxseal' ? <MaxSeal size={36} /> : d.logo === 'liar' ? <CrossedFingersIcon size={34} mask="#181026" /> : d.logo === 'mafianight' ? <img src="/mafia-night.webp" alt="" className="w-9 h-9 object-contain" /> : d.logo === 'ganab' ? <img src="/ganab-star.png" alt="" className="w-7 h-7 object-contain" /> : <span className="text-2xl leading-none">{d.emoji}</span>}
+          <GameArt d={d} size={34} />
         </div>
         <div className="min-w-0">
-          <p className="font-display font-bold text-white text-[13px] leading-tight truncate">{d.title}</p>
+          {/* Two lines, not truncate: Georgian sets wider than Latin, so real
+              titles like "ფილოსოფიური ცნობიერება" lost their second half. */}
+          <p className="font-display font-bold text-white text-[13px] leading-tight"
+            style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{d.title}</p>
           <p className="font-mono text-[10px] text-white/35 leading-tight mt-0.5 truncate">{d.sub}</p>
           {live > 0 && <p className="font-mono text-[9px] mt-1" style={{ color: '#7fe0a0' }}>🔴 {live} ღია</p>}
         </div>
@@ -458,9 +464,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
       {/* Flagship banners — only in the default view */}
       {cat === 'all' && !q && (
         <>
-          {FEATURED_CARDS.map(def => (
-            <FeaturedCard key={def.id} def={def} onClick={() => openGame(byId(def.id)!)} />
-          ))}
+          <FeaturedCarousel cards={FEATURED_CARDS} onOpen={id => openGame(byId(id)!)} />
 
         </>
       )}
@@ -497,7 +501,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
               <button key={d!.id} onClick={() => openGame(d!)}
                 className="flex-shrink-0 flex flex-col items-center gap-1.5 w-[68px]" >
                 <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: `${d!.accent}1f`, border: `1px solid ${d!.accent}40` }}>
-                  {d!.logo === 'iq' ? <IQLogo size={38} /> : d!.logo === 'logic' ? <LogicLogo size={38} label={false} /> : d!.logo === 'vspace' ? <VRBustIcon size={40} /> : d!.logo === 'philosophy' ? <PhilosopherIcon size={38} /> : d!.logo === 'uno' ? <UnoLogo size={40} /> : d!.logo === 'codenames' ? <NinjaEmblem size={40} /> : d!.logo === 'sage' ? <SageIcon size={40} /> : d!.logo === 'maxseal' ? <MaxSeal size={40} /> : d!.logo === 'liar' ? <CrossedFingersIcon size={38} mask="#181026" /> : d!.logo === 'mafianight' ? <img src="/mafia-night.webp" alt="" className="w-10 h-10 object-contain" /> : d!.logo === 'ganab' ? <img src="/ganab-star.png" alt="" className="w-7 h-7 object-contain" /> : <span className="text-2xl">{d!.emoji}</span>}
+                  <GameArt d={d!} size={38} />
                 </div>
                 <span className="font-mono text-[9px] text-white/50 text-center leading-tight truncate w-full">{d!.title}</span>
               </button>
@@ -744,6 +748,38 @@ interface FeaturedDef {
   tracking?: string;
 }
 
+/**
+ * One game's artwork: dedicated logo component, bundled image, or emoji.
+ *
+ * Extracted because this exact switch was pasted twice at different sizes — the
+ * grid tile and the recently-played rail — so adding a logo meant remembering
+ * both. Sizes that need to run slightly larger to look optically equal (square
+ * emblems next to round ones) offset from the caller's size here.
+ */
+function GameArt({ d, size }: { d: GameDef; size: number }) {
+  switch (d.logo) {
+    case 'iq':         return <IQLogo size={size} />;
+    case 'logic':      return <LogicLogo size={size} label={false} />;
+    case 'vspace':     return <VRBustIcon size={size + 2} />;
+    case 'philosophy': return <PhilosopherIcon size={size} />;
+    case 'uno':        return <UnoLogo size={size + 2} />;
+    case 'codenames':  return <NinjaEmblem size={size + 2} />;
+    case 'sage':       return <SageIcon size={size + 2} />;
+    case 'maxseal':    return <MaxSeal size={size} />;
+    case 'liar':       return <CrossedFingersIcon size={size} mask="#181026" />;
+    case 'mafianight': return <img src="/mafia-night.webp" alt="" style={{ width: size, height: size, objectFit: 'contain' }} />;
+    case 'ganab':      return <img src="/ganab-star.png" alt="" style={{ width: size * 0.72, height: size * 0.72, objectFit: 'contain' }} />;
+    default:           return <span style={{ fontSize: Math.round(size * 0.68), lineHeight: 1 }}>{d.emoji}</span>;
+  }
+}
+
+/**
+ * NEW means "added recently", not "we are proud of it". 18 of the 27 games
+ * carried the badge, which is the same as none of them carrying it. Keep this
+ * list short and prune it as things stop being new.
+ */
+const NEW_GAMES = new Set(['mergeevo', 'logic', 'deathrun', 'watchparty']);
+
 function FeaturedCard({ def, onClick }: { def: FeaturedDef; onClick: () => void }) {
   return (
     <button onClick={onClick} className="w-full text-left rounded-2xl overflow-hidden transition-all active:scale-[0.99]"
@@ -764,12 +800,73 @@ function FeaturedCard({ def, onClick }: { def: FeaturedDef; onClick: () => void 
           </p>
           <p className="font-mono text-[12px] text-white/55 mt-0.5">{def.sub}</p>
         </div>
-        <span style={{
-          fontFamily: 'monospace', fontSize: T.font.micro, letterSpacing: 1,
-          color: def.badgeFg, background: def.badgeBg, borderRadius: T.radius.sm, padding: '3px 8px',
-        }}>NEW</span>
+        {/* Being featured already says "look at this" — the pill is reserved for
+            genuinely recent additions so it keeps meaning something. */}
+        {NEW_GAMES.has(def.id) && (
+          <span style={{
+            fontFamily: 'monospace', fontSize: T.font.micro, letterSpacing: 1,
+            color: def.badgeFg, background: def.badgeBg, borderRadius: T.radius.sm, padding: '3px 8px',
+          }}>NEW</span>
+        )}
       </div>
     </button>
+  );
+}
+
+/**
+ * Flagship carousel.
+ *
+ * The six banners used to stack vertically at 632-776px — more than a phone's
+ * visible area — so the search box and the entire catalogue sat below the fold
+ * and every session started with a scroll past six adverts. One card at a time
+ * with a peek at the next brings that to ~190px including the dots.
+ *
+ * Horizontal scrolling is safe here specifically because the games tab opts out
+ * of the app's swipe-to-change-tab gesture (NO_SWIPE_NAV in App.tsx); a sideways
+ * drag on this screen belongs to a rail and nothing else.
+ */
+function FeaturedCarousel({ cards, onOpen }: { cards: FeaturedDef[]; onOpen: (id: string) => void }) {
+  const railRef = useRef<HTMLDivElement>(null);
+  const [active, setActive] = useState(0);
+
+  const syncActive = () => {
+    const el = railRef.current;
+    if (!el || cards.length === 0) return;
+    // Every card has the same width, so the scroll pitch is the full scrollable
+    // width divided by the card count — no per-card measuring needed.
+    const pitch = el.scrollWidth / cards.length;
+    setActive(Math.max(0, Math.min(cards.length - 1, Math.round(el.scrollLeft / pitch))));
+  };
+
+  return (
+    <div>
+      <div
+        ref={railRef}
+        onScroll={syncActive}
+        className="flex gap-3 overflow-x-auto -mx-1 px-1 pb-1"
+        style={{
+          scrollSnapType: 'x mandatory', scrollbarWidth: 'none',
+          WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y',
+        }}
+      >
+        {cards.map(def => (
+          // 88% leaves a sliver of the next card visible, which is what tells a
+          // first-time viewer the rail scrolls at all.
+          <div key={def.id} style={{ flex: '0 0 88%', scrollSnapAlign: 'center' }}>
+            <FeaturedCard def={def} onClick={() => onOpen(def.id)} />
+          </div>
+        ))}
+      </div>
+      <div className="flex justify-center items-center gap-1.5 mt-2">
+        {cards.map((c, i) => (
+          <span key={c.id} style={{
+            width: i === active ? 16 : 5, height: 5, borderRadius: 999,
+            background: i === active ? T.color.accent : T.surface.lineStrong,
+            transition: 'width .22s ease, background .22s ease',
+          }} />
+        ))}
+      </div>
+    </div>
   );
 }
 
