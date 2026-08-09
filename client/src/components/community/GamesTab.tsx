@@ -369,6 +369,30 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   // Order here is the order on screen. Adding a game to the hub's flagship strip
   // is one entry — the card and the "remove from its category" behaviour both
   // follow from it.
+  // The three that never require a scroll or a swipe — see QuickTiles.
+  const QUICK_CARDS: QuickDef[] = [
+    {
+      id: 'voidiq', label: 'VOID IQ', sub: 'IQ ტესტი',
+      art: <IQLogo size={42} />,
+      bg: 'linear-gradient(150deg, #0a2a4a 0%, #1a1a4a 60%, #12122e 100%)',
+      edge: 'rgba(79,184,255,0.45)',
+    },
+    {
+      id: 'logic', label: 'ლოგიკის ტესტი', sub: 'აკადემია',
+      art: <LogicLogo size={42} label={false} />,
+      bg: 'linear-gradient(150deg, #3a2f08 0%, #241a2e 60%, #14121c 100%)',
+      edge: 'rgba(249,200,28,0.45)',
+    },
+    // Premium Worlds only exists when the host screen can open it.
+    ...(onOpenPremium ? [{
+      id: 'premium', label: 'Premium Worlds', sub: '3D სივრცე',
+      art: <span style={{ fontSize: 34, filter: 'drop-shadow(0 4px 12px rgba(255,140,60,0.55))' }}>🔥</span>,
+      bg: 'linear-gradient(150deg, #1a2b4a 0%, #4a2c1a 60%, #2e1c10 100%)',
+      edge: 'rgba(192,132,252,0.42)',
+    } as QuickDef] : []),
+  ];
+
+  // Order here is the order in the carousel.
   const FEATURED_CARDS: FeaturedDef[] = [
     {
       id: 'watchparty', title: 'კინო სივრცე', sub: 'ერთად უყურეთ ვიდეოს · სინქრონში + ხმა',
@@ -379,22 +403,6 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
       badgeBg: 'rgba(255,60,70,0.9)', badgeFg: '#fff',
     },
     {
-      id: 'voidiq', title: 'VOID IQ', sub: 'გაზომე შენი გონება · ლიდერბორდი',
-      art: <IQLogo size={58} />,
-      titleGrad: 'linear-gradient(90deg,#eaffff,#4fb8ff)', tracking: '0.12em',
-      bg: 'linear-gradient(135deg, #0a2a4a 0%, #1a1a4a 55%, #2a1a5a 100%)',
-      edge: 'rgba(79,184,255,0.45)', glow: 'rgba(0,150,255,0.18)',
-      badgeBg: 'rgba(0,150,255,0.9)', badgeFg: '#fff',
-    },
-    {
-      id: 'logic', title: 'ლოგიკის აკადემია', sub: 'სილოგიზმები · Logic Rating',
-      art: <LogicLogo size={58} label={false} />,
-      titleGrad: 'linear-gradient(90deg,#fff4c2,#F9C81C)',
-      bg: 'linear-gradient(135deg, #3a2f08 0%, #241a2e 55%, #12101c 100%)',
-      edge: 'rgba(249,200,28,0.45)', glow: 'rgba(249,200,28,0.16)',
-      badgeBg: 'rgba(249,200,28,0.92)', badgeFg: '#1a1206',
-    },
-    {
       id: 'mergeevo', title: 'MERGE EVOLUTION', sub: 'გაზარდე ციფრული ორგანიზმი · ყუთები',
       art: <EvolutionCore stage={3} hue={188} size={64} />,
       titleGrad: 'linear-gradient(90deg,#d8fffa,#4dd4c4)', tracking: '0.08em',
@@ -402,15 +410,6 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
       edge: 'rgba(77,212,196,0.45)', glow: 'rgba(77,212,196,0.16)',
       badgeBg: 'rgba(77,212,196,0.92)', badgeFg: '#04211f',
     },
-    // Premium Worlds only exists when the host screen can open it.
-    ...(onOpenPremium ? [{
-      id: 'premium', title: 'Premium Worlds ✨', sub: `Beach Camp 3D · ${t.commB.premiumSub}`,
-      art: <span style={{ fontSize: 38, filter: 'drop-shadow(0 4px 14px rgba(255,140,60,0.6))' }}>🔥</span>,
-      titleGrad: 'linear-gradient(90deg,#ffe8d0,#ff9d4d)',
-      bg: 'linear-gradient(135deg, #1a2b4a 0%, #4a2c1a 55%, #6b3a1a 100%)',
-      edge: 'rgba(192,132,252,0.4)', glow: 'rgba(124,58,237,0.18)',
-      badgeBg: 'rgba(124,58,237,0.9)', badgeFg: '#fff',
-    } as FeaturedDef] : []),
     {
       id: 'maxpuzzle', title: 'ბატონი მაქსის თავსატეხი', sub: 'კითხვები სწორი პასუხების გარეშე',
       art: <MaxSeal size={52} />,
@@ -420,7 +419,9 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
       badgeBg: 'rgba(217,180,90,0.92)', badgeFg: '#1a1206',
     },
   ];
-  const FEATURED = FEATURED_CARDS.map(c => c.id);
+  // Both strips feed this: a game promoted to either one is removed from its
+  // category section, so nothing on the page appears twice.
+  const FEATURED = [...QUICK_CARDS.map(c => c.id), ...FEATURED_CARDS.map(c => c.id)];
 
   const q = query.trim().toLowerCase();
   const matchesQ = (d: GameDef) => !q || d.title.toLowerCase().includes(q) || d.keywords.toLowerCase().includes(q) || d.sub.toLowerCase().includes(q);
@@ -464,6 +465,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
       {/* Flagship banners — only in the default view */}
       {cat === 'all' && !q && (
         <>
+          <QuickTiles items={QUICK_CARDS} onOpen={id => openGame(byId(id)!)} />
           <FeaturedCarousel cards={FEATURED_CARDS} onOpen={id => openGame(byId(id)!)} />
 
         </>
@@ -825,6 +827,56 @@ function FeaturedCard({ def, onClick }: { def: FeaturedDef; onClick: () => void 
  * of the app's swipe-to-change-tab gesture (NO_SWIPE_NAV in App.tsx); a sideways
  * drag on this screen belongs to a rail and nothing else.
  */
+/**
+ * Primary picks — the three experiences that must never cost a scroll or a
+ * swipe to reach.
+ *
+ * They used to sit at positions 2, 3 and 5 of the flagship carousel, so after
+ * the carousel landed Premium Worlds was four sideways drags out of view. This
+ * is the trade: less artwork per item than a hero banner, but all three visible
+ * the instant the tab opens, which is what they are actually for.
+ *
+ * Their ids stay in FEATURED, so they are still removed from the category grids
+ * below and each game appears exactly once on the screen.
+ */
+interface QuickDef {
+  id: string;
+  label: string;
+  sub: string;
+  art: React.ReactNode;
+  bg: string;
+  edge: string;
+}
+
+function QuickTiles({ items, onOpen }: { items: QuickDef[]; onOpen: (id: string) => void }) {
+  if (!items.length) return null;
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      {items.map(q => (
+        <button
+          key={q.id}
+          onClick={() => onOpen(q.id)}
+          className="rounded-2xl px-2 pt-3 pb-2.5 flex flex-col items-center gap-1.5 text-center transition-all active:scale-[0.97]"
+          // minHeight, never a fixed height: at ~114px wide these labels wrap to
+          // two lines in Georgian and a fixed box would clip them.
+          style={{ background: q.bg, border: `1px solid ${q.edge}`, minHeight: 112 }}
+        >
+          <div className="flex items-center justify-center" style={{ height: 44 }}>{q.art}</div>
+          <div className="w-full min-w-0">
+            <p className="font-display font-bold text-white leading-tight"
+              style={{ fontSize: T.font.caption, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+              {q.label}
+            </p>
+            <p className="font-mono leading-tight mt-0.5 truncate" style={{ fontSize: T.font.micro, color: T.text.faint }}>
+              {q.sub}
+            </p>
+          </div>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function FeaturedCarousel({ cards, onOpen }: { cards: FeaturedDef[]; onOpen: (id: string) => void }) {
   const railRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
