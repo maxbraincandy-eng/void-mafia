@@ -1366,6 +1366,24 @@ export async function initializeDatabase() {
     )
   `;
     await sql `CREATE INDEX IF NOT EXISTS idx_merge_stage ON merge_profiles(stage DESC, xp DESC)`;
+    // ── ნუარი — finished adventure runs ────────────────────────────────
+    // Every finished run is kept so a profile can show a history, but the
+    // leaderboard reads each player's best only (see noirService.leaderboard).
+    await sql `
+    CREATE TABLE IF NOT EXISTS noir_runs (
+      id          BIGSERIAL PRIMARY KEY,
+      user_id     TEXT    NOT NULL,
+      name        TEXT    NOT NULL DEFAULT '',
+      ending_id   TEXT    NOT NULL,
+      tone        TEXT    NOT NULL,
+      chapter     INTEGER NOT NULL DEFAULT 0,
+      scenes_seen INTEGER NOT NULL DEFAULT 0,
+      score       INTEGER NOT NULL DEFAULT 0,
+      created_at  BIGINT  NOT NULL
+    )
+  `;
+    // The board groups by user and takes a max, so lead with user_id.
+    await sql `CREATE INDEX IF NOT EXISTS idx_noir_user_score ON noir_runs(user_id, score DESC)`;
     // A completed test may be converted into a chest upgrade exactly ONCE. Without
     // this ledger a single old IQ attempt would boost every chest forever, which
     // rewards having taken a test rather than keeping at it.

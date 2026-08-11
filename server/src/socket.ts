@@ -109,6 +109,7 @@ import {
   PERK_ITEMS, getPerks, buyPerk, setPerkMode,
   resolveSpectatorInvisible, resolveAnon, consumeXpBoost, resolveSpotlightUntil, aliasFor,
 } from './services/perkService.js';
+import { submitRun as noirSubmit, leaderboard as noirBoard, myStats as noirStats } from './services/noirService.js';
 import { applyReferral, getReferralCount } from './services/referralService.js';
 import { updateRatingsAfterGame, getPlayerRating, getRankedLeaderboard, getRankTier } from './services/ratingService.js';
 import { getActiveSeason, getSeasonLeaderboard, getMySeasonHistory } from './services/seasonService.js';
@@ -4866,6 +4867,36 @@ export function attachSocketHandlers(io: AppServer): void {
         player.invisibleSpectator = !!on;
         broadcastRoom(io, room);
         cb(ok({ invisible: player.invisibleSpectator }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── ნუარი (adventure) ──────────────────────────────────────────────
+    socket.on('noir:submit' as any, async (data: any, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        // The client's own score is deliberately not read — noirService
+        // recomputes it from the run's facts.
+        const r = await noirSubmit(profileId, String(data?.name ?? ''), {
+          endingId: String(data?.endingId ?? ''),
+          tone: data?.tone,
+          chapter: Number(data?.chapter ?? 0),
+          scenesSeen: Number(data?.scenesSeen ?? 0),
+          stats: data?.stats ?? {},
+        });
+        cb(ok(r));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('noir:board' as any, async (data: any, cb: any) => {
+      try { cb(ok(await noirBoard(Number(data?.limit ?? 50)))); } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('noir:me' as any, async (cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        cb(ok(await noirStats(profileId)));
       } catch (e: any) { cb(err(e.message)); }
     });
 

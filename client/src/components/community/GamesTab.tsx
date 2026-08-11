@@ -13,6 +13,7 @@ const DeathrunGame = lazy(() => import('@/components/deathrun/DeathrunGame'));
 const LogicAcademy = lazy(() => import('@/components/logic/LogicAcademy').then(m => ({ default: m.LogicAcademy })));
 const MergeEvolution = lazy(() => import('@/components/merge/MergeEvolution').then(m => ({ default: m.MergeEvolution })));
 const MaxPuzzleExperience = lazy(() => import('@/components/maxpuzzle/MaxPuzzleExperience').then(m => ({ default: m.MaxPuzzleExperience })));
+const NoirAdventure = lazy(() => import('@/components/noir/NoirAdventure').then(m => ({ default: m.NoirAdventure })));
 import { IQLogo } from '@/components/iq/IQLogo';
 import { LogicLogo } from '@/components/logic/LogicLogo';
 import { EvolutionCore } from '@/components/merge/art';
@@ -109,6 +110,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   const [watchPartyOpen, setWatchPartyOpen] = useState(false);
   const [deathrunOpen, setDeathrunOpen] = useState(false);
   const [logicOpen, setLogicOpen] = useState(false);
+  const [noirOpen, setNoirOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
 
   // ── Checkers ────────────────────────────────────────────────────────
@@ -362,6 +364,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   defs.push({ id: 'othermafia', title: 'თუჯიტური მაფია', sub: 'ვიდეო-მაფია ჰოსტით · 4-14 მოთ.', cat: 'worlds', kind: 'match', accent: RED_XM, logo: 'mafianight', emoji: '🎭', badge: true, keywords: 'mafia მაფია თუჯიტური tujituri video ვიდეო table host' });
   defs.push({ id: 'mergeevo', title: 'Merge Evolution', sub: 'გაზარდე ციფრული ორგანიზმი · ყუთები · შერწყმა', cat: 'solo', kind: 'launch', accent: '#4dd4c4', emoji: '🧬', badge: true, keywords: 'merge evolution ევოლუცია შერწყმა dna დნმ ორგანიზმი ყუთი chest idle კლიკერი განვითარება', launch: () => setMergeOpen(true) });
   defs.push({ id: 'logic', title: 'ფორმალური ლოგიკის აკადემია', sub: 'სილოგიზმები · არგუმენტაცია · Logic Rating', cat: 'logic', kind: 'launch', accent: '#F9C81C', logo: 'logic', emoji: '🧠', badge: true, keywords: 'logic ლოგიკა სილოგიზმი არგუმენტი დედუქცია აკადემია რეიტინგი formal ფორმალური მსჯელობა fallacy შეცდომა', launch: () => setLogicOpen(true) });
+  defs.push({ id: 'noir', title: 'ნუარი', sub: 'ინტერაქტიული თავგადასავალი · შენ წყვეტ', cat: 'solo', kind: 'launch', accent: '#ff2d55', emoji: '🌃', badge: true, keywords: 'noir ნუარი თავგადასავალი ამბავი არჩევანი ისტორია adventure story choice მაფია დეტექტივი', launch: () => setNoirOpen(true) });
   defs.push({ id: 'deathrun', title: 'Deathrun · ბჰოპი', sub: '10 ხაფანგი · ბჰოპ სექცია · ხმალაობა · 2-16 მოთ.', cat: 'bhop', kind: 'launch', accent: '#ff6b4a', emoji: '🏁', badge: true, keywords: 'deathrun bhop ბჰოპი ხაფანგი temple ტაძარი სირბილი ხმალი surf დეთრანი', launch: () => setDeathrunOpen(true) });
   defs.push({ id: 'watchparty', title: 'კინო სივრცე', sub: 'ერთად უყურეთ ვიდეოს · სინქრონში + ხმა', cat: 'worlds', kind: 'launch', accent: '#ff5d5d', emoji: '🎬', badge: true, keywords: 'watch party კინო ფილმი youtube ვიდეო together სინქრონი co-watch cinema', launch: () => setWatchPartyOpen(true) });
 
@@ -581,6 +584,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
       {watchPartyOpen && <Suspense fallback={null}><WatchPartyLauncher onClose={() => setWatchPartyOpen(false)} /></Suspense>}
       {deathrunOpen && <Suspense fallback={null}><DeathrunGame nickname={playerName} onClose={() => setDeathrunOpen(false)} /></Suspense>}
       {logicOpen && <Suspense fallback={null}><LogicAcademy onClose={() => setLogicOpen(false)} /></Suspense>}
+      {noirOpen && <Suspense fallback={null}><NoirAdventure onClose={() => setNoirOpen(false)} /></Suspense>}
       {mergeOpen && <Suspense fallback={null}><MergeEvolution onClose={() => setMergeOpen(false)} /></Suspense>}
       {aristocracyOpen && <Suspense fallback={null}><AristocracyTest onClose={() => setAristocracyOpen(false)} /></Suspense>}
     </div>
@@ -780,7 +784,7 @@ function GameArt({ d, size }: { d: GameDef; size: number }) {
  * carried the badge, which is the same as none of them carrying it. Keep this
  * list short and prune it as things stop being new.
  */
-const NEW_GAMES = new Set(['mergeevo', 'logic', 'deathrun', 'watchparty']);
+const NEW_GAMES = new Set(['noir', 'mergeevo', 'logic', 'deathrun']);
 
 function FeaturedCard({ def, onClick }: { def: FeaturedDef; onClick: () => void }) {
   return (
