@@ -82,6 +82,12 @@ export class WorldEngine {
   private avatar: Avatar;
   private pos = new THREE.Vector3();
   private vy = 0;                     // vertical velocity (jump/gravity)
+  /**
+   * Third person orbits behind the avatar; first person sits in its head and
+   * hides the body so you don't see the inside of your own chest. The mode is
+   * per-session and applies to every world.
+   */
+  private camMode: 'third' | 'first' = 'third';
   private facing = 0;                 // avatar yaw
   private camYaw = 0;
   private camPitch = 0.22;
@@ -205,6 +211,27 @@ export class WorldEngine {
     if (this.nearSeat) this.sit(this.nearSeat);
   }
   jump() { if (!this.seated && !this.riding && this.pos.y <= this.groundY + 0.05) this.vy = 8.0; }
+
+  /** Switch between first- and third-person. Returns the mode now in effect. */
+  setCameraMode(mode: 'third' | 'first'): 'third' | 'first' {
+    this.camMode = mode;
+    this.syncAvatarVisibility();
+    return this.camMode;
+  }
+
+  /**
+   * The avatar is hidden only in first person on foot. Sitting and driving stay
+   * in third person — the point of those is seeing the thing you are in — so
+   * this is re-evaluated on every frame rather than at the toggle alone;
+   * seating happens long after the mode was chosen.
+   */
+  private syncAvatarVisibility() {
+    this.avatar.group.visible = this.camMode === 'third' || !!this.seated || !!this.riding;
+  }
+  toggleCameraMode(): 'third' | 'first' {
+    return this.setCameraMode(this.camMode === 'third' ? 'first' : 'third');
+  }
+  getCameraMode(): 'third' | 'first' { return this.camMode; }
   // 1 near the screen, fading with distance — drives the cinema volume. The
   // audible radius is generous so the TV can be heard from most of the camp
   // (spawn, fire, DJ booth, karaoke are all ~12-20 units away); it only fully
@@ -902,6 +929,7 @@ export class WorldEngine {
     this.avatar.update(dt, moveSpeed);
 
     // third-person camera with ground clamp + collider pull-in
+    this.syncAvatarVisibility();
     this.updateCamera(dt);
 
     // remote players
@@ -958,6 +986,27 @@ export class WorldEngine {
   private updateCamera(dt: number) {
     const eyeH = this.seated ? 0.7 : EYE;
     const cp = this.camPitch;   // + = look down, − = look up
+
+    // ── first person ──
+    // The camera IS the head: no orbit, no collider pull-in (nothing can come
+    // between you and yourself), and the look target is projected forward along
+    // the same yaw/pitch the third-person camera uses, so the two modes agree
+    // about where "forward" is and switching never spins the view.
+    if (this.camMode === 'first' && !this.seated && !this.riding) {
+      const head = new THREE.Vector3(this.pos.x, this.pos.y + eyeH + 0.12, this.pos.z);
+      // Snap rather than lerp: smoothing the camera onto your own head reads as
+      // motion sickness, not weight.
+      this.camPos.copy(head);
+      this.camera.position.copy(this.camPos);
+      const fwd = new THREE.Vector3(-Math.sin(this.camYaw), 0, -Math.cos(this.camYaw));
+      this.camera.lookAt(
+        head.x + fwd.x * 10,
+        head.y - cp * 10,
+        head.z + fwd.z * 10,
+      );
+      return;
+    }
+
     // Camera orbits BEHIND at a bounded elevation instead of swinging overhead,
     // so tilting up actually reveals the sky rather than going top-down.
     const camElev = (this.seated ? 1.1 : CAM_HEIGHT) + cp * 1.5;

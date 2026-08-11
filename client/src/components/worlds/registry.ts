@@ -10,6 +10,7 @@ import { skylineTerrace } from './skylineTerrace';
 import { privateYacht } from './privateYacht';
 import { rotmundi } from './rotmundi';
 import { speedway } from './speedway';
+import { noirCity } from './noirCity';
 
 export const PREMIUM_WORLDS: WorldDef[] = [
   beachCamp,
@@ -19,6 +20,7 @@ export const PREMIUM_WORLDS: WorldDef[] = [
   privateYacht,
   rotmundi,
   speedway,
+  noirCity,
 ];
 
 export function getWorld(id: string): WorldDef | undefined {

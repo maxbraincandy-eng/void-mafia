@@ -9,6 +9,7 @@ import { WorldEngine, type WorldHud, type RemoteWorldPlayer } from './engine';
 import { WorldCinema, ytVideoId, type TVState } from './cinema';
 import { PREMIUM_WORLDS, getWorld } from './registry';
 import { loadSpec, randomSpec, saveSpec, type CharacterSpec } from '../character/spec';
+import { NoirBeatPanel } from './NoirBeatPanel';
 
 // ── Premium Worlds — full-screen overlay (lobby → 3D world) ────────────
 // Lazy-loaded from App so Three.js + world code stay out of the main bundle.
@@ -164,6 +165,11 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
   const t = useT();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<WorldEngine | null>(null);
+  // Camera mode lives here rather than in the engine's constructor so it
+  // survives a world switch and can be shown in the HUD.
+  const [camMode, setCamMode] = useState<'third' | 'first'>(() => {
+    try { return localStorage.getItem('vw_cam') === 'first' ? 'first' : 'third'; } catch { return 'third'; }
+  });
   const cinemaBoxRef = useRef<HTMLDivElement>(null);
   const cinemaRef = useRef<WorldCinema | null>(null);
   const [hud, setHud] = useState<WorldHud>({ world: '', sitting: false, driving: false, canInteract: null, players: 1, nearScreen: false });
@@ -257,6 +263,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
     engineRef.current = eng;
     eng.onHud = setHud;
     eng.setQuality(quality.mode);
+    eng.setCameraMode(camMode);
     eng.setShadows(quality.shadows);
     eng.resize();
     eng.start();
@@ -628,6 +635,10 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
       )}
 
       {/* Top bar */}
+      {/* The noir world is the story told as a place; every other world
+          ignores this entirely. */}
+      {worldId === 'noir_city' && <NoirBeatPanel playerName={hud.world ?? ''} />}
+
       <div style={{ position: 'absolute', top: 'max(12px, env(safe-area-inset-top))', left: 14, right: 14, display: 'flex', alignItems: 'center', gap: 8, opacity: showUI ? 1 : 0, transition: 'opacity .4s', pointerEvents: showUI ? 'auto' : 'none' }}>
         <button data-hud onPointerDown={(e) => { e.preventDefault(); setPanel(p => p === 'players' ? null : 'players'); }}
           style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(16,12,32,0.5)', border: '1px solid rgba(192,132,252,0.25)', borderRadius: 20, padding: '7px 14px', backdropFilter: 'blur(6px)', touchAction: 'none' }}>
@@ -639,6 +650,13 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
         {roundBtn(voice.joined ? (voice.muted ? '🔇' : '🎙️') : '🎙️', () => { if (!voice.joined) voice.joinVoice(); else voice.toggleMute(); }, 40, voice.joined && !voice.muted)}
         {roundBtn('📷', takePhoto, 40)}
         {roundBtn('✉️', openInvite, 40, invitePanel)}
+        {/* First / third person. Shown as the view you will GET when tapped,
+            which is how every game labels this control. */}
+        {roundBtn(camMode === 'third' ? '👁️' : '🧍', () => {
+          const next = engineRef.current?.toggleCameraMode() ?? 'third';
+          setCamMode(next);
+          try { localStorage.setItem('vw_cam', next); } catch { /* private mode */ }
+        }, 40, camMode === 'first')}
         {roundBtn('⚙️', () => setPanel(p => p === 'settings' ? null : 'settings'), 40, panel === 'settings')}
         {roundBtn('✕', onClose, 40)}
       </div>
