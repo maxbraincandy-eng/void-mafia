@@ -637,7 +637,7 @@ function World({ worldId, onExit, onClose }: { worldId: string; onExit: () => vo
       {/* Top bar */}
       {/* The noir world is the story told as a place; every other world
           ignores this entirely. */}
-      {worldId === 'noir_city' && <NoirBeatPanel playerName={hud.world ?? ''} />}
+      {worldId === 'noir_city' && <NoirBeatPanel playerName={useAuthStore.getState().profile?.username ?? 'უსახელო'} />}
 
       <div style={{ position: 'absolute', top: 'max(12px, env(safe-area-inset-top))', left: 14, right: 14, display: 'flex', alignItems: 'center', gap: 8, opacity: showUI ? 1 : 0, transition: 'opacity .4s', pointerEvents: showUI ? 'auto' : 'none' }}>
         <button data-hud onPointerDown={(e) => { e.preventDefault(); setPanel(p => p === 'players' ? null : 'players'); }}

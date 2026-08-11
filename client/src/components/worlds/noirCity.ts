@@ -47,13 +47,34 @@ function windowTexture(): THREE.Texture {
 }
 
 /**
- * Story hooks. The world only announces WHICH beat was reached; the React layer
- * decides what to show. Keeping it a plain event means the 3D world has no
- * import of the story engine and stays a scene, not a game.
+ * Story hooks.
+ *
+ * A place announces its KIND, never a scene id. 60 scenes would otherwise need
+ * 60 markers; instead the eight locations map onto the story's eight backdrops,
+ * and whichever scene the run is currently sitting on plays when you reach the
+ * matching place. That is what makes the city a map: the story names where to
+ * go next, and going there is the move.
+ *
+ * The world stays ignorant of the story — it only ever emits a place kind and
+ * listens for an objective to point at.
  */
 export const NOIR_BEAT_EVENT = 'vm-noir-beat';
-function beat(id: string, label: string) {
-  window.dispatchEvent(new CustomEvent(NOIR_BEAT_EVENT, { detail: { id, label } }));
+export const NOIR_OBJECTIVE_EVENT = 'vm-noir-objective';
+
+/** Where each kind of scene happens. Exported so the panel can name a destination. */
+export const NOIR_PLACES: Array<{ kind: string; x: number; z: number; label: string }> = [
+  { kind: 'rain_street',   x: 0,     z: 20,   label: 'ქუჩა' },
+  { kind: 'bar',           x: -11.2, z: 12,   label: 'ბარი „ლურჯი"' },
+  { kind: 'alley',         x: -16,   z: 1.5,  label: 'უკანა შესახვევი' },
+  { kind: 'office',        x: 11.4,  z: -8,   label: 'ლევანის კაბინეტი' },
+  { kind: 'docks',         x: 0,     z: -39,  label: 'პორტი' },
+  { kind: 'car',           x: 7.6,   z: 18,   label: 'მანქანა' },
+  { kind: 'room',          x: -11.4, z: -17,  label: 'შენი ბინა' },
+  { kind: 'interrogation', x: 11.4,  z: 10,   label: 'განყოფილება' },
+];
+
+function beat(kind: string, label: string) {
+  window.dispatchEvent(new CustomEvent(NOIR_BEAT_EVENT, { detail: { kind, label } }));
 }
 
 export const noirCity: WorldDef = {
@@ -158,7 +179,7 @@ export const noirCity: WorldDef = {
     D.push(barDoor.geometry, barDoor.material as THREE.Material);
     ctx.addInteractable({
       id: 'noir_bar', x: -11.2, z: 12, r: 2.6, label: 'ბარი „ლურჯი"',
-      effect: () => beat('c1_bar_direct', 'ბარი „ლურჯი"'),
+      effect: () => beat('bar', 'ბარი „ლურჯი"'),
     });
     ctx.addAmbient({ kind: 'night', x: -12, z: 12, radius: 16, gain: 0.5 });
 
@@ -179,7 +200,7 @@ export const noirCity: WorldDef = {
     }
     ctx.addInteractable({
       id: 'noir_alley', x: -16, z: 1.5, r: 2.8, label: 'უკანა შესახვევი',
-      effect: () => beat('c1_wait', 'უკანა შესახვევი'),
+      effect: () => beat('alley', 'უკანა შესახვევი'),
     });
 
     // ── Levan's office: the lit window above the east row ──
@@ -193,7 +214,7 @@ export const noirCity: WorldDef = {
     D.push(officeDoor.geometry, officeDoor.material as THREE.Material);
     ctx.addInteractable({
       id: 'noir_office', x: 11.4, z: -8, r: 2.6, label: 'ლევანის კაბინეტი',
-      effect: () => beat('c2_office', 'ლევანის კაბინეტი'),
+      effect: () => beat('office', 'ლევანის კაბინეტი'),
     });
 
     // ── the docks at the far end: containers, crane, black water ──
@@ -228,7 +249,7 @@ export const noirCity: WorldDef = {
       // 5m off the hull, not 3.6: the collider is r=3.1 and the walker's own
       // radius adds 0.34, so a closer marker cannot be stood on.
       id: 'noir_docks', x: 0, z: -39, r: 3, label: 'ლურჯი კონტეინერი',
-      effect: () => beat('c2_docks_brief', 'პორტი'),
+      effect: () => beat('docks', 'პორტი'),
     });
 
     const craneMat = new T3.MeshStandardMaterial({ color: 0x0e1a20, roughness: 0.9 });
@@ -244,6 +265,81 @@ export const noirCity: WorldDef = {
 
     // ── a parked car, drivable (the engine already knows how) ──
     ctx.addVehicle({ id: 'noir_car', x: 5.6, z: 18, yaw: Math.PI, kind: 'car', color: 0x1b1d24, num: 0 });
+
+
+    // ── your apartment: a door in the west row, one lit window above ──
+    const flatWin = new T3.Mesh(new T3.BoxGeometry(2.6, 1.8, 0.22),
+      new T3.MeshBasicMaterial({ color: 0x9fb0c8, toneMapped: false, transparent: true, opacity: 0.6 }));
+    flatWin.position.set(-14.9, 7.2, -17); scene.add(flatWin);
+    D.push(flatWin.geometry, flatWin.material as THREE.Material);
+    const flatDoor = new T3.Mesh(new T3.BoxGeometry(0.3, 2.9, 2.1),
+      new T3.MeshStandardMaterial({ color: 0x1a1d26, roughness: 0.85, emissive: 0x9fb0c8, emissiveIntensity: 0.13 }));
+    flatDoor.position.set(-12.9, 1.45, -17); scene.add(flatDoor);
+    D.push(flatDoor.geometry, flatDoor.material as THREE.Material);
+    ctx.addInteractable({
+      id: 'noir_room', x: -11.4, z: -17, r: 2.6, label: 'შენი ბინა',
+      effect: () => beat('room', 'შენი ბინა'),
+    });
+
+    // ── the station: cold light, a blue lamp over the door ──
+    const stnLamp = new T3.Mesh(new T3.SphereGeometry(0.3, 10, 8), neon(0x6ea8ff));
+    stnLamp.position.set(12.7, 3.6, 10); scene.add(stnLamp); D.push(stnLamp.geometry);
+    const stnLight = new T3.PointLight(0x6ea8ff, 1.9, 15, 2);
+    stnLight.position.set(12.4, 3.4, 10); scene.add(stnLight);
+    const stnDoor = new T3.Mesh(new T3.BoxGeometry(0.3, 3.1, 2.6),
+      new T3.MeshStandardMaterial({ color: 0x161c26, roughness: 0.7, emissive: 0x6ea8ff, emissiveIntensity: 0.22 }));
+    stnDoor.position.set(12.9, 1.55, 10); scene.add(stnDoor);
+    D.push(stnDoor.geometry, stnDoor.material as THREE.Material);
+    ctx.addInteractable({
+      id: 'noir_station', x: 11.4, z: 10, r: 2.6, label: 'განყოფილება',
+      effect: () => beat('interrogation', 'განყოფილება'),
+    });
+
+    // ── the phone box: where the street scenes happen ──
+    const boxMat = new T3.MeshStandardMaterial({ color: 0x3a1218, roughness: 0.75, emissive: 0xff2d55, emissiveIntensity: 0.12 });
+    D.push(boxMat);
+    const phoneBox = new T3.Mesh(new T3.BoxGeometry(1.1, 2.5, 1.1), boxMat);
+    phoneBox.position.set(1.6, 1.25, 20); phoneBox.castShadow = true;
+    scene.add(phoneBox); D.push(phoneBox.geometry);
+    const boxGlow = new T3.Mesh(new T3.BoxGeometry(0.9, 1.2, 0.06),
+      new T3.MeshBasicMaterial({ color: 0xffd9a0, toneMapped: false, transparent: true, opacity: 0.5 }));
+    boxGlow.position.set(1.6, 1.7, 20.57); scene.add(boxGlow);
+    D.push(boxGlow.geometry, boxGlow.material as THREE.Material);
+    ctx.addCollider({ x: 1.6, z: 20, r: 0.8 });
+    ctx.addInteractable({
+      id: 'noir_street', x: 0, z: 20, r: 2.4, label: 'ქუჩა · სატელეფონო ჯიხური',
+      effect: () => beat('rain_street', 'ქუჩა'),
+    });
+
+    // ── the car doubles as a story place: the drives happen in it ──
+    ctx.addInteractable({
+      id: 'noir_drive', x: 7.6, z: 18, r: 2.4, label: 'მანქანა',
+      effect: () => beat('car', 'მანქანა'),
+    });
+
+    // ── objective beacon: a column of light over wherever the story points ──
+    // Keeping the marker in the world (rather than an arrow on the HUD) means
+    // you navigate by looking, which is the reason to be in 3D at all.
+    const beacon = new T3.Mesh(
+      new T3.CylinderGeometry(0.55, 1.5, 26, 12, 1, true),
+      new T3.MeshBasicMaterial({
+        color: 0xffd45a, transparent: true, opacity: 0.12,
+        side: T3.DoubleSide, depthWrite: false, toneMapped: false,
+      }),
+    );
+    beacon.position.set(0, 13, 20); beacon.visible = false;
+    scene.add(beacon); D.push(beacon.geometry, beacon.material as THREE.Material);
+    const onObjective = (e: Event) => {
+      const kind = (e as CustomEvent).detail?.kind as string | null;
+      const place = NOIR_PLACES.find(p => p.kind === kind);
+      if (!place) { beacon.visible = false; return; }
+      beacon.position.set(place.x, 13, place.z);
+      beacon.visible = true;
+    };
+    window.addEventListener(NOIR_OBJECTIVE_EVENT, onObjective);
+    // The engine disposes the scene but knows nothing about our listener, so it
+    // is removed when the beacon it drives leaves the scene.
+    beacon.addEventListener('removed', () => window.removeEventListener(NOIR_OBJECTIVE_EVENT, onObjective));
 
     // ── puddles: unlit discs that catch the neon ──
     const puddles: THREE.Mesh[] = [];
@@ -292,6 +388,10 @@ export const noirCity: WorldDef = {
         rain.setMatrixAt(i, tmp);
       }
       rain.instanceMatrix.needsUpdate = true;
+
+      if (beacon.visible) {
+        (beacon.material as THREE.MeshBasicMaterial).opacity = 0.09 + 0.06 * (0.5 + 0.5 * Math.sin(elapsed * 2.2));
+      }
 
       if (ctx.perf.reduced) return;
       // Neon breathing in the puddles and the alley lamp's bad connection.
