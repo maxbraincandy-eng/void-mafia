@@ -13,10 +13,12 @@ import { useAuthStore } from '@/store/authStore';
 import { haptic } from '@/lib/haptics';
 import { T, hairline, overlay } from '@/design/tokens';
 import { NoirBackdrop, BEAT_FLASH, type Beat } from './art';
+import { SkillTest } from './Interactions';
+import { NoirAudio } from './sfx';
 import { STAT_META, type Choice, type RunState, type StatKey } from './types';
 import {
-  applyChoice, clearRun, endingById, forcedEnding, loadRun, meetsRequirements,
-  newRun, saveRun, sceneById, scoreRun,
+  applyChoice, applyTimeout, clearRun, endingById, forcedEnding, loadRun,
+  meetsRequirements, newRun, saveRun, sceneById, scoreRun,
 } from './engine';
 
 type View = 'title' | 'play' | 'ending' | 'board';
@@ -53,6 +55,9 @@ export function NoirAdventure({ onClose }: { onClose: () => void }) {
   const [board, setBoard] = useState<BoardRow[] | null>(null);
   const [best, setBest] = useState<{ best: number; runs: number; endings: string[] } | null>(null);
   const [submitted, setSubmitted] = useState<{ score: number; rank: number | null; isBest: boolean } | null>(null);
+  // A choice waiting on its skill test — the story pauses until it resolves.
+  const [pending, setPending] = useState<Choice | null>(null);
+  const [left, setLeft] = useState<number | null>(null);   // timed scene, ms remaining
   const saved = useMemo(() => loadRun(), []);
   const openProfile = useSocialStore(s => s.openProfile);
   const myId = useAuthStore(s => s.profile?.id ?? s.uid);
@@ -64,8 +69,49 @@ export function NoirAdventure({ onClose }: { onClose: () => void }) {
   const tw = useTypewriter(body);
 
   useEffect(() => { if (run && !run.endingId) saveRun(run); }, [run]);
+
+  // The ambient bed IS the place: it cross-fades whenever the backdrop changes,
+  // and stops entirely when the overlay closes so nothing plays into silence.
+  useEffect(() => {
+    if (view === 'play' && scene) NoirAudio.setAmbient(scene.backdrop);
+    else if (view === 'title') NoirAudio.setAmbient('rain_street');
+    else NoirAudio.setAmbient(null);
+  }, [view, scene?.backdrop]);
+  useEffect(() => () => NoirAudio.stopAll(), []);
+
+  // Typewriter clatter, rate-limited inside the audio module.
+  useEffect(() => { if (view === 'play' && !tw.done) NoirAudio.tick(); }, [tw.visible, view, tw.done]);
   // A new scene starts at the top — long text otherwise opens mid-paragraph.
   useEffect(() => { scrollRef.current?.scrollTo({ top: 0 }); }, [run?.sceneId]);
+
+  // Timed scenes: the clock starts only once the text has finished revealing,
+  // so reading speed is never what kills you — hesitation is.
+  useEffect(() => {
+    if (view !== 'play' || !scene?.seconds || !tw.done || pending) { setLeft(null); return; }
+    const total = scene.seconds * 1000;
+    const t0 = Date.now();
+    setLeft(total);
+    let lastBeat = 0;
+    const iv = setInterval(() => {
+      const rem = total - (Date.now() - t0);
+      setLeft(rem);
+      // Heartbeat quickens as the clock empties.
+      const gap = rem < total * 0.3 ? 500 : rem < total * 0.6 ? 850 : 1300;
+      if (Date.now() - lastBeat > gap) { lastBeat = Date.now(); NoirAudio.heart(rem < total * 0.3); }
+      if (rem <= 0) {
+        clearInterval(iv);
+        setRun(prev => {
+          if (!prev) return prev;
+          let next = applyTimeout(prev);
+          const forced = forcedEnding(next);
+          if (forced) next = { ...next, endingId: forced };
+          if (next.endingId) { clearRun(); setView('ending'); }
+          return next;
+        });
+      }
+    }, 100);
+    return () => clearInterval(iv);
+  }, [view, scene?.id, scene?.seconds, tw.done, pending]);
 
   useEffect(() => {
     emitWithAck<undefined, any>('noir:me').then(r => { if (r?.ok) setBest(r.data); }).catch(() => {});
@@ -79,26 +125,42 @@ export function NoirAdventure({ onClose }: { onClose: () => void }) {
     setView('play');
   };
 
+  /** Commit a choice — `failed` only ever comes from a lost skill test. */
+  const resolve = useCallback((c: Choice, failed: boolean) => {
+    setRun(prev => {
+      if (!prev) return prev;
+      let next = applyChoice(prev, c, failed);
+      const forced = forcedEnding(next);
+      if (forced) next = { ...next, endingId: forced };
+      if (next.endingId) { clearRun(); setView('ending'); }
+      return next;
+    });
+    const eff = failed ? c.test?.failEffects : c.effects;
+    setDelta(eff ?? {});
+    setTimeout(() => setDelta({}), 1400);
+  }, []);
+
   const pick = useCallback((c: Choice) => {
     if (!run || !tw.done) { tw.finish(); return; }
-    if (!meetsRequirements(run, c)) { haptic('error'); return; }
+    if (!meetsRequirements(run, c)) { haptic('error'); NoirAudio.warn(); return; }
+    NoirAudio.unlock();
     haptic(c.beat === 'violent' ? 'heavy' : 'selection');
+    NoirAudio.choose(c.beat ?? 'calm');
     setFlash(c.beat ?? 'calm');
     setTimeout(() => setFlash(null), 420);
-    setDelta(c.effects ?? {});
-    setTimeout(() => setDelta({}), 1400);
+    setLeft(null);
 
-    let next = applyChoice(run, c);
-    const forced = forcedEnding(next);
-    if (forced) next = { ...next, endingId: forced };
-    setRun(next);
-    if (next.endingId) { clearRun(); setView('ending'); }
-  }, [run, tw]);
+    // A choice carrying a test doesn't resolve yet: you have to earn it.
+    if (c.test) { setPending(c); return; }
+    resolve(c, false);
+  }, [run, tw, resolve]);
 
   // Submitting is what puts the run on the board; the server rescores it.
   useEffect(() => {
     if (view !== 'ending' || !run?.endingId || submitted) return;
     const e = endingById(run.endingId);
+    NoirAudio.setAmbient(null);
+    NoirAudio.ending(e?.tone ?? 'death');
     emitWithAck<any, any>('noir:submit', {
       name: run.name, endingId: run.endingId, tone: e?.tone ?? 'death',
       chapter: run.chapter, scenesSeen: new Set(run.path).size, stats: run.stats,
@@ -126,16 +188,26 @@ export function NoirAdventure({ onClose }: { onClose: () => void }) {
         )}
       </AnimatePresence>
 
+      {/* skill test — the story waits here until it is won or lost */}
+      <AnimatePresence>
+        {pending && (
+          <SkillTest test={pending.test!} onDone={ok => { const c = pending; setPending(null); resolve(c, !ok); }} />
+        )}
+      </AnimatePresence>
+
       <div style={S.inner}>
         <div style={S.header}>
           <button onClick={onClose} style={S.icon} aria-label="დახურვა">‹</button>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={S.title}>ნუარი</div>
             <div style={S.sub}>
-              {view === 'play' && run ? `თავი ${run.chapter} / 4` : 'ინტერაქტიული თავგადასავალი'}
+              {view === 'play' && run ? `თავი ${run.chapter} / 6` : 'ინტერაქტიული თავგადასავალი'}
             </div>
           </div>
-          {best && <div style={S.bestChip}>რეკორდი {best.best}</div>}
+          {/* countdown replaces the record chip while a timed scene runs */}
+          {left != null && scene?.seconds
+            ? <Countdown left={left} total={scene.seconds * 1000} />
+            : best ? <div style={S.bestChip}>რეკორდი {best.best}</div> : null}
         </div>
 
         {/* ══ title ══ */}
@@ -156,7 +228,7 @@ export function NoirAdventure({ onClose }: { onClose: () => void }) {
             )}
             <button onClick={openBoard} style={S.ghost}>ლიდერბორდი</button>
             {best && best.runs > 0 && (
-              <p style={S.note}>{best.runs} დასრულებული · ნანახი დასასრული {best.endings.length}/6</p>
+              <p style={S.note}>{best.runs} დასრულებული · ნანახი დასასრული {best.endings.length}/10</p>
             )}
           </>
         )}
@@ -164,10 +236,18 @@ export function NoirAdventure({ onClose }: { onClose: () => void }) {
         {/* ══ playing ══ */}
         {view === 'play' && scene && run && (
           <>
-            <div style={S.poster}>
+            {/* Keyed on the scene id so every move cuts to a new shot rather
+                than silently swapping the artwork underneath the same frame. */}
+            <motion.div key={scene.id} style={S.poster}
+              initial={{ opacity: 0, scale: 1.05 }} animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}>
               <NoirBackdrop kind={scene.backdrop} height={190} />
-              {scene.title && <div style={S.place}>{scene.title}</div>}
-            </div>
+              {scene.title && (
+                <motion.div style={S.place}
+                  initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.25, duration: 0.4 }}>{scene.title}</motion.div>
+              )}
+            </motion.div>
 
             <StatBar stats={run.stats} delta={delta} />
 
@@ -270,6 +350,29 @@ export function NoirAdventure({ onClose }: { onClose: () => void }) {
       </div>
     </div>,
     document.body,
+  );
+}
+
+/** Shrinking ring shown in the header while a timed scene runs. */
+function Countdown({ left, total }: { left: number; total: number }) {
+  const pct = Math.max(0, Math.min(1, left / total));
+  const r = 15, c = 2 * Math.PI * r;
+  const urgent = pct < 0.3;
+  return (
+    <div style={{ position: 'relative', width: 38, height: 38, flexShrink: 0 }}>
+      <svg viewBox="0 0 38 38" width="38" height="38">
+        <circle cx="19" cy="19" r={r} fill="none" stroke={T.surface.line} strokeWidth="3" />
+        <circle cx="19" cy="19" r={r} fill="none" strokeWidth="3" strokeLinecap="round"
+          stroke={urgent ? T.color.danger : T.color.accent}
+          strokeDasharray={c} strokeDashoffset={c * (1 - pct)}
+          transform="rotate(-90 19 19)" style={{ transition: 'stroke-dashoffset .1s linear' }} />
+      </svg>
+      <span style={{
+        position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontFamily: 'monospace', fontSize: T.font.caption,
+        color: urgent ? T.color.danger : T.text.secondary,
+      }}>{Math.ceil(left / 1000)}</span>
+    </div>
   );
 }
 

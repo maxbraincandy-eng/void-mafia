@@ -41,8 +41,35 @@ export interface Requirement {
   flag?: string;
 }
 
+/**
+ * A skill test attached to a choice. This is what turns a decision into an act:
+ * you don't merely pick "hold your nerve", you have to actually hold.
+ *
+ *   hold   — keep a finger down for `target` ms while the frame shakes
+ *   tap    — reach `target` taps before the clock runs out
+ *   timing — stop a sweeping marker inside a zone `target`% wide
+ *   search — find `target` glints hidden in the illustration
+ */
+export type TestKind = 'hold' | 'tap' | 'timing' | 'search';
+
+export interface ChoiceTest {
+  kind: TestKind;
+  /** Shown over the minigame, in Georgian. */
+  prompt: string;
+  /** Difficulty knob, read per kind (see TestKind). */
+  target: number;
+  /** Milliseconds allowed. */
+  ms: number;
+  /** Scene id (or '@end:x') taken when the test is FAILED. */
+  onFail: string;
+  /** Applied instead of the choice's own effects when failed. */
+  failEffects?: Partial<Record<StatKey, number>>;
+}
+
 export interface Choice {
   text: string;
+  /** Turns this choice into something you perform, not just select. */
+  test?: ChoiceTest;
   /** Stat deltas applied when picked. */
   effects?: Partial<Record<StatKey, number>>;
   setFlags?: Record<string, boolean | string>;
@@ -66,6 +93,14 @@ export interface Scene {
   speaker?: string;
   text: string;
   choices: Choice[];
+  /**
+   * Decision under pressure. When set, a ring counts down from `seconds` and the
+   * heartbeat quickens; if it empties, `timeoutNext` is forced. Use it where
+   * hesitating IS the mistake — a gun already drawn, a door already opening.
+   */
+  seconds?: number;
+  timeoutNext?: string;
+  timeoutEffects?: Partial<Record<StatKey, number>>;
 }
 
 export interface Ending {

@@ -18,19 +18,21 @@ const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, Math.trunc(Number(n) || 0
 /**
  * Score a run. Mirrors the client's scoreRun, but every input is clamped to the
  * range the engine can actually produce first — stats cap at 10, the story has
- * 4 chapters and 36 scenes — so an inflated payload scores as a normal one.
+ * 6 chapters and 60 scenes — so an inflated payload scores as a normal one.
+ * These bounds must be raised whenever the story grows, or a legitimate long
+ * run silently scores low.
  */
 export function scoreSubmission(sub) {
     const tone = VALID_TONES.has(sub.tone) ? sub.tone : 'death';
     const s = sub.stats ?? {};
     const total = TONE_POINTS[tone]
-        + clamp(sub.chapter, 0, 4) * 60
+        + clamp(sub.chapter, 0, 6) * 60
         + clamp(s.nerve, 0, 10) * 12
         + clamp(s.cunning, 0, 10) * 12
         + clamp(s.trust, 0, 10) * 18
         + clamp(s.money, 0, 10) * 10
         - clamp(s.heat, 0, 10) * 20
-        + clamp(sub.scenesSeen, 0, 36) * 4;
+        + clamp(sub.scenesSeen, 0, 60) * 4;
     return Math.max(0, total);
 }
 /**
@@ -45,8 +47,8 @@ export async function submitRun(userId, name, sub) {
     INSERT INTO noir_runs (user_id, name, ending_id, tone, chapter, scenes_seen, score, created_at)
     VALUES (
       ${userId}, ${String(name ?? '').slice(0, 18)}, ${String(sub.endingId).slice(0, 32)},
-      ${VALID_TONES.has(sub.tone) ? sub.tone : 'death'}, ${clamp(sub.chapter, 0, 4)},
-      ${clamp(sub.scenesSeen, 0, 36)}, ${score}, ${now}
+      ${VALID_TONES.has(sub.tone) ? sub.tone : 'death'}, ${clamp(sub.chapter, 0, 6)},
+      ${clamp(sub.scenesSeen, 0, 60)}, ${score}, ${now}
     )
   `;
     const [bestRow] = await sql `

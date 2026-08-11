@@ -16,7 +16,9 @@ export interface RunSubmission {
 /**
  * Score a run. Mirrors the client's scoreRun, but every input is clamped to the
  * range the engine can actually produce first — stats cap at 10, the story has
- * 4 chapters and 36 scenes — so an inflated payload scores as a normal one.
+ * 6 chapters and 60 scenes — so an inflated payload scores as a normal one.
+ * These bounds must be raised whenever the story grows, or a legitimate long
+ * run silently scores low.
  */
 export declare function scoreSubmission(sub: RunSubmission): number;
 export interface SubmitResult {

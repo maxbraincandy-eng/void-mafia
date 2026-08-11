@@ -57,23 +57,32 @@ export function endingIdOf(next: string): string | null {
  * Apply a choice. Returns a NEW state — callers keep the old one for undo or
  * for animating the delta. A locked choice is a no-op rather than an error, so
  * a mis-tapped disabled button can never corrupt a run.
+ *
+ * `failed` is set when the choice carried a skill test and the player lost it:
+ * the run then takes test.onFail and receives failEffects INSTEAD of the
+ * choice's own effects — the rewards belong to succeeding.
  */
-export function applyChoice(state: RunState, choice: Choice): RunState {
+export function applyChoice(state: RunState, choice: Choice, failed = false): RunState {
   if (state.endingId) return state;
   if (!meetsRequirements(state, choice)) return state;
 
+  const lost = failed && !!choice.test;
+  const effects = lost ? (choice.test!.failEffects ?? {}) : (choice.effects ?? {});
+  const target = lost ? choice.test!.onFail : choice.next;
+
   const stats = { ...state.stats };
-  for (const [k, d] of Object.entries(choice.effects ?? {})) {
+  for (const [k, d] of Object.entries(effects)) {
     stats[k as StatKey] = clampStat(stats[k as StatKey] + (d as number));
   }
+  // Flags are set either way: you tried the thing, and the story remembers.
   const flags = { ...state.flags, ...(choice.setFlags ?? {}) };
 
-  const ending = endingIdOf(choice.next);
+  const ending = endingIdOf(target);
   if (ending) {
     return { ...state, stats, flags, endingId: ending };
   }
 
-  const next = sceneById(choice.next);
+  const next = sceneById(target);
   // A missing id is a content bug; the verifier catches it before ship. At
   // runtime, refuse to move rather than blank the screen.
   if (!next) return { ...state, stats, flags };
@@ -83,6 +92,30 @@ export function applyChoice(state: RunState, choice: Choice): RunState {
     sceneId: next.id,
     chapter: next.chapter,
     path: [...state.path, next.id],
+  };
+}
+
+/**
+ * Advance because a timed scene's clock ran out. Uses the scene's own
+ * timeoutNext / timeoutEffects; if the scene declares no timeout the state is
+ * returned untouched, so a missing field can never strand a player.
+ */
+export function applyTimeout(state: RunState): RunState {
+  if (state.endingId) return state;
+  const scene = sceneById(state.sceneId);
+  if (!scene?.timeoutNext) return state;
+
+  const stats = { ...state.stats };
+  for (const [k, d] of Object.entries(scene.timeoutEffects ?? {})) {
+    stats[k as StatKey] = clampStat(stats[k as StatKey] + (d as number));
+  }
+  const ending = endingIdOf(scene.timeoutNext);
+  if (ending) return { ...state, stats, endingId: ending };
+  const next = sceneById(scene.timeoutNext);
+  if (!next) return { ...state, stats };
+  return {
+    ...state, stats,
+    sceneId: next.id, chapter: next.chapter, path: [...state.path, next.id],
   };
 }
 
