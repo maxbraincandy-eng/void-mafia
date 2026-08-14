@@ -249,6 +249,11 @@ export function ModPanel({ open, onClose }: { open: boolean; onClose: () => void
     else if (t === 'rooms') loadRooms();
     else if (t === 'reports') loadReports();
     else if (t === 'players') loadPlayers();
+    else if (t === 'appeals') loadAppeals();
+    // Verify needs BOTH: the badge list, and the player list its search runs
+    // against. Loading only the first is why search came up empty — the tab
+    // was searching an array nothing had filled.
+    else if (t === 'verify') { loadVerified(); loadPlayers(); }
     else if (t === 'logs') loadLogs();
     else if (t === 'stealth') loadStealth();
     else if (t === 'terminal') loadTerminal();
@@ -1030,7 +1035,9 @@ export function ModPanel({ open, onClose }: { open: boolean; onClose: () => void
                       </div>
                     ))}
                   {players.filter(p => p.username.toLowerCase().includes(verifySearch.trim().toLowerCase())).length === 0 && (
-                    <p className="text-white/25 font-mono text-[12px] py-2">ვერ მოიძებნა — გახსენი Players ტაბი, რომ სია ჩაიტვირთოს.</p>
+                    <p className="text-white/25 font-mono text-[12px] py-2">
+                      {players.length === 0 ? 'იტვირთება…' : 'ასეთი მომხმარებელი ვერ მოიძებნა.'}
+                    </p>
                   )}
                 </div>
               )}
