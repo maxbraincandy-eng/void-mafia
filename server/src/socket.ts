@@ -110,6 +110,7 @@ import {
   resolveSpectatorInvisible, resolveAnon, consumeXpBoost, resolveSpotlightUntil, aliasFor,
 } from './services/perkService.js';
 import { submitRun as noirSubmit, leaderboard as noirBoard, myStats as noirStats } from './services/noirService.js';
+import { getVerifiedIds } from './services/playerService.js';
 import { applyReferral, getReferralCount } from './services/referralService.js';
 import { updateRatingsAfterGame, getPlayerRating, getRankedLeaderboard, getRankTier } from './services/ratingService.js';
 import { getActiveSeason, getSeasonLeaderboard, getMySeasonHistory } from './services/seasonService.js';
@@ -4803,6 +4804,15 @@ export function attachSocketHandlers(io: AppServer): void {
       try {
         cb(ok(await getNameColors(profileIds ?? [])));
       } catch (e: any) { cb(err(e.message)); }
+    });
+
+    /**
+     * The verified (owner) profile ids, as one list. Deliberately NOT a batch
+     * lookup beside name colours: the set is tiny and near-static, so clients
+     * fetch it once per session and answer every badge question locally.
+     */
+    socket.on('players:verified_list' as any, async (cb: any) => {
+      try { cb(ok(await getVerifiedIds())); } catch (e: any) { cb(err(e.message)); }
     });
 
     // Buy a purchasable cosmetic item with coins, then unlock it

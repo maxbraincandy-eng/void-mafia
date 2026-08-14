@@ -11,6 +11,8 @@ import type { CommunityProfileV2, CommunityPostV2, CommunityComment, PollResult,
 import { Avatar, BadgeRow, MrMaxGlow, Spinner, timeAgo } from '@/components/community/shared';
 import { YouTubeEmbed, extractYouTubeId } from '@/components/community/YouTubeEmbed';
 import { PollDisplay } from '@/components/community/PollDisplay';
+import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
+import { useIsVerified } from '@/store/verifiedStore';
 
 // ── Post fullscreen lightbox ────────────────────────────────────────────────
 
@@ -553,6 +555,9 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
   const mediaPosts = posts.filter(p => p.imageUrl || p.gifUrl || p.videoUrl);
   const textPosts  = posts.filter(p => !p.imageUrl && !p.gifUrl && !p.videoUrl);
   const isMrMax    = profile?.badges?.includes('owner');
+  // Verification is resolved from the owner list, not from the local badge
+  // array, so it stays true wherever this profile is rendered from.
+  const verified   = useIsVerified(profile?.id ?? null);
   const coverParsed = profile?.coverUrl ? parseCoverUrl(profile.coverUrl) : null;
 
   const BANNER_PRESETS = [
@@ -702,13 +707,19 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
               <input ref={avatarFileRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
             </div>
             <div className="pb-1 min-w-0 flex-1">
-              {isMrMax ? (
-                <MrMaxGlow>
-                  <h2 className="font-display font-bold text-yellow-300 leading-tight truncate" style={{ fontSize: 20 }}>{profile.username}</h2>
-                </MrMaxGlow>
-              ) : (
-                <h2 className="font-display font-bold text-white leading-tight truncate" style={{ fontSize: 20 }}>{profile.username}</h2>
-              )}
+              {/* The badge sits beside the name at both variants, and outside the
+                  truncating h2 so a long name ellipsises instead of pushing the
+                  badge off the row. */}
+              <div className="flex items-center gap-1.5 min-w-0">
+                {isMrMax ? (
+                  <MrMaxGlow>
+                    <h2 className="font-display font-bold text-yellow-300 leading-tight truncate" style={{ fontSize: 20 }}>{profile.username}</h2>
+                  </MrMaxGlow>
+                ) : (
+                  <h2 className="font-display font-bold text-white leading-tight truncate" style={{ fontSize: 20 }}>{profile.username}</h2>
+                )}
+                {verified && <VerifiedBadge size={18} />}
+              </div>
               <div className="flex items-center gap-2 mt-0.5">
                 <span
                   className="font-mono uppercase tracking-wider px-1.5 py-0.5 rounded-full"

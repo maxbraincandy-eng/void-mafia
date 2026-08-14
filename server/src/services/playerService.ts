@@ -124,6 +124,9 @@ export async function setGrantedModLevel(uid: string, level: ModeratorLevel | nu
       moderator_permissions = ${JSON.stringify(getModPermissions(newLevel))}
     WHERE id = ${uid}
   `;
+  // A promotion to (or from) owner changes who is badged, so the cached list
+  // must not survive it — otherwise the badge lags by up to the TTL.
+  invalidateVerifiedCache();
 }
 
 // ── DB row → PlayerProfile ───────────────────────────────────────────
@@ -618,6 +621,28 @@ export async function getCosmetics(profileId: string): Promise<PlayerCosmetics> 
     return { equippedNameColor: null, equippedFrame: null, equippedTitle: null, equippedRoleSkin: null, equippedWallpaper: null, equippedBorder: null, unlockedItems: [] };
   }
 }
+
+/**
+ * Profile ids that carry a verification badge — the game's owners.
+ *
+ * This is a tiny, near-static set, so it is fetched as a whole list ONCE and
+ * cached rather than looked up per name. The alternative (a batch lookup beside
+ * name colours) would run a query every time a feed page renders, to answer a
+ * question whose answer changes about once a year.
+ */
+let _verifiedCache: { ids: string[]; at: number } | null = null;
+const VERIFIED_TTL_MS = 5 * 60 * 1000;
+
+export async function getVerifiedIds(): Promise<string[]> {
+  if (_verifiedCache && Date.now() - _verifiedCache.at < VERIFIED_TTL_MS) return _verifiedCache.ids;
+  const rows = await sql`SELECT id FROM players WHERE moderator_level = 'owner'` as any[];
+  const ids = rows.map(r => String(r.id));
+  _verifiedCache = { ids, at: Date.now() };
+  return ids;
+}
+
+/** Drop the cache so a just-promoted owner is badged without waiting out the TTL. */
+export function invalidateVerifiedCache(): void { _verifiedCache = null; }
 
 // Batch-resolve equipped name-color ids for many players in one query.
 // Returns only entries that have a non-null equippedNameColor.

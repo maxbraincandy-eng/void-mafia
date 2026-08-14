@@ -41,6 +41,7 @@ import { getOrCreateConversation, listConversations, sendMessage, sendVoiceDm, s
 import { getCoins, claimDailyReward, grantCoins, deductCoins, refundGift, getTransactions, getAllTransactions, getGiftCatalog, createGift, updateGift, sendGift, getPlayerGifts, getGiftDetail, getGiftsSent, getGiftTimeline, getGiftStats, getPinnedGifts, pinGift, unpinGift, hideGift, unhideGift, getHiddenGifts, purchaseCosmeticItem, checkProfileCompletionBonus, } from './services/coinService.js';
 import { PERK_ITEMS, getPerks, buyPerk, setPerkMode, resolveSpectatorInvisible, resolveAnon, consumeXpBoost, resolveSpotlightUntil, aliasFor, } from './services/perkService.js';
 import { submitRun as noirSubmit, leaderboard as noirBoard, myStats as noirStats } from './services/noirService.js';
+import { getVerifiedIds } from './services/playerService.js';
 import { applyReferral, getReferralCount } from './services/referralService.js';
 import { updateRatingsAfterGame, getPlayerRating, getRankedLeaderboard, getRankTier } from './services/ratingService.js';
 import { getActiveSeason, getSeasonLeaderboard, getMySeasonHistory } from './services/seasonService.js';
@@ -5107,6 +5108,19 @@ export function attachSocketHandlers(io) {
         socket.on('cosmetics:name_colors', async ({ profileIds }, cb) => {
             try {
                 cb(ok(await getNameColors(profileIds ?? [])));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        /**
+         * The verified (owner) profile ids, as one list. Deliberately NOT a batch
+         * lookup beside name colours: the set is tiny and near-static, so clients
+         * fetch it once per session and answer every badge question locally.
+         */
+        socket.on('players:verified_list', async (cb) => {
+            try {
+                cb(ok(await getVerifiedIds()));
             }
             catch (e) {
                 cb(err(e.message));
