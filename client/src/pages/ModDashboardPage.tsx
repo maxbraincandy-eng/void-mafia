@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { socket } from '@/lib/socket';
+import { useVerifiedStore } from '@/store/verifiedStore';
+import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
 import {
   Report, ModLog, PlayerProfilePublic, Phase,
   ModPlayerDetail, LiveRoomInfo, DashboardStats, ModNote, ModeratorLevel, WarnCategory,
@@ -34,7 +36,7 @@ function modRank(level: ModeratorLevel | null | undefined): number {
 }
 
 // ── Tab types ─────────────────────────────────────────────────────────
-type Tab = 'dashboard' | 'rooms' | 'reports' | 'appeals' | 'players' | 'broadcast' | 'logs' | 'stealth' | 'terminal';
+type Tab = 'dashboard' | 'rooms' | 'reports' | 'appeals' | 'verify' | 'players' | 'broadcast' | 'logs' | 'stealth' | 'terminal';
 type ActionType = 'ban' | 'mute' | 'warn' | 'kick' | 'unban' | 'unmute' | 'terminate' | 'close_room' | 'freeze' | 'unfreeze' | 'rename' | 'system_msg' | 'force_phase';
 
 const TABS: { id: Tab; label: string; minRank: number }[] = [
@@ -42,6 +44,7 @@ const TABS: { id: Tab; label: string; minRank: number }[] = [
   { id: 'rooms',     label: 'Rooms',     minRank: 0 },
   { id: 'reports',   label: 'Reports',   minRank: 0 },
   { id: 'appeals',   label: 'Appeals',   minRank: 0 },
+  { id: 'verify',    label: 'Verify',    minRank: 3 },  // owner only
   { id: 'players',   label: 'Players',   minRank: 0 },
   { id: 'broadcast', label: 'Broadcast', minRank: 1 },  // senior_mod+
   { id: 'logs',      label: 'Logs',      minRank: 2 },  // admin+
@@ -99,6 +102,8 @@ export function ModPanel({ open, onClose }: { open: boolean; onClose: () => void
   const [playerSearch, setPlayerSearch] = useState('');
   const [reportFilter, setReportFilter] = useState<'all' | 'open' | 'reviewing' | 'resolved' | 'rejected'>('open');
   const [appeals, setAppeals] = useState<any[]>([]);
+  const [verifiedList, setVerifiedList] = useState<any[]>([]);
+  const [verifySearch, setVerifySearch] = useState('');
   const [appealBusy, setAppealBusy] = useState<string | null>(null);
   const [modStats, setModStats] = useState<any | null>(null);
   const [logFilter, setLogFilter] = useState('');
@@ -197,6 +202,22 @@ export function ModPanel({ open, onClose }: { open: boolean; onClose: () => void
   const loadAppeals = () => {
     socket.emit('appeal:list' as any, { status: 'open' }, (res: Res<any[]>) => { if (res.ok) setAppeals(res.data); });
     socket.emit('mod:stats' as any, (res: Res<any[]>) => { if (res.ok) setModStats(res.data); });
+  };
+
+  const loadVerified = () => {
+    socket.emit('verify:list' as any, (res: Res<any[]>) => { if (res.ok) setVerifiedList(res.data); });
+  };
+
+  const setVerified = (targetProfileId: string, tier: 'vip' | null) => {
+    socket.emit('verify:set' as any, { targetProfileId, tier }, (res: Res<any>) => {
+      addToast(res.ok ? (tier ? 'ლურჯი ბეჯი მიენიჭა' : 'ბეჯი მოეხსნა') : res.error, res.ok ? 'success' : 'error');
+      if (res.ok) {
+        // Update the shared store too, so the badge changes everywhere in this
+        // session without a reload.
+        useVerifiedStore.getState().setLocal(targetProfileId, tier);
+        loadVerified();
+      }
+    });
   };
 
   const decideAppeal = (id: string, grant: boolean) => {
@@ -396,6 +417,7 @@ export function ModPanel({ open, onClose }: { open: boolean; onClose: () => void
         if (tab === 'rooms') loadRooms();
         if (tab === 'reports') loadReports();
         if (tab === 'appeals') loadAppeals();
+        if (tab === 'verify') loadVerified();
       } else {
         addToast(res.error, 'error');
       }
@@ -973,6 +995,73 @@ export function ModPanel({ open, onClose }: { open: boolean; onClose: () => void
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {tab === 'verify' && !loading && (
+          <div className="space-y-3">
+            <p className="text-white/35 font-mono text-[12px] leading-relaxed">
+              ლურჯი ბეჯი ენიჭება ხელით. ოქროსფერი მფლობელის როლიდან მოდის და აქ არ იმართება.
+            </p>
+
+            {/* Grant: search the already-loaded player list rather than adding a
+                second search endpoint. */}
+            <div className="glass-panel border border-white/5 rounded-xl p-3 space-y-2">
+              <p className="text-[12px] font-mono uppercase tracking-wider text-white/40">ბეჯის მინიჭება</p>
+              <input
+                type="text" value={verifySearch} onChange={e => setVerifySearch(e.target.value)}
+                placeholder="მოძებნე მომხმარებელი სახელით…"
+                className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white font-mono outline-none focus:border-neon-cyan/40"
+              />
+              {verifySearch.trim().length >= 2 && (
+                <div className="space-y-1 max-h-64 overflow-y-auto">
+                  {players
+                    .filter(p => p.username.toLowerCase().includes(verifySearch.trim().toLowerCase()))
+                    .filter(p => !verifiedList.some(v => v.id === p.id))
+                    .slice(0, 12)
+                    .map(p => (
+                      <div key={p.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-white/[0.03]">
+                        <span className="flex-1 truncate text-sm font-mono text-white/75">{p.username}</span>
+                        <button onClick={() => setVerified(p.id, 'vip')}
+                          className="px-2.5 py-1 text-[12px] font-mono rounded-lg border"
+                          style={{ borderColor: 'rgba(90,176,255,0.4)', color: '#5ab0ff' }}>
+                          ლურჯი ბეჯი
+                        </button>
+                      </div>
+                    ))}
+                  {players.filter(p => p.username.toLowerCase().includes(verifySearch.trim().toLowerCase())).length === 0 && (
+                    <p className="text-white/25 font-mono text-[12px] py-2">ვერ მოიძებნა — გახსენი Players ტაბი, რომ სია ჩაიტვირთოს.</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Everyone currently badged. */}
+            <div className="glass-panel border border-white/5 rounded-xl p-3 space-y-2">
+              <p className="text-[12px] font-mono uppercase tracking-wider text-white/40">
+                ვერიფიცირებულები ({verifiedList.length})
+              </p>
+              {verifiedList.length === 0 && (
+                <p className="text-white/25 font-mono text-[12px] py-2">სია ცარიელია.</p>
+              )}
+              {verifiedList.map(v => (
+                <div key={v.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-white/[0.03]">
+                  <VerifiedBadge size={14} tone={v.tier === 'owner' ? 'owner' : 'staff'} />
+                  <span className="flex-1 truncate text-sm font-mono text-white/75">{v.username}</span>
+                  <span className="text-[11px] font-mono" style={{ color: v.tier === 'owner' ? '#ffd45a' : '#5ab0ff' }}>
+                    {v.tier === 'owner' ? 'მფლობელი' : 'VIP'}
+                  </span>
+                  {/* An owner's gold comes from their role, so there is nothing
+                      here to take away. */}
+                  {v.tier !== 'owner' && (
+                    <button onClick={() => setVerified(v.id, null)}
+                      className="px-2 py-1 text-[12px] font-mono rounded-lg border border-white/15 text-white/45 hover:bg-white/5">
+                      მოხსნა
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

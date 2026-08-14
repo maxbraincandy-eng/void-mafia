@@ -588,23 +588,43 @@ export async function getCosmetics(profileId) {
         return { equippedNameColor: null, equippedFrame: null, equippedTitle: null, equippedRoleSkin: null, equippedWallpaper: null, equippedBorder: null, unlockedItems: [] };
     }
 }
-/**
- * Profile ids that carry a verification badge — the game's owners.
- *
- * This is a tiny, near-static set, so it is fetched as a whole list ONCE and
- * cached rather than looked up per name. The alternative (a batch lookup beside
- * name colours) would run a query every time a feed page renders, to answer a
- * question whose answer changes about once a year.
- */
 let _verifiedCache = null;
 const VERIFIED_TTL_MS = 5 * 60 * 1000;
-export async function getVerifiedIds() {
+/**
+ * profileId → tier. Owners outrank a granted badge, so if someone is both they
+ * show gold: the higher claim wins rather than whichever row came back last.
+ */
+export async function getVerifiedMap() {
     if (_verifiedCache && Date.now() - _verifiedCache.at < VERIFIED_TTL_MS)
-        return _verifiedCache.ids;
-    const rows = await sql `SELECT id FROM players WHERE moderator_level = 'owner'`;
-    const ids = rows.map(r => String(r.id));
-    _verifiedCache = { ids, at: Date.now() };
-    return ids;
+        return _verifiedCache.map;
+    const rows = await sql `
+    SELECT id, moderator_level, verified_tier FROM players
+    WHERE moderator_level = 'owner' OR verified_tier IS NOT NULL
+  `;
+    const map = {};
+    for (const r of rows) {
+        map[String(r.id)] = r.moderator_level === 'owner' ? 'owner' : r.verified_tier;
+    }
+    _verifiedCache = { map, at: Date.now() };
+    return map;
+}
+/** Grant or remove the blue (vip) badge. Owners are unaffected — their gold
+ *  comes from their role and is not something to hand out or take back here. */
+export async function setVerifiedTier(targetId, tier) {
+    await sql `UPDATE players SET verified_tier = ${tier} WHERE id = ${targetId}`;
+    invalidateVerifiedCache();
+}
+/** Everyone currently carrying a badge, for the moderation panel's list. */
+export async function listVerified() {
+    const rows = await sql `
+    SELECT id, username, avatar_url, moderator_level, verified_tier FROM players
+    WHERE moderator_level = 'owner' OR verified_tier IS NOT NULL
+    ORDER BY (moderator_level = 'owner') DESC, username ASC
+  `;
+    return rows.map((r) => ({
+        id: r.id, username: r.username, avatarUrl: r.avatar_url ?? null,
+        tier: r.moderator_level === 'owner' ? 'owner' : r.verified_tier,
+    }));
 }
 /** Drop the cache so a just-promoted owner is badged without waiting out the TTL. */
 export function invalidateVerifiedCache() { _verifiedCache = null; }

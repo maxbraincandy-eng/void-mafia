@@ -41,7 +41,7 @@ import { getOrCreateConversation, listConversations, sendMessage, sendVoiceDm, s
 import { getCoins, claimDailyReward, grantCoins, deductCoins, refundGift, getTransactions, getAllTransactions, getGiftCatalog, createGift, updateGift, sendGift, getPlayerGifts, getGiftDetail, getGiftsSent, getGiftTimeline, getGiftStats, getPinnedGifts, pinGift, unpinGift, hideGift, unhideGift, getHiddenGifts, purchaseCosmeticItem, checkProfileCompletionBonus, } from './services/coinService.js';
 import { PERK_ITEMS, getPerks, buyPerk, setPerkMode, resolveSpectatorInvisible, resolveAnon, consumeXpBoost, resolveSpotlightUntil, aliasFor, } from './services/perkService.js';
 import { submitRun as noirSubmit, leaderboard as noirBoard, myStats as noirStats } from './services/noirService.js';
-import { getVerifiedIds } from './services/playerService.js';
+import { getVerifiedMap, setVerifiedTier, listVerified } from './services/playerService.js';
 import { inspectMessage } from './services/autoModService.js';
 import { createAppeal, getAppeals, decideAppeal, getModeratorStats } from './services/moderationService.js';
 import { applyReferral, getReferralCount } from './services/referralService.js';
@@ -5155,7 +5155,43 @@ export function attachSocketHandlers(io) {
          */
         socket.on('players:verified_list', async (cb) => {
             try {
-                cb(ok(await getVerifiedIds()));
+                cb(ok(await getVerifiedMap()));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── verification management (owners only) ──────────────────────────
+        // Deliberately owner-gated rather than moderator-gated: a badge is an
+        // identity claim the whole app repeats, not a moderation action.
+        const requireOwner = async () => {
+            const me = socket.data.profileId ? await getPlayer(socket.data.profileId) : null;
+            if (me?.moderatorLevel !== 'owner')
+                throw new Error('Owners only.');
+            return me;
+        };
+        socket.on('verify:list', async (cb) => {
+            try {
+                await requireOwner();
+                cb(ok(await listVerified()));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('verify:set', async (data, cb) => {
+            try {
+                const me = await requireOwner();
+                const target = await getPlayer(String(data?.targetProfileId ?? ''));
+                if (!target)
+                    throw new Error('Player not found.');
+                if (target.moderatorLevel === 'owner') {
+                    throw new Error('მფლობელს ოქროსფერი ბეჯი როლიდან აქვს — ცალკე მინიჭება არ სჭირდება.');
+                }
+                const tier = data?.tier === 'vip' ? 'vip' : null;
+                await setVerifiedTier(target.id, tier);
+                await addModLog((tier ? 'verify_grant' : 'verify_revoke'), me.id, me.username, target.id, target.username, null, tier ? 'ლურჯი ვერიფიკაცია მიენიჭა' : 'ვერიფიკაცია მოეხსნა');
+                cb(ok({ id: target.id, username: target.username, tier }));
             }
             catch (e) {
                 cb(err(e.message));

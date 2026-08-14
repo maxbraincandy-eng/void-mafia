@@ -12,7 +12,7 @@ import { Avatar, BadgeRow, MrMaxGlow, Spinner, timeAgo } from '@/components/comm
 import { YouTubeEmbed, extractYouTubeId } from '@/components/community/YouTubeEmbed';
 import { PollDisplay } from '@/components/community/PollDisplay';
 import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
-import { useIsVerified } from '@/store/verifiedStore';
+import { useVerifiedTier } from '@/store/verifiedStore';
 
 // ── Post fullscreen lightbox ────────────────────────────────────────────────
 
@@ -557,7 +557,7 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
   const isMrMax    = profile?.badges?.includes('owner');
   // Verification is resolved from the owner list, not from the local badge
   // array, so it stays true wherever this profile is rendered from.
-  const verified   = useIsVerified(profile?.id ?? null);
+  const verifiedTier = useVerifiedTier(profile?.id ?? null);
   const coverParsed = profile?.coverUrl ? parseCoverUrl(profile.coverUrl) : null;
 
   const BANNER_PRESETS = [
@@ -718,7 +718,7 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
                 ) : (
                   <h2 className="font-display font-bold text-white leading-tight truncate" style={{ fontSize: 20 }}>{profile.username}</h2>
                 )}
-                {verified && <VerifiedBadge size={18} />}
+                {verifiedTier && <VerifiedBadge size={18} tone={verifiedTier === 'owner' ? 'owner' : 'staff'} />}
               </div>
               <div className="flex items-center gap-2 mt-0.5">
                 <span

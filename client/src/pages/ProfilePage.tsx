@@ -26,7 +26,7 @@ import {
 import { MAX_LEVEL, xpForLevel, xpForNextLevel, levelColor } from '@/lib/level';
 import { tNow } from '@/store/langStore';
 import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
-import { useIsVerified } from '@/store/verifiedStore';
+import { useVerifiedTier } from '@/store/verifiedStore';
 
 const RARITY_GLOW: Record<string, string> = {
   common:    'rgba(255,255,255,0.12)',
@@ -119,7 +119,7 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
   const nameInputRef = useRef<HTMLInputElement>(null);
   const [editingName, setEditingName] = useState(false);
   const [newName, setNewName] = useState('');
-  const myVerified = useIsVerified(profile?.id ?? null);
+  const myTier = useVerifiedTier(profile?.id ?? null);
   const [nameError, setNameError] = useState('');
   const [nameSaving, setNameSaving] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
@@ -422,7 +422,7 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
                   <h2 className={`font-display font-bold text-xl ${profile.isModerator ? 'text-neon-green' : 'text-white'}`}>
                     {profile.username}
                   </h2>
-                  {myVerified && <VerifiedBadge size={18} />}
+                  {myTier && <VerifiedBadge size={18} tone={myTier === 'owner' ? 'owner' : 'staff'} />}
                   {profile.isModerator && profile.moderatorBadgeVisible && <ModBadge level={profile.moderatorLevel} />}
                   <button onClick={startEditName} title="Change username"
                     className="text-white/25 hover:text-neon-cyan/70 transition-colors text-sm">

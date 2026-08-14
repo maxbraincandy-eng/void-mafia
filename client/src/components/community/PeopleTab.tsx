@@ -8,7 +8,7 @@ import { emitWithAck } from '@/lib/socket';
 import type { Res } from '@/types/index';
 import { PlayerName } from '@/components/ui/PlayerName';
 import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
-import { useIsVerified } from '@/store/verifiedStore';
+import { useVerifiedTier } from '@/store/verifiedStore';
 
 function PersonCard({ person, onOpenProfile }: { person: CommunityProfileV2; onOpenProfile: (id: string) => void }) {
   const t = useT();
@@ -18,7 +18,7 @@ function PersonCard({ person, onOpenProfile }: { person: CommunityProfileV2; onO
   const [following, setFollowing] = useState(person.isFollowedByMe);
   const isSelf = currentUser?.id === person.id;
   const isMrMax = person.badges?.includes('owner');
-  const personVerified = useIsVerified(person.id);
+  const personTier = useVerifiedTier(person.id);
 
   async function handleFollow() {
     if (followBusy) return;
@@ -48,7 +48,7 @@ function PersonCard({ person, onOpenProfile }: { person: CommunityProfileV2; onO
               <PlayerName profileId={person.id} name={person.username} verified={false} />
             </span>
           )}
-          {personVerified && <VerifiedBadge size={13} />}
+          {personTier && <VerifiedBadge size={13} tone={personTier === 'owner' ? 'owner' : 'staff'} />}
           {person.badges?.length > 0 && <BadgeRow badges={person.badges} max={3} />}
         </div>
         <p className="font-mono text-[12px] text-white/35">

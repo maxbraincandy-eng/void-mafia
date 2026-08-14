@@ -110,7 +110,7 @@ import {
   resolveSpectatorInvisible, resolveAnon, consumeXpBoost, resolveSpotlightUntil, aliasFor,
 } from './services/perkService.js';
 import { submitRun as noirSubmit, leaderboard as noirBoard, myStats as noirStats } from './services/noirService.js';
-import { getVerifiedIds } from './services/playerService.js';
+import { getVerifiedMap, setVerifiedTier, listVerified } from './services/playerService.js';
 import { inspectMessage } from './services/autoModService.js';
 import { createAppeal, getAppeals, decideAppeal, getModeratorStats, type EvidenceLine } from './services/moderationService.js';
 import { applyReferral, getReferralCount } from './services/referralService.js';
@@ -4851,7 +4851,39 @@ export function attachSocketHandlers(io: AppServer): void {
      * fetch it once per session and answer every badge question locally.
      */
     socket.on('players:verified_list' as any, async (cb: any) => {
-      try { cb(ok(await getVerifiedIds())); } catch (e: any) { cb(err(e.message)); }
+      try { cb(ok(await getVerifiedMap())); } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── verification management (owners only) ──────────────────────────
+    // Deliberately owner-gated rather than moderator-gated: a badge is an
+    // identity claim the whole app repeats, not a moderation action.
+    const requireOwner = async () => {
+      const me = socket.data.profileId ? await getPlayer(socket.data.profileId) : null;
+      if (me?.moderatorLevel !== 'owner') throw new Error('Owners only.');
+      return me;
+    };
+
+    socket.on('verify:list' as any, async (cb: any) => {
+      try { await requireOwner(); cb(ok(await listVerified())); } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('verify:set' as any, async (data: { targetProfileId: string; tier: 'vip' | null }, cb: any) => {
+      try {
+        const me = await requireOwner();
+        const target = await getPlayer(String(data?.targetProfileId ?? ''));
+        if (!target) throw new Error('Player not found.');
+        if (target.moderatorLevel === 'owner') {
+          throw new Error('მფლობელს ოქროსფერი ბეჯი როლიდან აქვს — ცალკე მინიჭება არ სჭირდება.');
+        }
+        const tier = data?.tier === 'vip' ? 'vip' : null;
+        await setVerifiedTier(target.id, tier);
+        await addModLog(
+          (tier ? 'verify_grant' : 'verify_revoke') as any,
+          me.id, me.username, target.id, target.username, null,
+          tier ? 'ლურჯი ვერიფიკაცია მიენიჭა' : 'ვერიფიკაცია მოეხსნა',
+        );
+        cb(ok({ id: target.id, username: target.username, tier }));
+      } catch (e: any) { cb(err(e.message)); }
     });
 
     // Buy a purchasable cosmetic item with coins, then unlock it

@@ -158,6 +158,11 @@ export async function initializeDatabase() {
     await sql `ALTER TABLE reports ADD COLUMN IF NOT EXISTS evidence TEXT NOT NULL DEFAULT '[]'`;
     // Set when the report was raised by the automatic filter rather than a person.
     await sql `ALTER TABLE reports ADD COLUMN IF NOT EXISTS auto_flag TEXT`;
+    // Verification has two tiers with different meanings, so it cannot be one
+    // boolean: 'owner' is derived from moderator_level and is not grantable,
+    // while 'vip' is granted by an owner (and later, bought). Only the grantable
+    // one is stored here.
+    await sql `ALTER TABLE players ADD COLUMN IF NOT EXISTS verified_tier TEXT`;
     // ── appeals ────────────────────────────────────────────────────────
     // Without a route back, a wrongly banned player simply disappears and the
     // mistake is never discovered. An appeal is also the only signal that tells

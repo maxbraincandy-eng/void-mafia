@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { useNameColor } from '@/store/nameColorStore';
-import { useIsVerified } from '@/store/verifiedStore';
+import { useVerifiedTier } from '@/store/verifiedStore';
 import { nameColorGlow } from '@/constants/cosmetics';
 import { VerifiedBadge } from './VerifiedBadge';
 
@@ -32,7 +32,7 @@ export function PlayerName({
 }) {
   const color = useNameColor(enabled ? profileId : null);
   const glow = enabled && color ? nameColorGlow(color) : undefined;
-  const isVerified = useIsVerified(verified ? profileId : null);
+  const tier = useVerifiedTier(verified ? profileId : null);
 
   const label = (
     <span className={className} style={{ ...style, ...(enabled && color ? { color } : null), ...(glow ? { textShadow: glow } : null) }}>
@@ -40,7 +40,7 @@ export function PlayerName({
     </span>
   );
 
-  if (!isVerified) return label;
+  if (!tier) return label;
 
   // Wrapped in an inline-flex so the badge never separates from the name on a
   // wrap, and so a truncating parent still ellipsises the text rather than
@@ -48,7 +48,7 @@ export function PlayerName({
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, minWidth: 0, maxWidth: '100%' }}>
       {label}
-      <VerifiedBadge size={badgeSize ?? 13} />
+      <VerifiedBadge size={badgeSize ?? 13} tone={tier === 'owner' ? 'owner' : 'staff'} />
     </span>
   );
 }

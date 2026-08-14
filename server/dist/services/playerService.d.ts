@@ -42,7 +42,30 @@ export declare function addXP(profileId: string, amount: number): Promise<{
     leveledUp: boolean;
 }>;
 export declare function getCosmetics(profileId: string): Promise<PlayerCosmetics>;
-export declare function getVerifiedIds(): Promise<string[]>;
+/**
+ * Profile ids that carry a verification badge — the game's owners.
+ *
+ * This is a tiny, near-static set, so it is fetched as a whole list ONCE and
+ * cached rather than looked up per name. The alternative (a batch lookup beside
+ * name colours) would run a query every time a feed page renders, to answer a
+ * question whose answer changes about once a year.
+ */
+export type VerifiedTier = 'owner' | 'vip';
+/**
+ * profileId → tier. Owners outrank a granted badge, so if someone is both they
+ * show gold: the higher claim wins rather than whichever row came back last.
+ */
+export declare function getVerifiedMap(): Promise<Record<string, VerifiedTier>>;
+/** Grant or remove the blue (vip) badge. Owners are unaffected — their gold
+ *  comes from their role and is not something to hand out or take back here. */
+export declare function setVerifiedTier(targetId: string, tier: VerifiedTier | null): Promise<void>;
+/** Everyone currently carrying a badge, for the moderation panel's list. */
+export declare function listVerified(): Promise<Array<{
+    id: string;
+    username: string;
+    avatarUrl: string | null;
+    tier: VerifiedTier;
+}>>;
 /** Drop the cache so a just-promoted owner is badged without waiting out the TTL. */
 export declare function invalidateVerifiedCache(): void;
 export declare function getNameColors(profileIds: string[]): Promise<Record<string, string>>;

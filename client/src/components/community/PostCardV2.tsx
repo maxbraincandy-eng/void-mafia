@@ -11,7 +11,7 @@ import { YouTubeEmbed, extractYouTubeId } from '@/components/community/YouTubeEm
 import { ReactionPicker } from './ReactionPicker';
 import { PlayerName } from '@/components/ui/PlayerName';
 import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
-import { useIsVerified } from '@/store/verifiedStore';
+import { useVerifiedTier } from '@/store/verifiedStore';
 import { GifPicker } from './GifPicker';
 import { useSocialStore } from '@/store/socialStore';
 
@@ -409,7 +409,7 @@ export function PostCardV2({
   const profile = useAuthStore(s => s.profile);
   const { toggleReaction, deletePost, toggleSave, setActiveHashtag, editPost } = useCommunityStore();
   const isMrMax = post.authorBadges?.includes('owner');
-  const authorVerified = useIsVerified(post.authorId);
+  const authorTier = useVerifiedTier(post.authorId);
   const isMod = profile?.isModerator ?? false;
   const isOwn = post.authorId === profile?.id;
 
@@ -502,7 +502,7 @@ export function PostCardV2({
                 // verified non-Mr-Max author would get two.
                 <PlayerName profileId={post.authorId} name={post.authorName} verified={false} className="font-mono text-xs text-white/80 truncate" />
               )}
-              {authorVerified && <VerifiedBadge size={13} />}
+              {authorTier && <VerifiedBadge size={13} tone={authorTier === 'owner' ? 'owner' : 'staff'} />}
               {post.authorBadges?.length > 0 && <BadgeRow badges={post.authorBadges} />}
             </div>
             <p className="font-mono text-[12px] text-white/30">
