@@ -12,6 +12,7 @@ import { useSocialStore } from '@/store/socialStore';
 import { useAuthStore } from '@/store/authStore';
 import { EvolutionCore, Chest, RES_ART, UpgradeGlyph, LabMotes, hueOf } from './art';
 import { T, hairline, overlay } from '@/design/tokens';
+import { PlayerName } from '@/components/ui/PlayerName';
 
 type ResKey = 'frag' | 'cell' | 'adna' | 'ncore' | 'energyCell' | 'particle' | 'crystal' | 'upgrade';
 type ChestTier = 'common' | 'advanced' | 'legendary' | 'social';
@@ -597,7 +598,7 @@ export function MergeEvolution({ onClose }: { onClose: () => void }) {
                       : <span>{r.avatar || (r.username[0] ?? '?').toUpperCase()}</span>}
                   </div>
                   <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
-                    <div style={{ fontSize: T.font.body, color: T.text.secondary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.username}</div>
+                    <div style={{ fontSize: T.font.body, color: T.text.secondary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><PlayerName profileId={r.userId} name={r.username} /></div>
                     <div style={{ fontSize: 11, color: T.text.muted }}>{r.stageName} · {r.merges} შერწყმა</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>

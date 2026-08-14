@@ -20,6 +20,7 @@ import {
   applyChoice, applyTimeout, clearRun, endingById, forcedEnding, loadRun,
   meetsRequirements, newRun, saveRun, sceneById, scoreRun,
 } from './engine';
+import { PlayerName } from '@/components/ui/PlayerName';
 
 type View = 'title' | 'play' | 'ending' | 'board';
 
@@ -336,7 +337,7 @@ export function NoirAdventure({ onClose }: { onClose: () => void }) {
                     : (r.avatar || r.username.slice(0, 1))}
                 </span>
                 <span style={{ flex: 1, minWidth: 0 }}>
-                  <span style={S.bName}>{r.username}</span>
+                  <span style={S.bName}><PlayerName profileId={r.userId} name={r.username} /></span>
                   <span style={{ ...S.bSub, color: TONE_COLOR[r.tone] ?? T.text.muted }}>
                     {endingById(r.endingId)?.label ?? r.endingId}
                   </span>

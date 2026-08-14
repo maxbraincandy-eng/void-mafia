@@ -7,6 +7,7 @@ import { useGameStore } from '@/store/gameStore';
 import { useAuthStore } from '@/store/authStore';
 import { useSocialStore } from '@/store/socialStore';
 import { useT } from '@/store/langStore';
+import { PlayerName } from '@/components/ui/PlayerName';
 
 const LEVEL_COLORS = ['text-white/40', 'text-neon-cyan/70', 'text-neon-purple/80', 'text-neon-pink/80', 'text-yellow-400'];
 function lvlColor(level: number) { return LEVEL_COLORS[Math.min(Math.floor((level - 1) / 2), LEVEL_COLORS.length - 1)]; }
@@ -224,7 +225,7 @@ function SuggestionRow({ suggestion, onSent }: { suggestion: Suggestion; onSent:
         }
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm text-white font-semibold truncate leading-tight">{suggestion.username}</p>
+        <p className="text-sm text-white font-semibold truncate leading-tight"><PlayerName profileId={suggestion.profileId} name={suggestion.username} /></p>
         <p className="text-[11px] font-mono text-neon-purple/50">{suggestion.mutualCount} mutual</p>
       </div>
       <button

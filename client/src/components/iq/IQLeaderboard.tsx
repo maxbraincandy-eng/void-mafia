@@ -3,6 +3,7 @@ import { useIQStore } from '@/store/iqStore';
 import { useAuthStore } from '@/store/authStore';
 import { useSocialStore } from '@/store/socialStore';
 import type { IQScope, IQLeaderRow } from '@/types/iq';
+import { PlayerName } from '@/components/ui/PlayerName';
 
 /** VOID IQ public leaderboard with scope filters. */
 const SCOPES: { key: IQScope; label: string }[] = [
@@ -40,7 +41,7 @@ export function IQLeaderboard({ onBack }: { onBack: () => void }) {
           {r.avatarUrl ? <img src={r.avatarUrl} alt="" className="w-full h-full object-cover" /> : <span className="text-lg">{r.avatar || '👤'}</span>}
         </div>
         <div className="flex-1 min-w-0 text-left">
-          <p className="font-display font-bold text-white text-[14px] truncate">{r.username}{mine ? ' ●' : ''}</p>
+          <p className="font-display font-bold text-white text-[14px] truncate"><PlayerName profileId={r.userId} name={r.username} />{mine ? ' ●' : ''}</p>
           <div className="flex items-center gap-1.5">
             <span className="font-mono text-[11px] text-white/40">{r.percentile}th პერცენტილი</span>
             {!r.verified && (

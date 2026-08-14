@@ -4,6 +4,7 @@ import { PlayerPublic, Phase, RoleKey } from '@/types/index';
 import { Avatar } from '@/components/ui/Avatar';
 import { ModBadge } from '@/components/ui/ModBadge';
 import { useGameStore } from '@/store/gameStore';
+import { PlayerName } from '@/components/ui/PlayerName';
 
 interface Props {
   players: PlayerPublic[];
@@ -104,7 +105,7 @@ export function PlayerList({ players, phase, onSelectTarget, selectableIds, sele
                     'text-xs font-semibold truncate',
                     !player.isAlive ? 'line-through text-white/40' : 'text-white',
                   )}>
-                    {!player.isAlive && !player.isSpectator && '💀 '}{player.name}
+                    {!player.isAlive && !player.isSpectator && '💀 '}<PlayerName profileId={player.profileId} name={player.name} />
                     {isMe && <span className="text-neon-purple text-[12px] ml-0.5">(you)</span>}
                   </span>
                   {player.isModerator && player.moderatorLevel && (

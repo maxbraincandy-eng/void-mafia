@@ -4,6 +4,7 @@ import { emitWithAck } from '@/lib/socket';
 import { Avatar, Spinner } from './shared';
 import type { Res } from '@/types/index';
 import type { CommunityLeaderboardEntry } from '@/types/index';
+import { PlayerName } from '@/components/ui/PlayerName';
 
 const RANK_CONFIG: Record<number, { label: string; color: string; bgColor: string; borderColor: string; coinPrize: number; glow: string }> = {
   1: {
@@ -141,7 +142,7 @@ function LeaderboardRow({ entry, index }: LeaderboardRowProps) {
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
         }}>
-          {entry.username}
+          <PlayerName profileId={entry.playerId} name={entry.username} />
         </p>
         <p style={{
           fontFamily: 'monospace',

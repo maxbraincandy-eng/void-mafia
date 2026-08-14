@@ -12,6 +12,7 @@ import {
   MP_TRAITS, MP_TRAIT_META, MP_BOARD_SCOPES,
   type MPAnswer, type MPResult,
 } from './types';
+import { PlayerName } from '@/components/ui/PlayerName';
 
 /**
  * ბატონი მაქსის თავსატეხი — the full experience: aristocratic intro, one
@@ -462,7 +463,7 @@ function BoardScreen({ isMod }: { isMod: boolean }) {
                 {r.avatarUrl ? <img src={r.avatarUrl} alt="" className="w-full h-full object-cover" /> : <span className="text-sm">{r.avatar || '👤'}</span>}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-mono text-[12.5px] text-white truncate">{r.username}</p>
+                <p className="font-mono text-[12.5px] text-white truncate"><PlayerName profileId={r.userId} name={r.username} /></p>
                 <p className="font-mono text-[10px] truncate" style={{ color: GOLD_SOFT }}>{r.archetypeKa}</p>
               </div>
               <span className="font-mono text-[14px] font-bold flex-shrink-0" style={{ color: GOLD }}>{r.score}%</span>

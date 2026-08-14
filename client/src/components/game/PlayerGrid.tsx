@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import { PlayerPublic, Phase, RoleKey } from '@/types/index';
 import { ModBadge } from '@/components/ui/ModBadge';
+import { PlayerName } from '@/components/ui/PlayerName';
 
 const ROLE_ICONS: Partial<Record<RoleKey, string>> = {
   citizen: '◈', sheriff: '✦', doctor: '+', bodyguard: '⬡',
@@ -372,7 +373,7 @@ function SpeakerHero({ player, isMe, isAlly, speakerIndex, totalSpeakers, voice 
               {player.seat}
             </span>
             <span className="font-display font-bold text-white text-sm leading-tight truncate flex-1">
-              {player.name}
+              <PlayerName profileId={player.profileId} name={player.name} />
             </span>
             {isMe && (
               <span

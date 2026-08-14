@@ -12,6 +12,7 @@ import type { Res } from '@/types/index';
 import { MAX_LEVEL, xpForLevel, xpForNextLevel } from '@/lib/level';
 import { VoidClansIcon } from '@/components/ui/VoidClansIcon';
 import { tNow } from '@/store/langStore';
+import { PlayerName } from '@/components/ui/PlayerName';
 
 const MEDALS = ['🥇', '🥈', '🥉'];
 const MEDAL_BORDER = ['border-yellow-400/25', 'border-gray-400/15', 'border-amber-700/20'];
@@ -270,7 +271,7 @@ export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
                       {/* Name + badge */}
                       <div className="flex-1 min-w-0">
                         <p className="font-display font-semibold text-sm truncate text-white/70">
-                          {entry.username}
+                          <PlayerName profileId={entry.playerId} name={entry.username} />
                         </p>
                         <div className="mt-0.5">
                           <RatingBadge tier={entry.tier} size="sm" showElo={false} />
@@ -387,7 +388,7 @@ export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
                           {/* Name + badge */}
                           <div className="flex-1 min-w-0">
                             <p className="font-display font-semibold text-sm truncate text-white/70">
-                              {entry.username}
+                              <PlayerName profileId={entry.playerId} name={entry.username} />
                             </p>
                             <div className="mt-0.5">
                               <RatingBadge tier={entry.tier as RankTier} size="sm" showElo={false} />
@@ -553,7 +554,7 @@ export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
                       player.isModerator ? 'text-neon-green'
                         : i < 3 ? MEDAL_TEXT[i] : 'text-white/60',
                     )}>
-                      {player.username}
+                      <PlayerName profileId={player.id} name={player.username} />
                     </p>
                     {player.isModerator && player.moderatorBadgeVisible && (
                       <ModBadge level={player.moderatorLevel} size="xs" />

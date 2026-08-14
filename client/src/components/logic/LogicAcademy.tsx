@@ -10,6 +10,7 @@ import { useSocialStore } from '@/store/socialStore';
 import { useAuthStore } from '@/store/authStore';
 import { LogicLogo } from './LogicLogo';
 import { T, hairline } from '@/design/tokens';
+import { PlayerName } from '@/components/ui/PlayerName';
 
 type Level = 'beginner' | 'medium' | 'hard' | 'expert';
 type Mode = 'practice' | 'ranked' | 'daily' | 'test';
@@ -481,7 +482,7 @@ export function LogicAcademy({ onClose }: { onClose: () => void }) {
                     <Avatar row={r} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 14, color: T.text.secondary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {r.username}{r.userId === myId ? ' ●' : ''}
+                        <PlayerName profileId={r.userId} name={r.username} />{r.userId === myId ? ' ●' : ''}
                       </div>
                       <div style={{ fontSize: 11, color: T.text.muted }}>{r.accuracy}% სიზუსტე · {r.tests} ტესტი</div>
                     </div>
@@ -651,7 +652,7 @@ export function LogicAcademy({ onClose }: { onClose: () => void }) {
                     <Avatar row={r} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 14, color: T.text.secondary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {r.username}{r.userId === myId ? ' ●' : ''}
+                        <PlayerName profileId={r.userId} name={r.username} />{r.userId === myId ? ' ●' : ''}
                       </div>
                       <div style={{ fontSize: 11, color: T.text.muted }}>
                         {r.correct}/{r.total} · {Math.floor(r.durationMs / 60000)} წთ · {new Date(r.at).toLocaleDateString('ka-GE')}

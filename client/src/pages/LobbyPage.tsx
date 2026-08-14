@@ -24,6 +24,7 @@ import { useVoiceChat, registerVoiceGestureRetry } from '@/hooks/useVoiceChat';
 import { useLivekitRoomVoice, useLiveKitGate } from '@/hooks/useLivekitVoice';
 import { LiveKitVoiceBarView } from '@/components/game/LiveKitVoiceBar';
 import { useGameSounds } from '@/hooks/useSoundFX';
+import { PlayerName } from '@/components/ui/PlayerName';
 
 const SURFACE = 'rounded-2xl border border-white/[0.06]';
 const SURFACE_BG = { background: 'rgba(10, 6, 28, 0.92)' } as const;
@@ -455,7 +456,7 @@ export function LobbyPage() {
                             : isMe ? 'text-white/90'
                             : 'text-white/60',
                           )}>
-                            {player.name}
+                            <PlayerName profileId={player.profileId} name={player.name} />
                           </span>
                           {isMe && (
                             <span className="text-[12px] font-mono text-white/18 border border-white/[0.08] rounded px-1 py-px">

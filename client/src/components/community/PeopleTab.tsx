@@ -6,6 +6,9 @@ import type { CommunityProfileV2 } from '@/types/index';
 import { Avatar, BadgeRow, MrMaxGlow, Spinner, EmptyState } from '@/components/community/shared';
 import { emitWithAck } from '@/lib/socket';
 import type { Res } from '@/types/index';
+import { PlayerName } from '@/components/ui/PlayerName';
+import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
+import { useIsVerified } from '@/store/verifiedStore';
 
 function PersonCard({ person, onOpenProfile }: { person: CommunityProfileV2; onOpenProfile: (id: string) => void }) {
   const t = useT();
@@ -15,6 +18,7 @@ function PersonCard({ person, onOpenProfile }: { person: CommunityProfileV2; onO
   const [following, setFollowing] = useState(person.isFollowedByMe);
   const isSelf = currentUser?.id === person.id;
   const isMrMax = person.badges?.includes('owner');
+  const personVerified = useIsVerified(person.id);
 
   async function handleFollow() {
     if (followBusy) return;
@@ -35,11 +39,16 @@ function PersonCard({ person, onOpenProfile }: { person: CommunityProfileV2; onO
       </button>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
+          {/* One badge across both branches: PlayerName's own is suppressed so a
+              verified non-Mr-Max person doesn't get two. */}
           {isMrMax ? (
             <MrMaxGlow><span className="font-mono text-sm text-yellow-300 font-bold truncate">{person.username}</span></MrMaxGlow>
           ) : (
-            <span className="font-mono text-sm text-white/80 truncate">{person.username}</span>
+            <span className="font-mono text-sm text-white/80 truncate">
+              <PlayerName profileId={person.id} name={person.username} verified={false} />
+            </span>
           )}
+          {personVerified && <VerifiedBadge size={13} />}
           {person.badges?.length > 0 && <BadgeRow badges={person.badges} max={3} />}
         </div>
         <p className="font-mono text-[12px] text-white/35">
