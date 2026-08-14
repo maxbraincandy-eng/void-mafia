@@ -938,6 +938,8 @@ export async function initializeDatabase() {
     await sql `ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS video_url TEXT`;
     await sql `ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN NOT NULL DEFAULT false`;
     await sql `ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS is_featured BOOLEAN NOT NULL DEFAULT false`;
+    // Post Boost perk: epoch ms until which this post floats to the top of the feed.
+    await sql `ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS boosted_until BIGINT`;
     await sql `ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS rec_title TEXT`;
     await sql `ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS rec_category TEXT`;
     await sql `ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS hashtags TEXT NOT NULL DEFAULT '[]'`;

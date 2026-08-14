@@ -610,6 +610,7 @@ export function toPublicRoom(room: Room, viewerPlayerId: string): RoomPublic {
     trialDefenseState: room.trialDefenseState ?? null,
     clanId: room.clanId,
     clanRoom: room.clanRoom,
+    skin: room.skin ?? null,
     activeEvent: room.activeEvent,
     mafiaVotes: isMafia && room.phase === 'night'
       ? (() => {

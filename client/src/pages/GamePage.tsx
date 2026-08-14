@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import { useGameStore } from '@/store/gameStore';
+import { emitWithAck } from '@/lib/socket';
 import { Phase, PlayerPublic } from '@/types/index';
 import { Timer } from '@/components/ui/Timer';
 import { Button } from '@/components/ui/Button';
@@ -38,6 +39,7 @@ import { InGamePlayersPanel } from '@/components/game/InGamePlayersPanel';
 import { SpectatorTheater } from '@/components/game/SpectatorTheater';
 import { SpectatorTheaterPanel } from '@/components/game/SpectatorTheaterPanel';
 import { SpectatorInvisibilityBar } from '@/components/game/SpectatorInvisibilityBar';
+import { DetectiveNotebook } from '@/components/game/DetectiveNotebook';
 import { DynamicEventBanner } from '@/components/game/DynamicEventBanner';
 import { useT } from '@/store/langStore';
 import { useSocialStore } from '@/store/socialStore';
@@ -584,11 +586,36 @@ export function GamePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room?.id]);
 
+  // Detective's Notebook perk. Ownership is asked once per mount; the button
+  // only appears for owners, and only outside ranked (where it is disabled for
+  // everyone — see DetectiveNotebook).
+  const [notebookOpen, setNotebookOpen] = useState(false);
+  const [ownsNotebook, setOwnsNotebook] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    emitWithAck<undefined, any>('perks:get')
+      .then(r => { if (alive && r?.ok) setOwnsNotebook(!!r.data?.perks?.ownsNotebook); })
+      .catch(() => { /* no button is the right fallback */ });
+    return () => { alive = false; };
+  }, []);
+
   // Voice panel — shown in sidebar (desktop) and action tab (mobile)
   const VoicePanel = (
     <div className="mt-4">
       {/* Invisibility control (spectators only) */}
       {amSpectator && <SpectatorInvisibilityBar invisible={!!myPlayer?.invisibleSpectator} />}
+      {/* Detective's Notebook (owners, casual rooms) */}
+      {ownsNotebook && !room.settings.ranked && (
+        <button
+          onClick={() => setNotebookOpen(true)}
+          className="mb-2 w-full px-3 py-1.5 rounded-lg flex items-center gap-2 transition-all active:scale-[0.99]"
+          style={{ border: '1px solid rgba(148,163,184,0.22)', background: 'rgba(148,163,184,0.07)' }}
+        >
+          <span className="text-[13px]">📓</span>
+          <span className="text-[12px] font-mono text-white/55">ბლოკნოტი</span>
+          <span className="ml-auto text-[10px] font-mono text-white/25">მხოლოდ შენ ხედავ</span>
+        </button>
+      )}
       {/* Night phase notice for spectators and non-mafia */}
       {isNight && amSpectator && (
         <div className="mb-2 px-3 py-1.5 rounded-lg border border-white/10 bg-white/5 flex items-center gap-2">
@@ -2310,6 +2337,19 @@ export function GamePage() {
             recipientAvatar={giftTarget.avatar}
             recipientAvatarUrl={giftTarget.avatarUrl}
             onClose={() => setGiftTarget(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Detective's Notebook */}
+      <AnimatePresence>
+        {notebookOpen && (
+          <DetectiveNotebook
+            roomId={room.id}
+            players={room.players.filter(p => !p.isSpectator).map(p => ({ id: p.id, name: p.name, seat: p.seat }))}
+            owned={ownsNotebook}
+            ranked={!!room.settings.ranked}
+            onClose={() => setNotebookOpen(false)}
           />
         )}
       </AnimatePresence>

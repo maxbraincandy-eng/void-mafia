@@ -39,7 +39,29 @@ import bcrypt from 'bcryptjs';
 import { sendPushToUser } from './pushService.js';
 import { getOrCreateConversation, listConversations, sendMessage, sendVoiceDm, sendImageDm, getMessages, markRead, getTotalUnread, toggleDmReaction, markViewOnceViewed, deleteConversationForUser, sendCallLog, } from './services/dmService.js';
 import { getCoins, claimDailyReward, grantCoins, deductCoins, refundGift, getTransactions, getAllTransactions, getGiftCatalog, createGift, updateGift, sendGift, getPlayerGifts, getGiftDetail, getGiftsSent, getGiftTimeline, getGiftStats, getPinnedGifts, pinGift, unpinGift, hideGift, unhideGift, getHiddenGifts, purchaseCosmeticItem, checkProfileCompletionBonus, } from './services/coinService.js';
-import { PERK_ITEMS, getPerks, buyPerk, setPerkMode, resolveSpectatorInvisible, resolveAnon, consumeXpBoost, resolveSpotlightUntil, aliasFor, } from './services/perkService.js';
+import { PERK_ITEMS, getPerks, buyPerk, setPerkMode, setPerkChoice, resolveSpectatorInvisible, resolveAnon, consumeXpBoost, resolveSpotlightUntil, aliasFor, resolveEntrance, resolveRoomSkin, resolveVoiceMask, consumeSticker, consumePostBoost, POST_BOOST_MS, refundPostBoost, } from './services/perkService.js';
+/** Accepted values for the perks:configure / perks:choose sockets. */
+const TOGGLE_PERKS = ['invisible', 'anon', 'entrance', 'voicemask'];
+const CHOICE_PERKS = ['entrance', 'roomskin', 'voicemask'];
+/** The only stickers that can be thrown. Anything else is rejected, so the
+ *  broadcast can never carry arbitrary client text to every screen in a room. */
+const STICKER_SET = [
+    '💀', '🔪', '🤡', '👑', '🔥', '💣', '🕵️', '🎭', '😂', '😱', '🤝', '👀', '🍿', '⚡', '🌹', '🚨',
+];
+// One sticker per 1.5s per socket, 6 in any 15s window. The perk already caps
+// the total, but nothing stopped 30 of them landing in three seconds.
+const stickerTimes = new Map();
+function stickerRateOk(socketId) {
+    const now = Date.now();
+    const times = (stickerTimes.get(socketId) ?? []).filter(t => now - t < 15000);
+    if (times.length >= 6)
+        return false;
+    if (times.length > 0 && now - times[times.length - 1] < 1500)
+        return false;
+    times.push(now);
+    stickerTimes.set(socketId, times);
+    return true;
+}
 import { submitRun as noirSubmit, leaderboard as noirBoard, myStats as noirStats } from './services/noirService.js';
 import { getVerifiedMap, setVerifiedTier, listVerified } from './services/playerService.js';
 import { inspectMessage } from './services/autoModService.js';
@@ -48,7 +70,7 @@ import { applyReferral, getReferralCount } from './services/referralService.js';
 import { updateRatingsAfterGame, getPlayerRating, getRankedLeaderboard, getRankTier } from './services/ratingService.js';
 import { getActiveSeason, getSeasonLeaderboard, getMySeasonHistory } from './services/seasonService.js';
 import { startReplay, recordEvent, finishReplay, listReplays, getReplay, getMyReplays, } from './services/replayService.js';
-import { listNews, createNews, deleteNews, listRecommends, createRecommend, deleteRecommend, listThoughts, createThought, deleteThought, listFeed, createPost, deletePost, toggleLike, getComments, addComment, deleteComment, reportPost, toggleCommentLike, toggleCommentReaction, editPost, notifyMentions, listCommunityReports, resolveCommunityReport, follow, unfollow, listEvents, createEvent, joinEvent, leaveEvent, createNotification, notifyAllPlayers, listNotifications, getUnreadNotificationCount, markNotificationsRead, listLoungeRows, getLoungeRow, rowToLounge, createLounge, deleteLounge, setLoungeLive, communityBanPlayer, communityUnbanPlayer, getActiveCommunityBan, updateCommunityProfile, getCommunityProfileV2, assignBadge, revokeBadge, setShowcaseAchievement, clearShowcaseSlot, getPrivacySettings, setPrivacySettings, createPostV2, listFeedV2, getUserPosts, votePoll, togglePostSave, getSavedPosts, createStory, listActiveStories, deleteStory, recordStoryView, getStoryViewers, toggleStoryReaction, getStoryReactions, getUnreadStoryReactionCount, markStoryReactionNotificationsRead, pinPost, featurePost, hidePost, logCommunityModAction, getCommunityModLogs, listPeopleDirectory, getFollowersList, getFollowingList, searchCommunity, upsertOnlineSeen, getOnlineMembers, generateAnonymousName, togglePostReaction, getWeeklyLeaderboard, getPostById, } from './services/communityService.js';
+import { listNews, createNews, deleteNews, listRecommends, createRecommend, deleteRecommend, listThoughts, createThought, deleteThought, listFeed, createPost, deletePost, toggleLike, getComments, addComment, deleteComment, reportPost, toggleCommentLike, toggleCommentReaction, editPost, notifyMentions, listCommunityReports, resolveCommunityReport, follow, unfollow, listEvents, createEvent, joinEvent, leaveEvent, createNotification, notifyAllPlayers, listNotifications, getUnreadNotificationCount, markNotificationsRead, listLoungeRows, getLoungeRow, rowToLounge, createLounge, deleteLounge, setLoungeLive, communityBanPlayer, communityUnbanPlayer, getActiveCommunityBan, updateCommunityProfile, getCommunityProfileV2, assignBadge, revokeBadge, setShowcaseAchievement, clearShowcaseSlot, getPrivacySettings, setPrivacySettings, createPostV2, listFeedV2, getUserPosts, votePoll, togglePostSave, getSavedPosts, boostPost, createStory, listActiveStories, deleteStory, recordStoryView, getStoryViewers, toggleStoryReaction, getStoryReactions, getUnreadStoryReactionCount, markStoryReactionNotificationsRead, pinPost, featurePost, hidePost, logCommunityModAction, getCommunityModLogs, listPeopleDirectory, getFollowersList, getFollowingList, searchCommunity, upsertOnlineSeen, getOnlineMembers, generateAnonymousName, togglePostReaction, getWeeklyLeaderboard, getPostById, } from './services/communityService.js';
 import { listDebates, getDebateFull, createDebate, joinDebate, postArgument, voteDebate, closeDebate, startDebate, advancePhase as advanceDebatePhase, skipPhase, raiseHand, lowerHand, getRaisedHands, promoteSpeaker, PHASE_DURATION_SECONDS, } from './services/debateService.js';
 import { voiceJoin as debateVoiceJoin, voiceLeave as debateVoiceLeave } from './services/debateVoiceService.js';
 import { recordActivity, getFriendActivityFeed } from './services/activityService.js';
@@ -2057,6 +2079,11 @@ export function attachSocketHandlers(io) {
                     room.spotlightUntil = await resolveSpotlightUntil(profileId);
                 }
                 catch { /* non-fatal */ }
+                // Room Skin perk: the host's palette dresses the room for everyone in it.
+                try {
+                    room.skin = await resolveRoomSkin(profileId);
+                }
+                catch { /* non-fatal */ }
                 socket.join(room.id);
                 socket.data.playerId = room.hostId;
                 socket.data.roomId = room.id;
@@ -2242,6 +2269,21 @@ export function attachSocketHandlers(io) {
                 }
                 else if (!lobbyHidden) {
                     broadcastSystemMsg(io, room, `${player.name} joined the room.`);
+                    // Entrance perk: announce the arrival with the player's chosen banner.
+                    // Only on a real join — a reconnect is handled by the isRejoin branch
+                    // above, so refreshing the page can't replay your own fanfare.
+                    // Never for a hidden spectator: the whole point of that perk is the
+                    // opposite of this one.
+                    try {
+                        const style = await resolveEntrance(profileId);
+                        if (style) {
+                            io.to(room.id).emit('room:entrance', {
+                                playerId: player.id, name: player.name, avatar: player.avatar,
+                                avatarUrl: player.avatarUrl ?? null, style,
+                            });
+                        }
+                    }
+                    catch { /* non-fatal */ }
                 }
                 broadcastRoom(io, room);
                 cb(ok(toPublicRoom(room, player.id)));
@@ -2383,7 +2425,7 @@ export function attachSocketHandlers(io) {
             }
         });
         // ── Transfer Host ───────────────────────────────────────────────
-        socket.on('room:transfer_host', ({ playerId }, cb) => {
+        socket.on('room:transfer_host', async ({ playerId }, cb) => {
             try {
                 const room = getRoomFromSocket(socket);
                 const host = getPlayerOrError(socket, room);
@@ -2395,6 +2437,13 @@ export function attachSocketHandlers(io) {
                 if (!newHost)
                     throw new Error('Player not found.');
                 transferHost(room, playerId);
+                // The skin belongs to whoever is host, not to the room — so it follows
+                // the crown. Without this the room keeps wearing the old host's palette
+                // after they hand over (or leave).
+                try {
+                    room.skin = await resolveRoomSkin(newHost.profileId ?? null);
+                }
+                catch { /* non-fatal */ }
                 broadcastSystemMsg(io, room, `👑 ${host.name} transferred host to ${newHost.name}.`);
                 broadcastRoom(io, room);
                 cb(ok(null));
@@ -5279,11 +5328,117 @@ export function attachSocketHandlers(io) {
                 const profileId = socket.data.profileId;
                 if (!profileId)
                     throw new Error('Not authenticated.');
-                if (which !== 'invisible' && which !== 'anon')
+                if (!TOGGLE_PERKS.includes(which))
                     throw new Error('უცნობი პარამეტრი');
                 if (mode !== 'off' && mode !== 'always')
                     throw new Error('უცნობი რეჟიმი');
-                cb(ok({ perks: await setPerkMode(profileId, which, mode) }));
+                const perks = await setPerkMode(profileId, which, mode);
+                // The voice mask changes how this player's OWN mic is processed, and
+                // only their client can do that — so it needs the new state pushed back
+                // rather than waiting for the next perks:get.
+                if (which === 'voicemask') {
+                    socket.emit('perks:voicemask', { preset: mode === 'always' ? perks.voiceMaskPreset : null });
+                }
+                cb(ok({ perks }));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        /** Pick the variant of an owned perk: entrance style, room skin, voice preset. */
+        socket.on('perks:choose', async ({ which, value }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                if (!CHOICE_PERKS.includes(which))
+                    throw new Error('უცნობი პარამეტრი');
+                const perks = await setPerkChoice(profileId, which, String(value));
+                if (which === 'voicemask' && perks.voiceMaskMode === 'always') {
+                    socket.emit('perks:voicemask', { preset: perks.voiceMaskPreset });
+                }
+                // A host changing their skin should repaint the room they're already in,
+                // not only the next one they open.
+                if (which === 'roomskin') {
+                    const room = socket.data.roomId ? getRoom(socket.data.roomId) : null;
+                    const me = room?.players.get(socket.data.playerId ?? '');
+                    if (room && me?.isHost) {
+                        room.skin = perks.roomSkin === 'default' ? null : perks.roomSkin;
+                        broadcastRoom(io, room);
+                    }
+                }
+                cb(ok({ perks }));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        /**
+         * Throw a sticker across everyone's screen in the current room.
+         *
+         * Rate-limited per socket on top of the perk cost: 30 stickers is enough to
+         * make the lobby unreadable in ten seconds if fired in a loop, and the
+         * thrower is the only one who can stop it.
+         */
+        socket.on('room:sticker', async ({ sticker }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                const room = getRoomFromSocket(socket);
+                const player = room.players.get(socket.data.playerId ?? '');
+                if (!player)
+                    throw new Error('Player not found.');
+                if (!STICKER_SET.includes(String(sticker)))
+                    throw new Error('უცნობი სტიკერი');
+                if (!stickerRateOk(socket.id))
+                    throw new Error('ცოტა მოითმინე.');
+                // Consume BEFORE broadcasting — if the spend fails there is nothing to show.
+                if (!await consumeSticker(profileId))
+                    throw new Error('სტიკერები აღარ გაქვს.');
+                io.to(room.id).emit('room:sticker', {
+                    from: player.name, playerId: player.id, sticker: String(sticker),
+                });
+                cb(ok({ left: (await getPerks(profileId)).stickers }));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        /** Tell a client which voice preset its own mic should use (or none). */
+        socket.on('perks:voicemask_get', async (cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId) {
+                    cb(ok({ preset: null }));
+                    return;
+                }
+                cb(ok({ preset: await resolveVoiceMask(profileId) }));
+            }
+            catch {
+                cb(ok({ preset: null }));
+            }
+        });
+        /** Spend one Post Boost on one of your own community posts. */
+        socket.on('community:boost_post', async ({ postId }, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                // Spend first: boosting and then charging would hand a free boost to
+                // anyone with zero units left. boostPost validates ownership of the
+                // post and throws, so the failure path refunds the unit.
+                if (!await consumePostBoost(profileId))
+                    throw new Error('აწევა აღარ გაქვს.');
+                let until;
+                try {
+                    until = await boostPost(String(postId), profileId, POST_BOOST_MS);
+                }
+                catch (e) {
+                    await refundPostBoost(profileId).catch(() => { });
+                    throw e;
+                }
+                cb(ok({ boostedUntil: until, left: (await getPerks(profileId)).postBoosts }));
             }
             catch (e) {
                 cb(err(e.message));

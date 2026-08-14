@@ -26,6 +26,8 @@ import { LiveKitVoiceBarView } from '@/components/game/LiveKitVoiceBar';
 import { useGameSounds } from '@/hooks/useSoundFX';
 import { PlayerName } from '@/components/ui/PlayerName';
 import { LobbyItemsBar } from '@/components/game/LobbyItemsBar';
+import { RoomFxLayer } from '@/components/game/RoomFxLayer';
+import { roomSkinStyle } from '@/constants/perks';
 
 const SURFACE = 'rounded-2xl border border-white/[0.06]';
 const SURFACE_BG = { background: 'rgba(10, 6, 28, 0.92)' } as const;
@@ -220,16 +222,26 @@ export function LobbyPage() {
     }
   };
 
+  // Room Skin perk: the host's palette dresses the room for everyone in it.
+  // Only the page ground and the ambient glow change — card surfaces, text and
+  // every state colour (ready / host / danger) stay exactly as they were, so no
+  // skin can make the lobby unreadable.
+  const skin = roomSkinStyle(room.skin);
+
   return (
     <div
       className="min-h-screen relative overflow-hidden pb-20"
-      style={{ background: 'linear-gradient(160deg, #0c0525 0%, #050311 50%)' }}
+      style={{ background: skin.page, transition: 'background 0.4s ease' }}
     >
       {/* Ambient — single top glow only */}
       <div
         className="absolute inset-0 pointer-events-none"
-        style={{ background: 'radial-gradient(ellipse 90% 35% at 50% -5%, rgba(100,0,240,0.08) 0%, transparent 55%)' }}
+        style={{ background: skin.glow }}
       />
+
+      {/* Entrance banners and thrown stickers (server-broadcast, everyone sees
+          the same thing at the same moment). */}
+      <RoomFxLayer />
 
       <div className="relative z-10 max-w-5xl mx-auto px-4 py-3">
 
@@ -362,7 +374,7 @@ export function LobbyPage() {
         {/* Top of the lobby on purpose: this is where invisibility and the
             anonymous mask actually take effect, so it's where you should be
             able to buy them and flip them on. */}
-        <LobbyItemsBar isSpectator={amSpectator} liveInvisible={!!myPlayer?.invisibleSpectator} />
+        <LobbyItemsBar isSpectator={amSpectator} liveInvisible={!!myPlayer?.invisibleSpectator} isHost={amHost} />
 
         {/* ── Main grid ────────────────────────────────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

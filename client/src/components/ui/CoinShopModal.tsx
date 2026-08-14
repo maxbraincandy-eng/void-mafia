@@ -7,6 +7,7 @@ import { isNativeApp } from '@/lib/platform';
 import { useAuthStore } from '@/store/authStore';
 import { useNameColorStore } from '@/store/nameColorStore';
 import type { PlayerCosmetics, Res } from '@/types/index';
+import { PERK_EMOJI, type PerkDef, type PerkState, type TogglePerk } from '@/constants/perks';
 
 interface CoinPackage {
   id: string;
@@ -16,18 +17,29 @@ interface CoinPackage {
   bonus: string;
 }
 
-// Mirrors server perkService PerkState / PerkDef.
-interface PerkState {
-  ownsInvisible: boolean; invisibleMode: 'off' | 'always';
-  ownsAnon: boolean; anonMode: 'off' | 'always';
-  vipUntil: number | null; xpBoostGames: number;
+/** Which own-once flag backs each perk id (null = not an own-once perk). */
+function perkOwned(p: PerkState | null, id: string): boolean {
+  if (!p) return false;
+  switch (id) {
+    case 'invisible': return p.ownsInvisible;
+    case 'anon':      return p.ownsAnon;
+    case 'entrance':  return p.ownsEntrance;
+    case 'roomskin':  return p.ownsRoomSkin;
+    case 'voicemask': return p.ownsVoiceMask;
+    case 'notebook':  return p.ownsNotebook;
+    default:          return false;
+  }
 }
-interface PerkDef {
-  id: 'invisible' | 'anon' | 'vip' | 'xpboost';
-  name: string; ka: string; desc: string; price: number;
-  kind: 'toggle' | 'duration' | 'consumable'; hours?: number; units?: number;
+function perkMode(p: PerkState | null, id: string): 'off' | 'always' {
+  if (!p) return 'off';
+  switch (id) {
+    case 'invisible': return p.invisibleMode;
+    case 'anon':      return p.anonMode;
+    case 'entrance':  return p.entranceMode;
+    case 'voicemask': return p.voiceMaskMode;
+    default:          return 'off';
+  }
 }
-const PERK_EMOJI: Record<string, string> = { invisible: '🕵️', anon: '🎭', vip: '📡', xpboost: '⚡' };
 
 const RARITY_GLOW: Record<number, string> = {
   0: 'rgba(255,255,255,0.06)',
@@ -64,7 +76,7 @@ export function CoinShopModal({ open, onClose, profileId, coins: propCoins, onCo
   const [perkCatalog, setPerkCatalog] = useState<PerkDef[]>([]);
   const [perkBusy, setPerkBusy] = useState<string | null>(null);
   const [perkMsg, setPerkMsg] = useState<string | null>(null);
-  const [configuring, setConfiguring] = useState<'invisible' | 'anon' | null>(null);
+  const [configuring, setConfiguring] = useState<TogglePerk | null>(null);
   const profile = useAuthStore(s => s.profile);
   // Inside the native app, Stripe/card checkout for digital goods is not allowed
   // by Google Play / Apple. Store billing (RevenueCat) is wired separately; until
@@ -107,7 +119,7 @@ export function CoinShopModal({ open, onClose, profileId, coins: propCoins, onCo
     finally { setPerkBusy(null); }
   };
 
-  const configurePerk = async (which: 'invisible' | 'anon', mode: 'off' | 'always') => {
+  const configurePerk = async (which: TogglePerk, mode: 'off' | 'always') => {
     try {
       const res = await emitWithAck<{ which: string; mode: string }, Res<{ perks: PerkState }>>('perks:configure', { which, mode });
       if ('ok' in res && res.ok) setPerks(res.data.perks);
@@ -420,16 +432,25 @@ export function CoinShopModal({ open, onClose, profileId, coins: propCoins, onCo
                   {perkMsg && <p className="text-center font-mono text-[12px] text-amber-300 pb-1">{perkMsg}</p>}
                   {perkCatalog.length === 0 && <p className="text-center font-mono text-[12px] text-white/25 py-6">იტვირთება…</p>}
                   {perkCatalog.map(item => {
-                    const owned = item.id === 'invisible' ? perks?.ownsInvisible : item.id === 'anon' ? perks?.ownsAnon : false;
+                    // Own-once state is looked up by id through one table. The
+                    // old inline ternaries covered only the first two perks, so
+                    // every perk added after them read as never-owned and kept
+                    // offering a Buy button after purchase.
+                    const owned = !!perkOwned(perks, item.id);
                     const isToggle = item.kind === 'toggle';
-                    const mode = item.id === 'invisible' ? perks?.invisibleMode : item.id === 'anon' ? perks?.anonMode : 'off';
+                    const mode = perkMode(perks, item.id);
                     const vipActive = item.id === 'vip' && perks?.vipUntil != null && perks.vipUntil > Date.now();
-                    const boostLeft = item.id === 'xpboost' ? (perks?.xpBoostGames ?? 0) : 0;
+                    const magnetActive = item.id === 'coinmagnet' && perks?.coinMagnetUntil != null && perks.coinMagnetUntil > Date.now();
+                    const untilMs = item.id === 'vip' ? perks?.vipUntil : item.id === 'coinmagnet' ? perks?.coinMagnetUntil : null;
+                    const unitsLeft = item.id === 'xpboost' ? (perks?.xpBoostGames ?? 0)
+                      : item.id === 'stickers' ? (perks?.stickers ?? 0)
+                      : item.id === 'postboost' ? (perks?.postBoosts ?? 0) : 0;
                     // status line under the name: what the player currently has
                     const status =
                       isToggle && owned ? (mode === 'always' ? '✓ ჩართულია' : 'შეძენილია · გამორთულია')
-                      : vipActive ? `აქტიურია კიდევ ${Math.max(1, Math.ceil((perks!.vipUntil! - Date.now()) / 3_600_000))} სთ`
-                      : boostLeft > 0 ? `დარჩა ${boostLeft} თამაში`
+                      : item.kind === 'unlock' && owned ? '✓ გახსნილია'
+                      : (vipActive || magnetActive) ? `აქტიურია კიდევ ${Math.max(1, Math.ceil((untilMs! - Date.now()) / 3_600_000))} სთ`
+                      : unitsLeft > 0 ? `დარჩა ${unitsLeft}`
                       : item.desc;
                     return (
                       <div key={item.id} className="rounded-2xl p-3"
@@ -442,7 +463,7 @@ export function CoinShopModal({ open, onClose, profileId, coins: propCoins, onCo
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
                               <p className="font-display font-bold text-white text-[14px] leading-tight">{item.ka}</p>
-                              {isToggle && owned && (
+                              {owned && (
                                 <span className="font-mono text-[9px] px-1.5 py-0.5 rounded"
                                   style={{ background: 'rgba(0,255,136,0.12)', color: '#5ce1a0' }}>OWNED</span>
                               )}
@@ -452,8 +473,12 @@ export function CoinShopModal({ open, onClose, profileId, coins: propCoins, onCo
                         </div>
                         <div className="flex items-center gap-2 mt-2.5">
                           {/* Toggles: buy once, then Configure. Consumables/duration: (re)buy. */}
-                          {isToggle && owned ? (
-                            <button onClick={() => setConfiguring(item.id as 'invisible' | 'anon')}
+                          {item.kind === 'unlock' && owned ? (
+                            <p className="flex-1 py-2 text-center font-mono text-[12px] text-white/35">
+                              ლობიში დაარეგულირე
+                            </p>
+                          ) : isToggle && owned ? (
+                            <button onClick={() => setConfiguring(item.id as TogglePerk)}
                               className="flex-1 py-2 rounded-xl font-mono text-[12px] font-bold transition-all active:scale-[0.98]"
                               style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: '#e8edf7' }}>
                               Configure
@@ -462,19 +487,19 @@ export function CoinShopModal({ open, onClose, profileId, coins: propCoins, onCo
                             <button onClick={() => buyPerk(item.id)} disabled={perkBusy === item.id}
                               className="flex-1 py-2 rounded-xl font-mono text-[12px] font-bold transition-all active:scale-[0.98] disabled:opacity-50"
                               style={{ background: 'rgba(250,204,21,0.14)', border: '1px solid rgba(250,204,21,0.4)', color: '#facc15' }}>
-                              {perkBusy === item.id ? '…' : `${item.price} 🪙${(vipActive || boostLeft > 0) ? ' · კიდევ' : ''}`}
+                              {perkBusy === item.id ? '…' : `${item.price} 🪙${(vipActive || magnetActive || unitsLeft > 0) ? ' · კიდევ' : ''}`}
                             </button>
                           )}
                         </div>
                         {/* Configure dialog (Yes = always on / No = off) */}
                         {configuring === item.id && (
                           <div className="mt-2 flex gap-2">
-                            <button onClick={() => configurePerk(item.id as 'invisible' | 'anon', 'always')}
+                            <button onClick={() => configurePerk(item.id as TogglePerk, 'always')}
                               className="flex-1 py-2 rounded-lg font-mono text-[12px] font-bold"
                               style={{ background: 'rgba(0,255,136,0.14)', border: '1px solid rgba(0,255,136,0.35)', color: '#5ce1a0' }}>
                               ყოველთვის ჩართე
                             </button>
-                            <button onClick={() => configurePerk(item.id as 'invisible' | 'anon', 'off')}
+                            <button onClick={() => configurePerk(item.id as TogglePerk, 'off')}
                               className="flex-1 py-2 rounded-lg font-mono text-[12px] font-bold"
                               style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', color: '#e8edf7' }}>
                               გამორთე
@@ -485,7 +510,7 @@ export function CoinShopModal({ open, onClose, profileId, coins: propCoins, onCo
                     );
                   })}
                   <p className="font-mono text-[10px] text-white/25 leading-relaxed pt-1 text-center">
-                    უჩინარობა/ანონიმურობა ერთხელ იყიდება, მერე ჩართე/გამორთე „Configure"-ით. პროჟექტორი და ბუსტერი ხელახლა იყიდება.
+                    ჩამრთველიანი ნივთები ერთხელ იყიდება, მერე ჩართე/გამორთე. სტილის, სკინის და ხმის არჩევა მაფიის ლობიშია, „ნივთების" ზოლში.
                   </p>
                 </div>
                 )}

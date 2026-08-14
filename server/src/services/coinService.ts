@@ -158,7 +158,7 @@ async function recordTransaction(
   return { id, balanceBefore, balanceAfter };
 }
 
-export async function claimDailyReward(playerId: string): Promise<{ coins: number; balance: number; alreadyClaimed: boolean }> {
+export async function claimDailyReward(playerId: string): Promise<{ coins: number; balance: number; alreadyClaimed: boolean; boosted?: boolean }> {
   const dateKey = new Date().toISOString().slice(0, 10);
   const existing = await sql`
     SELECT 1 FROM daily_coin_claims WHERE player_id = ${playerId} AND date_key = ${dateKey}
@@ -167,13 +167,21 @@ export async function claimDailyReward(playerId: string): Promise<{ coins: numbe
     const balance = await getCoins(playerId);
     return { coins: 0, balance, alreadyClaimed: true };
   }
-  const { balanceAfter } = await recordTransaction(playerId, 'daily_reward', DAILY_REWARD_COINS, 'Daily reward');
+  // Coin Magnet perk: +25% while it lasts. Applied here because the daily
+  // reward is the game's actual recurring coin faucet — imported lazily so
+  // coinService and perkService (which imports coinService) don't form a cycle.
+  const { applyCoinMagnet } = await import('./perkService.js');
+  const { amount, boosted } = await applyCoinMagnet(playerId, DAILY_REWARD_COINS);
+
+  const { balanceAfter } = await recordTransaction(
+    playerId, 'daily_reward', amount, boosted ? 'Daily reward (+25% magnet)' : 'Daily reward',
+  );
   await sql`
     INSERT INTO daily_coin_claims (player_id, date_key, coins_awarded, claimed_at)
-    VALUES (${playerId}, ${dateKey}, ${DAILY_REWARD_COINS}, ${Date.now()})
+    VALUES (${playerId}, ${dateKey}, ${amount}, ${Date.now()})
     ON CONFLICT (player_id, date_key) DO NOTHING
   `;
-  return { coins: DAILY_REWARD_COINS, balance: balanceAfter, alreadyClaimed: false };
+  return { coins: amount, balance: balanceAfter, alreadyClaimed: false, boosted };
 }
 
 export async function grantCoins(

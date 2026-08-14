@@ -789,6 +789,7 @@ async function buildPostV2(row, viewerId) {
         videoUrl: row.video_url ?? null,
         isPinned: Boolean(row.is_pinned),
         isFeatured: Boolean(row.is_featured),
+        boostedUntil: row.boosted_until != null ? Number(row.boosted_until) : null,
         recTitle: row.rec_title ?? null,
         recCategory: row.rec_category ?? null,
         hashtags,
@@ -862,10 +863,36 @@ export async function editPost(postId, requesterId, newContent) {
     return buildPostV2(rows[0], requesterId);
 }
 // List feed V2
+/**
+ * Post Boost perk: float one of your own posts to the top of the feed.
+ *
+ * The perk unit is spent by the caller (socket handler) only after this
+ * succeeds, so a boost aimed at someone else's post — or a deleted one — costs
+ * nothing. Boosting an already-boosted post extends from the current expiry
+ * rather than restarting, so stacking two never loses time.
+ */
+export async function boostPost(postId, requesterId, durationMs) {
+    const [row] = await sql `SELECT author_id, boosted_until, deleted_at FROM community_posts WHERE id = ${postId}`;
+    if (!row)
+        throw new Error('პოსტი ვერ მოიძებნა.');
+    if (row.deleted_at)
+        throw new Error('პოსტი წაშლილია.');
+    if (row.author_id !== requesterId)
+        throw new Error('მხოლოდ საკუთარი პოსტის აწევა შეგიძლია.');
+    const base = Math.max(Date.now(), Number(row.boosted_until ?? 0));
+    const until = base + durationMs;
+    await sql `UPDATE community_posts SET boosted_until = ${until} WHERE id = ${postId}`;
+    return until;
+}
 export async function listFeedV2(viewerId, options) {
     const limit = options.limit ?? 20;
     const before = options.before ?? Date.now() + 1;
     const { category, hashtag } = options;
+    // Boosted posts sort above the rest. This is safe with the keyset pagination
+    // below: a boost lasts 6h, so a boosted post is newer than page 1's cutoff and
+    // surfaces there; later pages filter it out by created_at, so it is shown
+    // exactly once rather than repeating down the feed.
+    const nowMs = Date.now();
     let rows;
     if (hashtag) {
         rows = await sql `
@@ -874,7 +901,7 @@ export async function listFeedV2(viewerId, options) {
       JOIN players pl ON pl.id = p.author_id
       JOIN community_post_hashtags ht ON ht.post_id = p.id AND ht.hashtag = ${hashtag.toLowerCase()}
       WHERE p.hidden = false AND p.deleted_at IS NULL AND p.created_at < ${before}
-      ORDER BY p.is_pinned DESC, p.created_at DESC LIMIT ${limit}
+      ORDER BY p.is_pinned DESC, (p.boosted_until > ${nowMs}) DESC, p.created_at DESC LIMIT ${limit}
     `;
     }
     else if (category === 'following') {
@@ -884,7 +911,7 @@ export async function listFeedV2(viewerId, options) {
       JOIN players pl ON pl.id = p.author_id
       JOIN follows f ON f.following_id = p.author_id AND f.follower_id = ${viewerId}
       WHERE p.hidden = false AND p.deleted_at IS NULL AND p.visibility = 'public' AND p.created_at < ${before}
-      ORDER BY p.is_pinned DESC, p.created_at DESC LIMIT ${limit}
+      ORDER BY p.is_pinned DESC, (p.boosted_until > ${nowMs}) DESC, p.created_at DESC LIMIT ${limit}
     `;
     }
     else if (category === 'friends') {
@@ -897,7 +924,7 @@ export async function listFeedV2(viewerId, options) {
           SELECT to_id FROM friendships WHERE from_id = ${viewerId} AND status = 'accepted'
           UNION SELECT from_id FROM friendships WHERE to_id = ${viewerId} AND status = 'accepted'
         ))
-      ORDER BY p.is_pinned DESC, p.created_at DESC LIMIT ${limit}
+      ORDER BY p.is_pinned DESC, (p.boosted_until > ${nowMs}) DESC, p.created_at DESC LIMIT ${limit}
     `;
     }
     else if (category === 'void_news') {
@@ -906,7 +933,7 @@ export async function listFeedV2(viewerId, options) {
       FROM community_posts p
       JOIN players pl ON pl.id = p.author_id
       WHERE p.hidden = false AND p.deleted_at IS NULL AND p.created_at < ${before} AND pl.moderator_level = 'owner'
-      ORDER BY p.is_pinned DESC, p.created_at DESC LIMIT ${limit}
+      ORDER BY p.is_pinned DESC, (p.boosted_until > ${nowMs}) DESC, p.created_at DESC LIMIT ${limit}
     `;
     }
     else if (category === 'mr_max') {
@@ -916,7 +943,7 @@ export async function listFeedV2(viewerId, options) {
       JOIN players pl ON pl.id = p.author_id
       JOIN community_badges b ON b.player_id = p.author_id AND b.badge = 'owner'
       WHERE p.hidden = false AND p.deleted_at IS NULL AND p.created_at < ${before}
-      ORDER BY p.is_pinned DESC, p.created_at DESC LIMIT ${limit}
+      ORDER BY p.is_pinned DESC, (p.boosted_until > ${nowMs}) DESC, p.created_at DESC LIMIT ${limit}
     `;
     }
     else if (category === 'clans') {
@@ -929,7 +956,7 @@ export async function listFeedV2(viewerId, options) {
           SELECT cm.player_id FROM clan_members cm
           WHERE cm.clan_id = (SELECT clan_id FROM clan_members WHERE player_id = ${viewerId} LIMIT 1)
         )
-      ORDER BY p.is_pinned DESC, p.created_at DESC LIMIT ${limit}
+      ORDER BY p.is_pinned DESC, (p.boosted_until > ${nowMs}) DESC, p.created_at DESC LIMIT ${limit}
     `;
     }
     else if (category === 'trending') {
@@ -955,7 +982,7 @@ export async function listFeedV2(viewerId, options) {
             UNION SELECT from_id FROM friendships WHERE to_id = ${viewerId} AND status = 'accepted'
           ))
         )
-      ORDER BY p.is_pinned DESC, p.created_at DESC LIMIT ${limit}
+      ORDER BY p.is_pinned DESC, (p.boosted_until > ${nowMs}) DESC, p.created_at DESC LIMIT ${limit}
     `;
     }
     return Promise.all(rows.map(r => buildPostV2(r, viewerId)));

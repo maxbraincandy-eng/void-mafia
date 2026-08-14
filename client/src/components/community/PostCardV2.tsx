@@ -424,6 +424,31 @@ export function PostCardV2({
   const [sharing, setSharing] = useState(false);
   const [sharedOk, setSharedOk] = useState(false);
   const [hearts, setHearts] = useState<number[]>([]);
+  // Post Boost perk. The button is only drawn on your own posts and only when
+  // you hold a boost, so nothing here advertises an item to someone who cannot
+  // use it on this post anyway.
+  const [boosts, setBoosts] = useState(0);
+  const [boosting, setBoosting] = useState(false);
+  const [boostedUntil, setBoostedUntil] = useState<number | null>(post.boostedUntil ?? null);
+  useEffect(() => {
+    if (!isOwn) return;
+    let alive = true;
+    emitWithAck<undefined, any>('perks:get')
+      .then(r => { if (alive && r?.ok) setBoosts(Number(r.data?.perks?.postBoosts ?? 0)); })
+      .catch(() => { /* no button */ });
+    return () => { alive = false; };
+  }, [isOwn]);
+
+  const boostThisPost = async () => {
+    if (boosting) return;
+    setBoosting(true);
+    try {
+      const r = await emitWithAck<{ postId: string }, any>('community:boost_post', { postId: post.id });
+      if (r?.ok) { setBoostedUntil(r.data.boostedUntil); setBoosts(r.data.left); }
+    } catch { /* the count simply stays as it was */ }
+    finally { setBoosting(false); }
+  };
+  const boostActive = boostedUntil != null && boostedUntil > Date.now();
   const lastImgTapRef = useRef(0);
   const heartIdRef = useRef(0);
   const { votePoll } = useCommunityStore();
@@ -488,6 +513,16 @@ export function PostCardV2({
         </div>
       )}
 
+      {/* Boosted marker — shown to everyone, so a post at the top of the feed
+          explains why it is there instead of looking like favouritism. */}
+      {boostActive && (
+        <div className="flex items-center gap-1.5">
+          <span className="font-mono text-[12px] uppercase tracking-widest" style={{ color: 'rgba(34,211,238,0.65)' }}>
+            🚀 აწეული
+          </span>
+        </div>
+      )}
+
       {/* Author row */}
       <div className="flex items-start justify-between gap-2">
         <button onClick={() => onOpenProfile(post.authorId)} className="flex items-center gap-2 min-w-0 active:scale-95 transition-transform">
@@ -519,6 +554,15 @@ export function PostCardV2({
                 <div className="absolute right-0 top-full mt-1 z-10 rounded-xl border border-white/10 bg-black/90 backdrop-blur-xl p-2 space-y-1 min-w-[140px]">
                   {isOwn && (
                     <>
+                      {/* Post Boost — only when you actually hold one, and not
+                          while this post is already riding a boost. */}
+                      {boosts > 0 && !boostActive && (
+                        <button onClick={() => { void boostThisPost(); setShowModMenu(false); }} disabled={boosting}
+                          className="w-full text-left px-2 py-1 rounded-lg font-mono text-[11px] transition-colors disabled:opacity-40"
+                          style={{ color: 'rgba(34,211,238,0.8)' }}>
+                          🚀 აწევა ({boosts})
+                        </button>
+                      )}
                       <button onClick={() => { setEditDraft(post.content); setEditing(true); setShowModMenu(false); }}
                         className="w-full text-left px-2 py-1 rounded-lg font-mono text-[11px] text-white/60 hover:text-white hover:bg-white/5 transition-colors">
                         ✏️ რედაქტირება

@@ -110,6 +110,7 @@ export declare function claimDailyReward(playerId: string): Promise<{
     coins: number;
     balance: number;
     alreadyClaimed: boolean;
+    boosted?: boolean;
 }>;
 export declare function grantCoins(ownerId: string, targetId: string, amount: number, description: string): Promise<{
     newBalance: number;

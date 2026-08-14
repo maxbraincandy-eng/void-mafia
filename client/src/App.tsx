@@ -74,7 +74,8 @@ const PremiumWorlds = lazy(() => import('@/components/worlds/PremiumWorlds'));
 const PREMIUM_WORLD_NAMES: Record<string, string> = { beach_camp: 'Beach Camp 3D' };
 import { attachGlobalClickSounds, onSettingsChange } from '@/lib/audioEngine';
 import { useSettingsStore } from '@/store/settingsStore';
-import { socket } from '@/lib/socket';
+import { socket, emitWithAck } from '@/lib/socket';
+import { setLiveKitVoiceMask } from '@/services/livekitVoice';
 import type { GiftReceivedNotification } from '@/types/index';
 import { CLIENT_VERSION } from './version';
 import { overlayOpen } from '@/lib/overlayGuard';
@@ -895,6 +896,29 @@ export default function App() {
     };
     socket.on('coin:bonus' as any, handler);
     return () => { socket.off('coin:bonus' as any, handler); };
+  }, []);
+
+  // Voice Mask perk. The mask is applied in this browser's audio graph, so the
+  // client has to be told which preset it owns — once at start-up, and again
+  // whenever it is changed from anywhere (this tab's lobby strip, or the shop).
+  // livekitVoice remembers the wish and re-applies it every time the mic
+  // republishes, so setting it before any room exists is fine.
+  useEffect(() => {
+    let alive = true;
+    const pull = () => {
+      emitWithAck<undefined, any>('perks:voicemask_get')
+        .then(r => { if (alive && r?.ok) void setLiveKitVoiceMask(r.data?.preset ?? null); })
+        .catch(() => { /* unmasked is the correct fallback */ });
+    };
+    pull();
+    const onPush = (d: any) => { void setLiveKitVoiceMask(d?.preset ?? null); };
+    socket.on('perks:voicemask' as any, onPush);
+    socket.on('connect', pull);
+    return () => {
+      alive = false;
+      socket.off('perks:voicemask' as any, onPush);
+      socket.off('connect', pull);
+    };
   }, []);
 
   return (

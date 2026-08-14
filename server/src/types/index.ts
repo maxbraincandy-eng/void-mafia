@@ -111,7 +111,31 @@ export interface PlayerPerksState {
   anonMode: 'off' | 'always';
   vipUntil: number | null;
   xpBoostGames: number;
+  // ── second wave ──────────────────────────────────────────────────────
+  /** Entrance animation: a banner every player in the lobby sees when you join. */
+  ownsEntrance: boolean;
+  entranceMode: 'off' | 'always';
+  entranceStyle: EntranceStyle;
+  /** Room skin: the host repaints their own lobby for everyone in it. */
+  ownsRoomSkin: boolean;
+  roomSkin: RoomSkinId;
+  /** Voice mask: pitch-shifts your own mic. Pairs with the anonymous mask. */
+  ownsVoiceMask: boolean;
+  voiceMaskMode: 'off' | 'always';
+  voiceMaskPreset: VoiceMaskPreset;
+  /** Animated stickers thrown across everyone's screen. Consumable. */
+  stickers: number;
+  /** Coin magnet: a multiplier on coin income while it lasts. */
+  coinMagnetUntil: number | null;
+  /** Detective's notebook: private per-player notes during a game. */
+  ownsNotebook: boolean;
+  /** Feed boosts held. Each one floats one post to the top of the feed. */
+  postBoosts: number;
 }
+
+export type EntranceStyle = 'neon' | 'smoke' | 'gold' | 'glitch';
+export type RoomSkinId = 'default' | 'crimson' | 'emerald' | 'noir' | 'sunset' | 'ice';
+export type VoiceMaskPreset = 'deep' | 'high' | 'ghost';
 
 // ── XP Gain ───────────────────────────────────────────────────────────
 export interface XPGain {
@@ -517,6 +541,9 @@ export interface Room {
   /** VIP "Room Spotlight" perk: epoch-ms until this room floats to the top of
    *  the public list. Stamped at create time from the host's perk state. */
   spotlightUntil?: number | null;
+  /** Room Skin perk: the host's chosen palette, applied for everyone in the
+   *  room. Null = the default look. Re-resolved whenever the host changes. */
+  skin?: RoomSkinId | null;
   dousedPlayers: Set<string>;
   newlyConvertedCultists: string[];
   deadChat: ChatMessage[];
@@ -616,6 +643,8 @@ export interface RoomPublic {
   trialDefenseState: { candidateIds: string[]; currentCandidateIdx: number } | null;
   clanId: string | null;
   clanRoom: boolean;
+  /** Room Skin perk: the host's palette for this room, or null for default. */
+  skin?: string | null;
   activeEvent: ActiveEvent | null;
   donModeState: DonModeStatePublic | null;
   donModeratorId: string | null;
@@ -914,6 +943,12 @@ export interface ServerToClientEvents {
   'system:announce':     (data: { id: string; message: string; style: 'banner' | 'popup' }) => void;
   // Economy
   'coins:updated':       (data: { coins: number }) => void;
+  /** Push the caller's own voice-mask preset (null = unmasked). Self only. */
+  'perks:voicemask':     (data: { preset: string | null }) => void;
+  /** Entrance perk: play this player's arrival banner for everyone in the room. */
+  'room:entrance':       (data: { playerId: string; name: string; avatar: string; avatarUrl: string | null; style: string }) => void;
+  /** Sticker perk: float a sticker across every screen in the room. */
+  'room:sticker':        (data: { from: string; playerId: string; sticker: string }) => void;
   'gift:received':       (data: { gift: any; senderName: string; senderAvatar: string; message: string }) => void;
   // Session security
   'session:replaced':    (data: { reason: string }) => void;
@@ -1600,6 +1635,8 @@ export interface CommunityPostV2 extends CommunityPost {
   videoUrl: string | null;
   isPinned: boolean;
   isFeatured: boolean;
+  /** Post Boost perk: epoch ms until this post stops floating to the top. */
+  boostedUntil?: number | null;
   recTitle: string | null;
   recCategory: string | null;
   hashtags: string[];

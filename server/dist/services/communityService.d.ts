@@ -126,6 +126,15 @@ export declare function createPostV2(authorId: string, data: {
 }): Promise<CommunityPostV2>;
 /** Edit a post's text (author only). Re-extracts hashtags and stamps edited_at. */
 export declare function editPost(postId: string, requesterId: string, newContent: string): Promise<CommunityPostV2>;
+/**
+ * Post Boost perk: float one of your own posts to the top of the feed.
+ *
+ * The perk unit is spent by the caller (socket handler) only after this
+ * succeeds, so a boost aimed at someone else's post — or a deleted one — costs
+ * nothing. Boosting an already-boosted post extends from the current expiry
+ * rather than restarting, so stacking two never loses time.
+ */
+export declare function boostPost(postId: string, requesterId: string, durationMs: number): Promise<number>;
 export declare function listFeedV2(viewerId: string, options: {
     category: FeedCategory;
     before?: number;

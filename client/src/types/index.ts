@@ -364,6 +364,8 @@ export interface RoomPublic {
   trialDefenseState: { candidateIds: string[]; currentCandidateIdx: number } | null;
   clanId: string | null;
   clanRoom: boolean;
+  /** Room Skin perk: the host's palette for this room, or null for default. */
+  skin?: string | null;
   activeEvent: ActiveEvent | null;
   donModeState: DonModeStatePublic | null;
   donModeratorId: string | null;
@@ -1059,6 +1061,8 @@ export interface CommunityPostV2 extends CommunityPost {
   videoUrl: string | null;
   isPinned: boolean;
   isFeatured: boolean;
+  /** Post Boost perk: epoch ms until this post stops floating to the top. */
+  boostedUntil?: number | null;
   recTitle: string | null;
   recCategory: string | null;
   hashtags: string[];

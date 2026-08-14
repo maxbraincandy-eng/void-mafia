@@ -17,6 +17,7 @@ import {
   type RemoteTrack, type RemoteTrackPublication, type RemoteParticipant,
 } from 'livekit-client';
 import { tNow } from '@/store/langStore';
+import { applyVoiceMask, resetVoiceMask, type VoiceMaskPreset } from '@/lib/voiceMask';
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL ?? '';
 
@@ -168,11 +169,32 @@ function wireRoom(r: Room) {
       localVideoStream = new MediaStream([pub.track.mediaStreamTrack]);
       patch({ cameraOn: true, rev: ++_rev });
     }
+    // Voice Mask perk. Hooked on publish rather than on join because the mic
+    // track appears at several different moments — initial join, the iOS
+    // gesture retry, and every unmute that republishes — and the mask has to
+    // survive all of them.
+    if (pub?.kind === Track.Kind.Audio && desiredMask) {
+      void applyVoiceMask(r, desiredMask);
+    }
   });
   r.on(RoomEvent.LocalTrackUnpublished, (pub: any) => {
     if (pub?.kind === Track.Kind.Video) { localVideoStream = null; patch({ cameraOn: false, rev: ++_rev }); }
   });
 }
+
+// ── Voice Mask perk ────────────────────────────────────────────────────
+// The wish is kept here rather than in the component tree: the mask must be
+// re-applied by LocalTrackPublished long after whatever UI set it has unmounted.
+let desiredMask: VoiceMaskPreset | null = null;
+
+/** Set (or clear) the pitch mask on the local mic. Safe before the mic exists. */
+export async function setLiveKitVoiceMask(preset: VoiceMaskPreset | null): Promise<void> {
+  desiredMask = preset;
+  await applyVoiceMask(room, preset);
+}
+
+/** The preset currently wished for — used to re-apply after a reconnect. */
+export function getLiveKitVoiceMask(): VoiceMaskPreset | null { return desiredMask; }
 
 /** Unlock remote audio playback. MUST be called from a user gesture (tap). */
 export async function startLiveKitAudio(): Promise<void> {
@@ -406,6 +428,9 @@ export async function leaveLiveKitVoice(): Promise<void> {
   const r = room;
   room = null;
   clearMedia();
+  // The processor belonged to a track that is about to go away; forget it so
+  // the next join attaches a fresh one instead of retuning a dead graph.
+  resetVoiceMask();
   if (r) { try { await r.disconnect(); } catch { /* ignore */ } }
   patch({ ...INITIAL });
 }

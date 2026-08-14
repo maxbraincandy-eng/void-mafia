@@ -23,8 +23,24 @@
  */
 import { sql } from '../db.js';
 import { getCoins, deductCoins } from './coinService.js';
+export const ENTRANCE_STYLES = ['neon', 'smoke', 'gold', 'glitch'];
+export const ROOM_SKINS = ['default', 'crimson', 'emerald', 'noir', 'sunset', 'ice'];
+export const VOICE_MASK_PRESETS = ['deep', 'high', 'ghost'];
+/** Coin magnet multiplier. One constant so the shop copy and the maths agree. */
+export const COIN_MAGNET_MULT = 1.25;
 export function defaultPerks() {
-    return { ownsInvisible: false, invisibleMode: 'off', ownsAnon: false, anonMode: 'off', vipUntil: null, xpBoostGames: 0 };
+    return {
+        ownsInvisible: false, invisibleMode: 'off',
+        ownsAnon: false, anonMode: 'off',
+        vipUntil: null, xpBoostGames: 0,
+        ownsEntrance: false, entranceMode: 'off', entranceStyle: 'neon',
+        ownsRoomSkin: false, roomSkin: 'default',
+        ownsVoiceMask: false, voiceMaskMode: 'off', voiceMaskPreset: 'deep',
+        stickers: 0,
+        coinMagnetUntil: null,
+        ownsNotebook: false,
+        postBoosts: 0,
+    };
 }
 export const PERK_ITEMS = {
     invisible: {
@@ -43,7 +59,37 @@ export const PERK_ITEMS = {
         id: 'xpboost', name: 'XP Booster', ka: 'XP ბუსტერი', kind: 'consumable', price: 1500, units: 5,
         desc: 'მომდევნო 5 თამაშში ორმაგ დონის XP-ს იღებ.',
     },
+    entrance: {
+        id: 'entrance', name: 'Entrance', ka: 'შესვლის ანიმაცია', kind: 'toggle', price: 5000,
+        desc: 'ლობიში შესვლისას ყველას ეკრანზე შენი ბანერი გამოჩნდება. სტილს თვითონ ირჩევ.',
+    },
+    roomskin: {
+        id: 'roomskin', name: 'Room Skin', ka: 'ოთახის სკინი', kind: 'unlock', price: 4500,
+        desc: 'როცა ჰოსტი ხარ, შენი ოთახის ფერები ყველასთვის იცვლება. 6 სკინი.',
+    },
+    stickers: {
+        id: 'stickers', name: 'Sticker Pack', ka: 'ანიმირებული სტიკერები', kind: 'consumable', price: 1200, units: 30,
+        desc: 'ლობიში აგდებ სტიკერს და ის ყველას ეკრანზე გადაფრინდება. 30 ცალი.',
+    },
+    voicemask: {
+        id: 'voicemask', name: 'Voice Mask', ka: 'ხმის მოდულატორი', kind: 'toggle', price: 3500,
+        desc: 'შენს მიკროფონს ტონს უცვლის — ხმით ვეღარ გცნობენ. 3 ვარიანტი.',
+    },
+    coinmagnet: {
+        id: 'coinmagnet', name: 'Coin Magnet', ka: 'მონეტის მაგნიტი', kind: 'duration', price: 2500, hours: 168,
+        desc: '+25% მონეტა ყოველდღიური ჯილდოდან 7 დღის განმავლობაში.',
+    },
+    notebook: {
+        id: 'notebook', name: "Detective's Notebook", ka: 'დეტექტივის ბლოკნოტი', kind: 'unlock', price: 3000,
+        desc: 'თამაშში პირადი ჩანაწერები და ფერადი ჭდეები მოთამაშეებზე. Ranked-ში გამორთულია.',
+    },
+    postboost: {
+        id: 'postboost', name: 'Post Boost', ka: 'პოსტის აწევა', kind: 'consumable', price: 2000, units: 3,
+        desc: 'შენს პოსტს ფიდის თავში აჩერებს 6 საათი. 3 გამოყენება.',
+    },
 };
+/** How long one post boost lasts. */
+export const POST_BOOST_MS = 6 * 3600000;
 // ── storage: read-modify-write the whole cosmetics blob ─────────────────
 async function loadCosmeticsRaw(profileId) {
     const [row] = await sql `SELECT cosmetics FROM players WHERE id = ${profileId}`;
@@ -58,13 +104,30 @@ async function loadCosmeticsRaw(profileId) {
 function normalise(raw) {
     const p = raw?.perks ?? {};
     const d = defaultPerks();
+    // Every choice field is validated against its allowed list rather than
+    // trusted: these values are echoed to other clients (skins, entrance styles),
+    // so a hand-edited blob must not be able to inject anything downstream.
+    const pick = (v, allowed, fallback) => allowed.includes(v) ? v : fallback;
+    const count = (v) => Math.max(0, Math.trunc(Number(v) || 0));
     return {
         ownsInvisible: !!p.ownsInvisible,
         invisibleMode: p.invisibleMode === 'always' ? 'always' : 'off',
         ownsAnon: !!p.ownsAnon,
         anonMode: p.anonMode === 'always' ? 'always' : 'off',
         vipUntil: typeof p.vipUntil === 'number' ? p.vipUntil : d.vipUntil,
-        xpBoostGames: Math.max(0, Math.trunc(Number(p.xpBoostGames) || 0)),
+        xpBoostGames: count(p.xpBoostGames),
+        ownsEntrance: !!p.ownsEntrance,
+        entranceMode: p.entranceMode === 'always' ? 'always' : 'off',
+        entranceStyle: pick(p.entranceStyle, ENTRANCE_STYLES, d.entranceStyle),
+        ownsRoomSkin: !!p.ownsRoomSkin,
+        roomSkin: pick(p.roomSkin, ROOM_SKINS, d.roomSkin),
+        ownsVoiceMask: !!p.ownsVoiceMask,
+        voiceMaskMode: p.voiceMaskMode === 'always' ? 'always' : 'off',
+        voiceMaskPreset: pick(p.voiceMaskPreset, VOICE_MASK_PRESETS, d.voiceMaskPreset),
+        stickers: count(p.stickers),
+        coinMagnetUntil: typeof p.coinMagnetUntil === 'number' ? p.coinMagnetUntil : d.coinMagnetUntil,
+        ownsNotebook: !!p.ownsNotebook,
+        postBoosts: count(p.postBoosts),
     };
 }
 export async function getPerks(profileId) {
@@ -87,10 +150,17 @@ export async function buyPerk(profileId, perkId) {
     if (!def)
         throw new Error('უცნობი ნივთი');
     const perks = await getPerks(profileId);
-    if (def.kind === 'toggle') {
-        if (perkId === 'invisible' && perks.ownsInvisible)
-            throw new Error('უკვე გაქვს');
-        if (perkId === 'anon' && perks.ownsAnon)
+    // One table, so a new own-once perk can never be forgotten here and end up
+    // re-buyable (charging twice for the same thing).
+    const ownedFlag = {
+        invisible: 'ownsInvisible', anon: 'ownsAnon', entrance: 'ownsEntrance',
+        roomskin: 'ownsRoomSkin', voicemask: 'ownsVoiceMask', notebook: 'ownsNotebook',
+    };
+    if (def.kind === 'toggle' || def.kind === 'unlock') {
+        const flag = ownedFlag[def.id];
+        if (!flag)
+            throw new Error('უცნობი ნივთი');
+        if (perks[flag])
             throw new Error('უკვე გაქვს');
     }
     const balance = await getCoins(profileId);
@@ -100,33 +170,61 @@ export async function buyPerk(profileId, perkId) {
     // prevents a negative balance; charge before granting so a thrown grant can't
     // leave the item ungranted-but-paid.
     const { newBalance } = await deductCoins(profileId, profileId, def.price, `Perk: ${def.name}`);
-    if (perkId === 'invisible')
-        perks.ownsInvisible = true;
-    else if (perkId === 'anon')
-        perks.ownsAnon = true;
+    if (def.kind === 'toggle' || def.kind === 'unlock') {
+        perks[ownedFlag[def.id]] = true;
+    }
     else if (def.kind === 'duration') {
-        const base = Math.max(now(), perks.vipUntil ?? 0);
-        perks.vipUntil = base + (def.hours ?? 0) * 3600000;
+        // Extend from the later of now / current expiry, so topping up an active
+        // one never shortens it.
+        const field = def.id === 'coinmagnet' ? 'coinMagnetUntil' : 'vipUntil';
+        const base = Math.max(now(), perks[field] ?? 0);
+        perks[field] = base + (def.hours ?? 0) * 3600000;
     }
     else if (def.kind === 'consumable') {
-        perks.xpBoostGames += def.units ?? 0;
+        const field = def.id === 'stickers' ? 'stickers' : def.id === 'postboost' ? 'postBoosts' : 'xpBoostGames';
+        perks[field] += def.units ?? 0;
     }
     await savePerks(profileId, perks);
     return { perks, coins: newBalance };
 }
+const TOGGLE_FIELDS = {
+    invisible: { owns: 'ownsInvisible', mode: 'invisibleMode' },
+    anon: { owns: 'ownsAnon', mode: 'anonMode' },
+    entrance: { owns: 'ownsEntrance', mode: 'entranceMode' },
+    voicemask: { owns: 'ownsVoiceMask', mode: 'voiceMaskMode' },
+};
 /** Set a toggle's default mode. Owning the toggle is required. */
 export async function setPerkMode(profileId, which, mode) {
+    const f = TOGGLE_FIELDS[which];
+    if (!f)
+        throw new Error('უცნობი პარამეტრი');
     const perks = await getPerks(profileId);
-    if (which === 'invisible') {
-        if (!perks.ownsInvisible)
-            throw new Error('ჯერ იყიდე უჩინარობა');
-        perks.invisibleMode = mode;
-    }
-    else {
-        if (!perks.ownsAnon)
-            throw new Error('ჯერ იყიდე ანონიმური ნიღაბი');
-        perks.anonMode = mode;
-    }
+    if (!perks[f.owns])
+        throw new Error(`ჯერ იყიდე ${PERK_ITEMS[which].ka}`);
+    perks[f.mode] = mode;
+    await savePerks(profileId, perks);
+    return perks;
+}
+const CHOICE_FIELDS = {
+    entrance: { owns: 'ownsEntrance', field: 'entranceStyle', allowed: ENTRANCE_STYLES },
+    roomskin: { owns: 'ownsRoomSkin', field: 'roomSkin', allowed: ROOM_SKINS },
+    voicemask: { owns: 'ownsVoiceMask', field: 'voiceMaskPreset', allowed: VOICE_MASK_PRESETS },
+};
+/**
+ * Pick which variant of an owned perk to use (entrance style, room skin, voice
+ * preset). Validated against the allowed list here rather than at the socket
+ * edge, so every caller gets the same guarantee.
+ */
+export async function setPerkChoice(profileId, which, value) {
+    const f = CHOICE_FIELDS[which];
+    if (!f)
+        throw new Error('უცნობი პარამეტრი');
+    if (!f.allowed.includes(value))
+        throw new Error('უცნობი ვარიანტი');
+    const perks = await getPerks(profileId);
+    if (!perks[f.owns])
+        throw new Error(`ჯერ იყიდე ${PERK_ITEMS[which].ka}`);
+    perks[f.field] = value;
     await savePerks(profileId, perks);
     return perks;
 }
@@ -172,6 +270,85 @@ export async function resolveSpotlightUntil(profileId) {
         return null;
     const p = await getPerks(profileId);
     return isVipActive(p) ? p.vipUntil : null;
+}
+/** The entrance banner to play when this player joins a lobby, or null. */
+export async function resolveEntrance(profileId) {
+    if (!profileId)
+        return null;
+    const p = await getPerks(profileId);
+    return p.ownsEntrance && p.entranceMode === 'always' ? p.entranceStyle : null;
+}
+/** The skin a host's room should wear, or null for the default look. */
+export async function resolveRoomSkin(profileId) {
+    if (!profileId)
+        return null;
+    const p = await getPerks(profileId);
+    return p.ownsRoomSkin && p.roomSkin !== 'default' ? p.roomSkin : null;
+}
+/** The voice preset this player's own mic should use, or null. */
+export async function resolveVoiceMask(profileId) {
+    if (!profileId)
+        return null;
+    const p = await getPerks(profileId);
+    return p.ownsVoiceMask && p.voiceMaskMode === 'always' ? p.voiceMaskPreset : null;
+}
+/** Spend one sticker. False if none left (or no perk at all). */
+export async function consumeSticker(profileId) {
+    if (!profileId)
+        return false;
+    const perks = await getPerks(profileId);
+    if (perks.stickers <= 0)
+        return false;
+    perks.stickers -= 1;
+    await savePerks(profileId, perks);
+    return true;
+}
+/** Spend one feed boost. False if none left. */
+export async function consumePostBoost(profileId) {
+    if (!profileId)
+        return false;
+    const perks = await getPerks(profileId);
+    if (perks.postBoosts <= 0)
+        return false;
+    perks.postBoosts -= 1;
+    await savePerks(profileId, perks);
+    return true;
+}
+/**
+ * Put a spent boost back. Used when the spend succeeded but the thing it was
+ * spent on then failed — the unit must be taken BEFORE the boost is applied
+ * (otherwise a player with zero boosts still gets one applied), which means the
+ * failure path owes them a refund.
+ */
+export async function refundPostBoost(profileId) {
+    if (!profileId)
+        return;
+    const perks = await getPerks(profileId);
+    perks.postBoosts += 1;
+    await savePerks(profileId, perks);
+}
+export function isCoinMagnetActive(perks, at = now()) {
+    return perks.coinMagnetUntil != null && perks.coinMagnetUntil > at;
+}
+/**
+ * Apply the coin magnet to an award. Returns the amount to actually credit and
+ * whether the multiplier fired, so the caller can tell the player about it.
+ *
+ * Rounded UP: a magnet that silently rounds a small award back down to itself
+ * looks broken to the person who paid for it.
+ */
+export async function applyCoinMagnet(profileId, amount) {
+    if (!profileId || amount <= 0)
+        return { amount, boosted: false };
+    try {
+        const p = await getPerks(profileId);
+        if (!isCoinMagnetActive(p))
+            return { amount, boosted: false };
+        return { amount: Math.ceil(amount * COIN_MAGNET_MULT), boosted: true };
+    }
+    catch {
+        return { amount, boosted: false };
+    }
 }
 /** A stable, non-identifying alias from a seed — same seed → same alias. */
 const ANON_ADJ = ['ჩუმი', 'ჩრდილოვანი', 'უცნობი', 'იდუმალი', 'ნიღბიანი', 'მდუმარე', 'ბუნდოვანი', 'უხილავი'];
