@@ -42,6 +42,8 @@ import { getCoins, claimDailyReward, grantCoins, deductCoins, refundGift, getTra
 import { PERK_ITEMS, getPerks, buyPerk, setPerkMode, resolveSpectatorInvisible, resolveAnon, consumeXpBoost, resolveSpotlightUntil, aliasFor, } from './services/perkService.js';
 import { submitRun as noirSubmit, leaderboard as noirBoard, myStats as noirStats } from './services/noirService.js';
 import { getVerifiedIds } from './services/playerService.js';
+import { inspectMessage } from './services/autoModService.js';
+import { createAppeal, getAppeals, decideAppeal, getModeratorStats } from './services/moderationService.js';
 import { applyReferral, getReferralCount } from './services/referralService.js';
 import { updateRatingsAfterGame, getPlayerRating, getRankedLeaderboard, getRankTier } from './services/ratingService.js';
 import { getActiveSeason, getSeasonLeaderboard, getMySeasonHistory } from './services/seasonService.js';
@@ -1966,7 +1968,22 @@ export function attachSocketHandlers(io) {
                 const reported = await getPlayer(parsed.targetProfileId);
                 if (!reporter || !reported)
                     throw new Error('Player not found.');
-                const report = await createReport(reporterProfileId, reporter.username, parsed.targetProfileId, reported.username, parsed.roomId, parsed.reason, parsed.details);
+                // Freeze what was said. Room chat lives in memory and dies with the
+                // room, so by the time a moderator opens this the words are otherwise
+                // gone and the decision is made on "they said that they said".
+                let evidence = [];
+                try {
+                    const room = parsed.roomId ? getRoom(parsed.roomId) : null;
+                    if (room) {
+                        const target = [...room.players.values()].find(p => p.profileId === parsed.targetProfileId);
+                        evidence = room.chat.slice(-30).map(m => ({
+                            at: m.timestamp, name: m.senderName, text: m.text,
+                            isTarget: !!target && m.senderId === target.id,
+                        }));
+                    }
+                }
+                catch { /* a missing room must not stop the report */ }
+                const report = await createReport(reporterProfileId, reporter.username, parsed.targetProfileId, reported.username, parsed.roomId, parsed.reason, parsed.details, evidence);
                 await notifyMods(io, 'new_report', `New report: ${reported.username} — ${parsed.reason}`, reported.username);
                 // Auto-flag: if reported player has 3+ open reports in last 24h, alert mods
                 const since24h = Date.now() - 86400000;
@@ -3287,6 +3304,24 @@ export function attachSocketHandlers(io) {
                     const mute = await getActiveMute(profileId);
                     if (mute)
                         throw new Error(`You are muted until ${new Date(mute.expiresAt).toLocaleString()}. Reason: ${mute.reason}`);
+                }
+                // ── automatic filter ──
+                // Flags for a human; only blocks the two categories where the message
+                // itself is the harm (a slur, a repeated flood). It never bans: an
+                // automatic ban turns a false positive into a lost player.
+                if (profileId) {
+                    const verdict = inspectMessage(profileId, parsed.text);
+                    if (verdict.flag) {
+                        const me = await getPlayer(profileId);
+                        const recentChat = room.chat.slice(-20).map(m => ({
+                            at: m.timestamp, name: m.senderName, text: m.text, isTarget: m.senderId === player.id,
+                        }));
+                        recentChat.push({ at: Date.now(), name: player.name, text: parsed.text, isTarget: true });
+                        createReport('system', 'ავტომატური ფილტრი', profileId, me?.username ?? player.name, room.id, 'other', verdict.reason, recentChat, verdict.flag).then(() => notifyMods(io, 'new_report', `ავტო-flag: ${me?.username ?? player.name} — ${verdict.reason}`, me?.username ?? player.name))
+                            .catch(() => { });
+                        if (verdict.block)
+                            throw new Error('შეტყობინება დაიბლოკა ავტომატური ფილტრით.');
+                    }
                 }
                 const validationError = validateChat(room, player, parsed.channel);
                 if (validationError)
@@ -5246,6 +5281,94 @@ export function attachSocketHandlers(io) {
                 if (!profileId)
                     throw new Error('Not authenticated.');
                 cb(ok(await noirStats(profileId)));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Appeals ────────────────────────────────────────────────────────
+        // Filed by the banned player themselves, so this must NOT require the
+        // normal "not banned" guards other handlers use.
+        socket.on('appeal:create', async (data, cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('Not authenticated.');
+                const me = await getPlayer(profileId);
+                if (!me)
+                    throw new Error('Player not found.');
+                const ban = await getActiveBan(profileId);
+                const mute = ban ? null : await getActiveMute(profileId);
+                if (!ban && !mute)
+                    throw new Error('შენ არ გაქვს გასაჩივრებელი შეზღუდვა.');
+                const body = String(data?.body ?? '').trim();
+                if (body.length < 10)
+                    throw new Error('აღწერე მოკლედ რა მოხდა (მინიმუმ 10 სიმბოლო).');
+                const a = await createAppeal(profileId, me.username, ban ? 'ban' : 'mute', body);
+                await notifyMods(io, 'new_report', `ახალი გასაჩივრება: ${me.username}`, me.username);
+                cb(ok(a));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        /** What restriction (if any) this player could appeal, and their open appeal. */
+        socket.on('appeal:mine', async (cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId) {
+                    cb(ok({ restricted: null, appeal: null }));
+                    return;
+                }
+                const ban = await getActiveBan(profileId);
+                const mute = ban ? null : await getActiveMute(profileId);
+                const [row] = await sql `
+          SELECT * FROM appeals WHERE player_id = ${profileId} ORDER BY created_at DESC LIMIT 1
+        `;
+                cb(ok({
+                    restricted: ban ? 'ban' : mute ? 'mute' : null,
+                    reason: ban?.reason ?? mute?.reason ?? null,
+                    expiresAt: ban?.expiresAt ?? mute?.expiresAt ?? null,
+                    appeal: row ? {
+                        id: row.id, status: row.status, body: row.body,
+                        createdAt: Number(row.created_at), decision: row.decision ?? '',
+                    } : null,
+                }));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('appeal:list', async (data, cb) => {
+            try {
+                const me = socket.data.profileId ? await getPlayer(socket.data.profileId) : null;
+                if (!me?.isModerator)
+                    throw new Error('Moderators only.');
+                cb(ok(await getAppeals(data?.status ?? 'open')));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('appeal:decide', async (data, cb) => {
+            try {
+                const me = socket.data.profileId ? await getPlayer(socket.data.profileId) : null;
+                if (!me?.isModerator)
+                    throw new Error('Moderators only.');
+                cb(ok(await decideAppeal(me.id, me.username, String(data?.appealId), !!data?.grant, String(data?.decision ?? ''))));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // Per-moderator accountability, including how many of their bans were
+        // later lifted on appeal.
+        socket.on('mod:stats', async (cb) => {
+            try {
+                const me = socket.data.profileId ? await getPlayer(socket.data.profileId) : null;
+                if (!me?.isModerator)
+                    throw new Error('Moderators only.');
+                cb(ok(await getModeratorStats()));
             }
             catch (e) {
                 cb(err(e.message));

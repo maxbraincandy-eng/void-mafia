@@ -274,6 +274,11 @@ export interface Report {
   status: 'open' | 'reviewing' | 'resolved' | 'rejected';
   assignedModeratorId: string | null;
   moderatorNotes: string;
+  /** Chat frozen at report time — room chat is in memory and dies with the room,
+   *  so without this a moderator reviews words that no longer exist anywhere. */
+  evidence?: Array<{ at: number; name: string; text: string; isTarget: boolean }>;
+  /** Set when the automatic filter raised this, not a person. */
+  autoFlag?: string | null;
 }
 
 // ── Moderation Log ────────────────────────────────────────────────────

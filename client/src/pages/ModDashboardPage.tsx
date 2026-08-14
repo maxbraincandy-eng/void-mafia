@@ -34,13 +34,14 @@ function modRank(level: ModeratorLevel | null | undefined): number {
 }
 
 // ── Tab types ─────────────────────────────────────────────────────────
-type Tab = 'dashboard' | 'rooms' | 'reports' | 'players' | 'broadcast' | 'logs' | 'stealth' | 'terminal';
+type Tab = 'dashboard' | 'rooms' | 'reports' | 'appeals' | 'players' | 'broadcast' | 'logs' | 'stealth' | 'terminal';
 type ActionType = 'ban' | 'mute' | 'warn' | 'kick' | 'unban' | 'unmute' | 'terminate' | 'close_room' | 'freeze' | 'unfreeze' | 'rename' | 'system_msg' | 'force_phase';
 
 const TABS: { id: Tab; label: string; minRank: number }[] = [
   { id: 'dashboard', label: 'Dashboard', minRank: 0 },
   { id: 'rooms',     label: 'Rooms',     minRank: 0 },
   { id: 'reports',   label: 'Reports',   minRank: 0 },
+  { id: 'appeals',   label: 'Appeals',   minRank: 0 },
   { id: 'players',   label: 'Players',   minRank: 0 },
   { id: 'broadcast', label: 'Broadcast', minRank: 1 },  // senior_mod+
   { id: 'logs',      label: 'Logs',      minRank: 2 },  // admin+
@@ -97,6 +98,9 @@ export function ModPanel({ open, onClose }: { open: boolean; onClose: () => void
   const [expandedRoom, setExpandedRoom] = useState<string | null>(null);
   const [playerSearch, setPlayerSearch] = useState('');
   const [reportFilter, setReportFilter] = useState<'all' | 'open' | 'reviewing' | 'resolved' | 'rejected'>('open');
+  const [appeals, setAppeals] = useState<any[]>([]);
+  const [appealBusy, setAppealBusy] = useState<string | null>(null);
+  const [modStats, setModStats] = useState<any | null>(null);
   const [logFilter, setLogFilter] = useState('');
   const [broadcastMsg, setBroadcastMsg] = useState('');
   const [announceMsg, setAnnounceMsg] = useState('');
@@ -187,6 +191,21 @@ export function ModPanel({ open, onClose }: { open: boolean; onClose: () => void
         addToast(`${entry.username} unbanned`, 'success');
         loadBannedPlayers();
       } else addToast(res.error, 'error');
+    });
+  };
+
+  const loadAppeals = () => {
+    socket.emit('appeal:list' as any, { status: 'open' }, (res: Res<any[]>) => { if (res.ok) setAppeals(res.data); });
+    socket.emit('mod:stats' as any, (res: Res<any[]>) => { if (res.ok) setModStats(res.data); });
+  };
+
+  const decideAppeal = (id: string, grant: boolean) => {
+    const decision = prompt(grant ? 'რას ეუბნები მოთამაშეს? (გადაწყვეტილება)' : 'რატომ უარყოფ?') ?? '';
+    setAppealBusy(id);
+    socket.emit('appeal:decide' as any, { appealId: id, grant, decision }, (res: Res<any>) => {
+      setAppealBusy(null);
+      addToast(res.ok ? (grant ? 'გასაჩივრება დაკმაყოფილდა' : 'გასაჩივრება უარყოფილია') : res.error, res.ok ? 'success' : 'error');
+      if (res.ok) loadAppeals();
     });
   };
 
@@ -352,7 +371,7 @@ export function ModPanel({ open, onClose }: { open: boolean; onClose: () => void
   useEffect(() => {
     if (tab !== 'rooms') return;
     const id = setInterval(loadRooms, 8000);
-    return () => clearInterval(id);
+  return () => clearInterval(id);
   }, [tab, loadRooms]);
 
   // ── Actions ───────────────────────────────────────────────────────
@@ -376,6 +395,7 @@ export function ModPanel({ open, onClose }: { open: boolean; onClose: () => void
         if (tab === 'players' && playerDetail) openPlayerDetail(targetId);
         if (tab === 'rooms') loadRooms();
         if (tab === 'reports') loadReports();
+        if (tab === 'appeals') loadAppeals();
       } else {
         addToast(res.error, 'error');
       }
@@ -820,6 +840,35 @@ export function ModPanel({ open, onClose }: { open: boolean; onClose: () => void
                   </span>
                 </div>
                 {r.details && <p className="text-white/40 text-xs font-mono mb-3 italic line-clamp-2">"{r.details}"</p>}
+
+                {/* Raised by the filter, not a person — say so, because it
+                    changes how much the report is worth on its own. */}
+                {r.autoFlag && (
+                  <p className="text-[11px] font-mono mb-2 px-2 py-1 rounded-lg inline-block"
+                    style={{ background: 'rgba(251,191,36,0.12)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.3)' }}>
+                    ⚙ ავტომატური ფილტრი · {r.autoFlag}
+                  </p>
+                )}
+
+                {/* The transcript frozen when the report was filed. Without it
+                    the room's chat is long gone by review time. */}
+                {r.evidence && r.evidence.length > 0 && (
+                  <details className="mb-3">
+                    <summary className="text-[11px] font-mono text-neon-cyan/60 cursor-pointer select-none">
+                      📄 ჩატი რეპორტის მომენტში ({r.evidence.length})
+                    </summary>
+                    <div className="mt-2 rounded-lg p-2 max-h-52 overflow-y-auto"
+                      style={{ background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                      {r.evidence.map((line, i) => (
+                        <p key={i} className="text-[11px] font-mono leading-relaxed"
+                          style={{ color: line.isTarget ? '#ff8fa0' : 'rgba(255,255,255,0.45)' }}>
+                          <span className="opacity-50">{new Date(line.at).toLocaleTimeString('ka-GE', { hour: '2-digit', minute: '2-digit' })}</span>
+                          {' '}<b>{line.name}:</b> {line.text}
+                        </p>
+                      ))}
+                    </div>
+                  </details>
+                )}
                 <div className="flex gap-1 flex-wrap">
                   {/* Status progression actions */}
                   {r.status === 'open' && (
@@ -862,6 +911,71 @@ export function ModPanel({ open, onClose }: { open: boolean; onClose: () => void
         )}
 
         {/* ── Players ───────────────────────────────────────────── */}
+        {tab === 'appeals' && !loading && (
+          <div className="space-y-3">
+            {/* Moderator accountability. `overturned` is the count of that
+                moderator's bans later lifted on appeal — the only honest
+                signal for whether someone is deciding too fast, and the real
+                reason appeals are worth collecting. */}
+            {modStats && modStats.length > 0 && (
+              <details className="glass-panel border border-white/5 rounded-xl p-3">
+                <summary className="text-[12px] font-mono text-white/50 cursor-pointer select-none">
+                  📊 მოდერატორების სტატისტიკა
+                </summary>
+                <div className="mt-2 space-y-1">
+                  {modStats.map((m: any) => (
+                    <div key={m.moderatorId} className="flex items-center gap-2 text-[12px] font-mono">
+                      <span className="flex-1 truncate text-white/70">{m.moderatorName}</span>
+                      <span className="text-white/35">{m.actions} მოქმედება</span>
+                      <span className="text-white/35">{m.bans} ბლოკი</span>
+                      <span style={{ color: m.overturned > 0 ? '#f87171' : 'rgba(255,255,255,0.25)' }}>
+                        {m.overturned} გაუქმდა
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
+
+            {appeals.length === 0 && (
+              <p className="text-center text-white/25 font-mono text-[12px] py-10">
+                ღია გასაჩივრება არ არის.
+              </p>
+            )}
+
+            {appeals.map((a: any) => (
+              <div key={a.id} className="glass-panel border border-white/5 rounded-xl p-4">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="min-w-0">
+                    <p className="text-white text-sm font-mono truncate">
+                      <span className="text-neon-cyan/80 font-bold">{a.playerName}</span>
+                      <span className="text-white/25 mx-1.5">
+                        {a.kind === 'ban' ? 'ასაჩივრებს ბლოკს' : 'ასაჩივრებს დადუმებას'}
+                      </span>
+                    </p>
+                    <p className="text-white/30 text-[12px] font-mono mt-0.5">
+                      {new Date(a.createdAt).toLocaleString('ka-GE')}
+                    </p>
+                  </div>
+                </div>
+                <p className="text-white/60 text-xs font-mono mb-3 whitespace-pre-wrap leading-relaxed">
+                  {a.body}
+                </p>
+                <div className="flex gap-2">
+                  <button onClick={() => decideAppeal(a.id, true)} disabled={appealBusy === a.id}
+                    className="px-3 py-1.5 text-[12px] font-mono rounded-lg border border-neon-green/30 text-neon-green hover:bg-neon-green/10 disabled:opacity-40">
+                    დააკმაყოფილე (შეზღუდვა მოიხსნება)
+                  </button>
+                  <button onClick={() => decideAppeal(a.id, false)} disabled={appealBusy === a.id}
+                    className="px-3 py-1.5 text-[12px] font-mono rounded-lg border border-white/15 text-white/50 hover:bg-white/5 disabled:opacity-40">
+                    უარყავი
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {tab === 'players' && !loading && (
           <div className="space-y-3">
             {/* Mode toggle: All players ↔ Banned */}

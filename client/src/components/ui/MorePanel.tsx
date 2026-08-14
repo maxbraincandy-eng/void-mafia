@@ -17,6 +17,7 @@ import { ReferralModal } from '@/components/ui/ReferralModal';
 import { VoidStatsIcon } from '@/components/ui/VoidStatsIcon';
 import { VoidClansIcon } from '@/components/ui/VoidClansIcon';
 import { CLIENT_VERSION } from '@/version';
+import { AppealPanel } from '@/components/ui/AppealPanel';
 
 interface MenuItem {
   icon: ReactNode;
@@ -401,6 +402,11 @@ export function MorePanel({ isOwner = false, isMod = false, onEconomyClick, onSh
 
               {/* Scrollable content */}
               <div className="flex-1 overflow-y-auto px-3 pb-4">
+
+                {/* A restricted player can still open this menu, so it is the one
+                    place an appeal is reachable from. Renders nothing at all for
+                    everyone else. */}
+                <AppealPanel />
 
                 {/* ── Moderation quick-access (mods only) ── */}
                 {isMod && onModClick && (

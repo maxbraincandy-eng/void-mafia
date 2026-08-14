@@ -436,6 +436,10 @@ export interface Report {
   status: 'open' | 'reviewing' | 'resolved' | 'rejected';
   assignedModeratorId: string | null;
   moderatorNotes: string;
+  /** Chat frozen at report time (see server moderationService). */
+  evidence?: Array<{ at: number; name: string; text: string; isTarget: boolean }>;
+  /** Set when the automatic filter raised this rather than a person. */
+  autoFlag?: string | null;
 }
 
 export interface ModLog {

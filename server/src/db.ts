@@ -152,6 +152,37 @@ export async function initializeDatabase(): Promise<void> {
     )
   `;
 
+  // A report is only as good as what a moderator can still see when they open
+  // it. Room chat lives in memory and dies with the room, so by review time the
+  // words being reported are usually gone — evidence is the transcript captured
+  // AT report time, frozen with the report.
+  await sql`ALTER TABLE reports ADD COLUMN IF NOT EXISTS evidence TEXT NOT NULL DEFAULT '[]'`;
+  // Set when the report was raised by the automatic filter rather than a person.
+  await sql`ALTER TABLE reports ADD COLUMN IF NOT EXISTS auto_flag TEXT`;
+
+  // ── appeals ────────────────────────────────────────────────────────
+  // Without a route back, a wrongly banned player simply disappears and the
+  // mistake is never discovered. An appeal is also the only signal that tells
+  // you which moderators are getting it wrong.
+  await sql`
+    CREATE TABLE IF NOT EXISTS appeals (
+      id           TEXT PRIMARY KEY,
+      player_id    TEXT NOT NULL,
+      player_name  TEXT NOT NULL,
+      kind         TEXT NOT NULL,          -- 'ban' | 'mute'
+      body         TEXT NOT NULL DEFAULT '',
+      created_at   BIGINT NOT NULL,
+      status       TEXT NOT NULL DEFAULT 'open',   -- open | granted | denied
+      decided_by   TEXT,
+      decided_name TEXT,
+      decided_at   BIGINT,
+      decision     TEXT NOT NULL DEFAULT ''
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_appeals_status ON appeals(status, created_at DESC)`;
+  // One open appeal per player: re-appealing in a loop is not new information.
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_appeals_one_open ON appeals(player_id) WHERE status = 'open'`;
+
   await sql`
     CREATE TABLE IF NOT EXISTS mod_logs (
       id               TEXT PRIMARY KEY,
