@@ -329,6 +329,11 @@ export function enqueueForNextRound(room: Room, playerId: string): number {
     throw new Error('Queue is full — no available seats for next round.');
   }
 
+  // Joining the queue is a public commitment to a seat, so it ends invisible
+  // spectating. Otherwise the queue list and the player list would disagree
+  // about who is about to sit down.
+  player.invisibleSpectator = false;
+
   const position = room.nextRoundQueue.length + 1;
   player.isQueuedNextRound = true;
   player.queuePosition = position;
@@ -366,6 +371,7 @@ export function promoteQueuedPlayers(room: Room): Player[] {
     player.isQueuedNextRound = false;
     player.queuePosition = null;
     player.isAlive = true;
+    player.invisibleSpectator = false;
     player.seat = getNextSeat(room);
   }
 
@@ -416,6 +422,10 @@ export function becomePlayer(room: Room, playerId: string): Player {
   player.queuePosition = null;
   player.isAlive = true;
   player.isReady = false;
+  // Sitting down ends invisibility. The flag only hides spectators, so leaving
+  // it set would not hide them — it would just keep showing them the "you are
+  // invisible" indicator while everyone can see them.
+  player.invisibleSpectator = false;
   player.seat = getNextSeat(room);
   return player;
 }

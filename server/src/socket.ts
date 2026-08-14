@@ -250,6 +250,25 @@ const reportCooldowns = new Map<string, number>();
 // key: reporterId → timestamps of last 10min reports
 const reportWindows = new Map<string, number[]>();
 
+/**
+ * Apply the invisibility perk to a player who has just landed on the spectator
+ * bench. EVERY path that produces a spectator must go through here.
+ *
+ * The perk originally resolved in one branch only — "join as spectator while a
+ * game is running" — so anyone who reached the bench another way (joining a
+ * lobby as spectator, queueing for the next round, or stepping out of a seat
+ * with room:to-spectator) stayed fully visible even with the perk bought and
+ * switched on. That is the "უჩინრობა არ მუშაობს" report.
+ *
+ * Returns whether the player ended up invisible, so the caller can suppress the
+ * arrival announcement — a system message would give them away instantly.
+ */
+async function applySpectatorInvisibility(player: Player, profileId: string | null): Promise<boolean> {
+  if (!player.isSpectator) return false;
+  try { player.invisibleSpectator = await resolveSpectatorInvisible(profileId); } catch { /* non-fatal */ }
+  return !!player.invisibleSpectator;
+}
+
 function reportRateOk(reporterId: string, targetId: string, reason: string): { ok: boolean; error?: string } {
   const now = Date.now();
   const cooldownKey = `${reporterId}:${targetId}:${reason}`;
@@ -2187,14 +2206,18 @@ export function attachSocketHandlers(io: AppServer): void {
             socket.join(`spec:${room.id}`);
             socket.data.playerId = player.id;
             socket.data.roomId = room.id;
+            const hidden = await applySpectatorInvisibility(player, profileId);
 
             // Auto-enqueue if settings allow
             try {
+              // Queueing drops invisibility (see enqueueForNextRound) — you
+              // cannot hold a public seat in the queue and be hidden — so this
+              // announcement is always correct here.
               const position = enqueueForNextRound(room, player.id);
               broadcastSystemMsg(io, room, `${player.name} joined the queue for next round (#${position}).`);
               broadcastQueueUpdated(io, room);
             } catch {
-              broadcastSystemMsg(io, room, `${player.name} joined as spectator.`);
+              if (!hidden) broadcastSystemMsg(io, room, `${player.name} joined as spectator.`);
             }
 
 
@@ -2211,7 +2234,7 @@ export function attachSocketHandlers(io: AppServer): void {
             }
             // Invisibility perk (default "always"): watch without appearing in
             // anyone's list. Resolved here from the profile's saved preference.
-            try { player.invisibleSpectator = await resolveSpectatorInvisible(profileId); } catch { /* non-fatal */ }
+            await applySpectatorInvisibility(player, profileId);
             socket.join(room.id);
             socket.join(`spec:${room.id}`);
             socket.data.playerId = player.id;
@@ -2276,6 +2299,8 @@ export function attachSocketHandlers(io: AppServer): void {
         if (player.isSpectator) socket.join(`spec:${room.id}`);
         socket.data.playerId = player.id;
         socket.data.roomId = room.id;
+        // Lobby spectator: same perk, same rules as the mid-game bench.
+        const lobbyHidden = await applySpectatorInvisibility(player, profileId);
 
         // Cancel lobby disconnect grace (player reconnected in time)
         clearLobbyGrace(player.id);
@@ -2295,7 +2320,7 @@ export function attachSocketHandlers(io: AppServer): void {
           enforceVoicePhaseRules(io, room);
           cb(ok(toPublicRoom(room, player.id)));
           return;
-        } else {
+        } else if (!lobbyHidden) {
           broadcastSystemMsg(io, room, `${player.name} joined the room.`);
         }
 
@@ -2567,7 +2592,7 @@ export function attachSocketHandlers(io: AppServer): void {
     });
 
     // ── Switch: active player → spectator (lobby only) ──────────────
-    socket.on('room:to-spectator' as any, (cb: any) => {
+    socket.on('room:to-spectator' as any, async (cb: any) => {
       try {
         const room = getRoomFromSocket(socket);
         const player = getPlayerOrError(socket, room);
@@ -2575,7 +2600,10 @@ export function attachSocketHandlers(io: AppServer): void {
         if (player.isSpectator) throw new Error('Already a spectator.');
         becomeSpectator(room, player.id);
         socket.join(`spec:${room.id}`);
-        broadcastSystemMsg(io, room, `${player.name} switched to spectators.`);
+        const hidden = await applySpectatorInvisibility(player, socket.data.profileId ?? null);
+        // "X switched to spectators" would announce exactly the moment they
+        // vanish from the list, which is worse than not hiding them at all.
+        if (!hidden) broadcastSystemMsg(io, room, `${player.name} switched to spectators.`);
         broadcastRoom(io, room);
         cb?.(ok(null));
       } catch (e: any) { cb?.(err(e.message)); }

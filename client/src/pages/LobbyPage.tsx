@@ -25,6 +25,7 @@ import { useLivekitRoomVoice, useLiveKitGate } from '@/hooks/useLivekitVoice';
 import { LiveKitVoiceBarView } from '@/components/game/LiveKitVoiceBar';
 import { useGameSounds } from '@/hooks/useSoundFX';
 import { PlayerName } from '@/components/ui/PlayerName';
+import { LobbyItemsBar } from '@/components/game/LobbyItemsBar';
 
 const SURFACE = 'rounded-2xl border border-white/[0.06]';
 const SURFACE_BG = { background: 'rgba(10, 6, 28, 0.92)' } as const;
@@ -352,6 +353,12 @@ export function LobbyPage() {
             </div>
           </div>
         </motion.div>
+
+        {/* ── Items (perks) ────────────────────────────────────── */}
+        {/* Top of the lobby on purpose: this is where invisibility and the
+            anonymous mask actually take effect, so it's where you should be
+            able to buy them and flip them on. */}
+        <LobbyItemsBar isSpectator={amSpectator} liveInvisible={!!myPlayer?.invisibleSpectator} />
 
         {/* ── Main grid ────────────────────────────────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
