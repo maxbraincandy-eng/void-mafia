@@ -603,7 +603,10 @@ export function toRoomListItem(room) {
         id: room.id,
         code: room.code,
         name: room.name,
-        playerCount: room.players.size,
+        // Invisible spectators are excluded here too. This list is public, so
+        // leaving them in would let anyone watch the count tick up by one at the
+        // exact moment someone vanished from the room's own list.
+        playerCount: [...room.players.values()].filter(p => !(p.invisibleSpectator && p.isSpectator)).length,
         phase: room.phase,
         createdAt: room.createdAt,
         hostName: host?.name ?? 'Unknown',

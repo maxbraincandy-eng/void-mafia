@@ -179,6 +179,10 @@ export function LobbyPage() {
     ...room.players.filter(p => !p.isSpectator && !p.isHost),
   ];
   const spectators = room.players.filter(p => p.isSpectator);
+  // What every OTHER client's list contains: the server already strips invisible
+  // spectators from their copies, and the only one it can ever leave in ours is
+  // ourselves. So dropping our own hidden row reconstructs their view exactly.
+  const visibleSpectatorCount = spectators.filter(s => !(s.id === myPlayer?.id && s.invisibleSpectator)).length;
   const playerCount = activePlayers.length;
   const minPlayers = room.settings.minPlayers;
   const canStart = amHost && playerCount >= minPlayers;
@@ -399,10 +403,17 @@ export function LobbyPage() {
                     <button
                       onClick={() => setShowSpectators(s => !s)}
                       className="flex items-center gap-1 text-[12px] font-mono text-white/30 hover:text-white/55 transition-colors"
-                      title="Spectators"
+                      title={myPlayer?.invisibleSpectator
+                        ? `${visibleSpectatorCount} spectator(s) — you are invisible and not counted for anyone else`
+                        : 'Spectators'}
                     >
-                      <span>👁</span>
-                      <span>{spectators.length}</span>
+                      <span>{myPlayer?.invisibleSpectator ? '🕵️' : '👁'}</span>
+                      {/* Your own invisible row inflates this number by one, and
+                          only in your copy. Show what everyone else sees, with
+                          your hidden self split out. */}
+                      <span>{myPlayer?.invisibleSpectator
+                        ? `${visibleSpectatorCount} +შენ`
+                        : spectators.length}</span>
                     </button>
                   )}
                 {nonHostCount > 0 && (
@@ -549,13 +560,31 @@ export function LobbyPage() {
                 <div className="px-4 pb-3 border-t border-white/[0.04]">
                   <p className="text-[12px] font-mono text-white/20 uppercase tracking-[0.2em] pt-2 mb-1.5">Watching</p>
                   <div className="space-y-0.5">
-                    {spectators.map(s => (
-                      <div key={s.id} className="flex items-center gap-2 px-1 py-1">
-                        <span className="text-[12px] text-white/25">👁</span>
-                        <span className="text-[11px] font-mono text-white/40">{s.name}</span>
-                      </div>
-                    ))}
+                    {spectators.map(s => {
+                      // The server sends an invisible spectator's row to that
+                      // spectator ONLY — everyone else's list has no such row.
+                      // Without saying so, seeing your own name here reads as
+                      // "the perk isn't working".
+                      const hiddenSelf = s.id === myPlayer?.id && !!s.invisibleSpectator;
+                      return (
+                        <div key={s.id} className="flex items-center gap-2 px-1 py-1 rounded-md"
+                          style={hiddenSelf ? { border: '1px dashed rgba(155,0,255,0.35)', background: 'rgba(155,0,255,0.07)' } : undefined}>
+                          <span className="text-[12px] text-white/25">{hiddenSelf ? '🕵️' : '👁'}</span>
+                          <span className="text-[11px] font-mono" style={{ color: hiddenSelf ? '#d9b8ff' : 'rgba(255,255,255,0.4)' }}>{s.name}</span>
+                          {hiddenSelf && (
+                            <span className="text-[10px] font-mono ml-auto" style={{ color: 'rgba(217,184,255,0.65)' }}>
+                              უჩინარი · მხოლოდ შენ ხედავ
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
+                  {myPlayer?.invisibleSpectator && (
+                    <p className="text-[10px] font-mono text-white/25 leading-snug pt-1.5">
+                      სხვა მოთამაშეების სიაში ეს ჩანაწერი საერთოდ არ არსებობს — არც სახელი, არც დამკვირვებლების რიცხვში.
+                    </p>
+                  )}
                 </div>
               )}
 
