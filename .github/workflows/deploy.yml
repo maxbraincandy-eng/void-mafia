@@ -7,20 +7,44 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # Without --detach the CLI streams the build; this stops a hung stream from
+    # holding a runner for the default six hours.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Railway CLI
         run: npm install -g @railway/cli
 
+      # `--detach` was hiding every failure: the CLI returns as soon as the
+      # upload is accepted, so a Railway-side build or healthcheck failure left
+      # this job green while the old container kept serving. Deploys silently
+      # stopped landing for three days and the workflow reported success the
+      # whole time. Waiting is slower and tells the truth.
       - name: Deploy server
-        run: railway up --detach --service 226d60e0-8aee-42f4-83b3-2151ee30dced
+        run: railway up --service 226d60e0-8aee-42f4-83b3-2151ee30dced
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           RAILWAY_PROJECT_ID: 08c2a0d2-1c54-4c07-8497-8130c7baa696
 
       - name: Deploy client
-        run: railway up --detach --service 958a7cd3-adc4-49ad-a955-27c6df5794d8
+        run: railway up --service 958a7cd3-adc4-49ad-a955-27c6df5794d8
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           RAILWAY_PROJECT_ID: 08c2a0d2-1c54-4c07-8497-8130c7baa696
+
+      # The deploy is only real when the running server reports the build we
+      # just pushed. Without this a "successful" deploy that quietly rolled back
+      # still looks like a win.
+      - name: Verify the live build matches this commit
+        run: |
+          EXPECTED=$(grep -oE "2026-[0-9]{2}-[0-9]{2}-v[0-9]+" server/src/index.ts | head -1)
+          echo "expecting build: $EXPECTED"
+          for i in $(seq 1 30); do
+            LIVE=$(curl -s --max-time 10 https://voidmafia.one/api/version | grep -oE "2026-[0-9]{2}-[0-9]{2}-v[0-9]+" || true)
+            echo "  attempt $i: live=$LIVE"
+            if [ "$LIVE" = "$EXPECTED" ]; then echo "✓ live build matches"; exit 0; fi
+            sleep 20
+          done
+          echo "✗ live build never became $EXPECTED — the deploy did not land"
+          exit 1
