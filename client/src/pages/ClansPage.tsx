@@ -409,7 +409,7 @@ export function ClansPage() {
       <div className="absolute top-0 right-0 w-80 h-80 bg-neon-purple/10 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-64 h-64 bg-neon-pink/8 rounded-full blur-[100px] pointer-events-none" />
 
-      <div className="relative z-10 max-w-lg mx-auto px-4 pt-8">
+      <div className="relative z-10 vm-page px-4 pt-8">
         {/* Header */}
         <div className="mb-6 flex items-start justify-between">
           <div>
@@ -563,7 +563,7 @@ export function ClansPage() {
 
       {/* ── Wars Section (visible when user is in a clan) ── */}
       {myClan && (
-        <div className="relative z-10 max-w-lg mx-auto px-4 mt-6">
+        <div className="relative z-10 vm-page px-4 mt-6">
           <div className="flex items-center justify-between mb-3">
             <button
               onClick={() => setShowWars(v => !v)}

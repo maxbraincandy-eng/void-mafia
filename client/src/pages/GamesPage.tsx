@@ -24,7 +24,7 @@ export function GamesPage({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onO
           borderBottom: '1px solid var(--vm-header-border)',
         }}
       >
-        <div className="flex items-center gap-3 max-w-lg mx-auto">
+        <div className="flex items-center gap-3 vm-page">
           <VoidGamesIcon size={22} color="var(--vm-games-color)" />
           <div>
             <h1
@@ -42,7 +42,7 @@ export function GamesPage({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onO
         </div>
       </div>
 
-      <div className="max-w-lg mx-auto">
+      <div className="vm-page">
         <GamesTab onOpenSpace={onOpenSpace} onOpenBackrooms={onOpenBackrooms} onOpenPremium={onOpenPremium} />
       </div>
     </motion.div>

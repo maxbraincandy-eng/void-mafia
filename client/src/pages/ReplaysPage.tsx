@@ -332,7 +332,7 @@ export function ReplaysPage({ initialReplayId }: { initialReplayId?: string }) {
         key="viewer"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="px-4 pt-4 pb-8 max-w-lg mx-auto"
+        className="px-4 pt-4 pb-8 vm-page"
       >
         <ReplayViewer replayId={selectedReplayId} onBack={() => setSelectedReplayId(null)} />
       </motion.div>
@@ -349,7 +349,7 @@ export function ReplaysPage({ initialReplayId }: { initialReplayId?: string }) {
       key="list"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="px-4 pt-4 pb-8 max-w-lg mx-auto"
+      className="px-4 pt-4 pb-8 vm-page"
     >
       {/* Title */}
       <div className="mb-5">

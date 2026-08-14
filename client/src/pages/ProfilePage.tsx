@@ -350,7 +350,7 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
       {!bgDef && <div className="absolute inset-0 bg-neon-grid-animated pointer-events-none" />}
       <div className="absolute top-0 left-0 w-64 h-64 bg-neon-purple/10 rounded-full blur-[100px] pointer-events-none" />
 
-      <div className="relative z-10 max-w-lg mx-auto px-4 pt-8">
+      <div className="relative z-10 vm-page px-4 pt-8">
         {/* Title */}
         <div className="mb-6">
           <h1 className="font-display text-3xl font-bold gradient-text tracking-wide">VOID MAFIA</h1>

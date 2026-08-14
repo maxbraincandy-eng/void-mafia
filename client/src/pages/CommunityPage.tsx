@@ -103,7 +103,7 @@ export function CommunityPage() {
       <div className="absolute top-0 right-0 w-80 h-80 rounded-full blur-[120px] pointer-events-none" style={{ background: 'var(--vm-orb-1)' }} />
       <div className="absolute bottom-0 left-0 w-64 h-64 rounded-full blur-[100px] pointer-events-none" style={{ background: 'var(--vm-orb-2)' }} />
 
-      <div className="relative z-10 max-w-lg mx-auto px-4 pt-8">
+      <div className="relative z-10 vm-page px-4 pt-8">
         {/* Header */}
         <div className="mb-5 flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
@@ -224,7 +224,10 @@ export function CommunityPage() {
               exit={{ opacity: 0, y: -6 }}
               transition={{ duration: 0.15 }}
             >
-              {tab === 'feed'     && <FeedTabV2 onOpenProfile={setViewProfileId} onOpenMyProfile={() => profile && setFullProfileId(profile.id)} />}
+              {/* The feed is prose, so it keeps a reading measure while the rest
+                  of the page uses the full desktop width. A 960px-wide post is
+                  harder to read than a 512px one, not easier. */}
+              {tab === 'feed'     && <div className="vm-read"><FeedTabV2 onOpenProfile={setViewProfileId} onOpenMyProfile={() => profile && setFullProfileId(profile.id)} /></div>}
               {tab === 'voice'    && <LoungesTab onOpenProfile={setViewProfileId} />}
               {tab === 'people'   && <PeopleTab onOpenProfile={setViewProfileId} />}
               {tab === 'debates'  && <DebatesTab />}
@@ -250,7 +253,7 @@ export function CommunityPage() {
               className="fixed top-0 left-0 right-0 z-40"
               style={{ background: 'rgba(8,4,22,0.82)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)', borderBottom: '1px solid rgba(155,0,255,0.18)', paddingTop: 'env(safe-area-inset-top)' }}
             >
-              <div className="max-w-lg mx-auto px-3 flex items-center gap-2" style={{ height: 52 }}>
+              <div className="vm-page px-3 flex items-center gap-2" style={{ height: 52 }}>
                 <button
                   onClick={() => profile && setFullProfileId(profile.id)}
                   className="flex-shrink-0 active:scale-90 transition-transform"

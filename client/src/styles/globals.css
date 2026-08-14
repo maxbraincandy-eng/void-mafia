@@ -255,6 +255,46 @@
   .vm-frame-anchor-right { right: 1.5rem !important; }
 }
 
+/* ── Page container ────────────────────────────────────────────────────
+   The app is mobile-first, and every page used `max-w-lg mx-auto` — a 512px
+   column. On a 2000px desktop that left ~1240px of empty background either
+   side of the content: a phone layout parked in the middle of a monitor.
+
+   This widens with the viewport instead. It is capped rather than fluid
+   because a list row spanning 1900px is not an improvement — past ~1200px the
+   eye loses the connection between a row's left and right ends.
+
+   Prose keeps its own narrower cap (see .vm-read): widening a column of text
+   to 1100px is actively worse to read, so only structured content — grids,
+   lists, stat blocks — gets the extra room. */
+.vm-page {
+  max-width: 32rem;          /* 512px — unchanged on phones */
+  margin-inline: auto;
+  width: 100%;
+}
+@media (min-width: 1024px) { .vm-page { max-width: 60rem; } }   /*  960px */
+@media (min-width: 1536px) { .vm-page { max-width: 72rem; } }   /* 1152px */
+
+/* Reading measure for prose/feeds inside a wide page. */
+.vm-read {
+  max-width: 40rem;          /* 640px ≈ 75-90 characters */
+  margin-inline: auto;
+  width: 100%;
+}
+
+/* ── Games hub, desktop proportions ────────────────────────────────────
+   These live here rather than inline because they are media queries, and an
+   inline style cannot hold one. */
+
+/* One card at a time on a phone, with a sliver of the next to show the rail
+   scrolls. On a 960px page one card would be a billboard, so show two. */
+.vm-featured-card { flex: 0 0 88%; }
+@media (min-width: 1024px) { .vm-featured-card { flex: 0 0 47%; } }
+
+/* The three primary tiles keep their proportions instead of stretching into
+   short, wide slabs when the page grows. */
+@media (min-width: 1024px) { .vm-quick-tile { min-height: 148px; } }
+
 /* Ganab Simulator — death screen shake */
 @keyframes vm-ganab-shake {
   0%, 100% { transform: translateX(0); }

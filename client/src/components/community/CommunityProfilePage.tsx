@@ -847,7 +847,7 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
                 {mediaPosts.length === 0 ? (
                   <p className="font-mono text-white/25 text-center py-12" style={{ fontSize: 13 }}>{t.commA.noPhotos}</p>
                 ) : (
-                  <div className="grid grid-cols-3" style={{ gap: 2 }}>
+                  <div className="grid grid-cols-3 lg:grid-cols-5" style={{ gap: 2 }}>
                     {mediaPosts.map(p => {
                       const isVideo = !!p.videoUrl && !p.imageUrl && !p.gifUrl;
                       const ytId    = isVideo && p.videoUrl ? extractYouTubeId(p.videoUrl) : null;
@@ -1024,7 +1024,7 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
                 </label>
 
                 <p className="font-mono text-[10px] text-white/25 uppercase tracking-widest mb-2">{t.commA.orGradient}</p>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-3 lg:grid-cols-5 gap-2">
                   {BANNER_PRESETS.map(preset => (
                     <button
                       key={preset.id}

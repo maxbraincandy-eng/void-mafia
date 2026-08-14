@@ -459,7 +459,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   };
 
   const Grid = ({ items }: { items: GameDef[] }) => (
-    <div className="grid grid-cols-2 gap-2.5">{items.map(d => <Tile key={d.id} d={d} />)}</div>
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">{items.map(d => <Tile key={d.id} d={d} />)}</div>
   );
 
   return (
@@ -860,7 +860,7 @@ function QuickTiles({ items, onOpen }: { items: QuickDef[]; onOpen: (id: string)
         <button
           key={q.id}
           onClick={() => onOpen(q.id)}
-          className="rounded-2xl px-2 pt-3 pb-2.5 flex flex-col items-center gap-1.5 text-center transition-all active:scale-[0.97]"
+          className="vm-quick-tile rounded-2xl px-2 pt-3 pb-2.5 flex flex-col items-center gap-1.5 text-center transition-all active:scale-[0.97]"
           // minHeight, never a fixed height: at ~114px wide these labels wrap to
           // two lines in Georgian and a fixed box would clip them.
           style={{ background: q.bg, border: `1px solid ${q.edge}`, minHeight: 112 }}
@@ -908,7 +908,7 @@ function FeaturedCarousel({ cards, onOpen }: { cards: FeaturedDef[]; onOpen: (id
         {cards.map(def => (
           // 88% leaves a sliver of the next card visible, which is what tells a
           // first-time viewer the rail scrolls at all.
-          <div key={def.id} style={{ flex: '0 0 88%', scrollSnapAlign: 'center' }}>
+          <div key={def.id} className="vm-featured-card" style={{ scrollSnapAlign: 'center' }}>
             <FeaturedCard def={def} onClick={() => onOpen(def.id)} />
           </div>
         ))}

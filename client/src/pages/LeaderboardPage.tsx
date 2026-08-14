@@ -141,7 +141,7 @@ export function LeaderboardPage({ onBack }: { onBack?: () => void }) {
       <div className="absolute top-0 right-0 w-64 h-64 bg-neon-pink/8 rounded-full blur-[100px] pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-48 h-48 bg-neon-purple/8 rounded-full blur-[80px] pointer-events-none" />
 
-      <div className="relative z-10 max-w-lg mx-auto px-4" style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top, 1.5rem))' }}>
+      <div className="relative z-10 vm-page px-4" style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top, 1.5rem))' }}>
         {/* Header */}
         <div className="mb-4 flex items-center gap-3">
           {onBack && (

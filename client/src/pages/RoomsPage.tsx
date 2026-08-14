@@ -188,7 +188,7 @@ export function RoomsPage() {
       <MorePanel />
       <LobbyChatPanel />
 
-      <div className="relative z-10 max-w-lg mx-auto px-4 pt-7">
+      <div className="relative z-10 vm-page px-4 pt-7">
 
         {/* ── Header ──────────────────────────────────────────── */}
         <div className="flex items-center gap-2 mb-6">
@@ -322,7 +322,7 @@ export function RoomsPage() {
               </div>
             )}
 
-            <div className="space-y-2">
+            <div className="space-y-2 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-2">
               {rooms.map((room, i) => {
                 const isLobby = room.phase === 'lobby';
                 return (
