@@ -30,6 +30,7 @@
  * prefers-reduced-motion, leaving a legible high-contrast interface.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { emitWithAck } from '@/lib/socket';
 import type { Res } from '@/types/index';
@@ -72,6 +73,14 @@ export function MarsTerminal({ onClose }: { onClose: () => void }) {
     const id = setTimeout(() => setToast(null), 2800);
     return () => clearTimeout(id);
   }, [toast]);
+
+  // NOTE: no body scroll-lock here on purpose. globals.css already pins html
+  // and body to `position: fixed; height: 100%; overflow: hidden` (to kill iOS
+  // bounce), so the window never scrolls — the app scrolls inner containers.
+  // Locking body would be dead code, and "restoring" a window scroll offset
+  // that is always 0 would be worse than dead: it would look like it did
+  // something. The container behind simply keeps its own scroll position,
+  // which is why closing M.A.R.S. returns you exactly where you were.
 
   useEffect(() => {
     const el = chatRef.current;
@@ -194,11 +203,21 @@ export function MarsTerminal({ onClose }: { onClose: () => void }) {
 
   const sec = subject ? sectorOf(subject.sector) : null;
 
-  return (
+  // PORTALLED TO <body> ON PURPOSE.
+  // This renders from inside GamesPage, whose motion.div animates `y` — and an
+  // ancestor with a transform makes `position: fixed` resolve against THAT
+  // element instead of the viewport. The console then inherited the page's
+  // scroll position (it opened halfway down), sat above the app's bottom nav
+  // instead of over it, and pushed its own tab bar below the fold. A portal to
+  // body escapes the transformed ancestor, so `fixed` means fixed again.
+  //
+  // Height is 100dvh, not 100vh: on mobile Safari 100vh is the tallest possible
+  // viewport, so with the URL bar showing, the tab bar would sit under it.
+  return createPortal(
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[100] flex flex-col"
-      style={{ background: '#01060a' }}
+      className="fixed inset-0 flex flex-col"
+      style={{ background: '#01060a', height: '100dvh', zIndex: 2147483000 }}
     >
       <MatrixRain opacity={0.11} />
       <div aria-hidden className="absolute inset-0 pointer-events-none" style={{
@@ -496,7 +515,8 @@ export function MarsTerminal({ onClose }: { onClose: () => void }) {
       </AnimatePresence>
 
       <style>{'@keyframes vm-blink{0%,49%{opacity:1}50%,100%{opacity:0}}'}</style>
-    </motion.div>
+    </motion.div>,
+    document.body,
   );
 }
 
