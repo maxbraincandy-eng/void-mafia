@@ -26,5 +26,15 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
+    rollupOptions: {
+      // Two entries, one build. M.A.R.S. is a separate SITE (its own shell,
+      // landing page and sign-in) but not a separate project — it shares the
+      // components, the socket client and the server, so a record created on
+      // one is the same record on the other.
+      input: {
+        main: path.resolve(__dirname, 'index.html'),
+        mars: path.resolve(__dirname, 'mars.html'),
+      },
+    },
   },
 });

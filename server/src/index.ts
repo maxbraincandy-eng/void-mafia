@@ -57,7 +57,7 @@ const PORT = Number(process.env.PORT ?? 3000);
 const CLIENT_URL = process.env.CLIENT_URL ?? 'http://localhost:5173';
 const IS_PROD = process.env.NODE_ENV === 'production';
 
-const CLIENT_BUILD = '2026-07-28-v568';
+const CLIENT_BUILD = '2026-07-28-v569';
 console.log('[Startup] Void Mafia server starting');
 console.log(`[Startup] Client build: ${CLIENT_BUILD}`);
 console.log(`[Startup] NODE_ENV=${process.env.NODE_ENV ?? 'development'}`);
@@ -396,6 +396,11 @@ if (IS_PROD) {
     maxAge: '1y',
     immutable: true,
     etag: true,
+    // Do NOT let static resolve "/" to index.html: the catch-all below decides
+    // which shell a request gets, and static running first meant a request to
+    // mars.<domain>/ was answered with the mafia app before that choice was
+    // ever made. Hashed assets are still served from here.
+    index: false,
     setHeaders: (res, filePath) => {
       const noCache = ['index.html', 'sw.js', 'manifest.json', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png'];
       if (noCache.some(f => filePath.endsWith(f))) {
@@ -408,11 +413,27 @@ if (IS_PROD) {
     },
   }));
 
-  app.get('*', (_req, res) => {
+  /**
+   * M.A.R.S. is served as its own site from the same build.
+   *
+   * Two ways in, deliberately:
+   *   - any host beginning with "mars." serves it at the ROOT, so pointing a
+   *     subdomain at this deployment makes M.A.R.S. the whole site with no
+   *     further work and no second server;
+   *   - /mars serves it today, before any DNS exists.
+   *
+   * Both fall through to mars.html rather than index.html, so a deep link like
+   * /mars#/r/2162-X survives a refresh.
+   */
+  const isMarsHost = (req: express.Request): boolean =>
+    /^mars\./i.test((req.hostname ?? '').trim());
+
+  app.get('*', (req, res) => {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
-    res.sendFile(path.join(clientDist, 'index.html'));
+    const wantsMars = isMarsHost(req) || req.path === '/mars' || req.path.startsWith('/mars/');
+    res.sendFile(path.join(clientDist, wantsMars ? 'mars.html' : 'index.html'));
   });
 }
 
