@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { ClanLeaguePanel } from '@/components/clans/ClanLeaguePanel';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '@/store/authStore';
 import { useSocialStore } from '@/store/socialStore';
@@ -560,6 +561,13 @@ export function ClansPage() {
           </div>
         )}
       </div>
+
+      {/* ── Clan League (weekly, all clans) ── */}
+      {/* Above Wars on purpose: the league is the mode that actually runs —
+          wars only score in a clan-vs-clan lobby, the league scores the games
+          members already play. Visible to everyone, clan or not, so the table
+          is a reason to join one. */}
+      <ClanLeaguePanel myClanId={myClan?.id ?? null} />
 
       {/* ── Wars Section (visible when user is in a clan) ── */}
       {myClan && (

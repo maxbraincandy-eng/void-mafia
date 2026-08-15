@@ -32,6 +32,7 @@ import { checkAchievements, getPlayerAchievements } from './services/achievement
 import { recordGame, getPlayerHistory, getPlayerRoleStats, getPlayersLastRolesInRoom } from './services/gameHistoryService.js';
 import { createClan, getClan, getClanByPlayer, getClanMembershipByPlayer, getAllClans, getClanMembers, joinClan, leaveClan, setClanMemberRole, addClanModLog, getClanModLogs, setClanImage, } from './services/clanService.js';
 import { challengeClan, acceptWar, declineWar, recordWarGame, getActiveWar, getWarHistory, } from './services/clanWarService.js';
+import { recordLeagueGame, getLeague, getClanLeagueDetail, getLeagueHistory, getClanTrophies, weekStartMs as leagueWeekStart, WEEK_MS as LEAGUE_WEEK_MS, PLAYER_WEEKLY_CAP, MIN_CONTRIBUTORS, LEAGUE_PRIZES, } from './services/clanLeagueService.js';
 import { canDo, banPlayer, unbanPlayer, mutePlayer, unmutePlayer, warnPlayer, createReport, getReports, resolveReport, getLogs, getModPlayers, getBannedPlayers, logKick, addModNote, freezeAccount, unfreezeAccount, renamePlayer, getPlayerDetail, assignReport, getDashboardDbStats, addModLog, } from './services/moderationService.js';
 import { canJoin as voiceCanJoin, canTransmitVoice, join as voiceJoin, leave as voiceLeave, getMembers as voiceGetMembers, getSharedChannel as voiceGetSharedChannel, removeFromChannel as voiceRemoveFromChannel, } from './services/voiceService.js';
 import { sql } from './db.js';
@@ -1418,6 +1419,27 @@ async function emitGameOver(io, room) {
                 if (playerSock) {
                     playerSock.emit('rated:elo_update', { eloChange: res.change, newElo: res.after, tier });
                 }
+            }
+        }
+        catch { /* non-fatal */ }
+    }
+    // ── Clan League scoring ───────────────────────────────────────────────
+    // Every clan member who actually played earns points for their clan, whoever
+    // else was in the room. Unlike clan wars this needs no clan-vs-clan lobby,
+    // which is why it scores the games people really play.
+    if (room.winner) {
+        try {
+            const played = [...room.players.values()].filter(p => !p.isSpectator && p.role && p.profileId);
+            for (const p of played) {
+                const membership = await getClanMembershipByPlayer(p.profileId).catch(() => null);
+                if (!membership)
+                    continue;
+                await recordLeagueGame({
+                    playerId: p.profileId,
+                    clanId: membership.id,
+                    won: p.team === room.winner,
+                    ranked: !!room.settings.ranked,
+                }).catch(() => { });
             }
         }
         catch { /* non-fatal */ }
@@ -4613,6 +4635,47 @@ export function attachSocketHandlers(io) {
             try {
                 const war = await getActiveWar(clanId);
                 cb(ok(war));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Clan League ────────────────────────────────────────────────────
+        /** The league table for the current week (or a past one). */
+        socket.on('clan:league', async (data, cb) => {
+            try {
+                const week = Number(data?.weekStart) || undefined;
+                const start = week ?? leagueWeekStart(Date.now());
+                cb(ok({
+                    weekStart: start,
+                    weekEnd: start + LEAGUE_WEEK_MS,
+                    table: await getLeague(start),
+                    rules: { playerCap: PLAYER_WEEKLY_CAP, minContributors: MIN_CONTRIBUTORS, prizes: LEAGUE_PRIZES },
+                }));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        /** One clan's standing plus the per-member breakdown. */
+        socket.on('clan:league_detail', async ({ clanId }, cb) => {
+            try {
+                if (!clanId)
+                    throw new Error('clanId required.');
+                const [detail, trophies] = await Promise.all([
+                    getClanLeagueDetail(String(clanId)),
+                    getClanTrophies(String(clanId)),
+                ]);
+                cb(ok({ ...detail, trophies }));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        /** Past podiums. */
+        socket.on('clan:league_history', async (data, cb) => {
+            try {
+                cb(ok(await getLeagueHistory(Number(data?.limit) || 12)));
             }
             catch (e) {
                 cb(err(e.message));

@@ -649,6 +649,43 @@ export async function initializeDatabase() {
       played_at       BIGINT NOT NULL
     )
   `;
+    // ── Clan League (weekly, all-clans competition) ───────────────────────
+    // Contributions are stored per player per week; the clan table is always
+    // derived from them by SUM, so a player changing clan mid-week needs no
+    // backfill — their row simply points at the new clan.
+    await sql `
+    CREATE TABLE IF NOT EXISTS clan_league_contrib (
+      week_start BIGINT NOT NULL,
+      player_id  TEXT   NOT NULL,
+      clan_id    TEXT   NOT NULL REFERENCES clans(id),
+      points     INT    NOT NULL DEFAULT 0,
+      games      INT    NOT NULL DEFAULT 0,
+      wins       INT    NOT NULL DEFAULT 0,
+      updated_at BIGINT NOT NULL,
+      PRIMARY KEY (week_start, player_id)
+    )
+  `;
+    await sql `CREATE INDEX IF NOT EXISTS idx_clan_league_week_clan ON clan_league_contrib(week_start, clan_id)`;
+    // One row per settled week. The PK is what makes settlement idempotent:
+    // whoever inserts it first owns the payout.
+    await sql `
+    CREATE TABLE IF NOT EXISTS clan_league_seasons (
+      week_start BIGINT PRIMARY KEY,
+      settled_at BIGINT NOT NULL
+    )
+  `;
+    await sql `
+    CREATE TABLE IF NOT EXISTS clan_league_awards (
+      id               TEXT PRIMARY KEY,
+      week_start       BIGINT NOT NULL,
+      clan_id          TEXT NOT NULL REFERENCES clans(id),
+      rank             INT NOT NULL,
+      points           INT NOT NULL,
+      coins_per_member INT NOT NULL,
+      created_at       BIGINT NOT NULL
+    )
+  `;
+    await sql `CREATE INDEX IF NOT EXISTS idx_clan_league_awards_clan ON clan_league_awards(clan_id)`;
     await sql `CREATE INDEX IF NOT EXISTS idx_clan_wars_challenger ON clan_wars(challenger_clan_id, status)`;
     await sql `CREATE INDEX IF NOT EXISTS idx_clan_wars_defender ON clan_wars(defender_clan_id, status)`;
     // ── Game Replays ──────────────────────────────────────────────────────

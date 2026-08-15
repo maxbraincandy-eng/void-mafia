@@ -57,7 +57,7 @@ const PORT = Number(process.env.PORT ?? 3000);
 const CLIENT_URL = process.env.CLIENT_URL ?? 'http://localhost:5173';
 const IS_PROD = process.env.NODE_ENV === 'production';
 
-const CLIENT_BUILD = '2026-07-28-v559';
+const CLIENT_BUILD = '2026-07-28-v560';
 console.log('[Startup] Void Mafia server starting');
 console.log(`[Startup] Client build: ${CLIENT_BUILD}`);
 console.log(`[Startup] NODE_ENV=${process.env.NODE_ENV ?? 'development'}`);
@@ -483,6 +483,21 @@ async function tryInitDb(attempt = 1): Promise<void> {
       .catch(e => console.error('[Leaderboard] settle failed:', e.message));
     runSettle();
     setInterval(runSettle, 60 * 60 * 1000);
+
+    // Clan League weekly payout (top 3 clans, coins to every contributing
+    // member). Same cadence and the same reasoning as above: settlement claims
+    // each week's row before paying, so startup + hourly cannot double-pay.
+    const runLeague = () => import('./services/clanLeagueService.js')
+      .then(m => m.settleLeague(
+        (pid, amt, desc) => grantCoins('system', pid, amt, desc).then(() => {}),
+        (pid, title, body) => import('./services/communityService.js')
+          .then(c => c.createNotification(pid, 'leaderboard_reward', title, body, null))
+          .then(() => {}),
+      ))
+      .then(rs => { for (const r of rs) console.log(`[ClanLeague] week ${new Date(r.weekStart).toISOString()}: ${r.paidClans} clan(s), ${r.paidPlayers} player(s)`); })
+      .catch(e => console.error('[ClanLeague] settle failed:', e.message));
+    runLeague();
+    setInterval(runLeague, 60 * 60 * 1000);
   } catch (err: any) {
     console.error(`[Startup] DB init attempt ${attempt} failed: ${err.message}`);
     console.error('[Startup] Server stays alive. Retrying in 30s...');
