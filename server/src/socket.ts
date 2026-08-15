@@ -90,6 +90,10 @@ import {
   addMemory as marsAddMemory, listMemories as marsListMemories, deleteMemory as marsDeleteMemory,
   buildCorpus as marsBuildCorpus, speak as marsSpeak,
 } from './services/marsMemorial.js';
+import {
+  report as marsReport, listReports as marsListReports, resolveReport as marsResolveReport,
+  restoreRecord as marsRestoreRecord, reportCount as marsReportCount, REPORT_REASONS as MARS_REPORT_REASONS,
+} from './services/marsReports.js';
 
 /** Per-socket turn counter, so the architect's phrasing rotates per session. */
 const marsTurns = new Map<string, number>();
@@ -4572,6 +4576,34 @@ export function attachSocketHandlers(io: AppServer): void {
         if (!s) { cb(ok(null)); return; }
         const viewer = socket.data.profileId ?? null;
         const isOwner = !!viewer && (s.stewardId === viewer || (s.kind === 'self' && s.playerId === viewer));
+
+        // Withdrawn: everyone except a moderator gets a tombstone. The steward
+        // sees WHY, because being taken down without explanation is worse than
+        // being taken down.
+        if (s.hidden) {
+          const me = viewer ? await getPlayer(viewer).catch(() => null) : null;
+          const isMod = !!me && canDo(me, 'view_reports');
+          if (!isMod) {
+            cb(ok({
+              record: {
+                id: s.id, code: s.code, designation: '', sector: s.sector, integrity: 0,
+                traits: { logic: 0, empathy: 0, defiance: 0, entropy: 0 }, portrait: null,
+                kind: s.kind, personFirst: '', personLast: '', bornYear: null, diedYear: null,
+                stewardName: '', stewardRelation: '', sampleStatus: 'none' as const,
+                createdAt: s.createdAt, memoryCount: 0, manifest: '', canEdit: false,
+                withdrawn: true,
+                withdrawnReason: isOwner
+                  ? (s.hiddenReason === 'reported_alive'
+                      ? 'ჩანაწერი დროებით დაფარულია — რამდენიმე ადამიანმა მიუთითა, რომ ეს პიროვნება ცოცხალია. მოდერატორი განიხილავს.'
+                      : 'ჩანაწერი მოდერატორმა დაფარა.')
+                  : 'ეს ჩანაწერი დაფარულია.',
+              },
+              memories: [], privateFields: null,
+            }));
+            return;
+          }
+        }
+
         const memories = await marsListMemories(s.id, 60);
 
         const pub = {
@@ -4647,6 +4679,12 @@ export function attachSocketHandlers(io: AppServer): void {
 
         const viewer = socket.data.profileId ?? null;
         const isOwner = !!viewer && (s.stewardId === viewer || (s.kind === 'self' && s.playerId === viewer));
+
+        // A withdrawn record must go quiet. Hiding it from the archive while
+        // still letting anyone interrogate its contents would defeat the whole
+        // take-down — and the case this exists for is a memorial for someone
+        // who is alive.
+        if (s.hidden && !isOwner) throw new Error('ეს ჩანაწერი დაფარულია.');
         // A living person's private manifest and letter are not searchable by
         // strangers. A memorial's are — that is what it exists for.
         const searchable = s.kind === 'memorial' || isOwner;
@@ -4661,6 +4699,71 @@ export function attachSocketHandlers(io: AppServer): void {
           memories,
         });
         cb(ok({ ...marsSpeak(q, name, corpus), personName: name }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Reports on records ─────────────────────────────────────────────
+    socket.on('mars:report' as any, async (data: any, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('ACCESS DENIED — ჯერ შედი სისტემაში.');
+        if (!reportRateOk(profileId, String(data?.subjectId ?? ''), 'mars').ok) {
+          throw new Error('ცოტა მოითმინე.');
+        }
+        const me = await getPlayer(profileId).catch(() => null);
+        const r = await marsReport({
+          subjectId: String(data?.subjectId ?? ''),
+          reporterId: profileId,
+          reporterName: me?.username ?? '',
+          reason: String(data?.reason ?? 'other'),
+          note: String(data?.note ?? ''),
+        });
+        cb(ok(r));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('mars:report_reasons' as any, (cb: any) => { cb(ok(MARS_REPORT_REASONS)); });
+
+    /** Moderation queue. */
+    socket.on('mars:reports' as any, async (data: any, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        const me = profileId ? await getPlayer(profileId) : null;
+        if (!me || !canDo(me, 'view_reports')) throw new Error('Insufficient permissions.');
+        const status = ['open', 'dismissed', 'upheld'].includes(String(data?.status))
+          ? String(data.status) as 'open' | 'dismissed' | 'upheld' : 'open';
+        cb(ok(await marsListReports(status, Number(data?.limit) || 100)));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('mars:report_resolve' as any, async ({ reportId, action }: { reportId: string; action: string }, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        const me = profileId ? await getPlayer(profileId) : null;
+        if (!me || !canDo(me, 'resolve_reports')) throw new Error('Insufficient permissions.');
+        const act = action === 'remove' ? 'remove' : 'dismiss';
+        const r = await marsResolveReport(String(reportId ?? ''), act, profileId!);
+        // addModLog takes positional args starting with the action type, and
+        // only accepts the declared ModActionType values.
+        addModLog(
+          act === 'remove' ? 'report_resolve' : 'report_reject',
+          profileId!, me.username, r.subjectId, '', null,
+          `M.A.R.S. record ${r.subjectId} — ${act}`,
+        ).catch(() => {});
+        cb(ok(r));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    /** Put a removed record back. */
+    socket.on('mars:record_restore' as any, async ({ subjectId }: { subjectId: string }, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        const me = profileId ? await getPlayer(profileId) : null;
+        if (!me || !canDo(me, 'resolve_reports')) throw new Error('Insufficient permissions.');
+        await marsRestoreRecord(String(subjectId ?? ''));
+        addModLog('report_reject', profileId!, me.username, String(subjectId ?? ''), '', null,
+          'M.A.R.S. record restored').catch(() => {});
+        cb(ok({ restored: true }));
       } catch (e: any) { cb(err(e.message)); }
     });
 

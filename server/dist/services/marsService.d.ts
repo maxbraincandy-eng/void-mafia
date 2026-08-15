@@ -39,6 +39,9 @@ export interface Subject {
     sampleKind: string;
     sampleCustodian: string;
     sampleTakenAt: string;
+    /** Withdrawn from public view (auto-hidden or removed by a moderator). */
+    hidden: boolean;
+    hiddenReason: string;
     createdAt: number;
     updatedAt: number;
 }

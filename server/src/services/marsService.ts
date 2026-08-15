@@ -67,6 +67,9 @@ export interface Subject {
   sampleKind: string;
   sampleCustodian: string;
   sampleTakenAt: string;
+  /** Withdrawn from public view (auto-hidden or removed by a moderator). */
+  hidden: boolean;
+  hiddenReason: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -352,6 +355,8 @@ function rowToSubject(r: any): Subject {
     sampleKind: r.sample_kind ?? '',
     sampleCustodian: r.sample_custodian ?? '',
     sampleTakenAt: r.sample_taken_at ?? '',
+    hidden: !!r.hidden,
+    hiddenReason: r.hidden_reason ?? '',
     createdAt: Number(r.created_at),
     updatedAt: Number(r.updated_at),
   };
@@ -581,7 +586,8 @@ export async function directory(limit = 20): Promise<DirectoryEntry[]> {
            (COALESCE(s.letter, '') <> '') AS has_letter, s.created_at,
            s.kind, s.person_first, s.person_last, s.born_year, s.died_year,
            (SELECT COUNT(*)::int FROM mars_memories m WHERE m.subject_id = s.id) AS memory_count
-    FROM mars_subjects s ORDER BY s.created_at DESC LIMIT ${Math.min(50, Math.max(1, limit))}
+    FROM mars_subjects s WHERE s.hidden = false
+    ORDER BY s.created_at DESC LIMIT ${Math.min(50, Math.max(1, limit))}
   `;
   return rows.map(r => {
     let traits: Traits;
@@ -613,8 +619,8 @@ export interface MarsStats {
 }
 
 export async function stats(): Promise<MarsStats> {
-  const [tot] = await sql<any[]>`SELECT COUNT(*)::int AS n, COALESCE(AVG(integrity),0)::float AS avg FROM mars_subjects`;
-  const bySector = await sql<any[]>`SELECT sector, COUNT(*)::int AS n FROM mars_subjects GROUP BY sector`;
+  const [tot] = await sql<any[]>`SELECT COUNT(*)::int AS n, COALESCE(AVG(integrity),0)::float AS avg FROM mars_subjects WHERE hidden = false`;
+  const bySector = await sql<any[]>`SELECT sector, COUNT(*)::int AS n FROM mars_subjects WHERE hidden = false GROUP BY sector`;
   const sectors: Record<string, number> = {};
   for (const s of Object.values(SECTORS)) sectors[s] = 0;
   for (const r of bySector) sectors[r.sector] = Number(r.n);

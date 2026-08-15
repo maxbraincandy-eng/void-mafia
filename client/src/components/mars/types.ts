@@ -43,6 +43,25 @@ export interface RecordView {
   stewardName: string; stewardRelation: string;
   sampleStatus: SampleStatus; createdAt: number;
   memoryCount: number; manifest: string; canEdit: boolean;
+  /** Set when the record has been withdrawn from view. */
+  withdrawn?: boolean;
+  withdrawnReason?: string;
+}
+
+export const REPORT_REASON_LABEL: Record<string, string> = {
+  alive: 'ეს ადამიანი ცოცხალია',
+  not_authorised: 'შემქმნელს ამის უფლება არ აქვს',
+  false_info: 'ინფორმაცია მცდარია',
+  offensive: 'შეურაცხმყოფელი შიგთავსი',
+  duplicate: 'დუბლიკატი',
+  other: 'სხვა',
+};
+
+export interface MarsReport {
+  id: string; subjectId: string; reporterId: string; reporterName: string;
+  reason: string; note: string; status: 'open' | 'dismissed' | 'upheld';
+  createdAt: number;
+  code?: string; designation?: string; kind?: string; stewardName?: string; hidden?: boolean;
 }
 
 export interface PrivateFields {

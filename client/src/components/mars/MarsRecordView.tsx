@@ -18,7 +18,7 @@ import { emitWithAck } from '@/lib/socket';
 import { compressImage } from '@/lib/imageUtils';
 import type { Res } from '@/types/index';
 import {
-  lifespan, sectorOf, SAMPLE_INFO, SAMPLE_KIND_LABEL,
+  lifespan, sectorOf, SAMPLE_INFO, SAMPLE_KIND_LABEL, REPORT_REASON_LABEL,
   type Memory, type PrivateFields, type RecordView, type SpeakReply,
 } from './types';
 import * as sfx from './sfx';
@@ -54,6 +54,11 @@ export function MarsRecordView({
   const memPhotoInput = useRef<HTMLInputElement | null>(null);
 
   // speak
+  const [reporting, setReporting] = useState(false);
+  const [reportReason, setReportReason] = useState('alive');
+  const [reportNote, setReportNote] = useState('');
+  const [reported, setReported] = useState(false);
+
   const [question, setQuestion] = useState('');
   const [replies, setReplies] = useState<Array<{ q: string; r: SpeakReply }>>([]);
   const speakRef = useRef<HTMLDivElement | null>(null);
@@ -112,6 +117,21 @@ export function MarsRecordView({
     finally { setBusy(false); }
   };
 
+  const sendReport = async () => {
+    if (!rec || busy) return;
+    setBusy(true); setError(null);
+    try {
+      const res = await emitWithAck<any, Res<{ autoHidden: boolean }>>('mars:report', {
+        subjectId: rec.id, reason: reportReason, note: reportNote.trim(),
+      });
+      if ('ok' in res && res.ok) {
+        setReporting(false); setReported(true);
+        if (res.data.autoHidden) await load();
+      } else setError(('error' in res && res.error) || 'ვერ გაიგზავნა');
+    } catch { setError('კავშირი დაიკარგა.'); }
+    finally { setBusy(false); }
+  };
+
   const pickMemPhoto = async (f: File | undefined) => {
     if (!f) return;
     setBusy(true);
@@ -125,6 +145,21 @@ export function MarsRecordView({
   }
   if (!rec) {
     return <Shell onClose={onClose}><p className="font-mono text-[12px] text-center py-10" style={{ color: '#ff5f6d' }}>{error ?? 'ვერ მოიძებნა'}</p></Shell>;
+  }
+
+  if (rec.withdrawn) {
+    return (
+      <Shell onClose={onClose}>
+        <div className="text-center py-8">
+          <div className="text-[34px] mb-2">🕯</div>
+          <p className="font-display font-bold text-[16px] text-white/80">ჩანაწერი დაფარულია</p>
+          <p className="font-mono text-[12px] mt-2 leading-relaxed" style={{ color: 'rgba(255,255,255,0.5)' }}>
+            {rec.withdrawnReason}
+          </p>
+          <p className="font-mono text-[10px] mt-3" style={{ color: 'rgba(255,255,255,0.28)' }}>#{rec.code}</p>
+        </div>
+      </Shell>
+    );
   }
 
   const sec = sectorOf(rec.sector);
@@ -158,6 +193,18 @@ export function MarsRecordView({
             style={{ border: `1px solid ${sec.color}55`, background: `${sec.color}12`, color: sec.color }}>
             ↻ რედაქტირება
           </button>
+        )}
+        {/* Anyone but the steward can flag a record. Records publish instantly,
+            so this is the safety net — see marsReports for why. */}
+        {!rec.canEdit && (
+          reported
+            ? <p className="mt-2 font-mono text-[10px]" style={{ color: 'rgba(57,255,106,0.7)' }}>
+                რეპორტი გაიგზავნა — მოდერატორი განიხილავს.
+              </p>
+            : <button onClick={() => setReporting(true)}
+                className="mt-2 font-mono text-[10px]" style={{ color: 'rgba(255,95,109,0.6)' }}>
+                ⚑ პრობლემის შეტყობინება
+              </button>
         )}
       </div>
 
@@ -346,6 +393,41 @@ export function MarsRecordView({
               className="px-3 py-2 rounded-xl font-mono text-[12px] font-bold transition-all active:scale-95 disabled:opacity-40"
               style={{ border: `1px solid ${sec.color}66`, background: `${sec.color}18`, color: sec.color }}>
               →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {reporting && (
+        <div className="mt-3 rounded-xl p-3" style={{ border: '1px solid rgba(255,95,109,0.35)', background: 'rgba(255,95,109,0.06)' }}>
+          <p className="font-mono text-[12px] mb-2" style={{ color: '#ff5f6d' }}>რა პრობლემაა?</p>
+          <div className="space-y-1">
+            {Object.entries(REPORT_REASON_LABEL).map(([k, label]) => (
+              <button key={k} onClick={() => setReportReason(k)}
+                className="w-full text-left px-2.5 py-1.5 rounded-lg font-mono text-[11px] transition-all"
+                style={{
+                  border: `1px solid rgba(255,95,109,${reportReason === k ? 0.5 : 0.14})`,
+                  background: reportReason === k ? 'rgba(255,95,109,0.12)' : 'rgba(255,255,255,0.02)',
+                  color: reportReason === k ? '#ff8a94' : 'rgba(255,255,255,0.5)',
+                }}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <textarea value={reportNote} onChange={e => setReportNote(e.target.value.slice(0, 400))} rows={2}
+            placeholder="დამატებითი დეტალები (არასავალდებულო)"
+            className="w-full mt-2 rounded-lg px-2.5 py-2 font-mono text-[11px] outline-none resize-none"
+            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)', color: '#d9ffe4' }} />
+          <div className="flex gap-2 mt-2">
+            <button onClick={() => setReporting(false)}
+              className="flex-1 py-2 rounded-lg font-mono text-[11px]"
+              style={{ border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.5)' }}>
+              გაუქმება
+            </button>
+            <button onClick={() => void sendReport()} disabled={busy}
+              className="flex-1 py-2 rounded-lg font-mono text-[11px] font-bold disabled:opacity-40"
+              style={{ border: '1px solid rgba(255,95,109,0.5)', background: 'rgba(255,95,109,0.14)', color: '#ff8a94' }}>
+              {busy ? '…' : 'გაგზავნა'}
             </button>
           </div>
         </div>

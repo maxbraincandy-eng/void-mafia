@@ -264,6 +264,8 @@ function rowToSubject(r) {
         sampleKind: r.sample_kind ?? '',
         sampleCustodian: r.sample_custodian ?? '',
         sampleTakenAt: r.sample_taken_at ?? '',
+        hidden: !!r.hidden,
+        hiddenReason: r.hidden_reason ?? '',
         createdAt: Number(r.created_at),
         updatedAt: Number(r.updated_at),
     };
@@ -455,7 +457,8 @@ export async function directory(limit = 20) {
            (COALESCE(s.letter, '') <> '') AS has_letter, s.created_at,
            s.kind, s.person_first, s.person_last, s.born_year, s.died_year,
            (SELECT COUNT(*)::int FROM mars_memories m WHERE m.subject_id = s.id) AS memory_count
-    FROM mars_subjects s ORDER BY s.created_at DESC LIMIT ${Math.min(50, Math.max(1, limit))}
+    FROM mars_subjects s WHERE s.hidden = false
+    ORDER BY s.created_at DESC LIMIT ${Math.min(50, Math.max(1, limit))}
   `;
     return rows.map(r => {
         let traits;
@@ -485,8 +488,8 @@ export async function directory(limit = 20) {
     });
 }
 export async function stats() {
-    const [tot] = await sql `SELECT COUNT(*)::int AS n, COALESCE(AVG(integrity),0)::float AS avg FROM mars_subjects`;
-    const bySector = await sql `SELECT sector, COUNT(*)::int AS n FROM mars_subjects GROUP BY sector`;
+    const [tot] = await sql `SELECT COUNT(*)::int AS n, COALESCE(AVG(integrity),0)::float AS avg FROM mars_subjects WHERE hidden = false`;
+    const bySector = await sql `SELECT sector, COUNT(*)::int AS n FROM mars_subjects WHERE hidden = false GROUP BY sector`;
     const sectors = {};
     for (const s of Object.values(SECTORS))
         sectors[s] = 0;

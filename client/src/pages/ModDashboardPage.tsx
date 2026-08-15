@@ -36,13 +36,24 @@ function modRank(level: ModeratorLevel | null | undefined): number {
 }
 
 // ── Tab types ─────────────────────────────────────────────────────────
-type Tab = 'dashboard' | 'rooms' | 'reports' | 'appeals' | 'verify' | 'players' | 'broadcast' | 'logs' | 'stealth' | 'terminal';
+/** Report reasons, mirrored from server/src/services/marsReports.ts. */
+const MARS_REASON: Record<string, string> = {
+  alive: 'ეს ადამიანი ცოცხალია',
+  not_authorised: 'შემქმნელს უფლება არ აქვს',
+  false_info: 'მცდარი ინფორმაცია',
+  offensive: 'შეურაცხმყოფელი',
+  duplicate: 'დუბლიკატი',
+  other: 'სხვა',
+};
+
+type Tab = 'dashboard' | 'rooms' | 'reports' | 'mars' | 'appeals' | 'verify' | 'players' | 'broadcast' | 'logs' | 'stealth' | 'terminal';
 type ActionType = 'ban' | 'mute' | 'warn' | 'kick' | 'unban' | 'unmute' | 'terminate' | 'close_room' | 'freeze' | 'unfreeze' | 'rename' | 'system_msg' | 'force_phase';
 
 const TABS: { id: Tab; label: string; minRank: number }[] = [
   { id: 'dashboard', label: 'Dashboard', minRank: 0 },
   { id: 'rooms',     label: 'Rooms',     minRank: 0 },
   { id: 'reports',   label: 'Reports',   minRank: 0 },
+  { id: 'mars',      label: 'M.A.R.S.',  minRank: 0 },
   { id: 'appeals',   label: 'Appeals',   minRank: 0 },
   { id: 'verify',    label: 'Verify',    minRank: 3 },  // owner only
   { id: 'players',   label: 'Players',   minRank: 0 },
@@ -102,6 +113,7 @@ export function ModPanel({ open, onClose }: { open: boolean; onClose: () => void
   const [playerSearch, setPlayerSearch] = useState('');
   const [reportFilter, setReportFilter] = useState<'all' | 'open' | 'reviewing' | 'resolved' | 'rejected'>('open');
   const [appeals, setAppeals] = useState<any[]>([]);
+  const [marsReports, setMarsReports] = useState<any[]>([]);
   const [verifiedList, setVerifiedList] = useState<any[]>([]);
   const [verifySearch, setVerifySearch] = useState('');
   const [appealBusy, setAppealBusy] = useState<string | null>(null);
@@ -199,6 +211,22 @@ export function ModPanel({ open, onClose }: { open: boolean; onClose: () => void
     });
   };
 
+  const loadMarsReports = () => {
+    socket.emit('mars:reports' as any, { status: 'open' }, (res: Res<any[]>) => { if (res.ok) setMarsReports(res.data); });
+  };
+
+  const resolveMarsReport = (reportId: string, action: 'dismiss' | 'remove') => {
+    socket.emit('mars:report_resolve' as any, { reportId, action }, (res: Res<any>) => {
+      if (res.ok) loadMarsReports();
+    });
+  };
+
+  const restoreMarsRecord = (subjectId: string) => {
+    socket.emit('mars:record_restore' as any, { subjectId }, (res: Res<any>) => {
+      if (res.ok) loadMarsReports();
+    });
+  };
+
   const loadAppeals = () => {
     socket.emit('appeal:list' as any, { status: 'open' }, (res: Res<any[]>) => { if (res.ok) setAppeals(res.data); });
     socket.emit('mod:stats' as any, (res: Res<any[]>) => { if (res.ok) setModStats(res.data); });
@@ -249,6 +277,7 @@ export function ModPanel({ open, onClose }: { open: boolean; onClose: () => void
     else if (t === 'rooms') loadRooms();
     else if (t === 'reports') loadReports();
     else if (t === 'players') loadPlayers();
+    else if (t === 'mars') loadMarsReports();
     else if (t === 'appeals') loadAppeals();
     // Verify needs BOTH: the badge list, and the player list its search runs
     // against. Loading only the first is why search came up empty — the tab
@@ -421,6 +450,7 @@ export function ModPanel({ open, onClose }: { open: boolean; onClose: () => void
         if (tab === 'players' && playerDetail) openPlayerDetail(targetId);
         if (tab === 'rooms') loadRooms();
         if (tab === 'reports') loadReports();
+        if (tab === 'mars') loadMarsReports();
         if (tab === 'appeals') loadAppeals();
         if (tab === 'verify') loadVerified();
       } else {
@@ -938,6 +968,56 @@ export function ModPanel({ open, onClose }: { open: boolean; onClose: () => void
         )}
 
         {/* ── Players ───────────────────────────────────────────── */}
+        {tab === 'mars' && !loading && (
+          <div className="space-y-2">
+            <p className="font-mono text-[11px] text-white/35 leading-relaxed">
+              M.A.R.S. ჩანაწერები ქვეყნდება მაშინვე — გლოვაში მყოფი ოჯახი რიგში არ უნდა იდგეს.
+              ორი დამოუკიდებელი „ეს ადამიანი ცოცხალია" ავტომატურად მალავს ჩანაწერს განხილვამდე.
+              „წაშლა" არ შლის მონაცემებს — მხოლოდ მალავს, და აღდგენა ყოველთვის შესაძლებელია.
+            </p>
+            {marsReports.length === 0 && (
+              <p className="font-mono text-[12px] text-white/30 py-8 text-center">ღია რეპორტები არ არის.</p>
+            )}
+            {marsReports.map(r => (
+              <div key={r.id} className="rounded-xl p-3"
+                style={{ border: '1px solid rgba(255,95,109,0.25)', background: 'rgba(255,95,109,0.05)' }}>
+                <div className="flex items-baseline gap-2 flex-wrap">
+                  <span className="font-mono text-[12px] text-white/85">{r.designation || '—'}</span>
+                  <span className="font-mono text-[10px] text-white/35">#{r.code}</span>
+                  {r.kind === 'memorial' && <span className="font-mono text-[10px]" style={{ color: '#7df9ff' }}>მემორიალი</span>}
+                  {r.hidden && <span className="font-mono text-[10px] px-1.5 rounded" style={{ background: 'rgba(255,95,109,0.16)', color: '#ff8a94' }}>დაფარულია</span>}
+                </div>
+                <p className="font-mono text-[12px] mt-1" style={{ color: '#ff8a94' }}>
+                  {MARS_REASON[r.reason] ?? r.reason}
+                </p>
+                {r.note && <p className="font-mono text-[11px] mt-1 text-white/55">{r.note}</p>}
+                <p className="font-mono text-[10px] mt-1 text-white/30">
+                  რეპორტი: {r.reporterName || r.reporterId} · ჩანაწერს უვლის {r.stewardName || '—'}
+                </p>
+                <div className="flex gap-2 mt-2">
+                  <button onClick={() => resolveMarsReport(r.id, 'dismiss')}
+                    className="flex-1 py-1.5 rounded-lg font-mono text-[11px]"
+                    style={{ border: '1px solid rgba(57,255,106,0.35)', background: 'rgba(57,255,106,0.10)', color: '#39ff6a' }}>
+                    უსაფუძვლოა
+                  </button>
+                  <button onClick={() => resolveMarsReport(r.id, 'remove')}
+                    className="flex-1 py-1.5 rounded-lg font-mono text-[11px]"
+                    style={{ border: '1px solid rgba(255,95,109,0.4)', background: 'rgba(255,95,109,0.12)', color: '#ff8a94' }}>
+                    ჩანაწერის დამალვა
+                  </button>
+                  {r.hidden && (
+                    <button onClick={() => restoreMarsRecord(r.subjectId)}
+                      className="px-3 py-1.5 rounded-lg font-mono text-[11px]"
+                      style={{ border: '1px solid rgba(255,255,255,0.16)', color: 'rgba(255,255,255,0.55)' }}>
+                      აღდგენა
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {tab === 'appeals' && !loading && (
           <div className="space-y-3">
             {/* Moderator accountability. `overturned` is the count of that

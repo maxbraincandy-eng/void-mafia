@@ -715,6 +715,28 @@ export async function initializeDatabase() {
     )
   `;
     await sql `CREATE INDEX IF NOT EXISTS idx_mars_memories_subject ON mars_memories(subject_id, created_at DESC)`;
+    // Reports against a record. A memorial goes live immediately — grieving
+    // families should not wait in a queue — so the safety net is downstream:
+    // anyone can flag one, and repeated "this person is alive" reports hide it
+    // automatically pending review, because that is the case that actually hurts.
+    await sql `ALTER TABLE mars_subjects ADD COLUMN IF NOT EXISTS hidden BOOLEAN NOT NULL DEFAULT false`;
+    await sql `ALTER TABLE mars_subjects ADD COLUMN IF NOT EXISTS hidden_reason TEXT NOT NULL DEFAULT ''`;
+    await sql `
+    CREATE TABLE IF NOT EXISTS mars_reports (
+      id            TEXT PRIMARY KEY,
+      subject_id    TEXT NOT NULL REFERENCES mars_subjects(id) ON DELETE CASCADE,
+      reporter_id   TEXT NOT NULL,
+      reporter_name TEXT NOT NULL DEFAULT '',
+      reason        TEXT NOT NULL,
+      note          TEXT NOT NULL DEFAULT '',
+      status        TEXT NOT NULL DEFAULT 'open',
+      resolved_by   TEXT,
+      resolved_at   BIGINT,
+      created_at    BIGINT NOT NULL,
+      UNIQUE (subject_id, reporter_id)
+    )
+  `;
+    await sql `CREATE INDEX IF NOT EXISTS idx_mars_reports_status ON mars_reports(status, created_at DESC)`;
     // ── Clan League (weekly, all-clans competition) ───────────────────────
     // Contributions are stored per player per week; the clan table is always
     // derived from them by SUM, so a player changing clan mid-week needs no
