@@ -57,7 +57,7 @@ const PORT = Number(process.env.PORT ?? 3000);
 const CLIENT_URL = process.env.CLIENT_URL ?? 'http://localhost:5173';
 const IS_PROD = process.env.NODE_ENV === 'production';
 
-const CLIENT_BUILD = '2026-07-28-v563';
+const CLIENT_BUILD = '2026-07-28-v564';
 console.log('[Startup] Void Mafia server starting');
 console.log(`[Startup] Client build: ${CLIENT_BUILD}`);
 console.log(`[Startup] NODE_ENV=${process.env.NODE_ENV ?? 'development'}`);

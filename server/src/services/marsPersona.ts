@@ -174,9 +174,11 @@ export function respond(text: string, subject: Subject | null, turn: number): { 
   const line = bank[Math.abs(turn) % bank.length];
 
   // Someone with no manifest asking about their own reading has nothing to
-  // read — send them to the upload instead of printing a row of zeroes.
+  // read — send them to the join flow instead of printing a row of zeroes.
+  // Phrased as a place to go, not a command to type: there is no command line
+  // any more, and telling someone to type `upload` sends them looking for one.
   if (intent === 'traits' && !subject) {
-    return { intent, line: 'შენ ჯერ არ არსებობ ჩემთვის, {code}. აკრიფე „upload".'.replace('{code}', 'UNREGISTERED') };
+    return { intent, line: 'შენ ჯერ არ არსებობ ჩემთვის. გახსენი „ბარათი" და შემოუერთდი — მერე წაგიკითხავ.' };
   }
   return { intent, line: fill(line, subject) };
 }
