@@ -10,10 +10,11 @@
  * would be the first lie told by a product whose entire value is not lying.
  */
 import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { emitWithAck } from '@/lib/socket';
 import type { Res } from '@/types/index';
 import { MatrixRain } from './MatrixRain';
+import { MarsLegal } from './MarsLegal';
 import { lifespan, sectorOf, type DirEntry, type Stats } from './types';
 
 export function MarsLanding({
@@ -25,6 +26,7 @@ export function MarsLanding({
 }) {
   const [stats, setStats] = useState<Stats | null>(null);
   const [recent, setRecent] = useState<DirEntry[]>([]);
+  const [legal, setLegal] = useState<null | 'terms' | 'privacy'>(null);
 
   useEffect(() => {
     let alive = true;
@@ -148,10 +150,23 @@ export function MarsLanding({
           </p>
         </div>
 
-        <p className="font-mono text-[10px] text-center mt-8" style={{ color: 'rgba(255,255,255,0.22)' }}>
-          M.A.R.S. · Void
-        </p>
+        <footer className="mt-8 pt-4 text-center" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+          <div className="flex items-center justify-center gap-3">
+            <button onClick={() => setLegal('terms')} className="font-mono text-[11px]"
+              style={{ color: 'rgba(125,249,255,0.7)' }}>წესები</button>
+            <span style={{ color: 'rgba(255,255,255,0.15)' }}>·</span>
+            <button onClick={() => setLegal('privacy')} className="font-mono text-[11px]"
+              style={{ color: 'rgba(125,249,255,0.7)' }}>კონფიდენციალურობა</button>
+          </div>
+          <p className="font-mono text-[10px] mt-2" style={{ color: 'rgba(255,255,255,0.22)' }}>
+            M.A.R.S. · Void
+          </p>
+        </footer>
       </div>
+
+      <AnimatePresence>
+        {legal && <MarsLegal initial={legal} onClose={() => setLegal(null)} />}
+      </AnimatePresence>
     </div>
   );
 }

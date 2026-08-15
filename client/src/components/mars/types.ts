@@ -108,6 +108,20 @@ export function lifespan(born: number | null, died: number | null): string {
   return '';
 }
 
+/**
+ * The one address a record has.
+ *
+ * Always /mars/r/CODE, on every host. The standalone site is also served at the
+ * root of any "mars." host, but the /mars prefix works there too — and the
+ * server only injects the per-record share card (title, description, portrait)
+ * for THIS path, because a crawler runs no JavaScript and would otherwise see
+ * the generic landing page for every person in the archive.
+ */
+export function recordUrl(code: string): string {
+  const origin = typeof window === 'undefined' ? '' : window.location.origin;
+  return `${origin}/mars/r/${encodeURIComponent(code)}`;
+}
+
 export interface DirEntry {
   code: string; designation: string; sector: string;
   integrity: number; dominant: TraitKey; portrait: string | null;

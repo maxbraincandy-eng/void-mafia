@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import express from 'express';
 import { createServer } from 'http';
+import fs from 'fs';
 import { Server } from 'socket.io';
 import cookieParser from 'cookie-parser';
 import session from 'express-session';
@@ -47,7 +48,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 3000);
 const CLIENT_URL = process.env.CLIENT_URL ?? 'http://localhost:5173';
 const IS_PROD = process.env.NODE_ENV === 'production';
-const CLIENT_BUILD = '2026-07-28-v572';
+const CLIENT_BUILD = '2026-07-28-v573';
 console.log('[Startup] Void Mafia server starting');
 console.log(`[Startup] Client build: ${CLIENT_BUILD}`);
 console.log(`[Startup] NODE_ENV=${process.env.NODE_ENV ?? 'development'}`);
@@ -445,12 +446,90 @@ if (IS_PROD) {
      * /mars#/r/2162-X survives a refresh.
      */
     const isMarsHost = (req) => /^mars\./i.test((req.hostname ?? '').trim());
-    app.get('*', (req, res) => {
+    const esc = (v) => String(v ?? '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    /**
+     * The portrait of a record, served as real image bytes.
+     *
+     * Share previews are what make a memorial travel — a link with no picture
+     * reads as spam. Facebook and WhatsApp fetch og:image with a crawler that
+     * runs no JavaScript and does not accept data: URIs, so the portrait stored
+     * as a data URL has to be decoded and served from a URL of its own.
+     */
+    app.get('/mars/og/:code', async (req, res) => {
+        try {
+            const { getSubjectByCode } = await import('./services/marsService.js');
+            const s = await getSubjectByCode(String(req.params.code ?? ''));
+            const m = s && !s.hidden && s.portrait
+                ? /^data:(image\/[a-z]+);base64,(.+)$/.exec(s.portrait) : null;
+            if (!m) {
+                res.status(404).end();
+                return;
+            }
+            res.setHeader('Content-Type', m[1]);
+            res.setHeader('Cache-Control', 'public, max-age=300');
+            res.end(Buffer.from(m[2], 'base64'));
+        }
+        catch {
+            res.status(404).end();
+        }
+    });
+    /**
+     * Per-record share tags, injected server-side.
+     *
+     * Crawlers do not run the app, so a hash route can never produce a preview.
+     * /mars/r/<code> is therefore the canonical shareable URL, and the shell it
+     * returns carries that person's name, years and portrait in its meta tags.
+     */
+    async function marsShell(req) {
+        const file = path.join(clientDist, 'mars.html');
+        const raw = await fs.promises.readFile(file, 'utf8');
+        const code = /^\/mars\/r\/([\w-]+)/i.exec(req.path)?.[1];
+        if (!code)
+            return raw;
+        try {
+            const { getSubjectByCode } = await import('./services/marsService.js');
+            const s = await getSubjectByCode(code);
+            if (!s || s.hidden)
+                return raw;
+            const name = s.kind === 'memorial' && s.personFirst
+                ? `${s.personFirst} ${s.personLast}`.trim() : s.designation;
+            const years = s.lifeStatus === 'deceased'
+                ? [s.bornYear, s.diedYear].filter(Boolean).join(' — ') : '';
+            const title = `${name}${years ? ` (${years})` : ''} — M.A.R.S.`;
+            const desc = s.lifeStatus === 'deceased'
+                ? `${name}-ის ჩანაწერი. წაიკითხე, დაამატე მოგონება, ან დაუსვი კითხვა.`
+                : `${name}-ის ჩანაწერი M.A.R.S.-ის არქივში.`;
+            const origin = `${req.protocol}://${req.get('host')}`;
+            const image = s.portrait ? `${origin}/mars/og/${encodeURIComponent(s.code)}` : '';
+            return raw
+                .replace(/<title>[^<]*<\/title>/, `<title>${esc(title)}</title>`)
+                .replace(/(<meta name="description" content=")[^"]*(")/, `$1${esc(desc)}$2`)
+                .replace(/(<meta property="og:title" content=")[^"]*(")/, `$1${esc(title)}$2`)
+                .replace(/(<meta property="og:description" content=")[^"]*(")/, `$1${esc(desc)}$2`)
+                .replace('</head>', `${image
+                ? `<meta property="og:image" content="${esc(image)}">\n<meta name="twitter:image" content="${esc(image)}">\n`
+                : ''}<meta property="og:url" content="${esc(origin + req.path)}">\n</head>`);
+        }
+        catch {
+            return raw;
+        }
+    }
+    app.get('*', async (req, res) => {
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
         res.setHeader('Pragma', 'no-cache');
         res.setHeader('Expires', '0');
         const wantsMars = isMarsHost(req) || req.path === '/mars' || req.path.startsWith('/mars/');
-        res.sendFile(path.join(clientDist, wantsMars ? 'mars.html' : 'index.html'));
+        if (!wantsMars) {
+            res.sendFile(path.join(clientDist, 'index.html'));
+            return;
+        }
+        try {
+            res.type('html').send(await marsShell(req));
+        }
+        catch {
+            res.sendFile(path.join(clientDist, 'mars.html'));
+        }
     });
 }
 // ── Stale Room Cleanup ────────────────────────────────────────────────

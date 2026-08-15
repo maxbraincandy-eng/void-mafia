@@ -36,6 +36,8 @@ import { recordLeagueGame, getLeague, getClanLeagueDetail, getLeagueHistory, get
 import { getSubject as marsGetSubject, getSubjectByCode as marsGetByCode, upload as marsUpload, purge as marsPurge, directory as marsDirectory, stats as marsStats, listStewarded as marsListStewarded, upsertMemorial as marsUpsertMemorial, MANIFEST_MIN, MANIFEST_MAX, DESIGNATION_MAX, DOCS_MAX_COUNT, DOC_MAX_CHARS, LETTER_MAX, RESTORE_NOTE_MAX, KIN_MAX, SAMPLE_NOTE_MAX, } from './services/marsService.js';
 import { respond as marsRespond, BOOT_LINES as MARS_BOOT } from './services/marsPersona.js';
 import { addMemory as marsAddMemory, listMemories as marsListMemories, deleteMemory as marsDeleteMemory, buildCorpus as marsBuildCorpus, speak as marsSpeak, } from './services/marsMemorial.js';
+import { buildExportHtml } from './services/marsExport.js';
+import { issueRecoveryCode, hasRecoveryCode, resetWithCode } from './services/recoveryService.js';
 import { report as marsReport, listReports as marsListReports, resolveReport as marsResolveReport, restoreRecord as marsRestoreRecord, REPORT_REASONS as MARS_REPORT_REASONS, } from './services/marsReports.js';
 /** Per-socket turn counter, so the architect's phrasing rotates per session. */
 const marsTurns = new Map();
@@ -4928,6 +4930,75 @@ export function attachSocketHandlers(io) {
                     memories,
                 });
                 cb(ok({ ...marsSpeak(q, name, corpus), personName: name }));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        /**
+         * Download a record as a single self-contained file.
+         *
+         * Private fields are included only for the record's own owner, and the
+         * decision is made here rather than trusted to the client.
+         */
+        socket.on('mars:export', async ({ code }, cb) => {
+            try {
+                const s = await marsGetByCode(String(code ?? '').trim());
+                if (!s)
+                    throw new Error('ჩანაწერი ვერ მოიძებნა.');
+                const viewer = socket.data.profileId ?? null;
+                const isOwner = !!viewer && (s.stewardId === viewer || (s.kind === 'self' && s.playerId === viewer));
+                if (s.hidden && !isOwner)
+                    throw new Error('ეს ჩანაწერი დაფარულია.');
+                // A self-record's manifest is private until its owner decides
+                // otherwise, so a stranger's export of it carries no text either.
+                const shareable = s.kind === 'memorial' || isOwner;
+                const memories = await marsListMemories(s.id, 500);
+                const html = buildExportHtml({
+                    subject: shareable ? s : { ...s, manifest: '' },
+                    memories,
+                    includePrivate: isOwner,
+                });
+                cb(ok({ filename: `mars-${s.code}.html`, html, includesPrivate: isOwner }));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        // ── Account recovery ───────────────────────────────────────────────
+        socket.on('recovery:status', async (cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId) {
+                    cb(ok({ hasCode: false }));
+                    return;
+                }
+                cb(ok({ hasCode: await hasRecoveryCode(profileId) }));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        /** Issue a new code. Shown once; any previous code stops working. */
+        socket.on('recovery:issue', async (cb) => {
+            try {
+                const profileId = socket.data.profileId;
+                if (!profileId)
+                    throw new Error('ჯერ შედი სისტემაში.');
+                cb(ok({ code: await issueRecoveryCode(profileId) }));
+            }
+            catch (e) {
+                cb(err(e.message));
+            }
+        });
+        socket.on('recovery:reset', async (data, cb) => {
+            try {
+                // Rate-limited at the socket too: the service counts failures per
+                // account, this bounds an attacker spraying many accounts at once.
+                if (!rateOk(socket.id, 5))
+                    throw new Error('ძალიან ბევრი მცდელობა.');
+                await resetWithCode(String(data?.email ?? ''), String(data?.code ?? ''), String(data?.password ?? ''));
+                cb(ok({ reset: true }));
             }
             catch (e) {
                 cb(err(e.message));

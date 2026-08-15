@@ -18,7 +18,7 @@ import { emitWithAck } from '@/lib/socket';
 import { compressImage } from '@/lib/imageUtils';
 import type { Res } from '@/types/index';
 import {
-  lifespan, sectorOf, SAMPLE_INFO, SAMPLE_KIND_LABEL, REPORT_REASON_LABEL, LIFE_INFO,
+  lifespan, recordUrl, sectorOf, SAMPLE_INFO, SAMPLE_KIND_LABEL, REPORT_REASON_LABEL, LIFE_INFO,
   type Memory, type PrivateFields, type RecordView, type SpeakReply,
 } from './types';
 import * as sfx from './sfx';
@@ -46,6 +46,8 @@ export function MarsRecordView({
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   // memory composer
   const [memText, setMemText] = useState('');
@@ -95,6 +97,12 @@ export function MarsRecordView({
     const el = speakRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [replies]);
+
+  useEffect(() => {
+    if (!note) return;
+    const t = setTimeout(() => setNote(null), 6000);
+    return () => clearTimeout(t);
+  }, [note]);
 
   const addMemory = async () => {
     if (!rec || busy) return;
@@ -147,6 +155,51 @@ export function MarsRecordView({
       } else setError(('error' in res && res.error) || 'ვერ გაიგზავნა');
     } catch { setError('კავშირი დაიკარგა.'); }
     finally { setBusy(false); }
+  };
+
+  /**
+   * Take the record out of here.
+   *
+   * The file the server builds is one .html with every image and document
+   * inlined — it opens with no server, no account and no internet, which is the
+   * only guarantee an archive can honestly make. If this site is gone in twenty
+   * years, that file still opens.
+   */
+  const download = async () => {
+    if (!rec || exporting) return;
+    setExporting(true); setError(null); setNote(null);
+    try {
+      const res = await emitWithAck<{ code: string }, Res<{ filename: string; html: string; includesPrivate: boolean }>>(
+        'mars:export', { code: rec.code });
+      if ('ok' in res && res.ok) {
+        const blob = new Blob([res.data.html], { type: 'text/html;charset=utf-8' });
+        const href = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = href; a.download = res.data.filename;
+        document.body.appendChild(a); a.click(); a.remove();
+        // Revoked late: Safari reads the blob after the click returns.
+        setTimeout(() => URL.revokeObjectURL(href), 8000);
+        setNote(res.data.includesPrivate
+          ? 'ფაილი ჩამოიტვირთა. შიგნით პირადი ნაწილიცაა — სხვას თუ გადასცემ, ჯერ წაშალე.'
+          : 'ფაილი ჩამოიტვირთა.');
+        sfx.accept();
+      } else { setError(('error' in res && res.error) || 'ვერ ჩამოიტვირთა'); sfx.reject(); }
+    } catch { setError('კავშირი დაიკარგა.'); }
+    finally { setExporting(false); }
+  };
+
+  /** One address per record, so a link sent to family opens the right page. */
+  const share = async () => {
+    if (!rec) return;
+    const url = recordUrl(rec.code);
+    const label = rec.kind === 'memorial' ? `${rec.personFirst} ${rec.personLast}`.trim() : rec.designation;
+    const nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
+    if (nav.share) {
+      try { await nav.share({ title: `${label} — M.A.R.S.`, url }); return; }
+      catch (e: any) { if (e?.name === 'AbortError') return; }   // dismissed, not failed
+    }
+    try { await navigator.clipboard.writeText(url); setNote('ბმული დაკოპირდა.'); }
+    catch { setNote(url); }                                      // no clipboard: show it to copy by hand
   };
 
   const pickMemPhoto = async (f: File | undefined) => {
@@ -232,6 +285,26 @@ export function MarsRecordView({
                 className="mt-2 font-mono text-[10px]" style={{ color: 'rgba(255,95,109,0.6)' }}>
                 ⚑ პრობლემის შეტყობინება
               </button>
+        )}
+
+        {/* Share, and take a copy home. Two things a real product has and a
+            prototype does not: an address you can send, and an exit. */}
+        <div className="flex gap-2 mt-2.5 w-full" style={{ maxWidth: 320 }}>
+          <button onClick={() => void share()}
+            className="flex-1 py-1.5 rounded-lg font-mono text-[11px] transition-all active:scale-95"
+            style={{ border: '1px solid rgba(125,249,255,0.35)', background: 'rgba(125,249,255,0.08)', color: '#7df9ff' }}>
+            🔗 გაზიარება
+          </button>
+          <button onClick={() => void download()} disabled={exporting}
+            className="flex-1 py-1.5 rounded-lg font-mono text-[11px] transition-all active:scale-95 disabled:opacity-40"
+            style={{ border: `1px solid ${sec.color}55`, background: `${sec.color}12`, color: sec.color }}>
+            {exporting ? '…' : '⬇ ჩამოტვირთვა'}
+          </button>
+        </div>
+        {note && (
+          <p className="font-mono text-[10px] mt-1.5 leading-relaxed break-all" style={{ color: 'rgba(57,255,106,0.75)' }}>
+            {note}
+          </p>
         )}
       </div>
 

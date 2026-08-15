@@ -90,6 +90,8 @@ import {
   addMemory as marsAddMemory, listMemories as marsListMemories, deleteMemory as marsDeleteMemory,
   buildCorpus as marsBuildCorpus, speak as marsSpeak,
 } from './services/marsMemorial.js';
+import { buildExportHtml } from './services/marsExport.js';
+import { issueRecoveryCode, hasRecoveryCode, resetWithCode } from './services/recoveryService.js';
 import {
   report as marsReport, listReports as marsListReports, resolveReport as marsResolveReport,
   restoreRecord as marsRestoreRecord, reportCount as marsReportCount, REPORT_REASONS as MARS_REPORT_REASONS,
@@ -4703,6 +4705,60 @@ export function attachSocketHandlers(io: AppServer): void {
           memories,
         });
         cb(ok({ ...marsSpeak(q, name, corpus), personName: name }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    /**
+     * Download a record as a single self-contained file.
+     *
+     * Private fields are included only for the record's own owner, and the
+     * decision is made here rather than trusted to the client.
+     */
+    socket.on('mars:export' as any, async ({ code }: { code: string }, cb: any) => {
+      try {
+        const s = await marsGetByCode(String(code ?? '').trim());
+        if (!s) throw new Error('ჩანაწერი ვერ მოიძებნა.');
+        const viewer = socket.data.profileId ?? null;
+        const isOwner = !!viewer && (s.stewardId === viewer || (s.kind === 'self' && s.playerId === viewer));
+        if (s.hidden && !isOwner) throw new Error('ეს ჩანაწერი დაფარულია.');
+        // A self-record's manifest is private until its owner decides
+        // otherwise, so a stranger's export of it carries no text either.
+        const shareable = s.kind === 'memorial' || isOwner;
+        const memories = await marsListMemories(s.id, 500);
+        const html = buildExportHtml({
+          subject: shareable ? s : { ...s, manifest: '' },
+          memories,
+          includePrivate: isOwner,
+        });
+        cb(ok({ filename: `mars-${s.code}.html`, html, includesPrivate: isOwner }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Account recovery ───────────────────────────────────────────────
+    socket.on('recovery:status' as any, async (cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb(ok({ hasCode: false })); return; }
+        cb(ok({ hasCode: await hasRecoveryCode(profileId) }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    /** Issue a new code. Shown once; any previous code stops working. */
+    socket.on('recovery:issue' as any, async (cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('ჯერ შედი სისტემაში.');
+        cb(ok({ code: await issueRecoveryCode(profileId) }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('recovery:reset' as any, async (data: any, cb: any) => {
+      try {
+        // Rate-limited at the socket too: the service counts failures per
+        // account, this bounds an attacker spraying many accounts at once.
+        if (!rateOk(socket.id, 5)) throw new Error('ძალიან ბევრი მცდელობა.');
+        await resetWithCode(String(data?.email ?? ''), String(data?.code ?? ''), String(data?.password ?? ''));
+        cb(ok({ reset: true }));
       } catch (e: any) { cb(err(e.message)); }
     });
 

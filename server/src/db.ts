@@ -739,6 +739,12 @@ export async function initializeDatabase(): Promise<void> {
   // Alive or deceased, independent of who created the record: a person can
   // archive themselves while living, and a record can later be switched by its
   // owner. Defaults to 'alive' — a new self-record is someone who is here.
+  // Account recovery. Stored as a bcrypt hash — a database leak must not hand
+  // out accounts. See recoveryService for why this is a code and not an email.
+  await sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS recovery_hash TEXT`;
+  await sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS recovery_issued_at BIGINT`;
+  await sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS recovery_attempts INT NOT NULL DEFAULT 0`;
+
   await sql`ALTER TABLE mars_subjects ADD COLUMN IF NOT EXISTS life_status TEXT NOT NULL DEFAULT 'alive'`;
   await sql`CREATE INDEX IF NOT EXISTS idx_mars_life ON mars_subjects(life_status, created_at DESC)`;
   // Existing memorials were all created for people who had died.

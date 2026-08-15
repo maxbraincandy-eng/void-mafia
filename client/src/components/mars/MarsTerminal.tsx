@@ -39,6 +39,7 @@ import { MarsCard } from './MarsCard';
 import { MarsUploadSheet } from './MarsUploadSheet';
 import { MarsMemorialSheet, type MemorialDraft } from './MarsMemorialSheet';
 import { MarsRecordView } from './MarsRecordView';
+import { MarsLegal } from './MarsLegal';
 import { sectorOf, SAMPLE_INFO, LIFE_INFO, lifespan, type DirEntry, type LifeStatus, type Limits, type MarsDoc, type RecordView, type SampleStatus, type Stats, type Subject } from './types';
 import * as sfx from './sfx';
 
@@ -69,6 +70,7 @@ export function MarsTerminal({ onClose }: { onClose: () => void }) {
   const touchX = useRef<number | null>(null);
   const [editMemorial, setEditMemorial] = useState<RecordView | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [legal, setLegal] = useState<null | 'terms' | 'privacy'>(null);
   const [glitching, setGlitching] = useState(false);
 
   const chatRef = useRef<HTMLDivElement | null>(null);
@@ -316,8 +318,8 @@ export function MarsTerminal({ onClose }: { onClose: () => void }) {
       <div className="relative z-10 flex-1 overflow-y-auto px-4 py-4" style={{ WebkitOverflowScrolling: 'touch' }}>
         <div style={{ maxWidth: 620, marginInline: 'auto' }}>
 
-          {tab === 'card' && (
-            subject ? (
+          {tab === 'card' && (<>
+            {subject ? (
               <MarsCard subject={subject} onEdit={() => setSheet('upload')} onPurge={() => setSheet('purge')} />
             ) : (
               <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
@@ -339,8 +341,19 @@ export function MarsTerminal({ onClose }: { onClose: () => void }) {
                   როგორ მუშაობს?
                 </button>
               </motion.div>
-            )
-          )}
+            )}
+
+            <RecoveryPanel />
+
+            <div className="mt-4 pt-3 flex items-center justify-center gap-3"
+              style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+              <button onClick={() => setLegal('terms')} className="font-mono text-[11px]"
+                style={{ color: 'rgba(125,249,255,0.6)' }}>წესები</button>
+              <span style={{ color: 'rgba(255,255,255,0.15)' }}>·</span>
+              <button onClick={() => setLegal('privacy')} className="font-mono text-[11px]"
+                style={{ color: 'rgba(125,249,255,0.6)' }}>კონფიდენციალურობა</button>
+            </div>
+          </>)}
 
           {tab === 'archive' && (
             <div>
@@ -667,9 +680,122 @@ export function MarsTerminal({ onClose }: { onClose: () => void }) {
         )}
       </AnimatePresence>
 
+      <AnimatePresence>
+        {legal && <MarsLegal initial={legal} onClose={() => setLegal(null)} />}
+      </AnimatePresence>
+
       <style>{'@keyframes vm-blink{0%,49%{opacity:1}50%,100%{opacity:0}}'}</style>
     </motion.div>,
     document.body,
+  );
+}
+
+/**
+ * The recovery code.
+ *
+ * WHY THIS SITS ON THE CARD AND NOT IN A SETTINGS MENU NOBODY OPENS
+ * ────────────────────────────────────────────────────────────────
+ * On this product, losing the password means losing access to a dead relative's
+ * page — the one place their memories were collected. There is no mail sender
+ * in this deployment, so there is no "reset link" to fall back on. The only
+ * thing that saves that account is a code the person took before they needed
+ * it, which means the ask has to be in front of them while nothing is wrong.
+ *
+ * The code is shown ONCE. The server keeps only a bcrypt hash of it, so it
+ * cannot be re-displayed later — that is the point, not an oversight.
+ */
+function RecoveryPanel() {
+  const [has, setHas] = useState<boolean | null>(null);
+  const [code, setCode] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    emitWithAck<undefined, Res<{ hasCode: boolean }>>('recovery:status')
+      .then(r => { if (alive && 'ok' in r && r.ok) setHas(r.data.hasCode); })
+      .catch(() => { /* the panel simply stays quiet */ });
+    return () => { alive = false; };
+  }, []);
+
+  const issue = async () => {
+    setBusy(true); setConfirming(false);
+    try {
+      const r = await emitWithAck<undefined, Res<{ code: string }>>('recovery:issue');
+      if ('ok' in r && r.ok) { setCode(r.data.code); setHas(true); sfx.accept(); }
+    } catch { /* nothing to show */ }
+    finally { setBusy(false); }
+  };
+
+  const copy = async () => {
+    if (!code) return;
+    try { await navigator.clipboard.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 3000); }
+    catch { /* it is on screen; they can write it down */ }
+  };
+
+  if (has === null) return null;
+
+  return (
+    <div className="mt-3 rounded-2xl p-3"
+      style={{ border: '1px solid rgba(255,212,90,0.26)', background: 'rgba(255,212,90,0.045)' }}>
+      <p className="font-mono text-[12px] font-bold" style={{ color: '#ffd45a' }}>🔑 აღდგენის კოდი</p>
+
+      {code ? (
+        <>
+          <p className="font-mono text-[11px] mt-1.5 leading-relaxed" style={{ color: 'rgba(255,212,90,0.85)' }}>
+            ჩაწერე ეს კოდი ახლავე. მეორედ ვერ ნახავ — სერვერზე მხოლოდ მისი დაშიფრული ანაბეჭდი ინახება.
+          </p>
+          <p className="font-mono font-bold text-center my-2.5 py-2.5 rounded-xl select-all"
+            style={{
+              fontSize: 18, letterSpacing: '0.14em', color: '#fff',
+              border: '1px dashed rgba(255,212,90,0.5)', background: 'rgba(0,0,0,0.35)',
+            }}>
+            {code}
+          </p>
+          <div className="flex gap-2">
+            <button onClick={() => void copy()}
+              className="flex-1 py-2 rounded-lg font-mono text-[11px] transition-all active:scale-95"
+              style={{ border: '1px solid rgba(255,212,90,0.45)', background: 'rgba(255,212,90,0.12)', color: '#ffd45a' }}>
+              {copied ? '✓ დაკოპირდა' : 'კოპირება'}
+            </button>
+            <button onClick={() => setCode(null)}
+              className="flex-1 py-2 rounded-lg font-mono text-[11px]"
+              style={{ border: '1px solid rgba(255,255,255,0.14)', color: 'rgba(255,255,255,0.55)' }}>
+              შევინახე
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="font-mono text-[11px] mt-1.5 leading-relaxed" style={{ color: 'rgba(255,255,255,0.55)' }}>
+            {has
+              ? 'კოდი უკვე გაქვს აღებული. თუ დაკარგე, აიღე ახალი — ძველი მაშინვე გაუქმდება.'
+              : 'თუ პაროლს დაკარგავ, ეს კოდი ერთადერთი გზაა ანგარიშთან დასაბრუნებლად. აიღე და შეინახე ისეთ ადგილას, სადაც წლების შემდეგაც იპოვი.'}
+          </p>
+          {confirming ? (
+            <div className="flex gap-2 mt-2">
+              <button onClick={() => setConfirming(false)}
+                className="flex-1 py-2 rounded-lg font-mono text-[11px]"
+                style={{ border: '1px solid rgba(255,255,255,0.14)', color: 'rgba(255,255,255,0.5)' }}>
+                გაუქმება
+              </button>
+              <button onClick={() => void issue()} disabled={busy}
+                className="flex-1 py-2 rounded-lg font-mono text-[11px] font-bold disabled:opacity-40"
+                style={{ border: '1px solid rgba(255,212,90,0.5)', background: 'rgba(255,212,90,0.14)', color: '#ffd45a' }}>
+                {busy ? '…' : 'დიახ, ახალი კოდი'}
+              </button>
+            </div>
+          ) : (
+            <button onClick={() => (has ? setConfirming(true) : void issue())} disabled={busy}
+              className="w-full mt-2 py-2 rounded-lg font-mono text-[12px] font-bold transition-all active:scale-[0.98] disabled:opacity-40"
+              style={{ border: '1px solid rgba(255,212,90,0.45)', background: 'rgba(255,212,90,0.12)', color: '#ffd45a' }}>
+              {busy ? '…' : has ? 'ახალი კოდის აღება' : 'კოდის აღება'}
+            </button>
+          )}
+        </>
+      )}
+    </div>
   );
 }
 
