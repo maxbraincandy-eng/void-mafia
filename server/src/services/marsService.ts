@@ -22,6 +22,7 @@
  */
 import { sql } from '../db.js';
 import { generateId } from '../utils/helpers.js';
+import { sanitiseMemorial, type MemorialInput, type RecordKind } from './marsMemorial.js';
 
 export type TraitKey = 'logic' | 'empathy' | 'defiance' | 'entropy';
 export type Traits = Record<TraitKey, number>;
@@ -51,6 +52,21 @@ export interface Subject {
   sampleNote: string;
   /** Who to contact about this record. Private. */
   kin: string;
+  // ── identity & stewardship ───────────────────────────────────────────
+  /** 'self' = archiving yourself. 'memorial' = archiving someone who died. */
+  kind: RecordKind;
+  personFirst: string;
+  personLast: string;
+  bornYear: number | null;
+  diedYear: number | null;
+  /** For a memorial: the account that maintains it. */
+  stewardId: string | null;
+  stewardName: string;
+  stewardRelation: string;
+  /** Physical sample registry. */
+  sampleKind: string;
+  sampleCustodian: string;
+  sampleTakenAt: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -64,6 +80,12 @@ export interface DirectoryEntry {
   portrait: string | null;
   sampleStatus: SampleStatus;
   hasLetter: boolean;
+  kind: RecordKind;
+  personFirst: string;
+  personLast: string;
+  bornYear: number | null;
+  diedYear: number | null;
+  memoryCount: number;
   createdAt: number;
 }
 
@@ -100,6 +122,10 @@ export const SAMPLE_NOTE_MAX = 400;
 /** Whether a biological sample exists, and where it stands. */
 export type SampleStatus = 'none' | 'pledged' | 'stored';
 export const SAMPLE_STATUSES: SampleStatus[] = ['none', 'pledged', 'stored'];
+
+/** What kind of physical sample is on record. Registry only — never collected here. */
+export const SAMPLE_KINDS = ['hair', 'swab', 'blood_card', 'tooth', 'other'] as const;
+export const SAMPLE_CUSTODIAN_MAX = 120;
 
 export interface MarsDoc {
   name: string;
@@ -315,13 +341,41 @@ function rowToSubject(r: any): Subject {
     sampleStatus: sample,
     sampleNote: r.sample_note ?? '',
     kin: r.kin ?? '',
+    kind: r.kind === 'memorial' ? 'memorial' : 'self',
+    personFirst: r.person_first ?? '',
+    personLast: r.person_last ?? '',
+    bornYear: r.born_year != null ? Number(r.born_year) : null,
+    diedYear: r.died_year != null ? Number(r.died_year) : null,
+    stewardId: r.steward_id ?? null,
+    stewardName: r.steward_name ?? '',
+    stewardRelation: r.steward_relation ?? '',
+    sampleKind: r.sample_kind ?? '',
+    sampleCustodian: r.sample_custodian ?? '',
+    sampleTakenAt: r.sample_taken_at ?? '',
     createdAt: Number(r.created_at),
     updatedAt: Number(r.updated_at),
   };
 }
 
+/** A record by its id, whatever kind it is. */
+export async function getSubjectById(id: string): Promise<Subject | null> {
+  const [row] = await sql<any[]>`SELECT * FROM mars_subjects WHERE id = ${id}`;
+  return row ? rowToSubject(row) : null;
+}
+
+/** Memorials maintained by this account. */
+export async function listStewarded(playerId: string): Promise<Subject[]> {
+  const rows = await sql<any[]>`
+    SELECT * FROM mars_subjects WHERE kind = 'memorial' AND steward_id = ${playerId}
+    ORDER BY created_at DESC LIMIT 50
+  `;
+  return rows.map(rowToSubject);
+}
+
 export async function getSubject(playerId: string): Promise<Subject | null> {
-  const [row] = await sql<any[]>`SELECT * FROM mars_subjects WHERE player_id = ${playerId}`;
+  // kind='self' explicitly: a steward's memorials share their player_id, and
+  // without this filter one of those could be returned as "your own record".
+  const [row] = await sql<any[]>`SELECT * FROM mars_subjects WHERE player_id = ${playerId} AND kind = 'self'`;
   return row ? rowToSubject(row) : null;
 }
 
@@ -347,6 +401,9 @@ export interface UploadInput {
   sampleStatus?: unknown;
   sampleNote?: unknown;
   kin?: unknown;
+  sampleKind?: unknown;
+  sampleCustodian?: unknown;
+  sampleTakenAt?: unknown;
 }
 
 export async function upload(playerId: string, input: UploadInput): Promise<Subject> {
@@ -360,6 +417,10 @@ export async function upload(playerId: string, input: UploadInput): Promise<Subj
   const kin = String(input.kin ?? '').slice(0, KIN_MAX);
   const sampleStatus: SampleStatus =
     SAMPLE_STATUSES.includes(input.sampleStatus as SampleStatus) ? input.sampleStatus as SampleStatus : 'none';
+  const sampleKind = (SAMPLE_KINDS as readonly string[]).includes(String(input.sampleKind ?? ''))
+    ? String(input.sampleKind) : '';
+  const sampleCustodian = String(input.sampleCustodian ?? '').slice(0, SAMPLE_CUSTODIAN_MAX);
+  const sampleTakenAt = String(input.sampleTakenAt ?? '').slice(0, 20);
   if (designation.length < 2) throw new Error('DESIGNATION REJECTED — მინიმუმ 2 სიმბოლო.');
   if (manifest.length < MANIFEST_MIN) {
     throw new Error(`MANIFEST TOO THIN — მინიმუმ ${MANIFEST_MIN} სიმბოლო. მოგვეცი რაღაც, რისი შენახვაც ღირს.`);
@@ -378,8 +439,9 @@ export async function upload(playerId: string, input: UploadInput): Promise<Subj
           integrity = ${integrity}, sector = ${sector}, uploads = uploads + 1, updated_at = ${now},
           portrait = ${portrait}, docs = ${JSON.stringify(docs)},
           letter = ${letter}, restore_note = ${restoreNote},
-          sample_status = ${sampleStatus}, sample_note = ${sampleNote}, kin = ${kin}
-      WHERE player_id = ${playerId}
+          sample_status = ${sampleStatus}, sample_note = ${sampleNote}, kin = ${kin},
+          sample_kind = ${sampleKind}, sample_custodian = ${sampleCustodian}, sample_taken_at = ${sampleTakenAt}
+      WHERE player_id = ${playerId} AND kind = 'self'
     `;
     return (await getSubject(playerId))!;
   }
@@ -393,10 +455,12 @@ export async function upload(playerId: string, input: UploadInput): Promise<Subj
     try {
       await sql`
         INSERT INTO mars_subjects (id, player_id, code, designation, manifest, traits, integrity, sector, uploads,
-                                   portrait, docs, letter, restore_note, sample_status, sample_note, kin, created_at, updated_at)
+                                   portrait, docs, letter, restore_note, sample_status, sample_note, kin,
+                                   sample_kind, sample_custodian, sample_taken_at, created_at, updated_at)
         VALUES (${generateId()}, ${playerId}, ${code}, ${designation}, ${manifest},
                 ${JSON.stringify(traits)}, ${integrity}, ${sector}, 1, ${portrait}, ${JSON.stringify(docs)},
-                ${letter}, ${restoreNote}, ${sampleStatus}, ${sampleNote}, ${kin}, ${now}, ${now})
+                ${letter}, ${restoreNote}, ${sampleStatus}, ${sampleNote}, ${kin},
+                ${sampleKind}, ${sampleCustodian}, ${sampleTakenAt}, ${now}, ${now})
       `;
       return (await getSubject(playerId))!;
     } catch (e: any) {
@@ -409,9 +473,100 @@ export async function upload(playerId: string, input: UploadInput): Promise<Subj
   throw new Error(`ALLOCATION FAILURE — სექტორმა უარი თქვა. სცადე ხელახლა. ${lastErr ? '' : ''}`);
 }
 
+/**
+ * Create or update a MEMORIAL — a record for someone who has died, kept by a
+ * relative. The steward's account owns it, but the record is about the person.
+ *
+ * The manifest here is what the family wrote about them, so it is analysed the
+ * same way (it produces a sector and an integrity, which is a reading of the
+ * writing, not of the person) and it is PUBLIC, unlike a self-record's. A
+ * memorial nobody can read is not a memorial.
+ */
+export async function upsertMemorial(
+  stewardId: string,
+  stewardName: string,
+  memorialId: string | null,
+  person: MemorialInput,
+  input: UploadInput,
+): Promise<Subject> {
+  const nowYear = new Date().getUTCFullYear();
+  const p = sanitiseMemorial(person, nowYear);
+
+  const manifest = String(input.manifest ?? '').trim().slice(0, MANIFEST_MAX);
+  if (manifest.length < MANIFEST_MIN) {
+    throw new Error(`ტექსტი ძალიან მოკლეა — მინიმუმ ${MANIFEST_MIN} სიმბოლო.`);
+  }
+  const portrait = sanitisePortrait(input.portrait);
+  const docs = sanitiseDocs(input.docs);
+  const letter = String(input.letter ?? '').slice(0, LETTER_MAX);
+  const restoreNote = String(input.restoreNote ?? '').slice(0, RESTORE_NOTE_MAX);
+  const sampleNote = String(input.sampleNote ?? '').slice(0, SAMPLE_NOTE_MAX);
+  const kin = String(input.kin ?? '').slice(0, KIN_MAX);
+  const sampleStatus: SampleStatus =
+    SAMPLE_STATUSES.includes(input.sampleStatus as SampleStatus) ? input.sampleStatus as SampleStatus : 'none';
+  const sampleKind = (SAMPLE_KINDS as readonly string[]).includes(String(input.sampleKind ?? ''))
+    ? String(input.sampleKind) : '';
+  const sampleCustodian = String(input.sampleCustodian ?? '').slice(0, SAMPLE_CUSTODIAN_MAX);
+  const sampleTakenAt = String(input.sampleTakenAt ?? '').slice(0, 20);
+
+  const traits = analyse(manifest);
+  const sector = SECTORS[dominantTrait(traits)];
+  const integrity = integrityOf(traits, manifest.length);
+  const now = Date.now();
+  const designation = `${p.personFirst} ${p.personLast}`.slice(0, DESIGNATION_MAX);
+
+  if (memorialId) {
+    const [own] = await sql<any[]>`
+      SELECT id FROM mars_subjects WHERE id = ${memorialId} AND kind = 'memorial' AND steward_id = ${stewardId}
+    `;
+    if (!own) throw new Error('ამ ჩანაწერის რედაქტირების უფლება არ გაქვს.');
+    await sql`
+      UPDATE mars_subjects SET
+        designation = ${designation}, manifest = ${manifest}, traits = ${JSON.stringify(traits)},
+        integrity = ${integrity}, sector = ${sector}, uploads = uploads + 1, updated_at = ${now},
+        portrait = ${portrait}, docs = ${JSON.stringify(docs)},
+        letter = ${letter}, restore_note = ${restoreNote},
+        sample_status = ${sampleStatus}, sample_note = ${sampleNote}, kin = ${kin},
+        sample_kind = ${sampleKind}, sample_custodian = ${sampleCustodian}, sample_taken_at = ${sampleTakenAt},
+        person_first = ${p.personFirst}, person_last = ${p.personLast},
+        born_year = ${p.bornYear}, died_year = ${p.diedYear}, steward_relation = ${p.stewardRelation}
+      WHERE id = ${memorialId}
+    `;
+    return (await getSubjectById(memorialId))!;
+  }
+
+  // A memorial's code is derived from the PERSON, not the steward, so the same
+  // person gets the same code no matter who creates the record — and two
+  // different people never collide onto one.
+  const seed = `${p.personFirst}|${p.personLast}|${p.bornYear ?? ''}|${p.diedYear ?? ''}`.toLowerCase();
+  const id = generateId();
+  let lastErr: unknown = null;
+  for (let salt = 0; salt < 12; salt++) {
+    const code = codeFor(seed, salt);
+    try {
+      await sql`
+        INSERT INTO mars_subjects (id, player_id, code, designation, manifest, traits, integrity, sector, uploads,
+                                   portrait, docs, letter, restore_note, sample_status, sample_note, kin,
+                                   sample_kind, sample_custodian, sample_taken_at,
+                                   kind, person_first, person_last, born_year, died_year,
+                                   steward_id, steward_name, steward_relation, created_at, updated_at)
+        VALUES (${id}, ${stewardId}, ${code}, ${designation}, ${manifest},
+                ${JSON.stringify(traits)}, ${integrity}, ${sector}, 1, ${portrait}, ${JSON.stringify(docs)},
+                ${letter}, ${restoreNote}, ${sampleStatus}, ${sampleNote}, ${kin},
+                ${sampleKind}, ${sampleCustodian}, ${sampleTakenAt},
+                'memorial', ${p.personFirst}, ${p.personLast}, ${p.bornYear}, ${p.diedYear},
+                ${stewardId}, ${String(stewardName).slice(0, 40)}, ${p.stewardRelation}, ${now}, ${now})
+      `;
+      return (await getSubjectById(id))!;
+    } catch (e: any) { lastErr = e; }
+  }
+  throw new Error('ჩანაწერი ვერ შეიქმნა. სცადე ხელახლა.');
+  void lastErr;
+}
+
 /** Remove a subject. The fiction calls it purging; the database calls it DELETE. */
 export async function purge(playerId: string): Promise<boolean> {
-  const rows = await sql<any[]>`DELETE FROM mars_subjects WHERE player_id = ${playerId} RETURNING id`;
+  const rows = await sql<any[]>`DELETE FROM mars_subjects WHERE player_id = ${playerId} AND kind = 'self' RETURNING id`;
   return rows.length > 0;
 }
 
@@ -422,9 +577,11 @@ export async function purge(playerId: string): Promise<boolean> {
  */
 export async function directory(limit = 20): Promise<DirectoryEntry[]> {
   const rows = await sql<any[]>`
-    SELECT code, designation, sector, integrity, traits, portrait, sample_status,
-           (COALESCE(letter, '') <> '') AS has_letter, created_at
-    FROM mars_subjects ORDER BY created_at DESC LIMIT ${Math.min(50, Math.max(1, limit))}
+    SELECT s.code, s.designation, s.sector, s.integrity, s.traits, s.portrait, s.sample_status,
+           (COALESCE(s.letter, '') <> '') AS has_letter, s.created_at,
+           s.kind, s.person_first, s.person_last, s.born_year, s.died_year,
+           (SELECT COUNT(*)::int FROM mars_memories m WHERE m.subject_id = s.id) AS memory_count
+    FROM mars_subjects s ORDER BY s.created_at DESC LIMIT ${Math.min(50, Math.max(1, limit))}
   `;
   return rows.map(r => {
     let traits: Traits;
@@ -438,6 +595,12 @@ export async function directory(limit = 20): Promise<DirectoryEntry[]> {
       portrait: r.portrait ?? null,
       sampleStatus: SAMPLE_STATUSES.includes(r.sample_status) ? r.sample_status : 'none',
       hasLetter: !!r.has_letter,
+      kind: r.kind === 'memorial' ? 'memorial' : 'self',
+      personFirst: r.person_first ?? '',
+      personLast: r.person_last ?? '',
+      bornYear: r.born_year != null ? Number(r.born_year) : null,
+      diedYear: r.died_year != null ? Number(r.died_year) : null,
+      memoryCount: Number(r.memory_count ?? 0),
       createdAt: Number(r.created_at),
     };
   });

@@ -81,10 +81,15 @@ import {
 import {
   getSubject as marsGetSubject, getSubjectByCode as marsGetByCode, upload as marsUpload,
   purge as marsPurge, directory as marsDirectory, stats as marsStats,
+  getSubjectById as marsGetById, listStewarded as marsListStewarded, upsertMemorial as marsUpsertMemorial,
   MANIFEST_MIN, MANIFEST_MAX, DESIGNATION_MAX, DOCS_MAX_COUNT, DOC_MAX_CHARS,
   LETTER_MAX, RESTORE_NOTE_MAX, KIN_MAX, SAMPLE_NOTE_MAX,
 } from './services/marsService.js';
 import { respond as marsRespond, BOOT_LINES as MARS_BOOT } from './services/marsPersona.js';
+import {
+  addMemory as marsAddMemory, listMemories as marsListMemories, deleteMemory as marsDeleteMemory,
+  buildCorpus as marsBuildCorpus, speak as marsSpeak,
+} from './services/marsMemorial.js';
 
 /** Per-socket turn counter, so the architect's phrasing rotates per session. */
 const marsTurns = new Map<string, number>();
@@ -1885,7 +1890,7 @@ export function attachSocketHandlers(io: AppServer): void {
       // check than this blanket 16 KB. Leaving it off this list is what made
       // "the image won't upload" — ANY real photo blew the 16 KB ceiling here
       // and was rejected before its handler ever ran.
-      const largePayloadEvents = new Set(['player:update_avatar', 'community:post_create_v2', 'community:profile_update', 'clan:update_image', 'community:story_create', 'dm:voice', 'dm:image', 'owner:gift_create', 'owner:gift_update', 'mars:upload']);
+      const largePayloadEvents = new Set(['player:update_avatar', 'community:post_create_v2', 'community:profile_update', 'clan:update_image', 'community:story_create', 'dm:voice', 'dm:image', 'owner:gift_create', 'owner:gift_update', 'mars:upload', 'mars:memorial_save', 'mars:memory_add']);
       // 4. Payload size limit — reject anything over 16 KB
       const payload = args[0];
       if (!largePayloadEvents.has(event) && payload !== null && payload !== undefined && typeof payload === 'object') {
@@ -4518,6 +4523,144 @@ export function attachSocketHandlers(io: AppServer): void {
           integrity: s.integrity, traits: s.traits, portrait: s.portrait,
           sampleStatus: s.sampleStatus, createdAt: s.createdAt,
         }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Memorials ──────────────────────────────────────────────────────
+    /** Create or update a memorial for someone who has died. */
+    socket.on('mars:memorial_save' as any, async (data: any, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('ACCESS DENIED — ჯერ შედი სისტემაში.');
+        if (!marsUploadRateOk(profileId)) throw new Error('THROTTLED — ცოტა მოითმინე.');
+        const me = await getPlayer(profileId).catch(() => null);
+        const subject = await marsUpsertMemorial(
+          profileId,
+          me?.username ?? '',
+          data?.memorialId ? String(data.memorialId) : null,
+          {
+            personFirst: data?.personFirst, personLast: data?.personLast,
+            bornYear: data?.bornYear, diedYear: data?.diedYear,
+            stewardRelation: data?.stewardRelation,
+          },
+          data ?? {},
+        );
+        cb(ok({ subject, stats: await marsStats() }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    /** Memorials this account maintains. */
+    socket.on('mars:my_memorials' as any, async (cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) { cb(ok([])); return; }
+        cb(ok(await marsListStewarded(profileId)));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    /**
+     * Open a record for viewing.
+     *
+     * A memorial is public — being visited is its purpose — but its private
+     * fields still are not. A self-record is only ever returned in full to its
+     * own owner. Assembled field-by-field so nothing private is exposed by
+     * accident when a new column is added later.
+     */
+    socket.on('mars:open' as any, async ({ code }: { code: string }, cb: any) => {
+      try {
+        const s = await marsGetByCode(String(code ?? '').trim());
+        if (!s) { cb(ok(null)); return; }
+        const viewer = socket.data.profileId ?? null;
+        const isOwner = !!viewer && (s.stewardId === viewer || (s.kind === 'self' && s.playerId === viewer));
+        const memories = await marsListMemories(s.id, 60);
+
+        const pub = {
+          id: s.id, code: s.code, designation: s.designation, sector: s.sector,
+          integrity: s.integrity, traits: s.traits, portrait: s.portrait,
+          kind: s.kind, personFirst: s.personFirst, personLast: s.personLast,
+          bornYear: s.bornYear, diedYear: s.diedYear,
+          stewardName: s.stewardName, stewardRelation: s.stewardRelation,
+          sampleStatus: s.sampleStatus, createdAt: s.createdAt,
+          memoryCount: memories.length,
+          // A memorial's text is written ABOUT the person by their family and is
+          // meant to be read. A self-record's manifest is the author's own and
+          // stays private.
+          manifest: s.kind === 'memorial' || isOwner ? s.manifest : '',
+          canEdit: isOwner,
+        };
+        cb(ok({
+          record: pub,
+          memories: memories.map(m => ({
+            id: m.id, authorId: m.authorId, authorName: m.authorName,
+            relation: m.relation, text: m.text, photo: m.photo, createdAt: m.createdAt,
+          })),
+          privateFields: isOwner ? {
+            letter: s.letter, restoreNote: s.restoreNote, kin: s.kin,
+            sampleNote: s.sampleNote, sampleKind: s.sampleKind,
+            sampleCustodian: s.sampleCustodian, sampleTakenAt: s.sampleTakenAt,
+            docs: s.docs,
+          } : null,
+        }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    /** Leave a memory on a record. */
+    socket.on('mars:memory_add' as any, async (data: any, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('ACCESS DENIED — ჯერ შედი სისტემაში.');
+        if (!marsUploadRateOk(profileId)) throw new Error('THROTTLED — ცოტა მოითმინე.');
+        const me = await getPlayer(profileId).catch(() => null);
+        const memory = await marsAddMemory({
+          subjectId: String(data?.subjectId ?? ''),
+          authorId: profileId,
+          authorName: me?.username ?? 'უცნობი',
+          relation: String(data?.relation ?? ''),
+          text: String(data?.text ?? ''),
+          photo: data?.photo,
+        });
+        cb(ok(memory));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('mars:memory_delete' as any, async ({ memoryId }: { memoryId: string }, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('ACCESS DENIED.');
+        cb(ok({ deleted: await marsDeleteMemory(String(memoryId ?? ''), profileId) }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    /**
+     * Speak to a record.
+     *
+     * Retrieval only. Every reply is a real passage from the record with its
+     * source attached, and when nothing matches it says so. Nothing is ever
+     * generated in the person's voice — see marsMemorial for why that matters.
+     */
+    socket.on('mars:speak' as any, async ({ code, text }: { code: string; text: string }, cb: any) => {
+      try {
+        const q = String(text ?? '').slice(0, 300);
+        if (!q.trim()) throw new Error('EMPTY.');
+        const s = await marsGetByCode(String(code ?? '').trim());
+        if (!s) throw new Error('ჩანაწერი ვერ მოიძებნა.');
+
+        const viewer = socket.data.profileId ?? null;
+        const isOwner = !!viewer && (s.stewardId === viewer || (s.kind === 'self' && s.playerId === viewer));
+        // A living person's private manifest and letter are not searchable by
+        // strangers. A memorial's are — that is what it exists for.
+        const searchable = s.kind === 'memorial' || isOwner;
+        const memories = await marsListMemories(s.id, 200);
+        const name = s.personFirst || s.designation;
+
+        const corpus = marsBuildCorpus({
+          manifest: searchable ? s.manifest : '',
+          letter: searchable ? s.letter : '',
+          restoreNote: searchable ? s.restoreNote : '',
+          personName: name,
+          memories,
+        });
+        cb(ok({ ...marsSpeak(q, name, corpus), personName: name }));
       } catch (e: any) { cb(err(e.message)); }
     });
 

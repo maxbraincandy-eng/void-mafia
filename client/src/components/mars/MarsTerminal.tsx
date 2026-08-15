@@ -37,7 +37,9 @@ import type { Res } from '@/types/index';
 import { MatrixRain } from './MatrixRain';
 import { MarsCard } from './MarsCard';
 import { MarsUploadSheet } from './MarsUploadSheet';
-import { sectorOf, SAMPLE_INFO, type DirEntry, type Limits, type MarsDoc, type SampleStatus, type Stats, type Subject } from './types';
+import { MarsMemorialSheet, type MemorialDraft } from './MarsMemorialSheet';
+import { MarsRecordView } from './MarsRecordView';
+import { sectorOf, SAMPLE_INFO, lifespan, type DirEntry, type Limits, type MarsDoc, type RecordView, type SampleStatus, type Stats, type Subject } from './types';
 import * as sfx from './sfx';
 
 type Tab = 'card' | 'archive' | 'architect';
@@ -61,7 +63,9 @@ export function MarsTerminal({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   const [booting, setBooting] = useState(true);
   const [bootLines, setBootLines] = useState<string[]>([]);
-  const [sheet, setSheet] = useState<null | 'upload' | 'about' | 'purge'>(null);
+  const [sheet, setSheet] = useState<null | 'upload' | 'about' | 'purge' | 'memorial'>(null);
+  const [openCode, setOpenCode] = useState<string | null>(null);
+  const [editMemorial, setEditMemorial] = useState<RecordView | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [glitching, setGlitching] = useState(false);
 
@@ -176,6 +180,33 @@ export function MarsTerminal({ onClose }: { onClose: () => void }) {
         setToast('ჩანაწერი დაცულია.');
         sfx.accept();
       } else { setToast(('error' in res && res.error) || 'ატვირთვა უარყოფილია'); sfx.reject(); }
+    } catch { setToast('კავშირი დაიკარგა.'); sfx.reject(); }
+    finally { setBusy(false); }
+  }, []);
+
+  const saveMemorial = useCallback(async (v: MemorialDraft) => {
+    setBusy(true);
+    try {
+      const res = await emitWithAck<any, Res<{ subject: Subject; stats: Stats }>>('mars:memorial_save', {
+        memorialId: v.memorialId,
+        personFirst: v.personFirst, personLast: v.personLast,
+        bornYear: v.bornYear || null, diedYear: v.diedYear || null,
+        stewardRelation: v.stewardRelation,
+        manifest: v.manifest, portrait: v.portrait,
+        sampleStatus: v.sampleStatus, sampleKind: v.sampleKind,
+        sampleCustodian: v.sampleCustodian, sampleNote: v.sampleNote,
+        sampleTakenAt: v.sampleTakenAt, kin: v.kin,
+      });
+      if ('ok' in res && res.ok) {
+        setStats(res.data.stats);
+        setDir(null);
+        setSheet(null);
+        setEditMemorial(null);
+        setTab('archive');
+        setToast('ჩანაწერი შექმნილია.');
+        setOpenCode(res.data.subject.code);
+        sfx.accept();
+      } else { setToast(('error' in res && res.error) || 'ვერ შეიქმნა'); sfx.reject(); }
     } catch { setToast('კავშირი დაიკარგა.'); sfx.reject(); }
     finally { setBusy(false); }
   }, []);
@@ -322,6 +353,12 @@ export function MarsTerminal({ onClose }: { onClose: () => void }) {
                   })}
                 </div>
               )}
+              <button onClick={() => { setEditMemorial(null); setSheet('memorial'); }}
+                className="w-full mb-3 py-2.5 rounded-xl font-mono text-[12px] font-bold transition-all active:scale-[0.98]"
+                style={{ border: '1px solid rgba(125,249,255,0.4)', background: 'rgba(125,249,255,0.10)', color: '#7df9ff' }}>
+                ✚ ჩანაწერი ადამიანზე, რომელიც აღარ არის
+              </button>
+
               {dir === null && <p className="font-mono text-[12px] text-center py-8" style={{ color: 'rgba(57,255,106,0.4)' }}>იტვირთება…</p>}
               {dir?.length === 0 && (
                 <div className="rounded-2xl p-6 text-center" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
@@ -334,11 +371,14 @@ export function MarsTerminal({ onClose }: { onClose: () => void }) {
                 {dir?.map(e => {
                   const s = sectorOf(e.sector);
                   const mine = subject?.code === e.code;
+                  const isMem = e.kind === 'memorial';
+                  const years = lifespan(e.bornYear, e.diedYear);
                   return (
-                    <div key={e.code} className="rounded-xl p-2.5 flex flex-col items-center text-center"
+                    <button key={e.code} onClick={() => setOpenCode(e.code)}
+                      className="rounded-xl p-2.5 flex flex-col items-center text-center transition-all active:scale-[0.98]"
                       style={{
-                        border: `1px solid ${mine ? s.color + '88' : s.color + '2e'}`,
-                        background: mine ? `${s.color}14` : 'rgba(255,255,255,0.025)',
+                        border: `1px solid ${mine ? s.color + '88' : isMem ? 'rgba(125,249,255,0.35)' : s.color + '2e'}`,
+                        background: mine ? `${s.color}14` : isMem ? 'rgba(125,249,255,0.05)' : 'rgba(255,255,255,0.025)',
                       }}>
                       <div className="rounded-lg overflow-hidden mb-1.5" style={{ width: 52, height: 52, border: `1px solid ${s.color}44`, background: 'rgba(0,0,0,0.35)' }}>
                         {e.portrait
@@ -349,7 +389,11 @@ export function MarsTerminal({ onClose }: { onClose: () => void }) {
                       </div>
                       <p className="font-mono text-[10px]" style={{ color: `${s.color}aa` }}>#{e.code}</p>
                       <p className="font-mono text-[11px] text-white/85 truncate w-full">{e.designation}</p>
-                      <p className="font-mono text-[9px] mt-0.5" style={{ color: s.color }}>{e.sector} · {e.integrity}%</p>
+                      {isMem
+                        ? <p className="font-mono text-[9px] mt-0.5" style={{ color: 'rgba(125,249,255,0.8)' }}>
+                            {years || 'ხსოვნა'}{e.memoryCount > 0 ? ` · ${e.memoryCount} მოგონება` : ''}
+                          </p>
+                        : <p className="font-mono text-[9px] mt-0.5" style={{ color: s.color }}>{e.sector} · {e.integrity}%</p>}
                       {/* Public signals only: that a sample is pledged and that a
                           letter exists. Never their contents. */}
                       {(e.sampleStatus !== 'none' || e.hasLetter) && (
@@ -368,7 +412,7 @@ export function MarsTerminal({ onClose }: { onClose: () => void }) {
                           )}
                         </div>
                       )}
-                    </div>
+                    </button>
                   );
                 })}
               </div>
@@ -482,6 +526,26 @@ export function MarsTerminal({ onClose }: { onClose: () => void }) {
           <MarsUploadSheet
             subject={subject} limits={limits} busy={busy}
             onCancel={() => setSheet(null)} onSubmit={doUpload}
+          />
+        )}
+
+        {sheet === 'memorial' && (
+          <MarsMemorialSheet
+            existing={editMemorial}
+            busy={busy}
+            onCancel={() => { setSheet(null); setEditMemorial(null); }}
+            onSubmit={saveMemorial}
+          />
+        )}
+
+        {openCode && (
+          <MarsRecordView
+            code={openCode}
+            onClose={() => setOpenCode(null)}
+            onEdit={rec => {
+              if (rec.kind !== 'memorial') { setOpenCode(null); setSheet('upload'); return; }
+              setOpenCode(null); setEditMemorial(rec); setSheet('memorial');
+            }}
           />
         )}
 

@@ -1,3 +1,4 @@
+import { type MemorialInput, type RecordKind } from './marsMemorial.js';
 export type TraitKey = 'logic' | 'empathy' | 'defiance' | 'entropy';
 export type Traits = Record<TraitKey, number>;
 export interface Subject {
@@ -24,6 +25,20 @@ export interface Subject {
     sampleNote: string;
     /** Who to contact about this record. Private. */
     kin: string;
+    /** 'self' = archiving yourself. 'memorial' = archiving someone who died. */
+    kind: RecordKind;
+    personFirst: string;
+    personLast: string;
+    bornYear: number | null;
+    diedYear: number | null;
+    /** For a memorial: the account that maintains it. */
+    stewardId: string | null;
+    stewardName: string;
+    stewardRelation: string;
+    /** Physical sample registry. */
+    sampleKind: string;
+    sampleCustodian: string;
+    sampleTakenAt: string;
     createdAt: number;
     updatedAt: number;
 }
@@ -36,6 +51,12 @@ export interface DirectoryEntry {
     portrait: string | null;
     sampleStatus: SampleStatus;
     hasLetter: boolean;
+    kind: RecordKind;
+    personFirst: string;
+    personLast: string;
+    bornYear: number | null;
+    diedYear: number | null;
+    memoryCount: number;
     createdAt: number;
 }
 export declare const MANIFEST_MIN = 40;
@@ -67,6 +88,9 @@ export declare const SAMPLE_NOTE_MAX = 400;
 /** Whether a biological sample exists, and where it stands. */
 export type SampleStatus = 'none' | 'pledged' | 'stored';
 export declare const SAMPLE_STATUSES: SampleStatus[];
+/** What kind of physical sample is on record. Registry only — never collected here. */
+export declare const SAMPLE_KINDS: readonly ["hair", "swab", "blood_card", "tooth", "other"];
+export declare const SAMPLE_CUSTODIAN_MAX = 120;
 export interface MarsDoc {
     name: string;
     /** 'application/pdf' or an image mime. */
@@ -100,6 +124,10 @@ export declare function dominantTrait(t: Traits): TraitKey;
  * broken or finished.
  */
 export declare function integrityOf(t: Traits, manifestLength: number): number;
+/** A record by its id, whatever kind it is. */
+export declare function getSubjectById(id: string): Promise<Subject | null>;
+/** Memorials maintained by this account. */
+export declare function listStewarded(playerId: string): Promise<Subject[]>;
 export declare function getSubject(playerId: string): Promise<Subject | null>;
 export declare function getSubjectByCode(code: string): Promise<Subject | null>;
 /**
@@ -119,8 +147,21 @@ export interface UploadInput {
     sampleStatus?: unknown;
     sampleNote?: unknown;
     kin?: unknown;
+    sampleKind?: unknown;
+    sampleCustodian?: unknown;
+    sampleTakenAt?: unknown;
 }
 export declare function upload(playerId: string, input: UploadInput): Promise<Subject>;
+/**
+ * Create or update a MEMORIAL — a record for someone who has died, kept by a
+ * relative. The steward's account owns it, but the record is about the person.
+ *
+ * The manifest here is what the family wrote about them, so it is analysed the
+ * same way (it produces a sector and an integrity, which is a reading of the
+ * writing, not of the person) and it is PUBLIC, unlike a self-record's. A
+ * memorial nobody can read is not a memorial.
+ */
+export declare function upsertMemorial(stewardId: string, stewardName: string, memorialId: string | null, person: MemorialInput, input: UploadInput): Promise<Subject>;
 /** Remove a subject. The fiction calls it purging; the database calls it DELETE. */
 export declare function purge(playerId: string): Promise<boolean>;
 /**

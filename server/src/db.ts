@@ -723,6 +723,44 @@ export async function initializeDatabase(): Promise<void> {
   await sql`ALTER TABLE mars_subjects ADD COLUMN IF NOT EXISTS sample_note TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE mars_subjects ADD COLUMN IF NOT EXISTS kin TEXT NOT NULL DEFAULT ''`;
 
+  // ── Memorials ─────────────────────────────────────────────────────────
+  // A record is either 'self' (someone archiving themselves) or 'memorial'
+  // (someone archiving a person who has died). A memorial is maintained by a
+  // steward — the relative who created it — and is publicly readable, because
+  // being visited is the whole point of it.
+  await sql`ALTER TABLE mars_subjects ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'self'`;
+  await sql`ALTER TABLE mars_subjects ADD COLUMN IF NOT EXISTS person_first TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE mars_subjects ADD COLUMN IF NOT EXISTS person_last TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE mars_subjects ADD COLUMN IF NOT EXISTS born_year INT`;
+  await sql`ALTER TABLE mars_subjects ADD COLUMN IF NOT EXISTS died_year INT`;
+  await sql`ALTER TABLE mars_subjects ADD COLUMN IF NOT EXISTS steward_id TEXT`;
+  await sql`ALTER TABLE mars_subjects ADD COLUMN IF NOT EXISTS steward_name TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE mars_subjects ADD COLUMN IF NOT EXISTS steward_relation TEXT NOT NULL DEFAULT ''`;
+  // Physical sample registry — what it is, who holds it, where.
+  await sql`ALTER TABLE mars_subjects ADD COLUMN IF NOT EXISTS sample_kind TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE mars_subjects ADD COLUMN IF NOT EXISTS sample_custodian TEXT NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE mars_subjects ADD COLUMN IF NOT EXISTS sample_taken_at TEXT NOT NULL DEFAULT ''`;
+  // A memorial's player_id is the steward's, so it must not collide with their
+  // own self-record. Drop the old single-column unique and key on (player, kind).
+  await sql`ALTER TABLE mars_subjects DROP CONSTRAINT IF EXISTS mars_subjects_player_id_key`;
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_mars_self_one ON mars_subjects(player_id) WHERE kind = 'self'`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_mars_kind ON mars_subjects(kind, created_at DESC)`;
+
+  // Memories left on a record by anyone who knew the person.
+  await sql`
+    CREATE TABLE IF NOT EXISTS mars_memories (
+      id          TEXT PRIMARY KEY,
+      subject_id  TEXT NOT NULL REFERENCES mars_subjects(id) ON DELETE CASCADE,
+      author_id   TEXT NOT NULL,
+      author_name TEXT NOT NULL,
+      relation    TEXT NOT NULL DEFAULT '',
+      text        TEXT NOT NULL,
+      photo       TEXT,
+      created_at  BIGINT NOT NULL
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_mars_memories_subject ON mars_memories(subject_id, created_at DESC)`;
+
   // ── Clan League (weekly, all-clans competition) ───────────────────────
   // Contributions are stored per player per week; the clan table is always
   // derived from them by SUM, so a player changing clan mid-week needs no

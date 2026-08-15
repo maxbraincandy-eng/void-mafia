@@ -27,10 +27,62 @@ export interface Limits {
   docsMax: number; docBytesMax: number;
   letterMax: number; restoreNoteMax: number; kinMax: number; sampleNoteMax: number;
 }
+export type RecordKind = 'self' | 'memorial';
+
+export interface Memory {
+  id: string; authorId: string; authorName: string;
+  relation: string; text: string; photo: string | null; createdAt: number;
+}
+
+/** What `mars:open` returns — the public view of a record. */
+export interface RecordView {
+  id: string; code: string; designation: string; sector: string;
+  integrity: number; traits: Traits; portrait: string | null;
+  kind: RecordKind; personFirst: string; personLast: string;
+  bornYear: number | null; diedYear: number | null;
+  stewardName: string; stewardRelation: string;
+  sampleStatus: SampleStatus; createdAt: number;
+  memoryCount: number; manifest: string; canEdit: boolean;
+}
+
+export interface PrivateFields {
+  letter: string; restoreNote: string; kin: string;
+  sampleNote: string; sampleKind: string; sampleCustodian: string; sampleTakenAt: string;
+  docs: MarsDoc[];
+}
+
+export interface Passage {
+  text: string;
+  sourceKind: 'manifest' | 'letter' | 'note' | 'memory';
+  sourceAuthor: string;
+  sourceAt: number;
+}
+export interface SpeakReply { passage: Passage | null; score: number; note: string; personName: string }
+
+/** Physical sample kinds. Registry only — nothing is collected here. */
+export const SAMPLE_KIND_LABEL: Record<string, string> = {
+  hair: 'თმის ღერი (ფესვით)',
+  swab: 'ლოყის ნაცხი',
+  blood_card: 'სისხლის ბარათი',
+  tooth: 'კბილი',
+  other: 'სხვა',
+};
+
+/** Lifespan as it would read on a stone. */
+export function lifespan(born: number | null, died: number | null): string {
+  if (born && died) return `${born} — ${died}`;
+  if (born) return `დაბ. ${born}`;
+  if (died) return `გარდ. ${died}`;
+  return '';
+}
+
 export interface DirEntry {
   code: string; designation: string; sector: string;
   integrity: number; dominant: TraitKey; portrait: string | null;
-  sampleStatus: SampleStatus; hasLetter: boolean; createdAt: number;
+  sampleStatus: SampleStatus; hasLetter: boolean;
+  kind: RecordKind; personFirst: string; personLast: string;
+  bornYear: number | null; diedYear: number | null; memoryCount: number;
+  createdAt: number;
 }
 
 /** Each axis, said in a way a person can act on. */
