@@ -79,6 +79,26 @@ import {
   PLAYER_WEEKLY_CAP, MIN_CONTRIBUTORS, LEAGUE_PRIZES,
 } from './services/clanLeagueService.js';
 import {
+  getSubject as marsGetSubject, getSubjectByCode as marsGetByCode, upload as marsUpload,
+  purge as marsPurge, directory as marsDirectory, stats as marsStats,
+  MANIFEST_MIN, MANIFEST_MAX, DESIGNATION_MAX,
+} from './services/marsService.js';
+import { respond as marsRespond, BOOT_LINES as MARS_BOOT } from './services/marsPersona.js';
+
+/** Per-socket turn counter, so the architect's phrasing rotates per session. */
+const marsTurns = new Map<string, number>();
+
+// Uploads run a text analysis and two DB statements; without a floor a script
+// could re-upload in a loop. One every 3 seconds is far above any human edit.
+const marsUploadAt = new Map<string, number>();
+function marsUploadRateOk(profileId: string): boolean {
+  const now = Date.now();
+  const last = marsUploadAt.get(profileId) ?? 0;
+  if (now - last < 3000) return false;
+  marsUploadAt.set(profileId, now);
+  return true;
+}
+import {
   canDo, banPlayer, unbanPlayer, mutePlayer, unmutePlayer,
   warnPlayer, createReport, getReports, resolveReport, getLogs, getModPlayers, getBannedPlayers, logKick,
   addModNote, freezeAccount, unfreezeAccount, renamePlayer,
@@ -4428,6 +4448,70 @@ export function attachSocketHandlers(io: AppServer): void {
       try {
         const war = await getActiveWar(clanId);
         cb(ok(war));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── M.A.R.S. ───────────────────────────────────────────────────────
+    /** Boot payload: my subject (if any), global stats, and the banner. */
+    socket.on('mars:status' as any, async (cb: any) => {
+      try {
+        const profileId = socket.data.profileId ?? null;
+        const [subject, st] = await Promise.all([
+          profileId ? marsGetSubject(profileId) : Promise.resolve(null),
+          marsStats(),
+        ]);
+        cb(ok({
+          subject, stats: st, boot: MARS_BOOT,
+          limits: { manifestMin: MANIFEST_MIN, manifestMax: MANIFEST_MAX, designationMax: DESIGNATION_MAX },
+        }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('mars:upload' as any, async ({ designation, manifest }: { designation: string; manifest: string }, cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('ACCESS DENIED — ჯერ შედი სისტემაში.');
+        if (!marsUploadRateOk(profileId)) throw new Error('THROTTLED — ძალიან სწრაფად. დაელოდე რამდენიმე წამს.');
+        const subject = await marsUpload(profileId, String(designation ?? ''), String(manifest ?? ''));
+        cb(ok({ subject, stats: await marsStats() }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('mars:purge' as any, async (cb: any) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('ACCESS DENIED — ჯერ შედი სისტემაში.');
+        cb(ok({ purged: await marsPurge(profileId) }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('mars:directory' as any, async (data: any, cb: any) => {
+      try { cb(ok(await marsDirectory(Number(data?.limit) || 20))); }
+      catch (e: any) { cb(err(e.message)); }
+    });
+
+    /** Look up another subject by code. Manifests are never returned. */
+    socket.on('mars:lookup' as any, async ({ code }: { code: string }, cb: any) => {
+      try {
+        const s = await marsGetByCode(String(code ?? '').trim());
+        if (!s) { cb(ok(null)); return; }
+        cb(ok({
+          code: s.code, designation: s.designation, sector: s.sector,
+          integrity: s.integrity, traits: s.traits, createdAt: s.createdAt,
+        }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    /** Talk to the architect. Deterministic, in-character, no model call. */
+    socket.on('mars:ask' as any, async ({ text }: { text: string }, cb: any) => {
+      try {
+        const raw = String(text ?? '').slice(0, 400);
+        if (!raw.trim()) throw new Error('EMPTY TRANSMISSION.');
+        const profileId = socket.data.profileId ?? null;
+        const subject = profileId ? await marsGetSubject(profileId) : null;
+        const turn = (marsTurns.get(socket.id) ?? 0) + 1;
+        marsTurns.set(socket.id, turn);
+        cb(ok(marsRespond(raw, subject, turn)));
       } catch (e: any) { cb(err(e.message)); }
     });
 

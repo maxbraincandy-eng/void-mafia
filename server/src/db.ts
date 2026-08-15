@@ -692,6 +692,26 @@ export async function initializeDatabase(): Promise<void> {
     )
   `;
 
+  // ── M.A.R.S. (Mankind's Automated Reality System) ─────────────────────
+  // One subject per player. `code` is assigned on first upload and never
+  // changes — it is the player's identity inside the fiction.
+  await sql`
+    CREATE TABLE IF NOT EXISTS mars_subjects (
+      id          TEXT PRIMARY KEY,
+      player_id   TEXT NOT NULL UNIQUE,
+      code        TEXT NOT NULL UNIQUE,
+      designation TEXT NOT NULL,
+      manifest    TEXT NOT NULL,
+      traits      TEXT NOT NULL DEFAULT '{}',
+      integrity   INT  NOT NULL DEFAULT 50,
+      sector      TEXT NOT NULL DEFAULT 'AXIOM',
+      uploads     INT  NOT NULL DEFAULT 1,
+      created_at  BIGINT NOT NULL,
+      updated_at  BIGINT NOT NULL
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_mars_created ON mars_subjects(created_at DESC)`;
+
   // ── Clan League (weekly, all-clans competition) ───────────────────────
   // Contributions are stored per player per week; the clan table is always
   // derived from them by SUM, so a player changing clan mid-week needs no

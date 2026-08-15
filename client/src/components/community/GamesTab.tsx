@@ -14,6 +14,7 @@ const LogicAcademy = lazy(() => import('@/components/logic/LogicAcademy').then(m
 const MergeEvolution = lazy(() => import('@/components/merge/MergeEvolution').then(m => ({ default: m.MergeEvolution })));
 const MaxPuzzleExperience = lazy(() => import('@/components/maxpuzzle/MaxPuzzleExperience').then(m => ({ default: m.MaxPuzzleExperience })));
 const NoirAdventure = lazy(() => import('@/components/noir/NoirAdventure').then(m => ({ default: m.NoirAdventure })));
+const MarsTerminal = lazy(() => import('@/components/mars/MarsTerminal').then(m => ({ default: m.MarsTerminal })));
 import { IQLogo } from '@/components/iq/IQLogo';
 import { LogicLogo } from '@/components/logic/LogicLogo';
 import { EvolutionCore } from '@/components/merge/art';
@@ -111,6 +112,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   const [deathrunOpen, setDeathrunOpen] = useState(false);
   const [logicOpen, setLogicOpen] = useState(false);
   const [noirOpen, setNoirOpen] = useState(false);
+  const [marsOpen, setMarsOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
 
   // ── Checkers ────────────────────────────────────────────────────────
@@ -339,6 +341,8 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
     { id: 'philosophy', title: 'ფილოსოფიური ცდები', sub: `აზროვნების ექსპერიმენტები`, cat: 'mind', kind: 'launch', accent: '#a88cff', logo: 'philosophy', emoji: '🌀', badge: true, keywords: 'philosophy ფილოსოფია ცდა thought experiment ცნობიერება', launch: () => setPhiloHubOpen(true) },
     { id: 'philotest', title: 'ფილოსოფიური პიროვნების ტესტი', sub: 'ვინ ხარ, როცა ირჩევ', cat: 'mind', kind: 'launch', accent: '#8b5cff', logo: 'sage', emoji: '🎭', badge: true, keywords: 'personality პიროვნება ტესტი ფილოსოფია არქეტიპი profile', launch: () => setPhiloTestOpen(true) },
     { id: 'aristocracy', title: t.games.aristocracy.title, sub: t.games.aristocracy.subtitle, cat: 'mind', kind: 'launch', accent: '#e8cf7a', emoji: '👑', keywords: 'aristocracy ტესტი quiz', launch: () => setAristocracyOpen(true) },
+
+    { id: 'mars', title: 'M.A.R.S.', sub: 'ატვირთე ცნობიერება · ტერმინალი', cat: 'mind', kind: 'launch', accent: '#39ff6a', emoji: '🖥', badge: true, keywords: 'mars terminal matrix cyberpunk ცნობიერება ატვირთვა სიმულაცია ტერმინალი მატრიცა', launch: () => setMarsOpen(true) },
 
     { id: 'maxpuzzle', title: 'ბატონი მაქსის თავსატეხი', sub: 'კითხვები სწორი პასუხების გარეშე', cat: 'maxpuzzle', kind: 'launch', accent: '#d9b45a', logo: 'maxseal', badge: true, keywords: 'max puzzle თავსატეხი დილემა ფსიქოლოგია პროფილი არქეტიპი mr max', launch: () => setMaxPuzzleOpen(true) },
 
@@ -585,6 +589,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
       {deathrunOpen && <Suspense fallback={null}><DeathrunGame nickname={playerName} onClose={() => setDeathrunOpen(false)} /></Suspense>}
       {logicOpen && <Suspense fallback={null}><LogicAcademy onClose={() => setLogicOpen(false)} /></Suspense>}
       {noirOpen && <Suspense fallback={null}><NoirAdventure onClose={() => setNoirOpen(false)} /></Suspense>}
+      {marsOpen && <Suspense fallback={null}><MarsTerminal onClose={() => setMarsOpen(false)} /></Suspense>}
       {mergeOpen && <Suspense fallback={null}><MergeEvolution onClose={() => setMergeOpen(false)} /></Suspense>}
       {aristocracyOpen && <Suspense fallback={null}><AristocracyTest onClose={() => setAristocracyOpen(false)} /></Suspense>}
     </div>
