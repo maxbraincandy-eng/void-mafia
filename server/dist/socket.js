@@ -4697,6 +4697,9 @@ export function attachSocketHandlers(io) {
                     portrait: data?.portrait, docs: data?.docs,
                     letter: data?.letter, restoreNote: data?.restoreNote,
                     sampleStatus: data?.sampleStatus, sampleNote: data?.sampleNote, kin: data?.kin,
+                    sampleKind: data?.sampleKind, sampleCustodian: data?.sampleCustodian,
+                    sampleTakenAt: data?.sampleTakenAt,
+                    lifeStatus: data?.lifeStatus, bornYear: data?.bornYear, diedYear: data?.diedYear,
                 });
                 cb(ok({ subject, stats: await marsStats() }));
             }
@@ -4807,6 +4810,7 @@ export function attachSocketHandlers(io) {
                                 id: s.id, code: s.code, designation: '', sector: s.sector, integrity: 0,
                                 traits: { logic: 0, empathy: 0, defiance: 0, entropy: 0 }, portrait: null,
                                 kind: s.kind, personFirst: '', personLast: '', bornYear: null, diedYear: null,
+                                lifeStatus: s.lifeStatus,
                                 stewardName: '', stewardRelation: '', sampleStatus: 'none',
                                 createdAt: s.createdAt, memoryCount: 0, manifest: '', canEdit: false,
                                 withdrawn: true,
@@ -4826,7 +4830,7 @@ export function attachSocketHandlers(io) {
                     id: s.id, code: s.code, designation: s.designation, sector: s.sector,
                     integrity: s.integrity, traits: s.traits, portrait: s.portrait,
                     kind: s.kind, personFirst: s.personFirst, personLast: s.personLast,
-                    bornYear: s.bornYear, diedYear: s.diedYear,
+                    bornYear: s.bornYear, diedYear: s.diedYear, lifeStatus: s.lifeStatus,
                     stewardName: s.stewardName, stewardRelation: s.stewardRelation,
                     sampleStatus: s.sampleStatus, createdAt: s.createdAt,
                     memoryCount: memories.length,

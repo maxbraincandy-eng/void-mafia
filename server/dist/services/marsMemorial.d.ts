@@ -54,7 +54,21 @@ export interface SpeakReply {
     score: number;
     /** Said in the system's own voice, never in the person's. */
     note: string;
+    /**
+     * Words this record can actually answer about, drawn from its own text.
+     * A retrieval system that only ever says "no" reads as broken; showing what
+     * IS there turns a dead end into a next question.
+     */
+    topics?: string[];
+    /** True when the record simply has too little in it to answer anything. */
+    thin?: boolean;
 }
+/**
+ * The most distinctive words the record contains — what it can be asked about.
+ * Frequency-ranked over content words, longest first as a tie-break so the
+ * suggestions read like subjects rather than particles.
+ */
+export declare function topicsOf(corpus: Passage[], limit?: number): string[];
 /**
  * Find the passage in a record that best answers a question.
  *

@@ -22,7 +22,7 @@
 import { useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { compressImage } from '@/lib/imageUtils';
-import { fileSize, SAMPLE_INFO, type Limits, type MarsDoc, type SampleStatus, type Subject } from './types';
+import { fileSize, SAMPLE_INFO, LIFE_INFO, type LifeStatus, type Limits, type MarsDoc, type SampleStatus, type Subject } from './types';
 import * as sfx from './sfx';
 
 /** Prompts to write against — this is the fix for "I typed my name again". */
@@ -63,6 +63,7 @@ export function MarsUploadSheet({
   onSubmit: (v: {
     designation: string; manifest: string; portrait: string | null; docs: MarsDoc[];
     letter: string; restoreNote: string; sampleStatus: SampleStatus; sampleNote: string; kin: string;
+    lifeStatus: LifeStatus; bornYear: string; diedYear: string;
   }) => void;
 }) {
   const [designation, setDesignation] = useState(subject?.designation ?? '');
@@ -74,6 +75,9 @@ export function MarsUploadSheet({
   const [sampleStatus, setSampleStatus] = useState<SampleStatus>(subject?.sampleStatus ?? 'none');
   const [sampleNote, setSampleNote] = useState(subject?.sampleNote ?? '');
   const [kin, setKin] = useState(subject?.kin ?? '');
+  const [lifeStatus, setLifeStatus] = useState<LifeStatus>(subject?.lifeStatus ?? 'alive');
+  const [bornYear, setBornYear] = useState(subject?.bornYear ? String(subject.bornYear) : '');
+  const [diedYear, setDiedYear] = useState(subject?.diedYear ? String(subject.diedYear) : '');
   const [showPreserve, setShowPreserve] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
@@ -83,7 +87,10 @@ export function MarsUploadSheet({
   const docInput = useRef<HTMLInputElement | null>(null);
 
   const len = manifest.trim().length;
-  const ready = len >= limits.manifestMin && designation.trim().length >= 2;
+  // A deceased record must carry a death year — that is the one fact the status
+  // asserts. A living one is asked for no dates at all.
+  const datesOk = lifeStatus === 'alive' || diedYear.trim().length === 4;
+  const ready = len >= limits.manifestMin && designation.trim().length >= 2 && datesOk;
   const pct = Math.min(100, (len / limits.manifestMin) * 100);
 
   const pickPortrait = async (file: File | undefined) => {
@@ -146,6 +153,7 @@ export function MarsUploadSheet({
     if (!ready) {
       setError(len < limits.manifestMin
         ? `მანიფესტი ძალიან მოკლეა — გჭირდება კიდევ ${limits.manifestMin - len} სიმბოლო.`
+        : !datesOk ? 'გარდაცვალების წელი აუცილებელია.'
         : 'სახელი ძალიან მოკლეა — მინიმუმ 2 სიმბოლო.');
       sfx.reject();
       manifestRef.current?.focus();
@@ -155,6 +163,7 @@ export function MarsUploadSheet({
       designation: designation.trim(), manifest: manifest.trim(), portrait, docs,
       letter: letter.trim(), restoreNote: restoreNote.trim(), sampleStatus,
       sampleNote: sampleNote.trim(), kin: kin.trim(),
+      lifeStatus, bornYear: bornYear.trim(), diedYear: lifeStatus === 'alive' ? '' : diedYear.trim(),
     });
   };
 
@@ -226,6 +235,39 @@ export function MarsUploadSheet({
             )}
           </div>
         </div>
+
+        {/* Status. A record can be switched later — that is how someone's own
+            archive becomes a memorial without being rebuilt. */}
+        <label className="block font-mono text-[11px] mt-3 mb-1.5" style={{ color: 'rgba(120,255,160,0.7)' }}>
+          სტატუსი
+        </label>
+        <div className="flex gap-1.5">
+          {(['alive', 'deceased'] as LifeStatus[]).map(v => {
+            const info = LIFE_INFO[v];
+            const on = lifeStatus === v;
+            return (
+              <button key={v} onClick={() => setLifeStatus(v)}
+                className="flex-1 py-2 rounded-lg font-mono text-[12px] transition-all active:scale-95"
+                style={{
+                  border: `1px solid rgba(${info.color},${on ? 0.55 : 0.16})`,
+                  background: on ? `rgba(${info.color},0.14)` : 'rgba(255,255,255,0.03)',
+                  color: on ? `rgb(${info.color})` : 'rgba(255,255,255,0.45)',
+                }}>
+                {info.icon} {info.label}
+              </button>
+            );
+          })}
+        </div>
+        {lifeStatus === 'deceased' && (
+          <div className="flex gap-2 mt-2">
+            <input value={bornYear} onChange={e => setBornYear(e.target.value.replace(/\D/g, '').slice(0, 4))}
+              inputMode="numeric" placeholder="დაბადების წელი"
+              className="flex-1 rounded-lg px-3 py-2 font-mono text-[13px] outline-none" style={field} />
+            <input value={diedYear} onChange={e => setDiedYear(e.target.value.replace(/\D/g, '').slice(0, 4))}
+              inputMode="numeric" placeholder="გარდაცვალების *"
+              className="flex-1 rounded-lg px-3 py-2 font-mono text-[13px] outline-none" style={field} />
+          </div>
+        )}
 
         {/* 2 — the manifest */}
         <label className="block font-mono text-[11px] mt-3 mb-1" style={{ color: 'rgba(120,255,160,0.7)' }}>

@@ -35,6 +35,8 @@ export interface Subject {
     stewardId: string | null;
     stewardName: string;
     stewardRelation: string;
+    /** Alive or deceased. Independent of who created the record. */
+    lifeStatus: LifeStatus;
     /** Physical sample registry. */
     sampleKind: string;
     sampleCustodian: string;
@@ -59,6 +61,7 @@ export interface DirectoryEntry {
     personLast: string;
     bornYear: number | null;
     diedYear: number | null;
+    lifeStatus: LifeStatus;
     memoryCount: number;
     createdAt: number;
 }
@@ -90,6 +93,9 @@ export declare const KIN_MAX = 200;
 export declare const SAMPLE_NOTE_MAX = 400;
 /** Whether a biological sample exists, and where it stands. */
 export type SampleStatus = 'none' | 'pledged' | 'stored';
+/** Whether this record is of a living person or someone who has died. */
+export type LifeStatus = 'alive' | 'deceased';
+export declare const LIFE_STATUSES: LifeStatus[];
 export declare const SAMPLE_STATUSES: SampleStatus[];
 /** What kind of physical sample is on record. Registry only — never collected here. */
 export declare const SAMPLE_KINDS: readonly ["hair", "swab", "blood_card", "tooth", "other"];
@@ -113,6 +119,24 @@ export declare function sanitisePortrait(raw: unknown): string | null;
 export declare function sanitiseDocs(raw: unknown): MarsDoc[];
 /** Sector names, one per dominant trait. */
 export declare const SECTORS: Record<TraitKey, string>;
+/**
+ * Normalise life status and the two years together, because they constrain
+ * each other.
+ *
+ * A living person is not asked for dates at all — requiring a birth year to
+ * archive yourself is a pointless barrier. A record marked deceased must carry
+ * a death year, since that is the one fact the status asserts; the birth year
+ * stays optional because a family often does not know it, and refusing the
+ * record over that would be cruel.
+ *
+ * Marking a record alive CLEARS any death year rather than leaving it behind —
+ * a living person with a date of death on file is the worst possible bug here.
+ */
+export declare function normaliseLife(statusRaw: unknown, bornRaw: unknown, diedRaw: unknown, nowYear?: number): {
+    lifeStatus: LifeStatus;
+    bornYear: number | null;
+    diedYear: number | null;
+};
 /** A subject code derived from the player id: same player, same code, forever. */
 export declare function codeFor(playerId: string, salt?: number): string;
 /**
@@ -153,6 +177,9 @@ export interface UploadInput {
     sampleKind?: unknown;
     sampleCustodian?: unknown;
     sampleTakenAt?: unknown;
+    lifeStatus?: unknown;
+    bornYear?: unknown;
+    diedYear?: unknown;
 }
 export declare function upload(playerId: string, input: UploadInput): Promise<Subject>;
 /**

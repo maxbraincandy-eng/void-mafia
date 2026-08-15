@@ -161,6 +161,43 @@ export interface SpeakReply {
   score: number;
   /** Said in the system's own voice, never in the person's. */
   note: string;
+  /**
+   * Words this record can actually answer about, drawn from its own text.
+   * A retrieval system that only ever says "no" reads as broken; showing what
+   * IS there turns a dead end into a next question.
+   */
+  topics?: string[];
+  /** True when the record simply has too little in it to answer anything. */
+  thin?: boolean;
+}
+
+/** Greetings are not questions. Answering them with "no match" reads as broken. */
+const GREETINGS = ['გამარჯობა', 'სალამი', 'ჰეი', 'როგორ ხარ', 'hello', 'hi', 'hey'];
+function isGreeting(text: string): boolean {
+  const t = text.toLowerCase().replace(/[^\p{L}\s]/gu, ' ').trim();
+  return GREETINGS.some(g => t === g || t.startsWith(g + ' ') || t.endsWith(' ' + g));
+}
+
+/**
+ * The most distinctive words the record contains — what it can be asked about.
+ * Frequency-ranked over content words, longest first as a tie-break so the
+ * suggestions read like subjects rather than particles.
+ */
+export function topicsOf(corpus: Passage[], limit = 6): string[] {
+  const freq = new Map<string, { n: number; word: string }>();
+  for (const p of corpus) {
+    for (const w of tokens(p.text)) {
+      if (w.length < 4) continue;
+      const k = stem(w);
+      const cur = freq.get(k);
+      if (cur) { cur.n++; if (w.length > cur.word.length) cur.word = w; }
+      else freq.set(k, { n: 1, word: w });
+    }
+  }
+  return [...freq.values()]
+    .sort((a, b) => (b.n - a.n) || (b.word.length - a.word.length))
+    .slice(0, limit)
+    .map(v => v.word);
 }
 
 /** Words too common to carry meaning when matching. Georgian + English. */
@@ -266,14 +303,29 @@ export function buildCorpus(args: {
  * "I wrote". The distinction is the whole ethical basis of the feature.
  */
 export function speak(question: string, personName: string, corpus: Passage[]): SpeakReply {
+  const topics = topicsOf(corpus);
+  const thin = corpus.length < 3;
+
+  // A greeting is not a question. Meeting it with "the record has no answer"
+  // is the single most common way this feature looks broken on first contact.
+  if (isGreeting(question)) {
+    return {
+      passage: null, score: 0, topics, thin,
+      note: corpus.length === 0
+        ? `${personName}-ის ჩანაწერში ჯერ არაფერია. დაამატე ტექსტი ან მოგონება და მერე დამეკითხე.`
+        : `ეს ჩანაწერი კითხვებს პასუხობს იმით, რაც მასშია დაწერილი. ჰკითხე რამე კონკრეტული — მაგალითად: ${topics.slice(0, 3).join(', ')}.`,
+    };
+  }
+
   const { passage, score } = findPassage(question, corpus);
   if (!passage) {
     return {
-      passage: null,
-      score,
+      passage: null, score, topics, thin,
       note: corpus.length === 0
         ? `${personName}-ის ჩანაწერში ჯერ არაფერია. დაამატე მოგონება და ის აქ გაჩნდება.`
-        : `ამ კითხვაზე პასუხი ${personName}-ის ჩანაწერში არ არის. მე არაფერს გამოვიგონებ მის ნაცვლად.`,
+        : thin
+          ? `ამ ჩანაწერში ჯერ ძალიან ცოტა წერია, ამიტომ ბევრ კითხვას ვერ ვუპასუხებ. დაამატე ტექსტი ან მოგონებები.`
+          : `ამ კითხვაზე პასუხი ${personName}-ის ჩანაწერში არ არის — და მე არაფერს გამოვიგონებ. სცადე: ${topics.slice(0, 3).join(', ')}.`,
     };
   }
   const who = passage.sourceKind === 'memory'
@@ -283,5 +335,5 @@ export function speak(question: string, personName: string, corpus: Passage[]): 
       : passage.sourceKind === 'note'
         ? `${personName}-ის ჩანაწერებიდან`
         : `${personName}-ის მანიფესტიდან`;
-  return { passage, score, note: who };
+  return { passage, score, note: who, topics, thin };
 }

@@ -14,7 +14,7 @@
 import { useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { compressImage } from '@/lib/imageUtils';
-import { SAMPLE_INFO, SAMPLE_KIND_LABEL, type RecordView, type SampleStatus } from './types';
+import { SAMPLE_INFO, SAMPLE_KIND_LABEL, LIFE_INFO, type LifeStatus, type RecordView, type SampleStatus } from './types';
 import * as sfx from './sfx';
 
 const IMAGE_ACCEPT = 'image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif';
@@ -31,6 +31,7 @@ const PROMPTS = [
 
 export interface MemorialDraft {
   memorialId: string | null;
+  lifeStatus: LifeStatus;
   personFirst: string; personLast: string;
   bornYear: string; diedYear: string;
   stewardRelation: string;
@@ -57,6 +58,7 @@ export function MarsMemorialSheet({
   const [born, setBorn] = useState(existing?.bornYear ? String(existing.bornYear) : '');
   const [died, setDied] = useState(existing?.diedYear ? String(existing.diedYear) : '');
   const [relation, setRelation] = useState(existing?.stewardRelation ?? '');
+  const [lifeStatus, setLifeStatus] = useState<LifeStatus>(existing?.lifeStatus ?? 'deceased');
   const [story, setStory] = useState(existing?.manifest ?? '');
   const [portrait, setPortrait] = useState<string | null>(existing?.portrait ?? null);
   const [sampleStatus, setSampleStatus] = useState<SampleStatus>(existing?.sampleStatus ?? 'none');
@@ -73,7 +75,10 @@ export function MarsMemorialSheet({
   const portraitInput = useRef<HTMLInputElement | null>(null);
 
   const len = story.trim().length;
-  const ready = first.trim().length >= 2 && last.trim().length >= 2 && len >= STORY_MIN;
+  // Only a deceased record needs a death year; a living person is asked for
+  // nothing beyond a name.
+  const datesOk = lifeStatus === 'alive' || died.trim().length === 4;
+  const ready = first.trim().length >= 2 && last.trim().length >= 2 && len >= STORY_MIN && datesOk;
 
   const pickPortrait = async (f: File | undefined) => {
     if (!f) return;
@@ -87,14 +92,16 @@ export function MarsMemorialSheet({
     if (!ready) {
       setError(len < STORY_MIN
         ? `ტექსტი ძალიან მოკლეა — გჭირდება კიდევ ${STORY_MIN - len} სიმბოლო.`
+        : !datesOk ? 'გარდაცვალების წელი აუცილებელია.'
         : 'სახელი და გვარი აუცილებელია.');
       sfx.reject();
       return;
     }
     onSubmit({
       memorialId: existing?.id ?? null,
+      lifeStatus,
       personFirst: first.trim(), personLast: last.trim(),
-      bornYear: born.trim(), diedYear: died.trim(),
+      bornYear: born.trim(), diedYear: lifeStatus === 'alive' ? '' : died.trim(),
       stewardRelation: relation.trim(),
       manifest: story.trim(), portrait,
       sampleStatus, sampleKind, sampleCustodian: custodian.trim(),
@@ -130,8 +137,8 @@ export function MarsMemorialSheet({
             style={{ border: '1px solid rgba(125,249,255,0.22)', color: 'rgba(125,249,255,0.7)' }}>✕</button>
         </div>
         <p className="font-mono text-[11px] mb-3 leading-relaxed" style={{ color: 'rgba(255,255,255,0.45)' }}>
-          შექმენი ჩანაწერი ადამიანზე, რომელიც აღარ არის. ის საჯარო იქნება — ვისაც ის უყვარდა,
-          შეძლებს მოსვლას, მოგონების დამატებას და ჩანაწერისთვის კითხვის დასმას.
+          შექმენი ჩანაწერი ადამიანზე — ცოცხალზე ან იმაზე, ვინც აღარ არის. ის საჯარო იქნება:
+          ვისაც ის უყვარს, შეძლებს მოსვლას, მოგონების დამატებას და ჩანაწერისთვის კითხვის დასმას.
         </p>
 
         {/* Identity */}
@@ -158,14 +165,34 @@ export function MarsMemorialSheet({
           </div>
         </div>
 
-        <div className="flex gap-2 mt-2">
-          <input value={born} onChange={e => setBorn(e.target.value.replace(/\D/g, '').slice(0, 4))}
-            inputMode="numeric" placeholder="დაბადების წელი"
-            className="flex-1 rounded-lg px-3 py-2 font-mono text-[13px] outline-none" style={field} />
-          <input value={died} onChange={e => setDied(e.target.value.replace(/\D/g, '').slice(0, 4))}
-            inputMode="numeric" placeholder="გარდაცვალების"
-            className="flex-1 rounded-lg px-3 py-2 font-mono text-[13px] outline-none" style={field} />
+        {/* Status first: it decides whether dates are asked for at all. */}
+        <div className="flex gap-1.5 mt-3">
+          {(['alive', 'deceased'] as LifeStatus[]).map(v => {
+            const info = LIFE_INFO[v];
+            const on = lifeStatus === v;
+            return (
+              <button key={v} onClick={() => setLifeStatus(v)}
+                className="flex-1 py-2 rounded-lg font-mono text-[12px] transition-all active:scale-95"
+                style={{
+                  border: `1px solid rgba(${info.color},${on ? 0.55 : 0.16})`,
+                  background: on ? `rgba(${info.color},0.14)` : 'rgba(255,255,255,0.03)',
+                  color: on ? `rgb(${info.color})` : 'rgba(255,255,255,0.45)',
+                }}>
+                {info.icon} {info.label}
+              </button>
+            );
+          })}
         </div>
+        {lifeStatus === 'deceased' && (
+          <div className="flex gap-2 mt-2">
+            <input value={born} onChange={e => setBorn(e.target.value.replace(/\D/g, '').slice(0, 4))}
+              inputMode="numeric" placeholder="დაბადების წელი"
+              className="flex-1 rounded-lg px-3 py-2 font-mono text-[13px] outline-none" style={field} />
+            <input value={died} onChange={e => setDied(e.target.value.replace(/\D/g, '').slice(0, 4))}
+              inputMode="numeric" placeholder="გარდაცვალების *"
+              className="flex-1 rounded-lg px-3 py-2 font-mono text-[13px] outline-none" style={field} />
+          </div>
+        )}
         <input value={relation} onChange={e => setRelation(e.target.value.slice(0, 40))}
           placeholder="ვინ ხარ მისთვის (შვილი, მეუღლე, მეგობარი…)"
           className="w-full mt-2 rounded-lg px-3 py-2 font-mono text-[13px] outline-none" style={field} />

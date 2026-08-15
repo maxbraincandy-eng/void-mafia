@@ -736,6 +736,13 @@ export async function initializeDatabase(): Promise<void> {
   await sql`ALTER TABLE mars_subjects ADD COLUMN IF NOT EXISTS steward_id TEXT`;
   await sql`ALTER TABLE mars_subjects ADD COLUMN IF NOT EXISTS steward_name TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE mars_subjects ADD COLUMN IF NOT EXISTS steward_relation TEXT NOT NULL DEFAULT ''`;
+  // Alive or deceased, independent of who created the record: a person can
+  // archive themselves while living, and a record can later be switched by its
+  // owner. Defaults to 'alive' — a new self-record is someone who is here.
+  await sql`ALTER TABLE mars_subjects ADD COLUMN IF NOT EXISTS life_status TEXT NOT NULL DEFAULT 'alive'`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_mars_life ON mars_subjects(life_status, created_at DESC)`;
+  // Existing memorials were all created for people who had died.
+  await sql`UPDATE mars_subjects SET life_status = 'deceased' WHERE kind = 'memorial' AND life_status = 'alive'`;
   // Physical sample registry — what it is, who holds it, where.
   await sql`ALTER TABLE mars_subjects ADD COLUMN IF NOT EXISTS sample_kind TEXT NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE mars_subjects ADD COLUMN IF NOT EXISTS sample_custodian TEXT NOT NULL DEFAULT ''`;

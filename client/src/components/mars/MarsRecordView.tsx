@@ -18,7 +18,7 @@ import { emitWithAck } from '@/lib/socket';
 import { compressImage } from '@/lib/imageUtils';
 import type { Res } from '@/types/index';
 import {
-  lifespan, sectorOf, SAMPLE_INFO, SAMPLE_KIND_LABEL, REPORT_REASON_LABEL,
+  lifespan, sectorOf, SAMPLE_INFO, SAMPLE_KIND_LABEL, REPORT_REASON_LABEL, LIFE_INFO,
   type Memory, type PrivateFields, type RecordView, type SpeakReply,
 } from './types';
 import * as sfx from './sfx';
@@ -61,6 +61,7 @@ export function MarsRecordView({
 
   const [question, setQuestion] = useState('');
   const [replies, setReplies] = useState<Array<{ q: string; r: SpeakReply }>>([]);
+  const [topics, setTopics] = useState<string[]>([]);
   const speakRef = useRef<HTMLDivElement | null>(null);
 
   const load = useCallback(async () => {
@@ -78,6 +79,18 @@ export function MarsRecordView({
   }, [code]);
 
   useEffect(() => { void load(); }, [load]);
+
+  // Ask once with an empty-ish probe when the speak tab opens, purely to learn
+  // what the record can answer. Cheap, and it means the chips are there before
+  // the visitor's first question rather than after their first dead end.
+  useEffect(() => {
+    if (tab !== 'speak' || !rec || topics.length > 0) return;
+    let alive = true;
+    emitWithAck<{ code: string; text: string }, Res<SpeakReply>>('mars:speak', { code: rec.code, text: 'გამარჯობა' })
+      .then(r => { if (alive && 'ok' in r && r.ok && r.data.topics?.length) setTopics(r.data.topics); })
+      .catch(() => { /* chips are optional */ });
+    return () => { alive = false; };
+  }, [tab, rec, topics.length]);
   useEffect(() => {
     const el = speakRef.current;
     if (el) el.scrollTop = el.scrollHeight;
@@ -112,7 +125,11 @@ export function MarsRecordView({
     setBusy(true); setQuestion('');
     try {
       const res = await emitWithAck<{ code: string; text: string }, Res<SpeakReply>>('mars:speak', { code: rec.code, text: q });
-      if ('ok' in res && res.ok) { setReplies(r => [...r, { q, r: res.data }]); sfx.beep(560); }
+      if ('ok' in res && res.ok) {
+        setReplies(r => [...r, { q, r: res.data }]);
+        if (res.data.topics?.length) setTopics(res.data.topics);
+        sfx.beep(560);
+      }
     } catch { /* leave */ }
     finally { setBusy(false); }
   };
@@ -180,7 +197,17 @@ export function MarsRecordView({
               </div>}
         </div>
         <p className="font-display font-bold text-[20px] text-white leading-tight">{name}</p>
-        {years && <p className="font-mono text-[13px] mt-0.5" style={{ color: 'rgba(255,255,255,0.55)' }}>{years}</p>}
+        {rec.lifeStatus === 'deceased' && years && (
+          <p className="font-mono text-[13px] mt-0.5" style={{ color: 'rgba(255,255,255,0.55)' }}>{years}</p>
+        )}
+        <span className="inline-block mt-1 font-mono text-[10px] px-2 py-0.5 rounded-full"
+          style={{
+            border: `1px solid rgba(${LIFE_INFO[rec.lifeStatus].color},0.4)`,
+            background: `rgba(${LIFE_INFO[rec.lifeStatus].color},0.10)`,
+            color: `rgb(${LIFE_INFO[rec.lifeStatus].color})`,
+          }}>
+          {LIFE_INFO[rec.lifeStatus].icon} {LIFE_INFO[rec.lifeStatus].label}
+        </span>
         <p className="font-mono text-[10px] mt-1" style={{ color: `${sec.color}aa` }}>#{rec.code}</p>
         {isMemorial && rec.stewardName && (
           <p className="font-mono text-[10px] mt-1" style={{ color: 'rgba(255,255,255,0.3)' }}>
@@ -378,6 +405,21 @@ export function MarsRecordView({
             ))}
             {busy && <p className="font-mono text-[11px]" style={{ color: 'rgba(255,255,255,0.4)' }}>▚ …</p>}
           </div>
+
+          {/* What this record can actually answer, taken from its own text. A
+              retrieval system that only ever says "no" reads as broken; showing
+              what IS there turns a dead end into the next question. */}
+          {topics.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-3">
+              {topics.slice(0, 6).map(t => (
+                <button key={t} onClick={() => void ask(t)} disabled={busy}
+                  className="font-mono text-[11px] px-2 py-1 rounded-lg transition-all active:scale-95 disabled:opacity-40"
+                  style={{ border: `1px solid ${sec.color}44`, background: `${sec.color}0d`, color: sec.color }}>
+                  {t}
+                </button>
+              ))}
+            </div>
+          )}
 
           <div className="flex gap-2 mt-3">
             <input

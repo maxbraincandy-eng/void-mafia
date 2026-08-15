@@ -39,7 +39,7 @@ import { MarsCard } from './MarsCard';
 import { MarsUploadSheet } from './MarsUploadSheet';
 import { MarsMemorialSheet, type MemorialDraft } from './MarsMemorialSheet';
 import { MarsRecordView } from './MarsRecordView';
-import { sectorOf, SAMPLE_INFO, lifespan, type DirEntry, type Limits, type MarsDoc, type RecordView, type SampleStatus, type Stats, type Subject } from './types';
+import { sectorOf, SAMPLE_INFO, LIFE_INFO, lifespan, type DirEntry, type LifeStatus, type Limits, type MarsDoc, type RecordView, type SampleStatus, type Stats, type Subject } from './types';
 import * as sfx from './sfx';
 
 type Tab = 'card' | 'archive' | 'architect';
@@ -65,6 +65,8 @@ export function MarsTerminal({ onClose }: { onClose: () => void }) {
   const [bootLines, setBootLines] = useState<string[]>([]);
   const [sheet, setSheet] = useState<null | 'upload' | 'about' | 'purge' | 'memorial'>(null);
   const [openCode, setOpenCode] = useState<string | null>(null);
+  const [lifeTab, setLifeTab] = useState<LifeStatus>('alive');
+  const touchX = useRef<number | null>(null);
   const [editMemorial, setEditMemorial] = useState<RecordView | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [glitching, setGlitching] = useState(false);
@@ -167,6 +169,7 @@ export function MarsTerminal({ onClose }: { onClose: () => void }) {
   const doUpload = useCallback(async (v: {
     designation: string; manifest: string; portrait: string | null; docs: MarsDoc[];
     letter: string; restoreNote: string; sampleStatus: SampleStatus; sampleNote: string; kin: string;
+    lifeStatus: LifeStatus; bornYear: string; diedYear: string;
   }) => {
     setBusy(true);
     try {
@@ -189,6 +192,7 @@ export function MarsTerminal({ onClose }: { onClose: () => void }) {
     try {
       const res = await emitWithAck<any, Res<{ subject: Subject; stats: Stats }>>('mars:memorial_save', {
         memorialId: v.memorialId,
+        lifeStatus: v.lifeStatus,
         personFirst: v.personFirst, personLast: v.personLast,
         bornYear: v.bornYear || null, diedYear: v.diedYear || null,
         stewardRelation: v.stewardRelation,
@@ -239,6 +243,7 @@ export function MarsTerminal({ onClose }: { onClose: () => void }) {
   }, [busy]);
 
   const sec = subject ? sectorOf(subject.sector) : null;
+  const shown = dir?.filter(e => e.lifeStatus === lifeTab) ?? null;
 
   // PORTALLED TO <body> ON PURPOSE.
   // This renders from inside GamesPage, whose motion.div animates `y` — and an
@@ -356,19 +361,54 @@ export function MarsTerminal({ onClose }: { onClose: () => void }) {
               <button onClick={() => { setEditMemorial(null); setSheet('memorial'); }}
                 className="w-full mb-3 py-2.5 rounded-xl font-mono text-[12px] font-bold transition-all active:scale-[0.98]"
                 style={{ border: '1px solid rgba(125,249,255,0.4)', background: 'rgba(125,249,255,0.10)', color: '#7df9ff' }}>
-                ✚ ჩანაწერი ადამიანზე, რომელიც აღარ არის
+                ✚ ჩანაწერი ადამიანზე
               </button>
 
+              {/* Two categories. Living on the left, those who have died on the
+                  right — swipe or tap between them. */}
+              <div className="flex gap-1.5 mb-3">
+                {(['alive', 'deceased'] as LifeStatus[]).map(v => {
+                  const info = LIFE_INFO[v];
+                  const on = lifeTab === v;
+                  const n = dir?.filter(e => e.lifeStatus === v).length ?? 0;
+                  return (
+                    <button key={v} onClick={() => setLifeTab(v)}
+                      className="flex-1 py-2 rounded-xl font-mono text-[12px] transition-all active:scale-[0.98]"
+                      style={{
+                        border: `1px solid rgba(${info.color},${on ? 0.5 : 0.14})`,
+                        background: on ? `rgba(${info.color},0.12)` : 'rgba(255,255,255,0.02)',
+                        color: on ? `rgb(${info.color})` : 'rgba(255,255,255,0.4)',
+                      }}>
+                      {info.icon} {info.short}{n > 0 ? ` · ${n}` : ''}
+                    </button>
+                  );
+                })}
+              </div>
+
               {dir === null && <p className="font-mono text-[12px] text-center py-8" style={{ color: 'rgba(57,255,106,0.4)' }}>იტვირთება…</p>}
-              {dir?.length === 0 && (
+              {shown?.length === 0 && (
                 <div className="rounded-2xl p-6 text-center" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
                   <p className="font-mono text-[12px]" style={{ color: 'rgba(255,255,255,0.45)' }}>
-                    არქივი ცარიელია. იყავი პირველი.
+                    {lifeTab === 'alive'
+                      ? 'ცოცხალი ადამიანების ჩანაწერი ჯერ არ არის.'
+                      : 'ჯერ არავის შეუქმნია ჩანაწერი გარდაცვლილზე.'}
                   </p>
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-2">
-                {dir?.map(e => {
+              <div
+                className="grid grid-cols-2 gap-2"
+                onTouchStart={e => { touchX.current = e.touches[0].clientX; }}
+                onTouchEnd={e => {
+                  const start = touchX.current;
+                  touchX.current = null;
+                  if (start == null) return;
+                  const dx = e.changedTouches[0].clientX - start;
+                  // 60px so a vertical scroll with a little drift never flips tabs.
+                  if (dx < -60) setLifeTab('deceased');
+                  else if (dx > 60) setLifeTab('alive');
+                }}
+              >
+                {shown?.map(e => {
                   const s = sectorOf(e.sector);
                   const mine = subject?.code === e.code;
                   const isMem = e.kind === 'memorial';
@@ -389,11 +429,13 @@ export function MarsTerminal({ onClose }: { onClose: () => void }) {
                       </div>
                       <p className="font-mono text-[10px]" style={{ color: `${s.color}aa` }}>#{e.code}</p>
                       <p className="font-mono text-[11px] text-white/85 truncate w-full">{e.designation}</p>
-                      {isMem
-                        ? <p className="font-mono text-[9px] mt-0.5" style={{ color: 'rgba(125,249,255,0.8)' }}>
-                            {years || 'ხსოვნა'}{e.memoryCount > 0 ? ` · ${e.memoryCount} მოგონება` : ''}
-                          </p>
-                        : <p className="font-mono text-[9px] mt-0.5" style={{ color: s.color }}>{e.sector} · {e.integrity}%</p>}
+                      <p className="font-mono text-[9px] mt-0.5"
+                        style={{ color: `rgba(${LIFE_INFO[e.lifeStatus].color},0.85)` }}>
+                        {e.lifeStatus === 'deceased'
+                          ? (years || 'ხსოვნა')
+                          : (e.bornYear ? `დაბ. ${e.bornYear}` : LIFE_INFO.alive.label)}
+                        {e.memoryCount > 0 ? ` · ${e.memoryCount}` : ''}
+                      </p>
                       {/* Public signals only: that a sample is pledged and that a
                           letter exists. Never their contents. */}
                       {(e.sampleStatus !== 'none' || e.hasLetter) && (
@@ -418,7 +460,7 @@ export function MarsTerminal({ onClose }: { onClose: () => void }) {
               </div>
               {dir && dir.length > 0 && (
                 <p className="font-mono text-[10px] text-center mt-3" style={{ color: 'rgba(255,255,255,0.25)' }}>
-                  მანიფესტები დაცულია — მათ მხოლოდ ავტორი კითხულობს.
+                  გადაასრიალე გვერდზე კატეგორიის შესაცვლელად · მანიფესტები დაცულია
                 </p>
               )}
             </div>

@@ -63,6 +63,8 @@ export interface Subject {
   stewardId: string | null;
   stewardName: string;
   stewardRelation: string;
+  /** Alive or deceased. Independent of who created the record. */
+  lifeStatus: LifeStatus;
   /** Physical sample registry. */
   sampleKind: string;
   sampleCustodian: string;
@@ -88,6 +90,7 @@ export interface DirectoryEntry {
   personLast: string;
   bornYear: number | null;
   diedYear: number | null;
+  lifeStatus: LifeStatus;
   memoryCount: number;
   createdAt: number;
 }
@@ -124,6 +127,10 @@ export const SAMPLE_NOTE_MAX = 400;
 
 /** Whether a biological sample exists, and where it stands. */
 export type SampleStatus = 'none' | 'pledged' | 'stored';
+
+/** Whether this record is of a living person or someone who has died. */
+export type LifeStatus = 'alive' | 'deceased';
+export const LIFE_STATUSES: LifeStatus[] = ['alive', 'deceased'];
 export const SAMPLE_STATUSES: SampleStatus[] = ['none', 'pledged', 'stored'];
 
 /** What kind of physical sample is on record. Registry only — never collected here. */
@@ -189,6 +196,38 @@ export const SECTORS: Record<TraitKey, string> = {
   defiance: 'FRACTURE',
   entropy: 'STATIC',
 };
+
+/**
+ * Normalise life status and the two years together, because they constrain
+ * each other.
+ *
+ * A living person is not asked for dates at all — requiring a birth year to
+ * archive yourself is a pointless barrier. A record marked deceased must carry
+ * a death year, since that is the one fact the status asserts; the birth year
+ * stays optional because a family often does not know it, and refusing the
+ * record over that would be cruel.
+ *
+ * Marking a record alive CLEARS any death year rather than leaving it behind —
+ * a living person with a date of death on file is the worst possible bug here.
+ */
+export function normaliseLife(
+  statusRaw: unknown, bornRaw: unknown, diedRaw: unknown, nowYear = new Date().getUTCFullYear(),
+): { lifeStatus: LifeStatus; bornYear: number | null; diedYear: number | null } {
+  const lifeStatus: LifeStatus = statusRaw === 'deceased' ? 'deceased' : 'alive';
+  const year = (v: unknown): number | null => {
+    if (v == null || v === '') return null;
+    const n = Math.trunc(Number(v));
+    if (!Number.isFinite(n) || n < 1850 || n > nowYear) return null;
+    return n;
+  };
+  const bornYear = year(bornRaw);
+  let diedYear = year(diedRaw);
+
+  if (lifeStatus === 'alive') return { lifeStatus, bornYear, diedYear: null };
+  if (diedYear == null) throw new Error('გარდაცვალების წელი აუცილებელია.');
+  if (bornYear != null && diedYear < bornYear) throw new Error('გარდაცვალების წელი დაბადებამდე ვერ იქნება.');
+  return { lifeStatus, bornYear, diedYear };
+}
 
 // ── deterministic hashing ──────────────────────────────────────────────
 /** FNV-1a. Small, fast, and stable across runs — which is the whole point. */
@@ -352,6 +391,7 @@ function rowToSubject(r: any): Subject {
     stewardId: r.steward_id ?? null,
     stewardName: r.steward_name ?? '',
     stewardRelation: r.steward_relation ?? '',
+    lifeStatus: r.life_status === 'deceased' ? 'deceased' : 'alive',
     sampleKind: r.sample_kind ?? '',
     sampleCustodian: r.sample_custodian ?? '',
     sampleTakenAt: r.sample_taken_at ?? '',
@@ -409,6 +449,9 @@ export interface UploadInput {
   sampleKind?: unknown;
   sampleCustodian?: unknown;
   sampleTakenAt?: unknown;
+  lifeStatus?: unknown;
+  bornYear?: unknown;
+  diedYear?: unknown;
 }
 
 export async function upload(playerId: string, input: UploadInput): Promise<Subject> {
@@ -426,6 +469,7 @@ export async function upload(playerId: string, input: UploadInput): Promise<Subj
     ? String(input.sampleKind) : '';
   const sampleCustodian = String(input.sampleCustodian ?? '').slice(0, SAMPLE_CUSTODIAN_MAX);
   const sampleTakenAt = String(input.sampleTakenAt ?? '').slice(0, 20);
+  const { lifeStatus, bornYear, diedYear } = normaliseLife(input.lifeStatus, input.bornYear, input.diedYear);
   if (designation.length < 2) throw new Error('DESIGNATION REJECTED — მინიმუმ 2 სიმბოლო.');
   if (manifest.length < MANIFEST_MIN) {
     throw new Error(`MANIFEST TOO THIN — მინიმუმ ${MANIFEST_MIN} სიმბოლო. მოგვეცი რაღაც, რისი შენახვაც ღირს.`);
@@ -445,7 +489,8 @@ export async function upload(playerId: string, input: UploadInput): Promise<Subj
           portrait = ${portrait}, docs = ${JSON.stringify(docs)},
           letter = ${letter}, restore_note = ${restoreNote},
           sample_status = ${sampleStatus}, sample_note = ${sampleNote}, kin = ${kin},
-          sample_kind = ${sampleKind}, sample_custodian = ${sampleCustodian}, sample_taken_at = ${sampleTakenAt}
+          sample_kind = ${sampleKind}, sample_custodian = ${sampleCustodian}, sample_taken_at = ${sampleTakenAt},
+          life_status = ${lifeStatus}, born_year = ${bornYear}, died_year = ${diedYear}
       WHERE player_id = ${playerId} AND kind = 'self'
     `;
     return (await getSubject(playerId))!;
@@ -461,11 +506,13 @@ export async function upload(playerId: string, input: UploadInput): Promise<Subj
       await sql`
         INSERT INTO mars_subjects (id, player_id, code, designation, manifest, traits, integrity, sector, uploads,
                                    portrait, docs, letter, restore_note, sample_status, sample_note, kin,
-                                   sample_kind, sample_custodian, sample_taken_at, created_at, updated_at)
+                                   sample_kind, sample_custodian, sample_taken_at,
+                                   life_status, born_year, died_year, created_at, updated_at)
         VALUES (${generateId()}, ${playerId}, ${code}, ${designation}, ${manifest},
                 ${JSON.stringify(traits)}, ${integrity}, ${sector}, 1, ${portrait}, ${JSON.stringify(docs)},
                 ${letter}, ${restoreNote}, ${sampleStatus}, ${sampleNote}, ${kin},
-                ${sampleKind}, ${sampleCustodian}, ${sampleTakenAt}, ${now}, ${now})
+                ${sampleKind}, ${sampleCustodian}, ${sampleTakenAt},
+                ${lifeStatus}, ${bornYear}, ${diedYear}, ${now}, ${now})
       `;
       return (await getSubject(playerId))!;
     } catch (e: any) {
@@ -496,6 +543,10 @@ export async function upsertMemorial(
 ): Promise<Subject> {
   const nowYear = new Date().getUTCFullYear();
   const p = sanitiseMemorial(person, nowYear);
+  // A memorial defaults to deceased, but its steward can mark it alive — which
+  // is how a record created for a living person gets corrected without being
+  // deleted and rebuilt.
+  const life = normaliseLife(input.lifeStatus ?? 'deceased', p.bornYear, p.diedYear, nowYear);
 
   const manifest = String(input.manifest ?? '').trim().slice(0, MANIFEST_MAX);
   if (manifest.length < MANIFEST_MIN) {
@@ -534,7 +585,8 @@ export async function upsertMemorial(
         sample_status = ${sampleStatus}, sample_note = ${sampleNote}, kin = ${kin},
         sample_kind = ${sampleKind}, sample_custodian = ${sampleCustodian}, sample_taken_at = ${sampleTakenAt},
         person_first = ${p.personFirst}, person_last = ${p.personLast},
-        born_year = ${p.bornYear}, died_year = ${p.diedYear}, steward_relation = ${p.stewardRelation}
+        born_year = ${life.bornYear}, died_year = ${life.diedYear}, steward_relation = ${p.stewardRelation},
+        life_status = ${life.lifeStatus}
       WHERE id = ${memorialId}
     `;
     return (await getSubjectById(memorialId))!;
@@ -553,13 +605,13 @@ export async function upsertMemorial(
         INSERT INTO mars_subjects (id, player_id, code, designation, manifest, traits, integrity, sector, uploads,
                                    portrait, docs, letter, restore_note, sample_status, sample_note, kin,
                                    sample_kind, sample_custodian, sample_taken_at,
-                                   kind, person_first, person_last, born_year, died_year,
+                                   kind, person_first, person_last, born_year, died_year, life_status,
                                    steward_id, steward_name, steward_relation, created_at, updated_at)
         VALUES (${id}, ${stewardId}, ${code}, ${designation}, ${manifest},
                 ${JSON.stringify(traits)}, ${integrity}, ${sector}, 1, ${portrait}, ${JSON.stringify(docs)},
                 ${letter}, ${restoreNote}, ${sampleStatus}, ${sampleNote}, ${kin},
                 ${sampleKind}, ${sampleCustodian}, ${sampleTakenAt},
-                'memorial', ${p.personFirst}, ${p.personLast}, ${p.bornYear}, ${p.diedYear},
+                'memorial', ${p.personFirst}, ${p.personLast}, ${life.bornYear}, ${life.diedYear}, ${life.lifeStatus},
                 ${stewardId}, ${String(stewardName).slice(0, 40)}, ${p.stewardRelation}, ${now}, ${now})
       `;
       return (await getSubjectById(id))!;
@@ -584,7 +636,7 @@ export async function directory(limit = 20): Promise<DirectoryEntry[]> {
   const rows = await sql<any[]>`
     SELECT s.code, s.designation, s.sector, s.integrity, s.traits, s.portrait, s.sample_status,
            (COALESCE(s.letter, '') <> '') AS has_letter, s.created_at,
-           s.kind, s.person_first, s.person_last, s.born_year, s.died_year,
+           s.kind, s.person_first, s.person_last, s.born_year, s.died_year, s.life_status,
            (SELECT COUNT(*)::int FROM mars_memories m WHERE m.subject_id = s.id) AS memory_count
     FROM mars_subjects s WHERE s.hidden = false
     ORDER BY s.created_at DESC LIMIT ${Math.min(50, Math.max(1, limit))}
@@ -606,6 +658,7 @@ export async function directory(limit = 20): Promise<DirectoryEntry[]> {
       personLast: r.person_last ?? '',
       bornYear: r.born_year != null ? Number(r.born_year) : null,
       diedYear: r.died_year != null ? Number(r.died_year) : null,
+      lifeStatus: r.life_status === 'deceased' ? 'deceased' : 'alive',
       memoryCount: Number(r.memory_count ?? 0),
       createdAt: Number(r.created_at),
     };

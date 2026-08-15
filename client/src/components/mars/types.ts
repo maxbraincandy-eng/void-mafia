@@ -12,6 +12,7 @@ export interface Subject {
   portrait: string | null; docs: MarsDoc[];
   letter: string; restoreNote: string;
   sampleStatus: SampleStatus; sampleNote: string; kin: string;
+  lifeStatus: LifeStatus; bornYear: number | null; diedYear: number | null;
   createdAt: number; updatedAt: number;
 }
 
@@ -28,6 +29,12 @@ export interface Limits {
   letterMax: number; restoreNoteMax: number; kinMax: number; sampleNoteMax: number;
 }
 export type RecordKind = 'self' | 'memorial';
+export type LifeStatus = 'alive' | 'deceased';
+
+export const LIFE_INFO: Record<LifeStatus, { label: string; short: string; color: string; icon: string }> = {
+  alive:    { label: 'ცოცხალია',    short: 'ცოცხლები',      color: '57,255,106',  icon: '◉' },
+  deceased: { label: 'გარდაცვლილი', short: 'გარდაცვლილები', color: '125,249,255', icon: '🕯' },
+};
 
 export interface Memory {
   id: string; authorId: string; authorName: string;
@@ -39,7 +46,7 @@ export interface RecordView {
   id: string; code: string; designation: string; sector: string;
   integrity: number; traits: Traits; portrait: string | null;
   kind: RecordKind; personFirst: string; personLast: string;
-  bornYear: number | null; diedYear: number | null;
+  bornYear: number | null; diedYear: number | null; lifeStatus: LifeStatus;
   stewardName: string; stewardRelation: string;
   sampleStatus: SampleStatus; createdAt: number;
   memoryCount: number; manifest: string; canEdit: boolean;
@@ -76,7 +83,13 @@ export interface Passage {
   sourceAuthor: string;
   sourceAt: number;
 }
-export interface SpeakReply { passage: Passage | null; score: number; note: string; personName: string }
+export interface SpeakReply {
+  passage: Passage | null; score: number; note: string; personName: string;
+  /** What this record can actually be asked about, from its own text. */
+  topics?: string[];
+  /** The record holds too little to answer much yet. */
+  thin?: boolean;
+}
 
 /** Physical sample kinds. Registry only — nothing is collected here. */
 export const SAMPLE_KIND_LABEL: Record<string, string> = {
@@ -100,7 +113,8 @@ export interface DirEntry {
   integrity: number; dominant: TraitKey; portrait: string | null;
   sampleStatus: SampleStatus; hasLetter: boolean;
   kind: RecordKind; personFirst: string; personLast: string;
-  bornYear: number | null; diedYear: number | null; memoryCount: number;
+  bornYear: number | null; diedYear: number | null; lifeStatus: LifeStatus;
+  memoryCount: number;
   createdAt: number;
 }
 
