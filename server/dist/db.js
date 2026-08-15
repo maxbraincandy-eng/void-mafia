@@ -700,6 +700,11 @@ export async function initializeDatabase() {
     await sql `ALTER TABLE players ADD COLUMN IF NOT EXISTS recovery_hash TEXT`;
     await sql `ALTER TABLE players ADD COLUMN IF NOT EXISTS recovery_issued_at BIGINT`;
     await sql `ALTER TABLE players ADD COLUMN IF NOT EXISTS recovery_attempts INT NOT NULL DEFAULT 0`;
+    // When the last failed attempt happened. The lockout has to be measured from
+    // this and not from when the code was issued: a code is valid for a year, so
+    // an issue-time window would sit expired for 364 of those days and let an
+    // attacker guess without limit.
+    await sql `ALTER TABLE players ADD COLUMN IF NOT EXISTS recovery_attempt_at BIGINT`;
     await sql `ALTER TABLE mars_subjects ADD COLUMN IF NOT EXISTS life_status TEXT NOT NULL DEFAULT 'alive'`;
     await sql `CREATE INDEX IF NOT EXISTS idx_mars_life ON mars_subjects(life_status, created_at DESC)`;
     // Existing memorials were all created for people who had died.

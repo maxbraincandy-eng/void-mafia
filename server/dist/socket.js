@@ -116,6 +116,25 @@ function rateOk(socketId, limit = 15) {
     r.count++;
     return true;
 }
+/**
+ * Password-recovery attempts, per socket, over a minute.
+ *
+ * Deliberately separate from rateOk: that counter is bumped by the global
+ * middleware on every single event, so a handler that also called it was
+ * measuring traffic rather than attempts. Ten a minute is far more than a
+ * person needs to type a code they wrote down, and far less than a spray
+ * across many accounts needs to be useful.
+ */
+const recoveryAttempts = new Map();
+const RECOVERY_BURST_MS = 60 * 1000;
+const RECOVERY_BURST_MAX = 10;
+function recoveryRateOk(socketId) {
+    const now = Date.now();
+    const hits = (recoveryAttempts.get(socketId) ?? []).filter(t => now - t < RECOVERY_BURST_MS);
+    hits.push(now);
+    recoveryAttempts.set(socketId, hits);
+    return hits.length <= RECOVERY_BURST_MAX;
+}
 // ── Chat spam / flood protection ──────────────────────────────────────
 const chatCooldowns = new Map(); // key → lastMessageAt
 const chatWindows = new Map(); // key → recent timestamps
@@ -4995,8 +5014,11 @@ export function attachSocketHandlers(io) {
             try {
                 // Rate-limited at the socket too: the service counts failures per
                 // account, this bounds an attacker spraying many accounts at once.
-                if (!rateOk(socket.id, 5))
-                    throw new Error('ძალიან ბევრი მცდელობა.');
+                // Its own counter, not the shared per-second one — that one is also
+                // incremented by the global middleware for every event, so sharing it
+                // made this limit trip on ordinary, correctly-spaced attempts.
+                if (!recoveryRateOk(socket.id))
+                    throw new Error('ძალიან ბევრი მცდელობა. ცოტა მოითმინე.');
                 await resetWithCode(String(data?.email ?? ''), String(data?.code ?? ''), String(data?.password ?? ''));
                 cb(ok({ reset: true }));
             }
@@ -10737,6 +10759,7 @@ export function attachSocketHandlers(io) {
         });
         socket.on('disconnect', () => {
             rateLimits.delete(socket.id);
+            recoveryAttempts.delete(socket.id);
             const { roomId, playerId, profileId } = socket.data;
             if (profileId) {
                 markOffline(profileId);

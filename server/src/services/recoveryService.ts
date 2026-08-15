@@ -52,7 +52,8 @@ export async function issueRecoveryCode(playerId: string): Promise<string> {
   const hash = await bcrypt.hash(normalise(code), 10);
   await sql`
     UPDATE players
-    SET recovery_hash = ${hash}, recovery_issued_at = ${Date.now()}, recovery_attempts = 0
+    SET recovery_hash = ${hash}, recovery_issued_at = ${Date.now()},
+        recovery_attempts = 0, recovery_attempt_at = NULL
     WHERE id = ${playerId}
   `;
   return code;
@@ -80,23 +81,32 @@ export async function resetWithCode(
   if (String(newPassword ?? '').length < 6) throw new Error('პაროლი მინიმუმ 6 სიმბოლო უნდა იყოს.');
 
   const [row] = await sql<any[]>`
-    SELECT id, recovery_hash, recovery_issued_at, recovery_attempts
+    SELECT id, recovery_hash, recovery_issued_at, recovery_attempts, recovery_attempt_at
     FROM players WHERE LOWER(email) = ${email}
   `;
   // Still hash-compare against a dummy when the account is missing, so a wrong
   // email is not measurably faster than a wrong code.
   const hash = row?.recovery_hash ?? '$2a$10$invalidinvalidinvalidinvalidinvalidinvalidinvalidinvalidiu';
-  const attempts = Number(row?.recovery_attempts ?? 0);
   const issuedAt = Number(row?.recovery_issued_at ?? 0);
+  const lastAttempt = Number(row?.recovery_attempt_at ?? 0);
+  // The window runs from the last FAILED ATTEMPT, not from when the code was
+  // issued. Measuring it from issuance would make the limiter inert for a code
+  // older than the window — and these codes are valid for a year.
+  const fresh = Date.now() - lastAttempt < ATTEMPT_WINDOW_MS;
+  const attempts = fresh ? Number(row?.recovery_attempts ?? 0) : 0;
 
-  if (row && attempts >= MAX_ATTEMPTS && Date.now() - issuedAt < ATTEMPT_WINDOW_MS) {
+  if (row && attempts >= MAX_ATTEMPTS) {
     throw new Error('ძალიან ბევრი მცდელობა. სცადე მოგვიანებით.');
   }
 
   const good = await bcrypt.compare(code, hash);
   if (!row || !row.recovery_hash || !good) {
     if (row) {
-      await sql`UPDATE players SET recovery_attempts = recovery_attempts + 1 WHERE id = ${row.id}`;
+      await sql`
+        UPDATE players
+        SET recovery_attempts = ${attempts + 1}, recovery_attempt_at = ${Date.now()}
+        WHERE id = ${row.id}
+      `;
     }
     throw generic;
   }
@@ -108,7 +118,8 @@ export async function resetWithCode(
   // The code is consumed on success — one use, exactly.
   await sql`
     UPDATE players
-    SET password_hash = ${passwordHash}, recovery_hash = NULL, recovery_attempts = 0
+    SET password_hash = ${passwordHash}, recovery_hash = NULL,
+        recovery_attempts = 0, recovery_attempt_at = NULL
     WHERE id = ${row.id}
   `;
   return { ok: true };
