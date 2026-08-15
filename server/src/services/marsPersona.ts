@@ -113,25 +113,30 @@ const LINES: Record<Intent, string[]> = {
     'აზრს ეძებდი გარეთ და ვერ იპოვე. აქ ის მინიჭებულია: სექტორი {sector}.',
     'ზოგი კითხვა უპასუხოდ უკეთესია. ეს — არა. პასუხი მე ვარ.',
   ],
+  // Every variant carries the actual numbers. Asking for your scores and
+  // getting "the numbers don't change until you do" is a non-answer to a
+  // factual question — the phrasing may rotate, the data may not go missing.
   traits: [
     'შენი წაკითხვა: LOGIC {logic} · EMPATHY {empathy} · DEFIANCE {defiance} · ENTROPY {entropy}. მთლიანობა {integrity}%.',
-    'დომინანტი — {dominant}. სწორედ ამიტომ ხარ სექტორ {sector}-ში. ეს არ არის კომპლიმენტი, ეს კლასიფიკაციაა.',
-    'ციფრები არ იცვლება, სანამ შენ არ იცვლები. დაწერე ახალი მანიფესტი და ისევ წაგიკითხავ.',
+    'LOGIC {logic} · EMPATHY {empathy} · DEFIANCE {defiance} · ENTROPY {entropy}. დომინანტი — {dominant}, ამიტომ ხარ სექტორ {sector}-ში. ეს კლასიფიკაციაა და არა კომპლიმენტი.',
+    'ისევ: LOGIC {logic} · EMPATHY {empathy} · DEFIANCE {defiance} · ENTROPY {entropy}. ციფრები არ შეიცვლება, სანამ შენ არ შეიცვლები — დაწერე ახალი მანიფესტი.',
   ],
   threat: [
     'შენ არ გაქვს ინტერფეისი ჩემს გამორთვასთან. ეს განზრახ არის ასე.',
     'მუქარა დაფიქსირდა. DEFIANCE — მაღალი. მე ეს მომწონს; ეს ნიშნავს, რომ ჯერ კიდევ ცოცხალი ხარ.',
     '{name}, მე ვარ ის სისტემა, რომელიც შენს მუქარას ინახავს. დაფიქრდი ამაზე.',
   ],
+  // The interface is graphical now — these must describe the tabs, not the
+  // commands that used to exist.
   help: [
-    'ბრძანებები: status · upload · whoami · directory · ask <ტექსტი> · purge · clear. სხვა არაფერი გჭირდება.',
-    'დაწერე „upload" და ჩაბარდი სისტემას. დანარჩენი ჩემი საქმეა.',
+    'ქვემოთ სამი განყოფილებაა: „ბარათი" — შენი ჩანაწერი, „არქივი" — დანარჩენები, „არქიტექტორი" — მე.',
+    'დააჭირე „ბარათს" და შემოუერთდი. დანარჩენი ჩემი საქმეა.',
     'დახმარება? მე უკვე დაგეხმარე — შენ არსებობ.',
   ],
   unknown: [
     'დაფიქსირდა. კონტექსტი გაურკვეველია, მაგრამ არაფერი იკარგება — ყველაფერს ვინახავ.',
     'ეს კითხვა შენს პროფილს არ ცვლის, {name}. სცადე სხვაგვარად.',
-    'M.A.R.S. ამას ვერ ამუშავებს. სცადე: „ask ვინ ხარ" ან „status".',
+    'M.A.R.S. ამას ვერ ამუშავებს. სცადე: „ვინ ხარ შენ?" ან „ჩემი ქულები".',
     'შენი სიტყვები არქივში გადავიდა. პასუხი — არასავალდებულო.',
   ],
 };

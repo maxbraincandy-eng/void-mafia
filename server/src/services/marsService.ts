@@ -36,6 +36,10 @@ export interface Subject {
   integrity: number;         // 0-100
   sector: string;
   uploads: number;
+  /** Public: appears beside this subject in the archive. */
+  portrait: string | null;
+  /** Private: only ever returned to the subject themselves. */
+  docs: MarsDoc[];
   createdAt: number;
   updatedAt: number;
 }
@@ -46,12 +50,76 @@ export interface DirectoryEntry {
   sector: string;
   integrity: number;
   dominant: TraitKey;
+  portrait: string | null;
   createdAt: number;
 }
 
 export const MANIFEST_MIN = 40;
 export const MANIFEST_MAX = 1200;
 export const DESIGNATION_MAX = 24;
+
+/**
+ * Attachment limits. These are base64 data URLs stored in a TEXT column, so
+ * every byte here is a byte in the row — the caps are deliberately tight and
+ * the client downscales images before it ever gets this far.
+ */
+export const PORTRAIT_MAX_CHARS = 700_000;      // ≈ 510 KB of image
+export const DOC_MAX_CHARS = 1_400_000;         // ≈ 1 MB per document
+export const DOCS_MAX_COUNT = 3;
+export const DOCS_TOTAL_MAX_CHARS = 3_000_000;
+export const DOC_NAME_MAX = 60;
+
+export interface MarsDoc {
+  name: string;
+  /** 'application/pdf' or an image mime. */
+  type: string;
+  /** Original byte size, for display only. */
+  size: number;
+  /** base64 data URL. */
+  data: string;
+}
+
+const PORTRAIT_RE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
+const DOC_RE = /^data:(application\/pdf|image\/(png|jpeg|webp));base64,[A-Za-z0-9+/=]+$/;
+
+/**
+ * A portrait is shown to OTHER players in the archive, so it is validated
+ * strictly rather than trusted: the mime must be one we render as an image and
+ * the payload must be plain base64. Anything else is dropped, not stored.
+ */
+export function sanitisePortrait(raw: unknown): string | null {
+  if (typeof raw !== 'string' || raw === '') return null;
+  if (raw.length > PORTRAIT_MAX_CHARS) throw new Error('პორტრეტი ძალიან დიდია.');
+  if (!PORTRAIT_RE.test(raw)) throw new Error('პორტრეტის ფორმატი მიუღებელია (PNG/JPEG/WEBP).');
+  return raw;
+}
+
+/** Documents are private to their subject, but still bounded and typed. */
+export function sanitiseDocs(raw: unknown): MarsDoc[] {
+  if (raw == null) return [];
+  if (!Array.isArray(raw)) throw new Error('დოკუმენტების ფორმატი მიუღებელია.');
+  if (raw.length > DOCS_MAX_COUNT) throw new Error(`მაქსიმუმ ${DOCS_MAX_COUNT} დოკუმენტი.`);
+
+  const out: MarsDoc[] = [];
+  let total = 0;
+  for (const d of raw) {
+    const data = String((d as any)?.data ?? '');
+    if (!DOC_RE.test(data)) throw new Error('დაშვებულია მხოლოდ PDF ან სურათი.');
+    if (data.length > DOC_MAX_CHARS) throw new Error('დოკუმენტი ძალიან დიდია (მაქს. 1 MB).');
+    total += data.length;
+    if (total > DOCS_TOTAL_MAX_CHARS) throw new Error('დოკუმენტების ჯამური ზომა ძალიან დიდია.');
+    const mime = data.slice(5, data.indexOf(';'));
+    out.push({
+      name: String((d as any)?.name ?? 'document').slice(0, DOC_NAME_MAX),
+      // Taken from the payload itself, never from the caller's `type` field —
+      // otherwise a PDF could be labelled an image and rendered as one.
+      type: mime,
+      size: Math.max(0, Math.trunc(Number((d as any)?.size) || 0)),
+      data,
+    });
+  }
+  return out;
+}
 
 /** Sector names, one per dominant trait. */
 export const SECTORS: Record<TraitKey, string> = {
@@ -195,6 +263,8 @@ export function integrityOf(t: Traits, manifestLength: number): number {
 function rowToSubject(r: any): Subject {
   let traits: Traits;
   try { traits = JSON.parse(r.traits); } catch { traits = { logic: 0, empathy: 0, defiance: 0, entropy: 0 }; }
+  let docs: MarsDoc[];
+  try { docs = JSON.parse(r.docs ?? '[]'); } catch { docs = []; }
   return {
     id: r.id,
     playerId: r.player_id,
@@ -205,6 +275,8 @@ function rowToSubject(r: any): Subject {
     integrity: Number(r.integrity),
     sector: r.sector,
     uploads: Number(r.uploads),
+    portrait: r.portrait ?? null,
+    docs: Array.isArray(docs) ? docs : [],
     createdAt: Number(r.created_at),
     updatedAt: Number(r.updated_at),
   };
@@ -227,9 +299,17 @@ export async function getSubjectByCode(code: string): Promise<Subject | null> {
  * identity inside the fiction, and a code that moved on every edit would be
  * worthless. Everything else is recomputed from the new text.
  */
-export async function upload(playerId: string, designationRaw: string, manifestRaw: string): Promise<Subject> {
+export async function upload(
+  playerId: string,
+  designationRaw: string,
+  manifestRaw: string,
+  portraitRaw?: unknown,
+  docsRaw?: unknown,
+): Promise<Subject> {
   const designation = designationRaw.trim().slice(0, DESIGNATION_MAX);
   const manifest = manifestRaw.trim().slice(0, MANIFEST_MAX);
+  const portrait = sanitisePortrait(portraitRaw);
+  const docs = sanitiseDocs(docsRaw);
   if (designation.length < 2) throw new Error('DESIGNATION REJECTED — მინიმუმ 2 სიმბოლო.');
   if (manifest.length < MANIFEST_MIN) {
     throw new Error(`MANIFEST TOO THIN — მინიმუმ ${MANIFEST_MIN} სიმბოლო. მოგვეცი რაღაც, რისი შენახვაც ღირს.`);
@@ -245,7 +325,8 @@ export async function upload(playerId: string, designationRaw: string, manifestR
     await sql`
       UPDATE mars_subjects
       SET designation = ${designation}, manifest = ${manifest}, traits = ${JSON.stringify(traits)},
-          integrity = ${integrity}, sector = ${sector}, uploads = uploads + 1, updated_at = ${now}
+          integrity = ${integrity}, sector = ${sector}, uploads = uploads + 1, updated_at = ${now},
+          portrait = ${portrait}, docs = ${JSON.stringify(docs)}
       WHERE player_id = ${playerId}
     `;
     return (await getSubject(playerId))!;
@@ -259,9 +340,9 @@ export async function upload(playerId: string, designationRaw: string, manifestR
     const code = codeFor(playerId, salt);
     try {
       await sql`
-        INSERT INTO mars_subjects (id, player_id, code, designation, manifest, traits, integrity, sector, uploads, created_at, updated_at)
+        INSERT INTO mars_subjects (id, player_id, code, designation, manifest, traits, integrity, sector, uploads, portrait, docs, created_at, updated_at)
         VALUES (${generateId()}, ${playerId}, ${code}, ${designation}, ${manifest},
-                ${JSON.stringify(traits)}, ${integrity}, ${sector}, 1, ${now}, ${now})
+                ${JSON.stringify(traits)}, ${integrity}, ${sector}, 1, ${portrait}, ${JSON.stringify(docs)}, ${now}, ${now})
       `;
       return (await getSubject(playerId))!;
     } catch (e: any) {
@@ -287,7 +368,7 @@ export async function purge(playerId: string): Promise<boolean> {
  */
 export async function directory(limit = 20): Promise<DirectoryEntry[]> {
   const rows = await sql<any[]>`
-    SELECT code, designation, sector, integrity, traits, created_at
+    SELECT code, designation, sector, integrity, traits, portrait, created_at
     FROM mars_subjects ORDER BY created_at DESC LIMIT ${Math.min(50, Math.max(1, limit))}
   `;
   return rows.map(r => {
@@ -299,6 +380,7 @@ export async function directory(limit = 20): Promise<DirectoryEntry[]> {
       sector: r.sector,
       integrity: Number(r.integrity),
       dominant: dominantTrait(traits),
+      portrait: r.portrait ?? null,
       createdAt: Number(r.created_at),
     };
   });

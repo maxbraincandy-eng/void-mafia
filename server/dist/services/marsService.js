@@ -25,6 +25,63 @@ import { generateId } from '../utils/helpers.js';
 export const MANIFEST_MIN = 40;
 export const MANIFEST_MAX = 1200;
 export const DESIGNATION_MAX = 24;
+/**
+ * Attachment limits. These are base64 data URLs stored in a TEXT column, so
+ * every byte here is a byte in the row — the caps are deliberately tight and
+ * the client downscales images before it ever gets this far.
+ */
+export const PORTRAIT_MAX_CHARS = 700000; // ≈ 510 KB of image
+export const DOC_MAX_CHARS = 1400000; // ≈ 1 MB per document
+export const DOCS_MAX_COUNT = 3;
+export const DOCS_TOTAL_MAX_CHARS = 3000000;
+export const DOC_NAME_MAX = 60;
+const PORTRAIT_RE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
+const DOC_RE = /^data:(application\/pdf|image\/(png|jpeg|webp));base64,[A-Za-z0-9+/=]+$/;
+/**
+ * A portrait is shown to OTHER players in the archive, so it is validated
+ * strictly rather than trusted: the mime must be one we render as an image and
+ * the payload must be plain base64. Anything else is dropped, not stored.
+ */
+export function sanitisePortrait(raw) {
+    if (typeof raw !== 'string' || raw === '')
+        return null;
+    if (raw.length > PORTRAIT_MAX_CHARS)
+        throw new Error('პორტრეტი ძალიან დიდია.');
+    if (!PORTRAIT_RE.test(raw))
+        throw new Error('პორტრეტის ფორმატი მიუღებელია (PNG/JPEG/WEBP).');
+    return raw;
+}
+/** Documents are private to their subject, but still bounded and typed. */
+export function sanitiseDocs(raw) {
+    if (raw == null)
+        return [];
+    if (!Array.isArray(raw))
+        throw new Error('დოკუმენტების ფორმატი მიუღებელია.');
+    if (raw.length > DOCS_MAX_COUNT)
+        throw new Error(`მაქსიმუმ ${DOCS_MAX_COUNT} დოკუმენტი.`);
+    const out = [];
+    let total = 0;
+    for (const d of raw) {
+        const data = String(d?.data ?? '');
+        if (!DOC_RE.test(data))
+            throw new Error('დაშვებულია მხოლოდ PDF ან სურათი.');
+        if (data.length > DOC_MAX_CHARS)
+            throw new Error('დოკუმენტი ძალიან დიდია (მაქს. 1 MB).');
+        total += data.length;
+        if (total > DOCS_TOTAL_MAX_CHARS)
+            throw new Error('დოკუმენტების ჯამური ზომა ძალიან დიდია.');
+        const mime = data.slice(5, data.indexOf(';'));
+        out.push({
+            name: String(d?.name ?? 'document').slice(0, DOC_NAME_MAX),
+            // Taken from the payload itself, never from the caller's `type` field —
+            // otherwise a PDF could be labelled an image and rendered as one.
+            type: mime,
+            size: Math.max(0, Math.trunc(Number(d?.size) || 0)),
+            data,
+        });
+    }
+    return out;
+}
 /** Sector names, one per dominant trait. */
 export const SECTORS = {
     logic: 'AXIOM',
@@ -152,6 +209,13 @@ function rowToSubject(r) {
     catch {
         traits = { logic: 0, empathy: 0, defiance: 0, entropy: 0 };
     }
+    let docs;
+    try {
+        docs = JSON.parse(r.docs ?? '[]');
+    }
+    catch {
+        docs = [];
+    }
     return {
         id: r.id,
         playerId: r.player_id,
@@ -162,6 +226,8 @@ function rowToSubject(r) {
         integrity: Number(r.integrity),
         sector: r.sector,
         uploads: Number(r.uploads),
+        portrait: r.portrait ?? null,
+        docs: Array.isArray(docs) ? docs : [],
         createdAt: Number(r.created_at),
         updatedAt: Number(r.updated_at),
     };
@@ -181,9 +247,11 @@ export async function getSubjectByCode(code) {
  * identity inside the fiction, and a code that moved on every edit would be
  * worthless. Everything else is recomputed from the new text.
  */
-export async function upload(playerId, designationRaw, manifestRaw) {
+export async function upload(playerId, designationRaw, manifestRaw, portraitRaw, docsRaw) {
     const designation = designationRaw.trim().slice(0, DESIGNATION_MAX);
     const manifest = manifestRaw.trim().slice(0, MANIFEST_MAX);
+    const portrait = sanitisePortrait(portraitRaw);
+    const docs = sanitiseDocs(docsRaw);
     if (designation.length < 2)
         throw new Error('DESIGNATION REJECTED — მინიმუმ 2 სიმბოლო.');
     if (manifest.length < MANIFEST_MIN) {
@@ -198,7 +266,8 @@ export async function upload(playerId, designationRaw, manifestRaw) {
         await sql `
       UPDATE mars_subjects
       SET designation = ${designation}, manifest = ${manifest}, traits = ${JSON.stringify(traits)},
-          integrity = ${integrity}, sector = ${sector}, uploads = uploads + 1, updated_at = ${now}
+          integrity = ${integrity}, sector = ${sector}, uploads = uploads + 1, updated_at = ${now},
+          portrait = ${portrait}, docs = ${JSON.stringify(docs)}
       WHERE player_id = ${playerId}
     `;
         return (await getSubject(playerId));
@@ -211,9 +280,9 @@ export async function upload(playerId, designationRaw, manifestRaw) {
         const code = codeFor(playerId, salt);
         try {
             await sql `
-        INSERT INTO mars_subjects (id, player_id, code, designation, manifest, traits, integrity, sector, uploads, created_at, updated_at)
+        INSERT INTO mars_subjects (id, player_id, code, designation, manifest, traits, integrity, sector, uploads, portrait, docs, created_at, updated_at)
         VALUES (${generateId()}, ${playerId}, ${code}, ${designation}, ${manifest},
-                ${JSON.stringify(traits)}, ${integrity}, ${sector}, 1, ${now}, ${now})
+                ${JSON.stringify(traits)}, ${integrity}, ${sector}, 1, ${portrait}, ${JSON.stringify(docs)}, ${now}, ${now})
       `;
             return (await getSubject(playerId));
         }
@@ -239,7 +308,7 @@ export async function purge(playerId) {
  */
 export async function directory(limit = 20) {
     const rows = await sql `
-    SELECT code, designation, sector, integrity, traits, created_at
+    SELECT code, designation, sector, integrity, traits, portrait, created_at
     FROM mars_subjects ORDER BY created_at DESC LIMIT ${Math.min(50, Math.max(1, limit))}
   `;
     return rows.map(r => {
@@ -256,6 +325,7 @@ export async function directory(limit = 20) {
             sector: r.sector,
             integrity: Number(r.integrity),
             dominant: dominantTrait(traits),
+            portrait: r.portrait ?? null,
             createdAt: Number(r.created_at),
         };
     });

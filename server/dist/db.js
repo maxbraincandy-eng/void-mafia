@@ -668,6 +668,10 @@ export async function initializeDatabase() {
     )
   `;
     await sql `CREATE INDEX IF NOT EXISTS idx_mars_created ON mars_subjects(created_at DESC)`;
+    // Portrait is public (it appears in the archive grid); documents are private
+    // to the subject. Both are base64 data URLs, size-capped in marsService.
+    await sql `ALTER TABLE mars_subjects ADD COLUMN IF NOT EXISTS portrait TEXT`;
+    await sql `ALTER TABLE mars_subjects ADD COLUMN IF NOT EXISTS docs TEXT NOT NULL DEFAULT '[]'`;
     // ── Clan League (weekly, all-clans competition) ───────────────────────
     // Contributions are stored per player per week; the clan table is always
     // derived from them by SUM, so a player changing clan mid-week needs no

@@ -33,7 +33,7 @@ import { recordGame, getPlayerHistory, getPlayerRoleStats, getPlayersLastRolesIn
 import { createClan, getClan, getClanByPlayer, getClanMembershipByPlayer, getAllClans, getClanMembers, joinClan, leaveClan, setClanMemberRole, addClanModLog, getClanModLogs, setClanImage, } from './services/clanService.js';
 import { challengeClan, acceptWar, declineWar, recordWarGame, getActiveWar, getWarHistory, } from './services/clanWarService.js';
 import { recordLeagueGame, getLeague, getClanLeagueDetail, getLeagueHistory, getClanTrophies, weekStartMs as leagueWeekStart, WEEK_MS as LEAGUE_WEEK_MS, PLAYER_WEEKLY_CAP, MIN_CONTRIBUTORS, LEAGUE_PRIZES, } from './services/clanLeagueService.js';
-import { getSubject as marsGetSubject, getSubjectByCode as marsGetByCode, upload as marsUpload, purge as marsPurge, directory as marsDirectory, stats as marsStats, MANIFEST_MIN, MANIFEST_MAX, DESIGNATION_MAX, } from './services/marsService.js';
+import { getSubject as marsGetSubject, getSubjectByCode as marsGetByCode, upload as marsUpload, purge as marsPurge, directory as marsDirectory, stats as marsStats, MANIFEST_MIN, MANIFEST_MAX, DESIGNATION_MAX, DOCS_MAX_COUNT, DOC_MAX_CHARS, } from './services/marsService.js';
 import { respond as marsRespond, BOOT_LINES as MARS_BOOT } from './services/marsPersona.js';
 /** Per-socket turn counter, so the architect's phrasing rotates per session. */
 const marsTurns = new Map();
@@ -4666,21 +4666,24 @@ export function attachSocketHandlers(io) {
                 ]);
                 cb(ok({
                     subject, stats: st, boot: MARS_BOOT,
-                    limits: { manifestMin: MANIFEST_MIN, manifestMax: MANIFEST_MAX, designationMax: DESIGNATION_MAX },
+                    limits: {
+                        manifestMin: MANIFEST_MIN, manifestMax: MANIFEST_MAX, designationMax: DESIGNATION_MAX,
+                        docsMax: DOCS_MAX_COUNT, docBytesMax: Math.floor(DOC_MAX_CHARS * 0.75),
+                    },
                 }));
             }
             catch (e) {
                 cb(err(e.message));
             }
         });
-        socket.on('mars:upload', async ({ designation, manifest }, cb) => {
+        socket.on('mars:upload', async (data, cb) => {
             try {
                 const profileId = socket.data.profileId;
                 if (!profileId)
                     throw new Error('ACCESS DENIED — ჯერ შედი სისტემაში.');
                 if (!marsUploadRateOk(profileId))
                     throw new Error('THROTTLED — ძალიან სწრაფად. დაელოდე რამდენიმე წამს.');
-                const subject = await marsUpload(profileId, String(designation ?? ''), String(manifest ?? ''));
+                const subject = await marsUpload(profileId, String(data?.designation ?? ''), String(data?.manifest ?? ''), data?.portrait, data?.docs);
                 cb(ok({ subject, stats: await marsStats() }));
             }
             catch (e) {

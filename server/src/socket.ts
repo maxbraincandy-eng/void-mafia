@@ -81,7 +81,7 @@ import {
 import {
   getSubject as marsGetSubject, getSubjectByCode as marsGetByCode, upload as marsUpload,
   purge as marsPurge, directory as marsDirectory, stats as marsStats,
-  MANIFEST_MIN, MANIFEST_MAX, DESIGNATION_MAX,
+  MANIFEST_MIN, MANIFEST_MAX, DESIGNATION_MAX, DOCS_MAX_COUNT, DOC_MAX_CHARS,
 } from './services/marsService.js';
 import { respond as marsRespond, BOOT_LINES as MARS_BOOT } from './services/marsPersona.js';
 
@@ -4462,17 +4462,26 @@ export function attachSocketHandlers(io: AppServer): void {
         ]);
         cb(ok({
           subject, stats: st, boot: MARS_BOOT,
-          limits: { manifestMin: MANIFEST_MIN, manifestMax: MANIFEST_MAX, designationMax: DESIGNATION_MAX },
+          limits: {
+            manifestMin: MANIFEST_MIN, manifestMax: MANIFEST_MAX, designationMax: DESIGNATION_MAX,
+            docsMax: DOCS_MAX_COUNT, docBytesMax: Math.floor(DOC_MAX_CHARS * 0.75),
+          },
         }));
       } catch (e: any) { cb(err(e.message)); }
     });
 
-    socket.on('mars:upload' as any, async ({ designation, manifest }: { designation: string; manifest: string }, cb: any) => {
+    socket.on('mars:upload' as any, async (data: any, cb: any) => {
       try {
         const profileId = socket.data.profileId;
         if (!profileId) throw new Error('ACCESS DENIED — ჯერ შედი სისტემაში.');
         if (!marsUploadRateOk(profileId)) throw new Error('THROTTLED — ძალიან სწრაფად. დაელოდე რამდენიმე წამს.');
-        const subject = await marsUpload(profileId, String(designation ?? ''), String(manifest ?? ''));
+        const subject = await marsUpload(
+          profileId,
+          String(data?.designation ?? ''),
+          String(data?.manifest ?? ''),
+          data?.portrait,
+          data?.docs,
+        );
         cb(ok({ subject, stats: await marsStats() }));
       } catch (e: any) { cb(err(e.message)); }
     });
