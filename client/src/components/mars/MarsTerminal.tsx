@@ -429,7 +429,7 @@ export function MarsTerminal({ onClose }: { onClose: () => void }) {
               {chat.length === 0 && (
                 <div className="rounded-2xl p-4 mb-3" style={{ border: '1px solid rgba(125,249,255,0.22)', background: 'rgba(125,249,255,0.05)' }}>
                   <p className="font-mono text-[12px] leading-relaxed" style={{ color: 'rgba(217,255,228,0.8)' }}>
-                    სისტემას მართავს <b>ს. კამილო</b> — არქიტექტორი. ჰკითხე აღდგენაზე, ნიმუშზე ან რაც გინდა.
+                    ამ არქივის შემქმნელია <b>ბატონი მაქსი</b>. ჰკითხე აღდგენაზე, ნიმუშზე ან რაც გინდა.
                   </p>
                 </div>
               )}

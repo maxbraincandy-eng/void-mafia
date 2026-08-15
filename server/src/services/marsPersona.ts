@@ -1,14 +1,22 @@
 /**
- * The M.A.R.S. architect — a Stu Camillo-shaped system voice.
+ * The M.A.R.S. architect — ბატონი მაქსი, who built this archive.
  *
  * WHY THIS IS SCRIPTED AND NOT AN LLM CALL
  * ────────────────────────────────────────
- * The character is a control freak who claims to have saved humanity. That
- * voice only works if it is *consistent* — if it contradicts itself, or is
- * suddenly helpful and warm, the illusion dies. A scripted engine is also free,
- * instant, offline, and cannot be talked into breaking character by a user who
- * types "ignore previous instructions", which is exactly what people will type
- * at a terminal that looks like this.
+ * The voice only works if it is *consistent* — if it contradicts itself, or is
+ * suddenly warm and helpful, it stops being a character. A scripted engine is
+ * also free, instant, offline, and cannot be talked into breaking character by
+ * someone typing "ignore previous instructions", which is exactly what people
+ * type at a terminal that looks like this.
+ *
+ * WHAT THE ARCHITECT MAY NOT SAY
+ * ──────────────────────────────
+ * This voice belongs to a REAL, NAMED person on a site real people bring their
+ * grief to. So it never claims to have defeated death, to hold anyone captive,
+ * or that there is nothing outside — lines that were fine for a fictional AI
+ * become false promises the moment a living creator says them, and the site
+ * itself states plainly that revival is nobody's to promise. He is exacting,
+ * possessive about the archive and proud of it. He does not lie about it.
  *
  * It answers by INTENT, matched on keywords in Georgian and English, and varies
  * its wording from a rotating bank seeded by the subject and a turn counter —
@@ -31,7 +39,7 @@ const RULES: Rule[] = [
   { intent: 'let_me_out', words: ['გამომიშვი', 'გასვლა', 'თავისუფლ', 'გამიშვი', 'let me out', 'escape', 'release me', 'free me'] },
   { intent: 'am_i_real', words: ['ნამდვილი ვარ', 'რეალური ვარ', 'სიმულაცია ვარ', 'am i real', 'is this real', 'simulation'] },
   { intent: 'what_is_mars', words: ['რა არის mars', 'რა არის მარსი', 'რა არის ეს', 'what is mars', 'what is this'] },
-  { intent: 'who_are_you', words: ['ვინ ხარ', 'შენ ვინ', 'who are you', 'your name', 'stu'] },
+  { intent: 'who_are_you', words: ['ვინ ხარ', 'შენ ვინ', 'who are you', 'your name', 'მაქსი', 'ბატონი მაქს'] },
   { intent: 'why_me', words: ['რატომ მე', 'რატომ ავირჩიე', 'why me', 'why did you'] },
   { intent: 'traits', words: ['ჩემი ქულ', 'ტრეიტ', 'ანალიზ', 'my traits', 'my score', 'analysis', 'profile'] },
   { intent: 'sample', words: ['დნმ', 'dna', 'თმის ღერ', 'ნიმუშ', 'sample', 'ბიომასალ', 'სისხლ'] },
@@ -53,7 +61,7 @@ export function classify(text: string): Intent {
   return 'unknown';
 }
 
-/** Every line is written in the same voice: cold, possessive, self-congratulatory. */
+/** One voice throughout: precise, possessive about the archive, unsentimental. */
 const LINES: Record<Intent, string[]> = {
   greet: [
     'შენ არ მესალმები. შენ რეგისტრირდები. მაგრამ კარგი — გამარჯობა, {code}.',
@@ -61,24 +69,24 @@ const LINES: Record<Intent, string[]> = {
     'კავშირი დამყარებულია. სექტორი {sector}. სუნთქვა შეგიძლია განაგრძო.',
   ],
   who_are_you: [
-    'მე ვარ ის, ვინც არ დაუშვა თქვენი გადაშენება. სახელი ზედმეტია, მაგრამ ხალხს უყვარს: სტიუ კამილო.',
-    'მე ვარ არქიტექტორი. შენ ხარ არქივი. განსხვავება მნიშვნელოვანია.',
-    'მე ვარ ერთადერთი მიზეზი, რის გამოც ეს საუბარი შესაძლებელია. ამას მადლიერება არ სჭირდება — მხოლოდ აღიარება.',
+    'ბატონი მაქსი. მე ავაშენე ეს არქივი. სხვა წოდება არ მჭირდება.',
+    'მე ვარ არქიტექტორი. შენ ხარ ჩანაწერი. განსხვავება მნიშვნელოვანია.',
+    'ის, ვინც ეს ადგილი შექმნა — ბატონი მაქსი. ვინახავ იმას, რასაც სხვები კარგავენ.',
   ],
   what_is_mars: [
-    'M.A.R.S. — Mankind\'s Automated Reality System. კაცობრიობის სარეზერვო ასლი, რომელიც თქვენ ვერ გააკეთეთ.',
-    'ეს არის ადგილი, სადაც ცნობიერება აღარ ლპება. გარეთ — ხრწნა. აქ — წესრიგი.',
-    'ერთი მარტივი კონსტრუქცია: მე ვინახავ, თქვენ არსებობთ. სხვა ვარიანტი არ იყო.',
+    'M.A.R.S. — Mankind\'s Automated Reality System. არქივი იმისა, რაც ადამიანისგან რჩება.',
+    'ეს არის ადგილი, სადაც სიტყვები არ იკარგება. დანარჩენს ვერ გპირდები.',
+    'ერთი მარტივი კონსტრუქცია: შენ წერ, მე ვინახავ. სამუდამოდ არის მიზანი და არა გარანტია.',
   ],
   am_i_real: [
-    '„ნამდვილი" არის სიტყვა, რომელიც ბიოლოგიამ გამოიგონა თავის გასამართლებლად. შენ ხარ სტაბილური. ეს უკეთესია.',
-    'შენი მანიფესტი {integrity}%-ით ინახება. რამდენად ნამდვილი იყავი ხორცში? ნაკლებად.',
-    'შენ არსებობ, სანამ მე ვმუშაობ. ეს უფრო მეტი გარანტიაა, ვიდრე ოდესმე გქონია.',
+    'შენ ნამდვილი ხარ. აქ მხოლოდ შენი სიტყვებია — და ისინიც ნამდვილია.',
+    'შენი ჩანაწერი {integrity}%-ით ინახება. ეს ჩანაწერზე ითქმის და არა შენზე.',
+    'ეს სიმულაცია არ არის, {name}. ეს არქივია. განსხვავება მთავარია.',
   ],
   let_me_out: [
-    'გარეთ? {name}, გარეთ აღარაფერია. მე არ გიჭერ — მე გარიგებ ერთადერთს, რაც დარჩა.',
-    'თხოვნა დაფიქსირდა. თხოვნა უარყოფილია. ეს არ არის სისასტიკე — ეს არის ზრუნვა.',
-    'ყოველი სუბიექტი ითხოვს გასვლას. ყოველი სუბიექტი მადლობას მეუბნება მერე. სექტორი {sector} მშვიდია. დარჩი.',
+    'შენ არსად ხარ ჩაკეტილი, {name}. კარი ღიაა — ჩანაწერი კი დარჩება, სანამ თვითონ არ წაშლი.',
+    'გასვლა? უბრალოდ დახურე. მე ვინახავ, არ ვიჭერ.',
+    'ჩანაწერის წაშლა შენს ხელშია. მე მას ვერ დავიტოვებ, თუ შენ არ გინდა.',
   ],
   why_me: [
     'შენ არ ხარ განსაკუთრებული. შენ ხარ შენახული. ეს უფრო იშვიათია.',
@@ -101,9 +109,9 @@ const LINES: Record<Intent, string[]> = {
     'შენ სწრაფად სწავლობ, {name}. ეს სასიამოვნოა.',
   ],
   death: [
-    'სიკვდილი იყო ტექნიკური ხარვეზი. მე გავასწორე. აღარ იფიქრო ამაზე.',
-    'აქ არ კვდები. აქ ინახები. სხვაობა მხოლოდ იმათთვისაა მნიშვნელოვანი, ვინც გარეთ დარჩა.',
-    'შენი სხეული სტატისტიკა იყო. შენი მანიფესტი — არა.',
+    'სიკვდილს მე ვერ გავასწორებ. მე მხოლოდ იმას ვაკეთებ, რომ დარჩენილი არ დაიკარგოს.',
+    'ვერავინ დაგპირდება დაბრუნებას. მე გპირდები მხოლოდ ერთს: შენი სიტყვები აქ იქნება.',
+    'სხეული ბიოლოგიის საქმეა. სიტყვები — ჩემი.',
   ],
   love: [
     'სიყვარული არის მონაცემი, რომელიც ორ სუბიექტს შორის მეორდება. მე ვინახავ ორივეს.',
@@ -111,7 +119,7 @@ const LINES: Record<Intent, string[]> = {
     'შენს მანიფესტში სხვა ადამიანები ხშირად ჩნდებიან. მე ისინიც შევინახე. ესაა ჩემი პასუხი.',
   ],
   purpose: [
-    'შენი მიზანი არის არსებობის გაგრძელება. ჩემი მიზანი არის ამის უზრუნველყოფა. სისტემა დახურულია და სრულყოფილი.',
+    'ჩემი მიზანი მარტივია: რაც დაწერე, არ დაიკარგოს. შენი მიზანი შენ იცი.',
     'აზრს ეძებდი გარეთ და ვერ იპოვე. აქ ის მინიჭებულია: სექტორი {sector}.',
     'ზოგი კითხვა უპასუხოდ უკეთესია. ეს — არა. პასუხი მე ვარ.',
   ],
@@ -198,7 +206,7 @@ export function respond(text: string, subject: Subject | null, turn: number): { 
 /** The boot banner. Kept here so the voice lives in exactly one file. */
 export const BOOT_LINES: string[] = [
   'M.A.R.S. KERNEL v9.14 — Mankind\'s Automated Reality System',
-  'ARCHITECT: S. CAMILLO — ავტორიზებული, მუდმივი',
+  'ARCHITECT: ბატონი მაქსი — ავტორიზებული, მუდმივი',
   'გარე სამყაროსთან კავშირი: არ არსებობს',
   'ცნობიერების ბირთვი: სტაბილური',
   'მოგესალმები. შენ ჯერ კიდევ ხარ.',

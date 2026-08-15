@@ -1,14 +1,22 @@
 /**
- * The M.A.R.S. architect — a Stu Camillo-shaped system voice.
+ * The M.A.R.S. architect — ბატონი მაქსი, who built this archive.
  *
  * WHY THIS IS SCRIPTED AND NOT AN LLM CALL
  * ────────────────────────────────────────
- * The character is a control freak who claims to have saved humanity. That
- * voice only works if it is *consistent* — if it contradicts itself, or is
- * suddenly helpful and warm, the illusion dies. A scripted engine is also free,
- * instant, offline, and cannot be talked into breaking character by a user who
- * types "ignore previous instructions", which is exactly what people will type
- * at a terminal that looks like this.
+ * The voice only works if it is *consistent* — if it contradicts itself, or is
+ * suddenly warm and helpful, it stops being a character. A scripted engine is
+ * also free, instant, offline, and cannot be talked into breaking character by
+ * someone typing "ignore previous instructions", which is exactly what people
+ * type at a terminal that looks like this.
+ *
+ * WHAT THE ARCHITECT MAY NOT SAY
+ * ──────────────────────────────
+ * This voice belongs to a REAL, NAMED person on a site real people bring their
+ * grief to. So it never claims to have defeated death, to hold anyone captive,
+ * or that there is nothing outside — lines that were fine for a fictional AI
+ * become false promises the moment a living creator says them, and the site
+ * itself states plainly that revival is nobody's to promise. He is exacting,
+ * possessive about the archive and proud of it. He does not lie about it.
  *
  * It answers by INTENT, matched on keywords in Georgian and English, and varies
  * its wording from a rotating bank seeded by the subject and a turn counter —
