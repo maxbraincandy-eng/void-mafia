@@ -47,7 +47,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 3000);
 const CLIENT_URL = process.env.CLIENT_URL ?? 'http://localhost:5173';
 const IS_PROD = process.env.NODE_ENV === 'production';
-const CLIENT_BUILD = '2026-07-28-v565';
+const CLIENT_BUILD = '2026-07-28-v566';
 console.log('[Startup] Void Mafia server starting');
 console.log(`[Startup] Client build: ${CLIENT_BUILD}`);
 console.log(`[Startup] NODE_ENV=${process.env.NODE_ENV ?? 'development'}`);
@@ -67,7 +67,10 @@ const io = new Server(httpServer, {
     pingTimeout: 20000,
     pingInterval: 10000,
     upgradeTimeout: 10000,
-    maxHttpBufferSize: 10 * 1024 * 1024, // 10MB — needed for voice message audio data
+    // 10MB covered voice messages; M.A.R.S. preservation records carry a
+    // portrait plus up to five documents, so the frame ceiling has to clear the
+    // service's own attachment caps or a valid upload dies at the transport.
+    maxHttpBufferSize: 48 * 1024 * 1024,
 });
 // ── Middleware ────────────────────────────────────────────────────────
 app.use((req, res, next) => {

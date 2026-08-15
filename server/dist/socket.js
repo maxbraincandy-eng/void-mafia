@@ -33,7 +33,7 @@ import { recordGame, getPlayerHistory, getPlayerRoleStats, getPlayersLastRolesIn
 import { createClan, getClan, getClanByPlayer, getClanMembershipByPlayer, getAllClans, getClanMembers, joinClan, leaveClan, setClanMemberRole, addClanModLog, getClanModLogs, setClanImage, } from './services/clanService.js';
 import { challengeClan, acceptWar, declineWar, recordWarGame, getActiveWar, getWarHistory, } from './services/clanWarService.js';
 import { recordLeagueGame, getLeague, getClanLeagueDetail, getLeagueHistory, getClanTrophies, weekStartMs as leagueWeekStart, WEEK_MS as LEAGUE_WEEK_MS, PLAYER_WEEKLY_CAP, MIN_CONTRIBUTORS, LEAGUE_PRIZES, } from './services/clanLeagueService.js';
-import { getSubject as marsGetSubject, getSubjectByCode as marsGetByCode, upload as marsUpload, purge as marsPurge, directory as marsDirectory, stats as marsStats, MANIFEST_MIN, MANIFEST_MAX, DESIGNATION_MAX, DOCS_MAX_COUNT, DOC_MAX_CHARS, } from './services/marsService.js';
+import { getSubject as marsGetSubject, getSubjectByCode as marsGetByCode, upload as marsUpload, purge as marsPurge, directory as marsDirectory, stats as marsStats, MANIFEST_MIN, MANIFEST_MAX, DESIGNATION_MAX, DOCS_MAX_COUNT, DOC_MAX_CHARS, LETTER_MAX, RESTORE_NOTE_MAX, KIN_MAX, SAMPLE_NOTE_MAX, } from './services/marsService.js';
 import { respond as marsRespond, BOOT_LINES as MARS_BOOT } from './services/marsPersona.js';
 /** Per-socket turn counter, so the architect's phrasing rotates per session. */
 const marsTurns = new Map();
@@ -1774,8 +1774,13 @@ export function attachSocketHandlers(io) {
         socket.data.loungeId = null;
         // Rate-limit + payload size check on every incoming event
         socket.use(([event, ...args], next) => {
-            // Image upload events are exempt — they have their own size checks in their handlers
-            const largePayloadEvents = new Set(['player:update_avatar', 'community:post_create_v2', 'community:profile_update', 'clan:update_image', 'community:story_create', 'dm:voice', 'dm:image', 'owner:gift_create', 'owner:gift_update']);
+            // Image upload events are exempt — they have their own size checks in their handlers.
+            // mars:upload carries a portrait plus up to five documents; marsService
+            // validates every one of them by mime and by size, which is a far tighter
+            // check than this blanket 16 KB. Leaving it off this list is what made
+            // "the image won't upload" — ANY real photo blew the 16 KB ceiling here
+            // and was rejected before its handler ever ran.
+            const largePayloadEvents = new Set(['player:update_avatar', 'community:post_create_v2', 'community:profile_update', 'clan:update_image', 'community:story_create', 'dm:voice', 'dm:image', 'owner:gift_create', 'owner:gift_update', 'mars:upload']);
             // 4. Payload size limit — reject anything over 16 KB
             const payload = args[0];
             if (!largePayloadEvents.has(event) && payload !== null && payload !== undefined && typeof payload === 'object') {
@@ -4669,6 +4674,8 @@ export function attachSocketHandlers(io) {
                     limits: {
                         manifestMin: MANIFEST_MIN, manifestMax: MANIFEST_MAX, designationMax: DESIGNATION_MAX,
                         docsMax: DOCS_MAX_COUNT, docBytesMax: Math.floor(DOC_MAX_CHARS * 0.75),
+                        letterMax: LETTER_MAX, restoreNoteMax: RESTORE_NOTE_MAX,
+                        kinMax: KIN_MAX, sampleNoteMax: SAMPLE_NOTE_MAX,
                     },
                 }));
             }
@@ -4683,7 +4690,12 @@ export function attachSocketHandlers(io) {
                     throw new Error('ACCESS DENIED — ჯერ შედი სისტემაში.');
                 if (!marsUploadRateOk(profileId))
                     throw new Error('THROTTLED — ძალიან სწრაფად. დაელოდე რამდენიმე წამს.');
-                const subject = await marsUpload(profileId, String(data?.designation ?? ''), String(data?.manifest ?? ''), data?.portrait, data?.docs);
+                const subject = await marsUpload(profileId, {
+                    designation: data?.designation, manifest: data?.manifest,
+                    portrait: data?.portrait, docs: data?.docs,
+                    letter: data?.letter, restoreNote: data?.restoreNote,
+                    sampleStatus: data?.sampleStatus, sampleNote: data?.sampleNote, kin: data?.kin,
+                });
                 cb(ok({ subject, stats: await marsStats() }));
             }
             catch (e) {
@@ -4717,9 +4729,12 @@ export function attachSocketHandlers(io) {
                     cb(ok(null));
                     return;
                 }
+                // Deliberately field-by-field: letter, restoreNote, sampleNote, kin,
+                // manifest and docs are private and must never appear here.
                 cb(ok({
                     code: s.code, designation: s.designation, sector: s.sector,
-                    integrity: s.integrity, traits: s.traits, createdAt: s.createdAt,
+                    integrity: s.integrity, traits: s.traits, portrait: s.portrait,
+                    sampleStatus: s.sampleStatus, createdAt: s.createdAt,
                 }));
             }
             catch (e) {

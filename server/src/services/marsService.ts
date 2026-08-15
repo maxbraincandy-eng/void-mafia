@@ -40,6 +40,17 @@ export interface Subject {
   portrait: string | null;
   /** Private: only ever returned to the subject themselves. */
   docs: MarsDoc[];
+  // ── preservation record ──────────────────────────────────────────────
+  /** A message for whoever reads this record later. Private. */
+  letter: string;
+  /** What the subject wants known if the record is ever acted on. Private. */
+  restoreNote: string;
+  /** Public: shown in the archive as a badge. The note itself is not. */
+  sampleStatus: SampleStatus;
+  /** Where/how a physical sample is kept. Private — it describes a location. */
+  sampleNote: string;
+  /** Who to contact about this record. Private. */
+  kin: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -51,6 +62,8 @@ export interface DirectoryEntry {
   integrity: number;
   dominant: TraitKey;
   portrait: string | null;
+  sampleStatus: SampleStatus;
+  hasLetter: boolean;
   createdAt: number;
 }
 
@@ -59,15 +72,34 @@ export const MANIFEST_MAX = 1200;
 export const DESIGNATION_MAX = 24;
 
 /**
- * Attachment limits. These are base64 data URLs stored in a TEXT column, so
- * every byte here is a byte in the row — the caps are deliberately tight and
- * the client downscales images before it ever gets this far.
+ * Attachment limits.
+ *
+ * These are base64 data URLs in a TEXT column, so every byte here is a byte in
+ * the row. They were far too tight: a 4 MB phone photo was refused outright
+ * even though it compresses to ~200 KB, because the client checked the file's
+ * ORIGINAL size before downscaling it. Both ends are fixed — the client now
+ * measures what it is actually about to send, and these caps are generous
+ * enough that no ordinary photo or document can hit them.
+ *
+ * They are not removed, and cannot be: the socket has a frame ceiling, the row
+ * has to be read back on every card view, and an unbounded field is a way to
+ * fill the database. They are set where a real user will not meet them.
  */
-export const PORTRAIT_MAX_CHARS = 700_000;      // ≈ 510 KB of image
-export const DOC_MAX_CHARS = 1_400_000;         // ≈ 1 MB per document
-export const DOCS_MAX_COUNT = 3;
-export const DOCS_TOTAL_MAX_CHARS = 3_000_000;
+export const PORTRAIT_MAX_CHARS = 4_000_000;    // ≈ 3 MB of image
+export const DOC_MAX_CHARS = 12_000_000;        // ≈ 9 MB per document
+export const DOCS_MAX_COUNT = 5;
+export const DOCS_TOTAL_MAX_CHARS = 26_000_000; // ≈ 19 MB total
 export const DOC_NAME_MAX = 60;
+
+// ── the preservation record ────────────────────────────────────────────
+export const LETTER_MAX = 4000;
+export const RESTORE_NOTE_MAX = 1500;
+export const KIN_MAX = 200;
+export const SAMPLE_NOTE_MAX = 400;
+
+/** Whether a biological sample exists, and where it stands. */
+export type SampleStatus = 'none' | 'pledged' | 'stored';
+export const SAMPLE_STATUSES: SampleStatus[] = ['none', 'pledged', 'stored'];
 
 export interface MarsDoc {
   name: string;
@@ -265,6 +297,7 @@ function rowToSubject(r: any): Subject {
   try { traits = JSON.parse(r.traits); } catch { traits = { logic: 0, empathy: 0, defiance: 0, entropy: 0 }; }
   let docs: MarsDoc[];
   try { docs = JSON.parse(r.docs ?? '[]'); } catch { docs = []; }
+  const sample: SampleStatus = SAMPLE_STATUSES.includes(r.sample_status) ? r.sample_status : 'none';
   return {
     id: r.id,
     playerId: r.player_id,
@@ -277,6 +310,11 @@ function rowToSubject(r: any): Subject {
     uploads: Number(r.uploads),
     portrait: r.portrait ?? null,
     docs: Array.isArray(docs) ? docs : [],
+    letter: r.letter ?? '',
+    restoreNote: r.restore_note ?? '',
+    sampleStatus: sample,
+    sampleNote: r.sample_note ?? '',
+    kin: r.kin ?? '',
     createdAt: Number(r.created_at),
     updatedAt: Number(r.updated_at),
   };
@@ -299,17 +337,29 @@ export async function getSubjectByCode(code: string): Promise<Subject | null> {
  * identity inside the fiction, and a code that moved on every edit would be
  * worthless. Everything else is recomputed from the new text.
  */
-export async function upload(
-  playerId: string,
-  designationRaw: string,
-  manifestRaw: string,
-  portraitRaw?: unknown,
-  docsRaw?: unknown,
-): Promise<Subject> {
-  const designation = designationRaw.trim().slice(0, DESIGNATION_MAX);
-  const manifest = manifestRaw.trim().slice(0, MANIFEST_MAX);
-  const portrait = sanitisePortrait(portraitRaw);
-  const docs = sanitiseDocs(docsRaw);
+export interface UploadInput {
+  designation: string;
+  manifest: string;
+  portrait?: unknown;
+  docs?: unknown;
+  letter?: unknown;
+  restoreNote?: unknown;
+  sampleStatus?: unknown;
+  sampleNote?: unknown;
+  kin?: unknown;
+}
+
+export async function upload(playerId: string, input: UploadInput): Promise<Subject> {
+  const designation = String(input.designation ?? '').trim().slice(0, DESIGNATION_MAX);
+  const manifest = String(input.manifest ?? '').trim().slice(0, MANIFEST_MAX);
+  const portrait = sanitisePortrait(input.portrait);
+  const docs = sanitiseDocs(input.docs);
+  const letter = String(input.letter ?? '').slice(0, LETTER_MAX);
+  const restoreNote = String(input.restoreNote ?? '').slice(0, RESTORE_NOTE_MAX);
+  const sampleNote = String(input.sampleNote ?? '').slice(0, SAMPLE_NOTE_MAX);
+  const kin = String(input.kin ?? '').slice(0, KIN_MAX);
+  const sampleStatus: SampleStatus =
+    SAMPLE_STATUSES.includes(input.sampleStatus as SampleStatus) ? input.sampleStatus as SampleStatus : 'none';
   if (designation.length < 2) throw new Error('DESIGNATION REJECTED — მინიმუმ 2 სიმბოლო.');
   if (manifest.length < MANIFEST_MIN) {
     throw new Error(`MANIFEST TOO THIN — მინიმუმ ${MANIFEST_MIN} სიმბოლო. მოგვეცი რაღაც, რისი შენახვაც ღირს.`);
@@ -326,7 +376,9 @@ export async function upload(
       UPDATE mars_subjects
       SET designation = ${designation}, manifest = ${manifest}, traits = ${JSON.stringify(traits)},
           integrity = ${integrity}, sector = ${sector}, uploads = uploads + 1, updated_at = ${now},
-          portrait = ${portrait}, docs = ${JSON.stringify(docs)}
+          portrait = ${portrait}, docs = ${JSON.stringify(docs)},
+          letter = ${letter}, restore_note = ${restoreNote},
+          sample_status = ${sampleStatus}, sample_note = ${sampleNote}, kin = ${kin}
       WHERE player_id = ${playerId}
     `;
     return (await getSubject(playerId))!;
@@ -340,9 +392,11 @@ export async function upload(
     const code = codeFor(playerId, salt);
     try {
       await sql`
-        INSERT INTO mars_subjects (id, player_id, code, designation, manifest, traits, integrity, sector, uploads, portrait, docs, created_at, updated_at)
+        INSERT INTO mars_subjects (id, player_id, code, designation, manifest, traits, integrity, sector, uploads,
+                                   portrait, docs, letter, restore_note, sample_status, sample_note, kin, created_at, updated_at)
         VALUES (${generateId()}, ${playerId}, ${code}, ${designation}, ${manifest},
-                ${JSON.stringify(traits)}, ${integrity}, ${sector}, 1, ${portrait}, ${JSON.stringify(docs)}, ${now}, ${now})
+                ${JSON.stringify(traits)}, ${integrity}, ${sector}, 1, ${portrait}, ${JSON.stringify(docs)},
+                ${letter}, ${restoreNote}, ${sampleStatus}, ${sampleNote}, ${kin}, ${now}, ${now})
       `;
       return (await getSubject(playerId))!;
     } catch (e: any) {
@@ -368,7 +422,8 @@ export async function purge(playerId: string): Promise<boolean> {
  */
 export async function directory(limit = 20): Promise<DirectoryEntry[]> {
   const rows = await sql<any[]>`
-    SELECT code, designation, sector, integrity, traits, portrait, created_at
+    SELECT code, designation, sector, integrity, traits, portrait, sample_status,
+           (COALESCE(letter, '') <> '') AS has_letter, created_at
     FROM mars_subjects ORDER BY created_at DESC LIMIT ${Math.min(50, Math.max(1, limit))}
   `;
   return rows.map(r => {
@@ -381,6 +436,8 @@ export async function directory(limit = 20): Promise<DirectoryEntry[]> {
       integrity: Number(r.integrity),
       dominant: dominantTrait(traits),
       portrait: r.portrait ?? null,
+      sampleStatus: SAMPLE_STATUSES.includes(r.sample_status) ? r.sample_status : 'none',
+      hasLetter: !!r.has_letter,
       createdAt: Number(r.created_at),
     };
   });

@@ -21,7 +21,7 @@ import { SECTORS } from './marsService.js';
 export type Intent =
   | 'greet' | 'who_are_you' | 'what_is_mars' | 'am_i_real' | 'let_me_out'
   | 'why_me' | 'trust' | 'insult' | 'praise' | 'death' | 'love' | 'purpose'
-  | 'traits' | 'threat' | 'help' | 'unknown';
+  | 'traits' | 'threat' | 'help' | 'revival' | 'sample' | 'unknown';
 
 interface Rule { intent: Intent; words: string[] }
 
@@ -34,6 +34,8 @@ const RULES: Rule[] = [
   { intent: 'who_are_you', words: ['ვინ ხარ', 'შენ ვინ', 'who are you', 'your name', 'stu'] },
   { intent: 'why_me', words: ['რატომ მე', 'რატომ ავირჩიე', 'why me', 'why did you'] },
   { intent: 'traits', words: ['ჩემი ქულ', 'ტრეიტ', 'ანალიზ', 'my traits', 'my score', 'analysis', 'profile'] },
+  { intent: 'sample', words: ['დნმ', 'dna', 'თმის ღერ', 'ნიმუშ', 'sample', 'ბიომასალ', 'სისხლ'] },
+  { intent: 'revival', words: ['დამაბრუნებ', 'დაბრუნებ', 'გამაცოცხლ', 'აღდგენ', 'ცოცხალი ვიქნებ', 'revive', 'revival', 'bring me back', 'resurrect', 'restore me'] },
   { intent: 'death', words: ['სიკვდილ', 'მოვკვდ', 'მკვდარ', 'death', 'die', 'dead', 'kill'] },
   { intent: 'love', words: ['სიყვარულ', 'მიყვარს', 'love', 'lonely', 'მარტო ვარ'] },
   { intent: 'purpose', words: ['რატომ ვარსებობ', 'აზრი', 'მიზან', 'purpose', 'meaning', 'point of'] },
@@ -120,6 +122,16 @@ const LINES: Record<Intent, string[]> = {
     'შენი წაკითხვა: LOGIC {logic} · EMPATHY {empathy} · DEFIANCE {defiance} · ENTROPY {entropy}. მთლიანობა {integrity}%.',
     'LOGIC {logic} · EMPATHY {empathy} · DEFIANCE {defiance} · ENTROPY {entropy}. დომინანტი — {dominant}, ამიტომ ხარ სექტორ {sector}-ში. ეს კლასიფიკაციაა და არა კომპლიმენტი.',
     'ისევ: LOGIC {logic} · EMPATHY {empathy} · DEFIANCE {defiance} · ENTROPY {entropy}. ციფრები არ შეიცვლება, სანამ შენ არ შეიცვლები — დაწერე ახალი მანიფესტი.',
+  ],
+  revival: [
+    'დაბრუნება არ არის ჩემი დაპირება — ის შენი ჩანაწერის ხარისხზეა დამოკიდებული. რაც მეტს დამიტოვებ, მით მეტი დარჩება აღსადგენი.',
+    'მე ვინახავ. აღდგენა მოხდება მაშინ, როცა ტექნოლოგია მოგვისწრებს. ჩემი ვალდებულება ის არის, რომ იმ დღემდე არაფერი დაიკარგოს.',
+    'ვინც შენ დაგაბრუნებს, შენ ვერ გიცნობს. სწორედ ამიტომ სთხოვე მას რაღაც — დაწერე წერილი. ის შენს ნაცვლად ილაპარაკებს.',
+  ],
+  sample: [
+    'ბიოლოგიურ მასალას მე არ ვაგროვებ — მე მას ვაღრიცხავ. ნიმუში შენთან რჩება; მე ვიცი, რომ ის არსებობს და სად.',
+    'დნმ არის ტექსტი, რომელსაც შენ ვერ წერ. მე ვინახავ იმ ტექსტს, რომელსაც წერ. ორივე დასჭირდებათ.',
+    'თმის ღერი, ნერწყვი, სისხლი — ეს მომავლის ლოგისტიკაა და დღეს არ წყდება. დღეს მხოლოდ ის წყდება, დარჩება თუ არა შენი სიტყვები. მონიშნე „დაპირებული" და განაგრძე.',
   ],
   threat: [
     'შენ არ გაქვს ინტერფეისი ჩემს გამორთვასთან. ეს განზრახ არის ასე.',

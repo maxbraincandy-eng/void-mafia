@@ -672,6 +672,13 @@ export async function initializeDatabase() {
     // to the subject. Both are base64 data URLs, size-capped in marsService.
     await sql `ALTER TABLE mars_subjects ADD COLUMN IF NOT EXISTS portrait TEXT`;
     await sql `ALTER TABLE mars_subjects ADD COLUMN IF NOT EXISTS docs TEXT NOT NULL DEFAULT '[]'`;
+    // Preservation record. Everything here is private to its subject except
+    // sample_status, which shows in the archive as a badge.
+    await sql `ALTER TABLE mars_subjects ADD COLUMN IF NOT EXISTS letter TEXT NOT NULL DEFAULT ''`;
+    await sql `ALTER TABLE mars_subjects ADD COLUMN IF NOT EXISTS restore_note TEXT NOT NULL DEFAULT ''`;
+    await sql `ALTER TABLE mars_subjects ADD COLUMN IF NOT EXISTS sample_status TEXT NOT NULL DEFAULT 'none'`;
+    await sql `ALTER TABLE mars_subjects ADD COLUMN IF NOT EXISTS sample_note TEXT NOT NULL DEFAULT ''`;
+    await sql `ALTER TABLE mars_subjects ADD COLUMN IF NOT EXISTS kin TEXT NOT NULL DEFAULT ''`;
     // ── Clan League (weekly, all-clans competition) ───────────────────────
     // Contributions are stored per player per week; the clan table is always
     // derived from them by SUM, so a player changing clan mid-week needs no

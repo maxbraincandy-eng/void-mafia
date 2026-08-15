@@ -37,13 +37,13 @@ import type { Res } from '@/types/index';
 import { MatrixRain } from './MatrixRain';
 import { MarsCard } from './MarsCard';
 import { MarsUploadSheet } from './MarsUploadSheet';
-import { sectorOf, type DirEntry, type Limits, type MarsDoc, type Stats, type Subject } from './types';
+import { sectorOf, SAMPLE_INFO, type DirEntry, type Limits, type MarsDoc, type SampleStatus, type Stats, type Subject } from './types';
 import * as sfx from './sfx';
 
 type Tab = 'card' | 'archive' | 'architect';
 interface ChatMsg { id: number; from: 'me' | 'arch'; text: string }
 
-const ASK_SUGGESTIONS = ['ვინ ხარ შენ?', 'რა არის ეს ადგილი?', 'გამომიშვი აქედან', 'მე ნამდვილი ვარ?', 'ჩემი ქულები'];
+const ASK_SUGGESTIONS = ['ვინ ხარ შენ?', 'მართლა დამაბრუნებ?', 'დნმ როგორ მოგაწოდო?', 'რა არის ეს ადგილი?', 'ჩემი ქულები'];
 
 let msgSeq = 0;
 
@@ -51,7 +51,10 @@ export function MarsTerminal({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<Tab>('card');
   const [subject, setSubject] = useState<Subject | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
-  const [limits, setLimits] = useState<Limits>({ manifestMin: 40, manifestMax: 1200, designationMax: 24, docsMax: 3, docBytesMax: 1_000_000 });
+  const [limits, setLimits] = useState<Limits>({
+    manifestMin: 40, manifestMax: 1200, designationMax: 24, docsMax: 5, docBytesMax: 9_000_000,
+    letterMax: 4000, restoreNoteMax: 1500, kinMax: 200, sampleNoteMax: 400,
+  });
   const [dir, setDir] = useState<DirEntry[] | null>(null);
   const [chat, setChat] = useState<ChatMsg[]>([]);
   const [chatInput, setChatInput] = useState('');
@@ -157,7 +160,10 @@ export function MarsTerminal({ onClose }: { onClose: () => void }) {
     if (tab === 'archive' && dir === null) void loadArchive();
   }, [tab, dir, loadArchive]);
 
-  const doUpload = useCallback(async (v: { designation: string; manifest: string; portrait: string | null; docs: MarsDoc[] }) => {
+  const doUpload = useCallback(async (v: {
+    designation: string; manifest: string; portrait: string | null; docs: MarsDoc[];
+    letter: string; restoreNote: string; sampleStatus: SampleStatus; sampleNote: string; kin: string;
+  }) => {
     setBusy(true);
     try {
       const res = await emitWithAck<typeof v, Res<{ subject: Subject; stats: Stats }>>('mars:upload', v);
@@ -167,7 +173,7 @@ export function MarsTerminal({ onClose }: { onClose: () => void }) {
         setDir(null);                 // the archive now has a new/updated row
         setSheet(null);
         setTab('card');
-        setToast('ინტეგრაცია დასრულდა.');
+        setToast('ჩანაწერი დაცულია.');
         sfx.accept();
       } else { setToast(('error' in res && res.error) || 'ატვირთვა უარყოფილია'); sfx.reject(); }
     } catch { setToast('კავშირი დაიკარგა.'); sfx.reject(); }
@@ -281,16 +287,16 @@ export function MarsTerminal({ onClose }: { onClose: () => void }) {
               <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
                 className="rounded-2xl p-5 text-center"
                 style={{ border: '1px solid rgba(57,255,106,0.3)', background: 'linear-gradient(160deg, rgba(57,255,106,0.07), rgba(1,10,6,0.85))' }}>
-                <div className="text-[38px] mb-1">🧠</div>
+                <div className="text-[38px] mb-1">🧬</div>
                 <p className="font-display font-bold text-[17px] text-white">შენ ჯერ არ ხარ არქივში</p>
                 <p className="font-mono text-[12px] mt-2 leading-relaxed" style={{ color: 'rgba(255,255,255,0.55)' }}>
-                  დაწერე მოკლე ტექსტი იმაზე, თუ ვინ ხარ. სისტემა წაიკითხავს, მოგცემს მუდმივ კოდს
-                  და გამოგყოფს სექტორს.
+                  M.A.R.S. ინახავს იმას, რაც ადამიანისგან რჩება — მის სიტყვებს, სახეს, დოკუმენტებს.
+                  თუ ოდესმე ტექნოლოგია იმ დონეს მიაღწევს, ეს ჩანაწერი იქნება საწყისი წერტილი.
                 </p>
                 <button onClick={() => setSheet('upload')}
                   className="w-full mt-4 py-3 rounded-xl font-mono text-[14px] font-bold transition-all active:scale-[0.98]"
                   style={{ border: '1px solid rgba(57,255,106,0.5)', background: 'rgba(57,255,106,0.16)', color: '#39ff6a' }}>
-                  შემოუერთდი M.A.R.S.-ს
+                  დაიცავი შენი ჩანაწერი
                 </button>
                 <button onClick={() => setSheet('about')}
                   className="mt-2 font-mono text-[11px]" style={{ color: 'rgba(125,249,255,0.7)' }}>
@@ -344,6 +350,24 @@ export function MarsTerminal({ onClose }: { onClose: () => void }) {
                       <p className="font-mono text-[10px]" style={{ color: `${s.color}aa` }}>#{e.code}</p>
                       <p className="font-mono text-[11px] text-white/85 truncate w-full">{e.designation}</p>
                       <p className="font-mono text-[9px] mt-0.5" style={{ color: s.color }}>{e.sector} · {e.integrity}%</p>
+                      {/* Public signals only: that a sample is pledged and that a
+                          letter exists. Never their contents. */}
+                      {(e.sampleStatus !== 'none' || e.hasLetter) && (
+                        <div className="flex gap-1 mt-1">
+                          {e.sampleStatus !== 'none' && (
+                            <span className="font-mono text-[9px] px-1 rounded" title={SAMPLE_INFO[e.sampleStatus].hint}
+                              style={{ color: `rgb(${SAMPLE_INFO[e.sampleStatus].color})`, border: `1px solid rgba(${SAMPLE_INFO[e.sampleStatus].color},0.35)` }}>
+                              🧬
+                            </span>
+                          )}
+                          {e.hasLetter && (
+                            <span className="font-mono text-[9px] px-1 rounded" title="დატოვა წერილი მომავალს"
+                              style={{ color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.18)' }}>
+                              ✉
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -361,7 +385,7 @@ export function MarsTerminal({ onClose }: { onClose: () => void }) {
               {chat.length === 0 && (
                 <div className="rounded-2xl p-4 mb-3" style={{ border: '1px solid rgba(125,249,255,0.22)', background: 'rgba(125,249,255,0.05)' }}>
                   <p className="font-mono text-[12px] leading-relaxed" style={{ color: 'rgba(217,255,228,0.8)' }}>
-                    სისტემას მართავს <b>ს. კამილო</b> — არქიტექტორი. ჰკითხე რაც გინდა.
+                    სისტემას მართავს <b>ს. კამილო</b> — არქიტექტორი. ჰკითხე აღდგენაზე, ნიმუშზე ან რაც გინდა.
                   </p>
                 </div>
               )}
@@ -463,10 +487,23 @@ export function MarsTerminal({ onClose }: { onClose: () => void }) {
 
         {sheet === 'about' && (
           <Modal title="რა არის M.A.R.S." onClose={() => setSheet(null)}>
-            <p className="font-mono text-[12px] leading-relaxed" style={{ color: 'rgba(217,255,228,0.85)' }}>
-              M.A.R.S. არის სიმულაცია, რომელიც ადამიანის ცნობიერებას ინახავს.
-              შენ წერ <b>მანიფესტს</b> — მოკლე ტექსტს იმაზე, თუ ვინ ხარ — და სისტემა მას კითხულობს:
-              გაძლევს მუდმივ კოდს, ზომავს ოთხ მახასიათებელს და გამოგყოფს სექტორს.
+            <p className="font-mono text-[12px] leading-relaxed" style={{ color: 'rgba(217,255,228,0.9)' }}>
+              ხვალ თუ ზეგ, ტექნოლოგია იმ დონეს მიაღწევს, რომ ადამიანი DNA-დან აღდგეს.
+              მაშინ ერთი კითხვა დარჩება: <b>რა გვექნება იმ ადამიანზე?</b>
+            </p>
+            <p className="font-mono text-[12px] leading-relaxed mt-2" style={{ color: 'rgba(217,255,228,0.75)' }}>
+              M.A.R.S. სწორედ ამას აგროვებს — შენს სიტყვებს, სახეს, დოკუმენტებს, წერილს მომავლისთვის.
+              სხეული ბიოლოგიის საქმეა. დანარჩენი — ჩვენი.
+            </p>
+            <div className="mt-3 rounded-xl p-2.5" style={{ border: '1px solid rgba(57,255,106,0.22)', background: 'rgba(57,255,106,0.05)' }}>
+              <p className="font-mono text-[11px] leading-relaxed" style={{ color: 'rgba(217,255,228,0.7)' }}>
+                <b>რას ინახავს:</b> მანიფესტს (ვინ ხარ, საკუთარი სიტყვებით), პორტრეტს,
+                ფაილებს, წერილს მომავლისთვის, მითითებებს და ბიოლოგიური ნიმუშის აღრიცხვას.
+              </p>
+            </div>
+            <p className="font-mono text-[12px] leading-relaxed mt-3" style={{ color: 'rgba(217,255,228,0.8)' }}>
+              შენი <b>მანიფესტი</b> ამავე დროს იკითხება სისტემის მიერ: გაძლევს მუდმივ კოდს,
+              ზომავს ოთხ მახასიათებელს და გამოგყოფს სექტორს.
             </p>
             <div className="mt-3 space-y-1.5">
               {[
@@ -482,13 +519,23 @@ export function MarsTerminal({ onClose }: { onClose: () => void }) {
               ))}
             </div>
             <p className="font-mono text-[11px] mt-3 leading-relaxed" style={{ color: 'rgba(120,255,160,0.55)' }}>
-              ანალიზი შენს ტექსტს ზომავს და არა შენს პიროვნებას. მანიფესტსა და დოკუმენტებს
-              მხოლოდ შენ ხედავ — არქივში სხვები მხოლოდ კოდს, სახელს, ფოტოსა და სექტორს ხედავენ.
+              ანალიზი შენს ტექსტს ზომავს და არა შენს პიროვნებას. მანიფესტს, წერილს, ფაილებსა და
+              აღდგენის პაკეტს <b>მხოლოდ შენ ხედავ</b> — არქივში სხვები მხოლოდ კოდს, სახელს, ფოტოსა
+              და სექტორს ხედავენ.
             </p>
+            {/* Said plainly, because the idea invites a bigger promise than
+                anyone can keep, and because it protects whoever joins. */}
+            <div className="mt-3 rounded-xl p-2.5" style={{ border: '1px solid rgba(255,212,90,0.28)', background: 'rgba(255,212,90,0.05)' }}>
+              <p className="font-mono text-[10px] leading-relaxed" style={{ color: 'rgba(255,212,90,0.85)' }}>
+                გულახდილად: ეს არქივია და არა დაპირება. M.A.R.S. ბიოლოგიურ მასალას არ აგროვებს და
+                აღდგენას ვერავინ გპირდება. ის, რასაც ვაკეთებთ, ერთი რამაა — რომ შენი კვალი არ
+                დაიკარგოს. ნიმუში, თუ გექნება, შენთან რჩება.
+              </p>
+            </div>
             <button onClick={() => { setSheet('upload'); }}
               className="w-full mt-4 py-2.5 rounded-xl font-mono text-[13px] font-bold transition-all active:scale-[0.98]"
               style={{ border: '1px solid rgba(57,255,106,0.45)', background: 'rgba(57,255,106,0.14)', color: '#39ff6a' }}>
-              {subject ? 'ჩანაწერის განახლება' : 'შემოუერთდი'}
+              {subject ? 'ჩანაწერის განახლება' : 'დაიცავი შენი ჩანაწერი'}
             </button>
           </Modal>
         )}

@@ -1,20 +1,28 @@
 /**
- * The join / update form.
+ * The preservation record form.
  *
- * Everything that made the first version fail is handled here explicitly:
- * the manifest is a real textarea with a worked example and tappable prompts,
- * the submit button is disabled (not merely rejected) until the text is long
- * enough, and progress to the minimum is shown as a bar rather than a bare
- * "12/40" that only tells you that you failed.
+ * Two parts. The first is the archive entry itself — a name, a portrait and a
+ * manifest, which is what the system reads to score you. The second is the
+ * preservation record: a letter to whoever finds this, what you want known,
+ * whether a biological sample exists, and who to contact.
  *
- * Attachments: one portrait (public, shown in the archive) and up to N private
- * documents (PDF or image). Images are downscaled in the browser before they
- * are ever sent — the server cap exists as a guard, not as the mechanism.
+ * FILE SIZE — WHAT WAS BROKEN
+ * ───────────────────────────
+ * Images were rejected against their ORIGINAL size, before being downscaled.
+ * A 4 MB phone photo — every photo a phone takes — was refused even though it
+ * compresses to a couple of hundred kilobytes. Now only PDFs (which cannot be
+ * recompressed without ceasing to be readable PDFs) are measured on the way in;
+ * images are compressed first and measured after, against what is actually
+ * being sent. The server caps are raised to match and are no longer reachable
+ * by an ordinary photo.
+ *
+ * The accept lists are explicit rather than `image/*`: on iOS that is what
+ * makes the picker hand over a JPEG instead of a HEIC the canvas cannot decode.
  */
 import { useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { compressImage } from '@/lib/imageUtils';
-import { fileSize, type Limits, type MarsDoc, type Subject } from './types';
+import { fileSize, SAMPLE_INFO, type Limits, type MarsDoc, type SampleStatus, type Subject } from './types';
 import * as sfx from './sfx';
 
 /** Prompts to write against — this is the fix for "I typed my name again". */
@@ -28,7 +36,14 @@ const PROMPTS = [
 const PLACEHOLDER =
   'დაწერე რამდენიმე წინადადება.\n\nმაგალითად: მიყვარს ჩემი ოჯახი. მეშინია იმის, რომ დრო სწრაფად გადის. მინდა, რომ ვინმეს გავახსენდე.';
 
-/** Read any file as a data URL. Used for PDFs, which must not be re-encoded. */
+const LETTER_PLACEHOLDER =
+  'ვინც ამას წაიკითხავს, შენ ვერ გიცნობს.\n\nუთხარი ვინ იყავი, რა გიყვარდა, და რა გინდა რომ იცოდეს.';
+
+/** Images the browser can reliably decode into a canvas. Explicit, not image/*. */
+const IMAGE_ACCEPT = 'image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif';
+const DOC_ACCEPT = `application/pdf,${IMAGE_ACCEPT}`;
+
+/** Read a file as a data URL. Used for PDFs, which must not be re-encoded. */
 function readAsDataUrl(file: File): Promise<string> {
   return new Promise((res, rej) => {
     const r = new FileReader();
@@ -45,12 +60,21 @@ export function MarsUploadSheet({
   limits: Limits;
   busy: boolean;
   onCancel: () => void;
-  onSubmit: (v: { designation: string; manifest: string; portrait: string | null; docs: MarsDoc[] }) => void;
+  onSubmit: (v: {
+    designation: string; manifest: string; portrait: string | null; docs: MarsDoc[];
+    letter: string; restoreNote: string; sampleStatus: SampleStatus; sampleNote: string; kin: string;
+  }) => void;
 }) {
   const [designation, setDesignation] = useState(subject?.designation ?? '');
   const [manifest, setManifest] = useState(subject?.manifest ?? '');
   const [portrait, setPortrait] = useState<string | null>(subject?.portrait ?? null);
   const [docs, setDocs] = useState<MarsDoc[]>(subject?.docs ?? []);
+  const [letter, setLetter] = useState(subject?.letter ?? '');
+  const [restoreNote, setRestoreNote] = useState(subject?.restoreNote ?? '');
+  const [sampleStatus, setSampleStatus] = useState<SampleStatus>(subject?.sampleStatus ?? 'none');
+  const [sampleNote, setSampleNote] = useState(subject?.sampleNote ?? '');
+  const [kin, setKin] = useState(subject?.kin ?? '');
+  const [showPreserve, setShowPreserve] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
 
@@ -66,12 +90,18 @@ export function MarsUploadSheet({
     if (!file) return;
     setWorking(true); setError(null);
     try {
-      // Downscaled here so a 6 MB phone photo never travels; 512px is plenty
-      // for a 68px card thumbnail on any display.
-      setPortrait(await compressImage(file, 512, 0.75));
+      // 720px: big enough to look like a real portrait on a retina card, small
+      // enough that no phone photo ever approaches the server cap.
+      const data = await compressImage(file, 720, 0.8);
+      setPortrait(data);
       sfx.beep(700);
-    } catch { setError('სურათი ვერ დამუშავდა.'); sfx.reject(); }
-    finally { setWorking(false); }
+    } catch {
+      setError('სურათი ვერ დამუშავდა. სცადე JPEG ან PNG.');
+      sfx.reject();
+    } finally {
+      setWorking(false);
+      if (portraitInput.current) portraitInput.current.value = '';
+    }
   };
 
   const pickDocs = async (files: FileList | null) => {
@@ -80,15 +110,28 @@ export function MarsUploadSheet({
     try {
       const next = [...docs];
       for (const f of Array.from(files)) {
-        if (next.length >= limits.docsMax) { setError(`მაქსიმუმ ${limits.docsMax} დოკუმენტი.`); break; }
-        const isPdf = f.type === 'application/pdf';
-        const isImg = f.type.startsWith('image/');
-        if (!isPdf && !isImg) { setError('დაშვებულია მხოლოდ PDF ან სურათი.'); continue; }
-        if (f.size > limits.docBytesMax) { setError(`„${f.name}" ძალიან დიდია (მაქს. ${fileSize(limits.docBytesMax)}).`); continue; }
-        // Images are recompressed; a PDF must be byte-identical or it stops
-        // being a readable PDF.
-        const data = isPdf ? await readAsDataUrl(f) : await compressImage(f, 1400, 0.72);
-        next.push({ name: f.name, type: isPdf ? 'application/pdf' : 'image/jpeg', size: f.size, data });
+        if (next.length >= limits.docsMax) { setError(`მაქსიმუმ ${limits.docsMax} ფაილი.`); break; }
+        const isPdf = f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
+
+        if (isPdf) {
+          // A PDF is stored byte-identical, so its incoming size IS its stored
+          // size and is the only thing worth checking here.
+          if (f.size > limits.docBytesMax) {
+            setError(`„${f.name}" ძალიან დიდია (მაქს. ${fileSize(limits.docBytesMax)}).`);
+            continue;
+          }
+          next.push({ name: f.name, type: 'application/pdf', size: f.size, data: await readAsDataUrl(f) });
+          continue;
+        }
+
+        // Everything else is treated as an image and compressed FIRST. The old
+        // code measured f.size here and refused every phone photo.
+        try {
+          const data = await compressImage(f, 1800, 0.75);
+          next.push({ name: f.name, type: 'image/jpeg', size: Math.round(data.length * 0.75), data });
+        } catch {
+          setError(`„${f.name}" ვერ დამუშავდა — სცადე JPEG ან PNG.`);
+        }
       }
       setDocs(next);
       sfx.beep(640);
@@ -108,8 +151,18 @@ export function MarsUploadSheet({
       manifestRef.current?.focus();
       return;
     }
-    onSubmit({ designation: designation.trim(), manifest: manifest.trim(), portrait, docs });
+    onSubmit({
+      designation: designation.trim(), manifest: manifest.trim(), portrait, docs,
+      letter: letter.trim(), restoreNote: restoreNote.trim(), sampleStatus,
+      sampleNote: sampleNote.trim(), kin: kin.trim(),
+    });
   };
+
+  const field = {
+    background: 'rgba(255,255,255,0.05)',
+    border: '1px solid rgba(57,255,106,0.25)',
+    color: '#d9ffe4',
+  } as const;
 
   return (
     <motion.div
@@ -132,11 +185,12 @@ export function MarsUploadSheet({
             style={{ border: '1px solid rgba(57,255,106,0.22)', color: 'rgba(57,255,106,0.7)' }}>✕</button>
         </div>
 
-        {/* 1 — portrait + name, side by side so step one is visibly small */}
+        {/* 1 — portrait + name */}
         <div className="flex gap-3">
           <button
             onClick={() => portraitInput.current?.click()}
-            className="shrink-0 rounded-xl overflow-hidden relative transition-all active:scale-95"
+            disabled={working}
+            className="shrink-0 rounded-xl overflow-hidden relative transition-all active:scale-95 disabled:opacity-60"
             style={{ width: 76, height: 76, border: '1px dashed rgba(57,255,106,0.4)', background: 'rgba(255,255,255,0.04)' }}
             aria-label="პორტრეტის არჩევა"
           >
@@ -145,12 +199,12 @@ export function MarsUploadSheet({
               : (
                 <span className="flex flex-col items-center justify-center w-full h-full font-mono"
                   style={{ color: 'rgba(57,255,106,0.6)', fontSize: 10, gap: 2 }}>
-                  <span style={{ fontSize: 20 }}>🖼</span>
+                  <span style={{ fontSize: 20 }}>{working ? '…' : '🖼'}</span>
                   ფოტო
                 </span>
               )}
           </button>
-          <input ref={portraitInput} type="file" accept="image/*" hidden
+          <input ref={portraitInput} type="file" accept={IMAGE_ACCEPT} style={{ display: 'none' }}
             onChange={e => void pickPortrait(e.target.files?.[0])} />
 
           <div className="flex-1 min-w-0">
@@ -162,7 +216,7 @@ export function MarsUploadSheet({
               onChange={e => setDesignation(e.target.value.slice(0, limits.designationMax))}
               placeholder="მაგ. ORPHEUS, ნიკა, ჩრდილი…"
               className="w-full rounded-lg px-3 py-2 font-mono text-[13px] outline-none"
-              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(57,255,106,0.25)', color: '#d9ffe4' }}
+              style={field}
             />
             {portrait && (
               <button onClick={() => setPortrait(null)}
@@ -194,7 +248,7 @@ export function MarsUploadSheet({
           rows={6}
           placeholder={PLACEHOLDER}
           className="w-full rounded-lg px-3 py-2 font-mono text-[13px] outline-none resize-none"
-          style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(57,255,106,0.25)', color: '#d9ffe4', lineHeight: 1.5 }}
+          style={{ ...field, lineHeight: 1.5 }}
         />
         <div className="mt-1.5 h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
           <div style={{
@@ -207,13 +261,12 @@ export function MarsUploadSheet({
           {len >= limits.manifestMin ? `მზადაა · ${len}/${limits.manifestMax}` : `კიდევ ${limits.manifestMin - len} სიმბოლო`}
         </p>
 
-        {/* 3 — documents */}
+        {/* 3 — files */}
         <label className="block font-mono text-[11px] mt-3 mb-1" style={{ color: 'rgba(120,255,160,0.7)' }}>
-          3. დოკუმენტები — არასავალდებულო
+          3. ფაილები — არასავალდებულო
         </label>
         <p className="font-mono text-[10px] mb-1.5" style={{ color: 'rgba(255,255,255,0.32)' }}>
-          PDF ან სურათი. ინახება შენს არქივში და მხოლოდ შენ ხედავ.
-          ანალიზი მხოლოდ ზემოთ დაწერილ ტექსტს ეყრდნობა.
+          ფოტოები, დოკუმენტები, სკანები. სურათები ავტომატურად იკუმშება — ზომაზე ფიქრი არ გჭირდება.
         </p>
         <div className="space-y-1">
           {docs.map((d, i) => (
@@ -234,8 +287,112 @@ export function MarsUploadSheet({
             {working ? 'მუშავდება…' : `+ ფაილის დამატება (${docs.length}/${limits.docsMax})`}
           </button>
         )}
-        <input ref={docInput} type="file" accept="application/pdf,image/*" multiple hidden
+        <input ref={docInput} type="file" accept={DOC_ACCEPT} multiple style={{ display: 'none' }}
           onChange={e => void pickDocs(e.target.files)} />
+
+        {/* 4 — the preservation record */}
+        <button onClick={() => setShowPreserve(v => !v)}
+          className="w-full mt-4 py-2 rounded-xl flex items-center gap-2 px-3 transition-all active:scale-[0.99]"
+          style={{ border: '1px solid rgba(255,212,90,0.3)', background: 'rgba(255,212,90,0.06)' }}>
+          <span className="text-[14px]">🧬</span>
+          <span className="font-mono text-[12px]" style={{ color: '#ffd45a' }}>4. აღდგენის პაკეტი</span>
+          <span className="ml-auto font-mono text-[11px]" style={{ color: 'rgba(255,212,90,0.5)' }}>
+            {showPreserve ? '▲' : (letter || restoreNote || sampleStatus !== 'none' || kin) ? '● შევსებული' : 'არასავალდებულო ▼'}
+          </span>
+        </button>
+
+        {showPreserve && (
+          <div className="mt-2 space-y-3">
+            <p className="font-mono text-[10px] leading-relaxed px-1" style={{ color: 'rgba(255,255,255,0.4)' }}>
+              ეს ნაწილი მომავალს ეკუთვნის. თუ ოდესმე ტექნოლოგია იმ დონეს მიაღწევს, ეს ჩანაწერი
+              იქნება ის, რაც შენგან დარჩა. ყველაფერი აქ <b>მხოლოდ შენ გხედავ</b>.
+            </p>
+
+            <div>
+              <label className="block font-mono text-[11px] mb-1" style={{ color: 'rgba(120,255,160,0.7)' }}>
+                წერილი მომავალს
+              </label>
+              <textarea
+                value={letter}
+                onChange={e => setLetter(e.target.value.slice(0, limits.letterMax))}
+                rows={5}
+                placeholder={LETTER_PLACEHOLDER}
+                className="w-full rounded-lg px-3 py-2 font-mono text-[12px] outline-none resize-none"
+                style={{ ...field, lineHeight: 1.5 }}
+              />
+              <p className="font-mono text-[10px] mt-0.5" style={{ color: 'rgba(255,255,255,0.25)' }}>
+                {letter.length}/{limits.letterMax}
+              </p>
+            </div>
+
+            <div>
+              <label className="block font-mono text-[11px] mb-1" style={{ color: 'rgba(120,255,160,0.7)' }}>
+                რა უნდა იცოდნენ
+              </label>
+              <textarea
+                value={restoreNote}
+                onChange={e => setRestoreNote(e.target.value.slice(0, limits.restoreNoteMax))}
+                rows={3}
+                placeholder="ჯანმრთელობა, ალერგიები, ენა რომელზეც ლაპარაკობ, ვინ იყო შენთვის მნიშვნელოვანი…"
+                className="w-full rounded-lg px-3 py-2 font-mono text-[12px] outline-none resize-none"
+                style={{ ...field, lineHeight: 1.5 }}
+              />
+            </div>
+
+            <div>
+              <label className="block font-mono text-[11px] mb-1.5" style={{ color: 'rgba(120,255,160,0.7)' }}>
+                ბიოლოგიური ნიმუში
+              </label>
+              {/* Honest by design: nothing here collects DNA. It records whether
+                  a sample exists and where the subject keeps it. */}
+              <p className="font-mono text-[10px] mb-1.5 leading-relaxed" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                M.A.R.S. ბიოლოგიურ მასალას <b>არ აგროვებს</b> — მხოლოდ აღრიცხავს. ნიმუში შენთან რჩება.
+              </p>
+              <div className="flex gap-1.5">
+                {(['none', 'pledged', 'stored'] as SampleStatus[]).map(v => {
+                  const info = SAMPLE_INFO[v];
+                  const on = sampleStatus === v;
+                  return (
+                    <button key={v} onClick={() => setSampleStatus(v)}
+                      className="flex-1 py-1.5 rounded-lg font-mono text-[11px] transition-all active:scale-95"
+                      style={{
+                        border: `1px solid rgba(${info.color},${on ? 0.55 : 0.16})`,
+                        background: on ? `rgba(${info.color},0.14)` : 'rgba(255,255,255,0.03)',
+                        color: on ? `rgb(${info.color})` : 'rgba(255,255,255,0.45)',
+                      }}>
+                      {info.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="font-mono text-[10px] mt-1" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                {SAMPLE_INFO[sampleStatus].hint}
+              </p>
+              {sampleStatus !== 'none' && (
+                <input
+                  value={sampleNote}
+                  onChange={e => setSampleNote(e.target.value.slice(0, limits.sampleNoteMax))}
+                  placeholder="სად ინახება (მაგ. თმის ღერი, სახლში, დალუქულ კონვერტში)"
+                  className="w-full mt-1.5 rounded-lg px-3 py-2 font-mono text-[12px] outline-none"
+                  style={field}
+                />
+              )}
+            </div>
+
+            <div>
+              <label className="block font-mono text-[11px] mb-1" style={{ color: 'rgba(120,255,160,0.7)' }}>
+                საკონტაქტო პირი
+              </label>
+              <input
+                value={kin}
+                onChange={e => setKin(e.target.value.slice(0, limits.kinMax))}
+                placeholder="ვის მიმართონ შენს შესახებ"
+                className="w-full rounded-lg px-3 py-2 font-mono text-[12px] outline-none"
+                style={field}
+              />
+            </div>
+          </div>
+        )}
 
         {error && <p className="font-mono text-[11px] mt-2" style={{ color: '#ff5f6d' }}>{error}</p>}
 
@@ -248,7 +405,7 @@ export function MarsUploadSheet({
           <button onClick={submit} disabled={busy || working || !ready}
             className="flex-1 py-2.5 rounded-xl font-mono text-[12px] font-bold transition-all active:scale-[0.98] disabled:opacity-40"
             style={{ border: '1px solid rgba(57,255,106,0.45)', background: 'rgba(57,255,106,0.14)', color: '#39ff6a' }}>
-            {busy ? '…' : subject ? 'განახლება' : 'შემოერთება'}
+            {busy ? '…' : subject ? 'განახლება' : 'შენახვა'}
           </button>
         </div>
         {subject && (

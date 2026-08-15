@@ -4,20 +4,33 @@ export type Traits = Record<TraitKey, number>;
 
 export interface MarsDoc { name: string; type: string; size: number; data: string }
 
+export type SampleStatus = 'none' | 'pledged' | 'stored';
+
 export interface Subject {
   code: string; designation: string; manifest: string;
   traits: Traits; integrity: number; sector: string; uploads: number;
   portrait: string | null; docs: MarsDoc[];
+  letter: string; restoreNote: string;
+  sampleStatus: SampleStatus; sampleNote: string; kin: string;
   createdAt: number; updatedAt: number;
 }
+
+/** What a sample pledge means, said plainly. */
+export const SAMPLE_INFO: Record<SampleStatus, { label: string; hint: string; color: string; icon: string }> = {
+  none:    { label: 'არ არის', hint: 'ბიოლოგიური ნიმუში არ გაქვს აღრიცხული', color: '148,163,184', icon: '—' },
+  pledged: { label: 'დაპირებული', hint: 'აპირებ ნიმუშის შენახვას', color: '255,212,90', icon: '◐' },
+  stored:  { label: 'შენახული', hint: 'ნიმუში უკვე შენახული გაქვს', color: '57,255,106', icon: '●' },
+};
 export interface Stats { total: number; sectors: Record<string, number>; avgIntegrity: number }
 export interface Limits {
   manifestMin: number; manifestMax: number; designationMax: number;
   docsMax: number; docBytesMax: number;
+  letterMax: number; restoreNoteMax: number; kinMax: number; sampleNoteMax: number;
 }
 export interface DirEntry {
   code: string; designation: string; sector: string;
-  integrity: number; dominant: TraitKey; portrait: string | null; createdAt: number;
+  integrity: number; dominant: TraitKey; portrait: string | null;
+  sampleStatus: SampleStatus; hasLetter: boolean; createdAt: number;
 }
 
 /** Each axis, said in a way a person can act on. */

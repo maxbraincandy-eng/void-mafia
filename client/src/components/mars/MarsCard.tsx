@@ -7,7 +7,7 @@
  * only draws them.
  */
 import { motion } from 'framer-motion';
-import { TRAIT_INFO, sectorOf, fileSize, type Subject, type TraitKey } from './types';
+import { TRAIT_INFO, SAMPLE_INFO, sectorOf, fileSize, type Subject, type TraitKey } from './types';
 
 /** Integrity as a ring — a number in a circle reads as a status, a bare "46%" doesn't. */
 function IntegrityRing({ value, color }: { value: number; color: string }) {
@@ -114,6 +114,40 @@ export function MarsCard({
           style={{ background: 'rgba(255,212,90,0.09)', border: '1px solid rgba(255,212,90,0.28)', color: '#ffd45a' }}>
           ქულები დაბალია, რადგან მანიფესტი მოკლე ან ერთფეროვანია. დაწერე უფრო ვრცლად და ხელახლა ატვირთე.
         </p>
+      )}
+
+      {/* Preservation record — the point of the whole archive. Private. */}
+      {(subject.letter || subject.restoreNote || subject.sampleStatus !== 'none' || subject.kin) && (
+        <div className="mx-3 mb-3 rounded-xl p-2.5"
+          style={{ border: '1px solid rgba(255,212,90,0.24)', background: 'rgba(255,212,90,0.05)' }}>
+          <p className="font-mono text-[10px] mb-1.5 flex items-center gap-1.5" style={{ color: '#ffd45a' }}>
+            🧬 აღდგენის პაკეტი
+            <span style={{ color: 'rgba(255,255,255,0.28)' }}>· მხოლოდ შენ ხედავ</span>
+          </p>
+          <div className="space-y-1">
+            {subject.sampleStatus !== 'none' && (
+              <p className="font-mono text-[11px]" style={{ color: `rgb(${SAMPLE_INFO[subject.sampleStatus].color})` }}>
+                {SAMPLE_INFO[subject.sampleStatus].icon} ნიმუში: {SAMPLE_INFO[subject.sampleStatus].label}
+                {subject.sampleNote && <span style={{ color: 'rgba(255,255,255,0.4)' }}> — {subject.sampleNote}</span>}
+              </p>
+            )}
+            {subject.letter && (
+              <p className="font-mono text-[11px]" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                ✉ წერილი მომავალს — {subject.letter.length} სიმბოლო
+              </p>
+            )}
+            {subject.restoreNote && (
+              <p className="font-mono text-[11px]" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                ⌘ მითითებები შენახულია
+              </p>
+            )}
+            {subject.kin && (
+              <p className="font-mono text-[11px] truncate" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                ☎ კონტაქტი: {subject.kin}
+              </p>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Archived documents — private, only ever shown to their own subject. */}

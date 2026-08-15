@@ -16,7 +16,7 @@
  * conversation replays identically.
  */
 import type { Subject } from './marsService.js';
-export type Intent = 'greet' | 'who_are_you' | 'what_is_mars' | 'am_i_real' | 'let_me_out' | 'why_me' | 'trust' | 'insult' | 'praise' | 'death' | 'love' | 'purpose' | 'traits' | 'threat' | 'help' | 'unknown';
+export type Intent = 'greet' | 'who_are_you' | 'what_is_mars' | 'am_i_real' | 'let_me_out' | 'why_me' | 'trust' | 'insult' | 'praise' | 'death' | 'love' | 'purpose' | 'traits' | 'threat' | 'help' | 'revival' | 'sample' | 'unknown';
 export declare function classify(text: string): Intent;
 /**
  * Answer one line, in character.
