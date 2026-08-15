@@ -18,7 +18,7 @@ import { emitWithAck } from '@/lib/socket';
 import { compressImage } from '@/lib/imageUtils';
 import type { Res } from '@/types/index';
 import {
-  lifespan, recordUrl, sectorOf, SAMPLE_INFO, SAMPLE_KIND_LABEL, REPORT_REASON_LABEL, LIFE_INFO,
+  genitive, lifespan, recordUrl, sectorOf, SAMPLE_INFO, SAMPLE_KIND_LABEL, REPORT_REASON_LABEL, LIFE_INFO,
   type Memory, type PrivateFields, type RecordView, type SpeakReply,
 } from './types';
 import * as sfx from './sfx';
@@ -378,7 +378,7 @@ export function MarsRecordView({
           {/* Composer */}
           <div className="rounded-xl p-2.5" style={{ border: '1px solid rgba(125,249,255,0.22)', background: 'rgba(125,249,255,0.04)' }}>
             <p className="font-mono text-[11px] mb-1.5" style={{ color: 'rgba(125,249,255,0.8)' }}>
-              {rec.lifeStatus === 'alive' ? `დაწერე რამე ${name}-ზე` : `დაამატე მოგონება ${name}-ზე`}
+              {rec.lifeStatus === 'alive' ? `დაწერე რამე ${genitive(name)} შესახებ` : `დაამატე მოგონება ${genitive(name)} შესახებ`}
             </p>
             <input
               value={memRelation}
@@ -506,7 +506,7 @@ export function MarsRecordView({
               value={question}
               onChange={e => setQuestion(e.target.value.slice(0, 300))}
               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void ask(question); } }}
-              placeholder={`ჰკითხე ${name}-ის ჩანაწერს…`}
+              placeholder={`ჰკითხე ${genitive(name)} ჩანაწერს…`}
               aria-label="შეკითხვა ჩანაწერს"
               className="flex-1 min-w-0 rounded-xl px-3 py-2 font-mono text-[13px] outline-none"
               style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${sec.color}44`, color: '#d9ffe4' }}

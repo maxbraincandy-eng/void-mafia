@@ -10,6 +10,7 @@ import cookieParser from 'cookie-parser';
 import session from 'express-session';
 import passport from 'passport';
 import Stripe from 'stripe';
+import { genitive } from './services/georgian.js';
 import {
   ServerToClientEvents, ClientToServerEvents, InterServerEvents, SocketData,
 } from './types/index.js';
@@ -58,7 +59,7 @@ const PORT = Number(process.env.PORT ?? 3000);
 const CLIENT_URL = process.env.CLIENT_URL ?? 'http://localhost:5173';
 const IS_PROD = process.env.NODE_ENV === 'production';
 
-const CLIENT_BUILD = '2026-07-28-v574';
+const CLIENT_BUILD = '2026-07-28-v575';
 console.log('[Startup] Void Mafia server starting');
 console.log(`[Startup] Client build: ${CLIENT_BUILD}`);
 console.log(`[Startup] NODE_ENV=${process.env.NODE_ENV ?? 'development'}`);
@@ -476,8 +477,8 @@ if (IS_PROD) {
         ? [s.bornYear, s.diedYear].filter(Boolean).join(' — ') : '';
       const title = `${name}${years ? ` (${years})` : ''} — M.A.R.S.`;
       const desc = s.lifeStatus === 'deceased'
-        ? `${name}-ის ჩანაწერი. წაიკითხე, დაამატე მოგონება, ან დაუსვი კითხვა.`
-        : `${name}-ის ჩანაწერი M.A.R.S.-ის არქივში.`;
+        ? `${genitive(name)} ჩანაწერი. წაიკითხე, დაამატე მოგონება, ან დაუსვი კითხვა.`
+        : `${genitive(name)} ჩანაწერი M.A.R.S.-ის არქივში.`;
       const origin = `${req.protocol}://${req.get('host')}`;
       const image = s.portrait ? `${origin}/mars/og/${encodeURIComponent(s.code)}` : '';
 

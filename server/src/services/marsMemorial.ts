@@ -25,6 +25,7 @@
  */
 import { sql } from '../db.js';
 import { generateId } from '../utils/helpers.js';
+import { genitive } from './georgian.js';
 
 export type RecordKind = 'self' | 'memorial';
 
@@ -312,7 +313,7 @@ export function speak(question: string, personName: string, corpus: Passage[]): 
     return {
       passage: null, score: 0, topics, thin,
       note: corpus.length === 0
-        ? `${personName}-ის ჩანაწერში ჯერ არაფერია. დაამატე ტექსტი ან მოგონება და მერე დამეკითხე.`
+        ? `${genitive(personName)} ჩანაწერში ჯერ არაფერია. დაამატე ტექსტი ან მოგონება და მერე დამეკითხე.`
         : `ეს ჩანაწერი კითხვებს პასუხობს იმით, რაც მასშია დაწერილი. ჰკითხე რამე კონკრეტული — მაგალითად: ${topics.slice(0, 3).join(', ')}.`,
     };
   }
@@ -322,18 +323,18 @@ export function speak(question: string, personName: string, corpus: Passage[]): 
     return {
       passage: null, score, topics, thin,
       note: corpus.length === 0
-        ? `${personName}-ის ჩანაწერში ჯერ არაფერია. დაამატე მოგონება და ის აქ გაჩნდება.`
+        ? `${genitive(personName)} ჩანაწერში ჯერ არაფერია. დაამატე მოგონება და ის აქ გაჩნდება.`
         : thin
           ? `ამ ჩანაწერში ჯერ ძალიან ცოტა წერია, ამიტომ ბევრ კითხვას ვერ ვუპასუხებ. დაამატე ტექსტი ან მოგონებები.`
-          : `ამ კითხვაზე პასუხი ${personName}-ის ჩანაწერში არ არის — და მე არაფერს გამოვიგონებ. სცადე: ${topics.slice(0, 3).join(', ')}.`,
+          : `ამ კითხვაზე პასუხი ${genitive(personName)} ჩანაწერში არ არის — და მე არაფერს გამოვიგონებ. სცადე: ${topics.slice(0, 3).join(', ')}.`,
     };
   }
   const who = passage.sourceKind === 'memory'
-    ? `${passage.sourceAuthor}-ის მოგონებიდან`
+    ? `${genitive(passage.sourceAuthor)} მოგონებიდან`
     : passage.sourceKind === 'letter'
-      ? `${personName}-ის წერილიდან`
+      ? `${genitive(personName)} წერილიდან`
       : passage.sourceKind === 'note'
-        ? `${personName}-ის ჩანაწერებიდან`
-        : `${personName}-ის მანიფესტიდან`;
+        ? `${genitive(personName)} ჩანაწერებიდან`
+        : `${genitive(personName)} მანიფესტიდან`;
   return { passage, score, note: who, topics, thin };
 }

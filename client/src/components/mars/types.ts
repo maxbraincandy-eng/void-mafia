@@ -100,6 +100,33 @@ export const SAMPLE_KIND_LABEL: Record<string, string> = {
   other: 'სხვა',
 };
 
+
+/**
+ * Georgian noun cases for names — kept in step with server/src/services/georgian.ts.
+ *
+ * Duplicated rather than shared because the client and the server are separate
+ * builds with no common package, and a nine-line function is a smaller cost
+ * than a build-system change. If one side changes, change the other.
+ *
+ * The point: `${name}-ის` produced "ბატონი მაქსი-ის", which is the form
+ * Georgian uses for FOREIGN words. On a memorial, a person's own name has to
+ * decline properly. Only the last word inflects; a non-Georgian name keeps the
+ * hyphen, which is correct for foreign words.
+ */
+export function genitive(nameRaw: string): string {
+  const name = String(nameRaw ?? '').trim();
+  if (!name) return name;
+  const parts = name.split(/\s+/);
+  const last = parts[parts.length - 1];
+  if (!/^[ა-ჿ]+$/.test(last)) return `${name}-ის`;
+  const end = last.slice(-1);
+  parts[parts.length - 1] =
+    end === 'ი' || end === 'ე' ? `${last.slice(0, -1)}ის`
+      : end === 'ა' || end === 'ო' || end === 'უ' ? `${last}ს`
+        : `${last}ის`;
+  return parts.join(' ');
+}
+
 /** Lifespan as it would read on a stone. */
 export function lifespan(born: number | null, died: number | null): string {
   if (born && died) return `${born} — ${died}`;
