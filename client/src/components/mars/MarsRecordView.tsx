@@ -237,7 +237,12 @@ export function MarsRecordView({
 
       {/* Tabs */}
       <div className="flex gap-1 mb-3">
-        {([['about', 'ვინ იყო'], ['memories', `მოგონებები${memories.length ? ` (${memories.length})` : ''}`], ['speak', 'ესაუბრე']] as const)
+        {/* Tense follows the status: a living person "is", not "was". */}
+        {([
+          ['about', rec.lifeStatus === 'alive' ? 'ვინ არის' : 'ვინ იყო'],
+          ['memories', `მოგონებები${memories.length ? ` (${memories.length})` : ''}`],
+          ['speak', 'ესაუბრე'],
+        ] as const)
           .map(([id, label]) => (
             <button key={id} onClick={() => setTab(id)}
               className="flex-1 py-2 rounded-lg font-mono text-[11px] transition-all active:scale-[0.98]"
@@ -300,7 +305,7 @@ export function MarsRecordView({
           {/* Composer */}
           <div className="rounded-xl p-2.5" style={{ border: '1px solid rgba(125,249,255,0.22)', background: 'rgba(125,249,255,0.04)' }}>
             <p className="font-mono text-[11px] mb-1.5" style={{ color: 'rgba(125,249,255,0.8)' }}>
-              დაამატე მოგონება {name}-ზე
+              {rec.lifeStatus === 'alive' ? `დაწერე რამე ${name}-ზე` : `დაამატე მოგონება ${name}-ზე`}
             </p>
             <input
               value={memRelation}
@@ -313,7 +318,9 @@ export function MarsRecordView({
               value={memText}
               onChange={e => setMemText(e.target.value.slice(0, 2000))}
               rows={4}
-              placeholder="რას იხსენებ? ერთი კონკრეტული დღე, ჩვევა, ფრაზა რომელსაც ხშირად ამბობდა…"
+              placeholder={rec.lifeStatus === 'alive'
+                ? 'ერთი კონკრეტული დღე, ჩვევა, ფრაზა რომელსაც ხშირად ამბობს…'
+                : 'რას იხსენებ? ერთი კონკრეტული დღე, ჩვევა, ფრაზა რომელსაც ხშირად ამბობდა…'}
               className="w-full rounded-lg px-2.5 py-2 font-mono text-[12px] outline-none resize-none"
               style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)', color: '#d9ffe4', lineHeight: 1.5 }}
             />

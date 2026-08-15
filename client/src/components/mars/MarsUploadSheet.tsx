@@ -375,7 +375,7 @@ export function MarsUploadSheet({
                 value={restoreNote}
                 onChange={e => setRestoreNote(e.target.value.slice(0, limits.restoreNoteMax))}
                 rows={3}
-                placeholder="ჯანმრთელობა, ალერგიები, ენა რომელზეც ლაპარაკობ, ვინ იყო შენთვის მნიშვნელოვანი…"
+                placeholder="ჯანმრთელობა, ალერგიები, ენა რომელზეც ლაპარაკობ, ვინ არის შენთვის მნიშვნელოვანი…"
                 className="w-full rounded-lg px-3 py-2 font-mono text-[12px] outline-none resize-none"
                 style={{ ...field, lineHeight: 1.5 }}
               />

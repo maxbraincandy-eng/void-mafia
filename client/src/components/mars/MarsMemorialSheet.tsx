@@ -22,12 +22,21 @@ const IMAGE_ACCEPT = 'image/jpeg,image/jpg,image/png,image/webp,image/heic,image
 const STORY_MIN = 40;
 const STORY_MAX = 1200;
 
-const PROMPTS = [
-  'როგორი ადამიანი იყო?',
-  'რას აკეთებდა ყველაზე ხშირად?',
-  'რას ამბობდა ხშირად?',
-  'რით გახსოვს ყველაზე კარგად?',
-];
+/** Same four questions, in the tense the record's status calls for. */
+const PROMPTS: Record<LifeStatus, string[]> = {
+  alive: [
+    'როგორი ადამიანია?',
+    'რას აკეთებს ყველაზე ხშირად?',
+    'რას ამბობს ხშირად?',
+    'რით გამოირჩევა?',
+  ],
+  deceased: [
+    'როგორი ადამიანი იყო?',
+    'რას აკეთებდა ყველაზე ხშირად?',
+    'რას ამბობდა ხშირად?',
+    'რით გახსოვს ყველაზე კარგად?',
+  ],
+};
 
 export interface MemorialDraft {
   memorialId: string | null;
@@ -199,10 +208,10 @@ export function MarsMemorialSheet({
 
         {/* Story */}
         <label className="block font-mono text-[11px] mt-3 mb-1" style={{ color: 'rgba(125,249,255,0.75)' }}>
-          ვინ იყო ის
+          {lifeStatus === 'alive' ? 'ვინ არის ის' : 'ვინ იყო ის'}
         </label>
         <div className="flex flex-wrap gap-1 mb-1.5">
-          {PROMPTS.map(p => (
+          {PROMPTS[lifeStatus].map(p => (
             <button key={p} onClick={() => { setStory(s => (s ? `${s}\n${p} ` : `${p} `)); storyRef.current?.focus(); }}
               className="font-mono text-[10px] px-1.5 py-0.5 rounded transition-all active:scale-95"
               style={{ border: '1px solid rgba(125,249,255,0.22)', color: 'rgba(125,249,255,0.75)' }}>
