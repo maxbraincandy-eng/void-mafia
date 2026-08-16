@@ -14,14 +14,17 @@
  * getting it does not stay open. Uploading an existing file works too, for
  * recordings already sitting in a phone.
  *
- * WHAT IS NOT DONE HERE
- * ─────────────────────
- * No transcoding, no noise reduction, no "enhancement". Whatever the browser
- * recorded is what is stored, and what is stored is what plays. A voice that
- * has been processed into something cleaner is no longer quite the voice.
+ * WHAT IS AND IS NOT DONE TO THE SOUND
+ * ────────────────────────────────────
+ * Level only — the shared capture in lib/voiceCapture lifts a quiet phone mic
+ * and stops peaks from clipping. Nothing denoises, nothing "enhances", and the
+ * recording is never transcoded after the fact: whatever the browser captured
+ * is what is stored, and what is stored is what plays. A voice cleaned up into
+ * something smoother is no longer quite that person's voice.
  */
 import { useEffect, useRef, useState } from 'react';
 import { emitWithAck } from '@/lib/socket';
+import { startVoiceCapture, recorderOptions, type VoiceCapture } from '@/lib/voiceCapture';
 import type { Res } from '@/types/index';
 import { genitive, type MarsVoiceClip } from './types';
 import * as sfx from './sfx';
@@ -34,16 +37,6 @@ const MAX_CHARS = 8_400_000;
 function clock(ms: number): string {
   const total = Math.floor(ms / 1000);
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
-}
-
-/** Whichever container this browser actually produces. */
-function pickMime(): string | undefined {
-  const R = (window as any).MediaRecorder;
-  if (!R?.isTypeSupported) return undefined;
-  for (const m of ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus']) {
-    if (R.isTypeSupported(m)) return m;
-  }
-  return undefined;
 }
 
 function toDataUrl(blob: Blob): Promise<string> {
@@ -73,6 +66,7 @@ export function MarsVoice({
   const [caption, setCaption] = useState('');
 
   const rec = useRef<MediaRecorder | null>(null);
+  const captureRef = useRef<VoiceCapture | null>(null);
   const chunks = useRef<Blob[]>([]);
   const startedAt = useRef(0);
   const timer = useRef<number | null>(null);
@@ -80,24 +74,23 @@ export function MarsVoice({
 
   useEffect(() => () => {
     if (timer.current) window.clearInterval(timer.current);
-    rec.current?.stream?.getTracks().forEach(t => t.stop());
+    captureRef.current?.stop();
   }, []);
 
   const start = async () => {
     setError(null);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mime = pickMime();
-      const r = new MediaRecorder(stream, {
-        ...(mime ? { mimeType: mime } : {}),
-        // Speech, not music: 32 kbps keeps ten minutes under a few megabytes
-        // while staying clearly intelligible.
-        audioBitsPerSecond: 32000,
-      });
+      // The same capture the rest of the app uses: no telephony processing,
+      // level shaped, 96 kbps. A voice kept for a lifetime deserves at least
+      // as much care as a voice note — see lib/voiceCapture.
+      const capture = await startVoiceCapture();
+      captureRef.current = capture;
+      const r = new MediaRecorder(capture.stream, recorderOptions(capture));
       chunks.current = [];
       r.ondataavailable = e => { if (e.data.size > 0) chunks.current.push(e.data); };
       r.onstop = () => {
-        stream.getTracks().forEach(t => t.stop());
+        captureRef.current?.stop();
+        captureRef.current = null;
         const blob = new Blob(chunks.current, { type: r.mimeType || 'audio/webm' });
         const ms = Date.now() - startedAt.current;
         setPending({ url: URL.createObjectURL(blob), blob, ms });

@@ -55,6 +55,11 @@ function MarsApp() {
 
   const isAuthed = useAuthStore(s => s.isAuthed);
   const isLoading = useAuthStore(s => s.isLoading);
+  const [booted, setBooted] = useState(false);
+
+  useEffect(() => {
+    if (connected && !isLoading) setBooted(true);
+  }, [connected, isLoading]);
 
   useEffect(() => {
     const on = () => setConnected(true);
@@ -98,7 +103,17 @@ function MarsApp() {
     if (isAuthed && screen === 'auth') setScreen('console');
   }, [isAuthed, screen]);
 
-  if (!connected || isLoading) {
+  /*
+   * The loading screen belongs to the FIRST load only.
+   *
+   * It used to show whenever `isLoading` was true — including while a sign-in
+   * was in flight. That unmounted the sign-in card mid-submit, so a failed
+   * registration came back to an empty form with no error on it: the error had
+   * been set on a component that no longer existed. From the outside the button
+   * simply did nothing. Once the app has booted once, the auth screen owns its
+   * own busy and error state and stays mounted.
+   */
+  if (!booted) {
     return (
       <div className="min-h-[100dvh] flex items-center justify-center" style={{ background: '#01060a' }}>
         <p className="font-mono text-[12px]" style={{ color: 'rgba(57,255,106,0.5)' }}>კავშირი…</p>
@@ -109,6 +124,16 @@ function MarsApp() {
   return (
     <>
       <ThemeProvider />
+
+      {!connected && (
+        <div className="fixed left-0 right-0 flex justify-center pointer-events-none"
+          style={{ top: 8, zIndex: 2147483600 }}>
+          <span className="font-mono text-[11px] px-3 py-1 rounded-full"
+            style={{ border: '1px solid rgba(255,212,90,0.4)', background: 'rgba(20,14,0,0.9)', color: '#ffd45a' }}>
+            კავშირი დაიკარგა — ვცდილობ ხელახლა…
+          </span>
+        </div>
+      )}
 
       {screen === 'landing' && (
         <MarsLanding onEnter={enter} onOpenRecord={openRecord} authed={isAuthed} />

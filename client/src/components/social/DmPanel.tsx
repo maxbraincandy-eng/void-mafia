@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { socket, emitWithAck } from '@/lib/socket';
+import { startVoiceCapture, recorderOptions, type VoiceCapture } from '@/lib/voiceCapture';
 import { useSocialStore } from '@/store/socialStore';
 import { useAuthStore } from '@/store/authStore';
 import { useGameStore } from '@/store/gameStore';
@@ -75,6 +76,7 @@ function formatDuration(s: number) {
 
 function useVoiceRecorder(onSend: (dataUrl: string, duration: number) => void) {
   const mediaRef   = useRef<MediaRecorder | null>(null);
+  const captureRef = useRef<VoiceCapture | null>(null);
   const chunksRef  = useRef<Blob[]>([]);
   const startRef   = useRef<number>(0);
   const timerRef   = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -96,7 +98,8 @@ function useVoiceRecorder(onSend: (dataUrl: string, duration: number) => void) {
     const dur = (Date.now() - startRef.current) / 1000;
 
     mr.onstop = () => {
-      mr.stream.getTracks().forEach(t => t.stop());
+      captureRef.current?.stop();
+      captureRef.current = null;
       if (!doSend || dur < 0.5) return; // too short or cancelled
       const blob = new Blob(chunksRef.current, { type: mr.mimeType || 'audio/webm' });
       const reader = new FileReader();
@@ -112,10 +115,11 @@ function useVoiceRecorder(onSend: (dataUrl: string, duration: number) => void) {
   const start = useCallback(async () => {
     if (mediaRef.current) return; // already recording
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const MIME_TYPES = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4'];
-      const mimeType = MIME_TYPES.find(t => MediaRecorder.isTypeSupported(t));
-      const mr = new MediaRecorder(stream, { ...(mimeType ? { mimeType } : {}), audioBitsPerSecond: 32000 });
+      // Shared capture: telephony processing off, level shaped, 96 kbps.
+      // See lib/voiceCapture for the measurements behind those choices.
+      const capture = await startVoiceCapture();
+      captureRef.current = capture;
+      const mr = new MediaRecorder(capture.stream, recorderOptions(capture));
       chunksRef.current = [];
       mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
       mr.onstop = null;

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import { useT } from '@/store/langStore';
+import { startVoiceCapture, recorderOptions, type VoiceCapture } from '@/lib/voiceCapture';
 
 interface Props {
   onDone: (audioDataUri: string, duration: number) => void;
@@ -16,6 +17,7 @@ export function VoicePostRecorder({ onDone, onClose }: Props) {
   const [audioData, setAudioData] = useState<string | null>(null);
   const [audioDuration, setAudioDuration] = useState(0);
   const mrRef = useRef<MediaRecorder | null>(null);
+  const captureRef = useRef<VoiceCapture | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -23,13 +25,15 @@ export function VoicePostRecorder({ onDone, onClose }: Props) {
 
   const start = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mr = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg' });
+      const capture = await startVoiceCapture();
+      captureRef.current = capture;
+      const mr = new MediaRecorder(capture.stream, recorderOptions(capture));
       mrRef.current = mr;
       chunksRef.current = [];
       mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
       mr.onstop = () => {
-        stream.getTracks().forEach(t => t.stop());
+        captureRef.current?.stop();
+        captureRef.current = null;
         const blob = new Blob(chunksRef.current, { type: mr.mimeType });
         const url = URL.createObjectURL(blob);
         setAudioUrl(url);
