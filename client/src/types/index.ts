@@ -689,6 +689,8 @@ export interface DirectMessage {
   text: string;
   type?: 'text' | 'voice' | 'image' | 'sticker' | 'invite' | 'call';
   audioDuration?: number;
+  /** Which voice effect the sender chose, when they changed their voice. */
+  audioFx?: string | null;
   replyToId?: string | null;
   viewOnce?: boolean;
   viewedAt?: number | null;
@@ -1083,6 +1085,8 @@ export interface CommunityPostV2 extends CommunityPost {
   reactions?: Record<string, number>;  // emoji → count
   myReaction?: string | null;
   audioUrl?: string | null;
+  /** Which voice effect was used on the recording, if any. */
+  audioFx?: string | null;
   editedAt?: number | null;
 }
 

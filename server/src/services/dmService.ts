@@ -25,6 +25,8 @@ export interface DirectMessage {
   text: string;
   type?: DmType;
   audioDuration?: number;
+  /** Which voice effect was used, when the sender changed their voice. */
+  audioFx?: string | null;
   replyToId?: string | null;
   viewOnce?: boolean;
   viewedAt?: number | null;
@@ -167,22 +169,23 @@ export async function sendCallLog(
 
 export async function sendVoiceDm(
   conversationId: string, senderId: string, audioData: string, audioDuration: number, receiverId: string,
+  audioFx: string | null = null,
 ): Promise<DirectMessage> {
   const id = generateId();
   const now = Date.now();
   await sql`
-    INSERT INTO direct_messages (id, conversation_id, sender_id, text, type, audio_duration, created_at)
-    VALUES (${id}, ${conversationId}, ${senderId}, ${audioData}, 'voice', ${audioDuration}, ${now})
+    INSERT INTO direct_messages (id, conversation_id, sender_id, text, type, audio_duration, audio_fx, created_at)
+    VALUES (${id}, ${conversationId}, ${senderId}, ${audioData}, 'voice', ${audioDuration}, ${audioFx}, ${now})
   `;
   const [conv] = await sql`SELECT * FROM conversations WHERE id = ${conversationId}` as any[];
   const isParticipant1 = conv.participant1 === senderId;
-  const preview = '🎙 Voice message';
+  const preview = audioFx ? '🎭 Voice message' : '🎙 Voice message';
   if (isParticipant1) {
     await sql`UPDATE conversations SET last_message = ${preview}, last_message_at = ${now}, unread_by2 = 1 WHERE id = ${conversationId}`;
   } else {
     await sql`UPDATE conversations SET last_message = ${preview}, last_message_at = ${now}, unread_by1 = 1 WHERE id = ${conversationId}`;
   }
-  return { id, conversationId, senderId, text: audioData, type: 'voice', audioDuration, createdAt: now, readAt: null };
+  return { id, conversationId, senderId, text: audioData, type: 'voice', audioDuration, audioFx, createdAt: now, readAt: null };
 }
 
 export async function sendImageDm(
@@ -266,6 +269,7 @@ export async function getMessages(conversationId: string, viewerId?: string, lim
       text: masked ? '' : r.text,
       type: (DM_TYPES.includes(r.type) ? r.type : 'text') as DmType,
       audioDuration: r.audio_duration ? Number(r.audio_duration) : undefined,
+      audioFx: r.audio_fx ?? null,
       replyToId: r.reply_to_id ?? null,
       viewOnce,
       viewedAt,

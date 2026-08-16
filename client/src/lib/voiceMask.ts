@@ -135,8 +135,16 @@ function moduleUrl(): string {
   return workletUrl;
 }
 
+/** The processor's registered name, shared with the offline voice effects. */
+export const PITCH_NODE = 'vm-pitch-shift';
+
 const loaded = new WeakSet<BaseAudioContext>();
-async function ensureModule(ctx: BaseAudioContext): Promise<void> {
+/**
+ * Exported because the same shifter is used twice: live on the microphone
+ * here, and offline in lib/voiceFx to change the voice of a RECORDING. It was
+ * tuned once, against measured pitch accuracy; a second copy would drift.
+ */
+export async function ensurePitchWorklet(ctx: BaseAudioContext): Promise<void> {
   if (loaded.has(ctx)) return;
   await ctx.audioWorklet.addModule(moduleUrl());
   loaded.add(ctx);
@@ -161,7 +169,7 @@ export class VoiceMaskProcessor {
 
   async init(opts: { track: MediaStreamTrack; audioContext: AudioContext }): Promise<void> {
     this.ctx = opts.audioContext;
-    await ensureModule(this.ctx);
+    await ensurePitchWorklet(this.ctx);
 
     this.source = this.ctx.createMediaStreamSource(new MediaStream([opts.track]));
     this.node = new AudioWorkletNode(this.ctx, 'vm-pitch-shift', {

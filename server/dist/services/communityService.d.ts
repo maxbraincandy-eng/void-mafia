@@ -114,6 +114,7 @@ export declare function createPostV2(authorId: string, data: {
     gifUrl?: string | null;
     videoUrl?: string | null;
     audioUrl?: string | null;
+    audioFx?: string | null;
     recTitle?: string | null;
     recCategory?: string | null;
     poll?: {

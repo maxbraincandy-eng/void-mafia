@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { FX_LABEL, type VoiceFx } from '@/lib/voiceFx';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '@/store/authStore';
@@ -152,8 +153,10 @@ function PostLightbox({
             {post.audioUrl && (
               <div style={{ marginTop: 8, marginBottom: 12, borderRadius: 12, overflow: 'hidden', background: 'rgba(155,0,255,0.06)', padding: '8px 10px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <span style={{ fontSize: 14 }}>🎙</span>
-                  <span style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(155,0,255,0.8)' }}>VOICE POST</span>
+                  <span style={{ fontSize: 14 }}>{post.audioFx ? '🎭' : '🎙'}</span>
+                  <span style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(155,0,255,0.8)' }}>
+                    {post.audioFx ? `შეცვლილი ხმა · ${FX_LABEL[post.audioFx as VoiceFx] ?? post.audioFx}` : 'VOICE POST'}
+                  </span>
                 </div>
                 <audio src={post.audioUrl} controls style={{ width: '100%', height: 32 }} />
               </div>
@@ -325,8 +328,10 @@ function PostTextCard({ post: initialPost, readMoreLabel, onExpand }: {
         {post.audioUrl && (
           <div style={{ marginTop: 8, borderRadius: 12, overflow: 'hidden', background: 'rgba(155,0,255,0.06)', padding: '8px 10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <span style={{ fontSize: 14 }}>🎙</span>
-              <span style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(155,0,255,0.8)' }}>VOICE POST</span>
+              <span style={{ fontSize: 14 }}>{post.audioFx ? '🎭' : '🎙'}</span>
+              <span style={{ fontFamily: 'monospace', fontSize: 11, color: 'rgba(155,0,255,0.8)' }}>
+                {post.audioFx ? `შეცვლილი ხმა · ${FX_LABEL[post.audioFx as VoiceFx] ?? post.audioFx}` : 'VOICE POST'}
+              </span>
             </div>
             <audio src={post.audioUrl} controls style={{ width: '100%', height: 32 }} />
           </div>

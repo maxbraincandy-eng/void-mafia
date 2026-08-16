@@ -336,6 +336,10 @@ export async function initializeDatabase(): Promise<void> {
   await sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS public_id INTEGER`;
   await sql`ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'text'`;
   await sql`ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS audio_duration REAL`;
+  // Which voice effect was applied, if any. Stored so the RECEIVER can be told
+  // — a voice changer that hides itself is a tool for pretending to be someone
+  // else, and this app has real people in it.
+  await sql`ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS audio_fx TEXT`;
   await sql`ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS reply_to_id TEXT`;
   await sql`ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS view_once BOOLEAN DEFAULT FALSE`;
   await sql`ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS viewed_at BIGINT`;
@@ -1256,6 +1260,7 @@ export async function initializeDatabase(): Promise<void> {
   )`;
 
   await sql`ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS audio_url TEXT`;
+  await sql`ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS audio_fx TEXT`;
 
   await sql`CREATE TABLE IF NOT EXISTS community_leaderboard_rewards (
     id         TEXT PRIMARY KEY,

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { FX_LABEL, type VoiceFx } from '@/lib/voiceFx';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useT } from '@/store/langStore';
 import { useAuthStore } from '@/store/authStore';
@@ -660,6 +661,13 @@ export function PostCardV2({
       {post.audioUrl && (
         <div style={{ marginTop: 8, borderRadius: 12, overflow: 'hidden' }}>
           <audio src={post.audioUrl} controls style={{ width: '100%', height: 36 }} />
+          {/* A changed voice says so. Hiding it would make this a tool for
+              sounding like somebody else. */}
+          {post.audioFx && (
+            <p className="font-mono text-[10px] mt-1" style={{ color: 'rgba(192,132,252,0.85)' }}>
+              🎭 შეცვლილი ხმა · {FX_LABEL[post.audioFx as VoiceFx] ?? post.audioFx}
+            </p>
+          )}
         </div>
       )}
 

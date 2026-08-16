@@ -122,6 +122,8 @@ import { join as loungeJoin, leave as loungeLeave, getMembers as loungeGetMember
 import { buildIceConfig } from './lib/iceConfig.js';
 // ── Rate limiting ─────────────────────────────────────────────────────
 const rateLimits = new Map();
+/** The voice effects a client may claim. Anything else is stored as none. */
+const VOICE_FX_NAMES = new Set(['deep', 'high', 'ghost', 'robot', 'radio', 'giant', 'echo']);
 function rateOk(socketId, limit = 15) {
     const now = Date.now();
     const r = rateLimits.get(socketId);
@@ -6474,7 +6476,10 @@ export function attachSocketHandlers(io) {
                 if (conv.participant1 !== senderId && conv.participant2 !== senderId)
                     throw new Error('Not a participant.');
                 const receiverId = conv.participant1 === senderId ? conv.participant2 : conv.participant1;
-                const msg = await sendVoiceDm(data.conversationId, senderId, data.audioData, data.duration, receiverId);
+                // Only a name from the known list is stored, so the badge can never
+                // be forced to say something arbitrary by a modified client.
+                const fx = VOICE_FX_NAMES.has(String(data.fx ?? '')) ? String(data.fx) : null;
+                const msg = await sendVoiceDm(data.conversationId, senderId, data.audioData, data.duration, receiverId, fx);
                 const recipientSocket = findSocketByProfile(io, receiverId);
                 const senderProfile = await getPlayer(senderId);
                 if (recipientSocket) {

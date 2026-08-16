@@ -383,6 +383,8 @@ export interface ChatMessage {
   isMod?: boolean;
   type?: 'text' | 'voice';
   audioDuration?: number;
+  /** Which voice effect was used, when the sender changed their voice. */
+  audioFx?: string | null;
 }
 
 // ── Dynamic Events ────────────────────────────────────────────────────
@@ -1655,6 +1657,7 @@ export interface CommunityPostV2 extends CommunityPost {
   authorBio: string;
   authorCoverUrl: string | null;
   audioUrl?: string | null;
+  audioFx?: string | null;
   reactions?: Record<string, number>;
   myReaction?: string | null;
   editedAt?: number | null;

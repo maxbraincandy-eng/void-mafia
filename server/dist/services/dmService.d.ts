@@ -20,6 +20,8 @@ export interface DirectMessage {
     text: string;
     type?: DmType;
     audioDuration?: number;
+    /** Which voice effect was used, when the sender changed their voice. */
+    audioFx?: string | null;
     replyToId?: string | null;
     viewOnce?: boolean;
     viewedAt?: number | null;
@@ -44,7 +46,7 @@ export declare function sendCallLog(conversationId: string, senderId: string, op
     status: 'completed' | 'missed' | 'declined';
     duration: number;
 }): Promise<DirectMessage>;
-export declare function sendVoiceDm(conversationId: string, senderId: string, audioData: string, audioDuration: number, receiverId: string): Promise<DirectMessage>;
+export declare function sendVoiceDm(conversationId: string, senderId: string, audioData: string, audioDuration: number, receiverId: string, audioFx?: string | null): Promise<DirectMessage>;
 export declare function sendImageDm(conversationId: string, senderId: string, imageData: string, viewOnce?: boolean): Promise<DirectMessage>;
 /** Toggle a reaction on a DM (one per user per message; same emoji removes). */
 export declare function toggleDmReaction(messageId: string, reactorId: string, emoji: string): Promise<{

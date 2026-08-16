@@ -128,6 +128,7 @@ export function PostComposerV2({ onClose }: { onClose: () => void }) {
   const [gifUrl, setGifUrl] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
   const [audioUrl, setAudioUrl] = useState('');
+  const [audioFx, setAudioFx] = useState<string | null>(null);
   const [audioDuration, setAudioDuration] = useState(0);
   const [recTitle, setRecTitle] = useState('');
   const [recImageUrl, setRecImageUrl] = useState('');
@@ -191,6 +192,7 @@ export function PostComposerV2({ onClose }: { onClose: () => void }) {
         gifUrl: gifUrl.trim() || null,
         videoUrl: videoUrl.trim() || null,
         audioUrl: audioUrl || null,
+        audioFx,
         recTitle: recTitle.trim() || null,
         recCategory: recCategoryMap[postType] ?? null,
         visibility,
@@ -418,7 +420,7 @@ export function PostComposerV2({ onClose }: { onClose: () => void }) {
       )}
       {showVoice && (
         <VoicePostRecorder
-          onDone={(data, duration) => { setAudioUrl(data); setAudioDuration(duration); setShowVoice(false); }}
+          onDone={(data, duration, fx) => { setAudioUrl(data); setAudioDuration(duration); setAudioFx(fx); setShowVoice(false); }}
           onClose={() => setShowVoice(false)}
         />
       )}

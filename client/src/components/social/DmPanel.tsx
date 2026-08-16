@@ -2,6 +2,8 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { socket, emitWithAck } from '@/lib/socket';
 import { startVoiceCapture, recorderOptions, type VoiceCapture } from '@/lib/voiceCapture';
+import { VoiceFxPicker } from '@/components/ui/VoiceFxPicker';
+import { FX_LABEL, type RenderedVoice, type VoiceFx } from '@/lib/voiceFx';
 import { useSocialStore } from '@/store/socialStore';
 import { useAuthStore } from '@/store/authStore';
 import { useGameStore } from '@/store/gameStore';
@@ -74,15 +76,22 @@ function formatDuration(s: number) {
 // Uses tap-to-start + explicit Send/Cancel instead of hold-to-record
 // (hold events are unreliable on mobile — pointerLeave fires mid-touch)
 
-function useVoiceRecorder(onSend: (dataUrl: string, duration: number) => void) {
+/**
+ * Records, then hands the clip back for review.
+ *
+ * It used to send the moment you pressed the button. Choosing a voice needs a
+ * step between recording and sending — and a moment to hear what you actually
+ * said is worth having on its own.
+ */
+function useVoiceRecorder(onReady: (blob: Blob, duration: number) => void) {
   const mediaRef   = useRef<MediaRecorder | null>(null);
   const captureRef = useRef<VoiceCapture | null>(null);
   const chunksRef  = useRef<Blob[]>([]);
   const startRef   = useRef<number>(0);
   const timerRef   = useRef<ReturnType<typeof setInterval> | null>(null);
   // Sync assignment during render so onstop always calls the freshest callback
-  const onSendRef  = useRef(onSend);
-  onSendRef.current = onSend;
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
 
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
@@ -101,15 +110,12 @@ function useVoiceRecorder(onSend: (dataUrl: string, duration: number) => void) {
       captureRef.current?.stop();
       captureRef.current = null;
       if (!doSend || dur < 0.5) return; // too short or cancelled
-      const blob = new Blob(chunksRef.current, { type: mr.mimeType || 'audio/webm' });
-      const reader = new FileReader();
-      reader.onload = () => onSendRef.current(reader.result as string, dur);
-      reader.readAsDataURL(blob);
+      onReadyRef.current(new Blob(chunksRef.current, { type: mr.mimeType || 'audio/webm' }), dur);
     };
     mr.stop();
   }, []);
 
-  const send   = useCallback(() => stopMedia(true),  [stopMedia]);
+  const finish = useCallback(() => stopMedia(true),  [stopMedia]);
   const cancel = useCallback(() => stopMedia(false), [stopMedia]);
 
   const start = useCallback(async () => {
@@ -138,7 +144,7 @@ function useVoiceRecorder(onSend: (dataUrl: string, duration: number) => void) {
 
   useEffect(() => () => { stopMedia(false); }, [stopMedia]);
 
-  return { recording, seconds, start, send, cancel };
+  return { recording, seconds, start, finish, cancel };
 }
 
 // ── Image helpers ────────────────────────────────────────────────────
@@ -325,7 +331,16 @@ function VoiceMessageBubble({ msg, isMe }: { msg: DirectMessage; isMe: boolean }
           })}
         </div>
         <div className="flex items-center justify-between">
-          <p className="text-[11px] font-mono" style={{ color: isMe ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.35)' }}>{formatDuration(dur)}</p>
+          <p className="text-[11px] font-mono" style={{ color: isMe ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.35)' }}>
+            {formatDuration(dur)}
+            {/* Said out loud, on the message itself: a changed voice that hides
+                the fact is a way to pretend to be someone else. */}
+            {msg.audioFx && (
+              <span className="ml-1.5" style={{ color: isMe ? 'rgba(255,255,255,0.75)' : 'rgba(192,132,252,0.9)' }}>
+                🎭 {FX_LABEL[msg.audioFx as VoiceFx] ?? 'შეცვლილი'}
+              </span>
+            )}
+          </p>
           <button
             onClick={cycleRate}
             className="px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold active:scale-90 transition-transform"
@@ -492,14 +507,15 @@ export function DmPanel() {
   // Non-memoized: closes over the current activeConvId on every render.
   // The hook stores this in a ref (onSendRef.current = onSend, sync) so
   // mr.onstop always calls the freshest version.
-  const handleVoiceSend = async (dataUrl: string, duration: number) => {
+  const handleVoiceSend = async (dataUrl: string, duration: number, fx: string | null = null) => {
     if (!activeConvId) return;
     setSending(true);
     setVoiceError(null);
     try {
-      const res = await emitWithAck<{ conversationId: string; audioData: string; duration: number }, Res<DirectMessage>>(
-        'dm:voice', { conversationId: activeConvId, audioData: dataUrl, duration }
-      );
+      const res = await emitWithAck<
+        { conversationId: string; audioData: string; duration: number; fx: string | null },
+        Res<DirectMessage>
+      >('dm:voice', { conversationId: activeConvId, audioData: dataUrl, duration, fx });
       if (res.ok) {
         setMessages(prev => [...prev, res.data]);
         setConversations(prev => prev.map(c =>
@@ -514,7 +530,36 @@ export function DmPanel() {
     finally { setSending(false); }
   };
 
-  const { recording, seconds, start: startRecording, send: sendRecording, cancel: cancelRecording } = useVoiceRecorder(handleVoiceSend);
+  /* The clip waiting to be sent, and whichever voice is currently chosen. */
+  const [pendingVoice, setPendingVoice] = useState<{ blob: Blob; duration: number } | null>(null);
+  const [voicePick, setVoicePick] = useState<RenderedVoice | null>(null);
+  const [voiceBusy, setVoiceBusy] = useState(false);
+
+  const { recording, seconds, start: startRecording, finish: finishRecording, cancel: cancelRecording } =
+    useVoiceRecorder((blob, duration) => { setPendingVoice({ blob, duration }); setVoicePick(null); });
+
+  const discardVoice = () => { setPendingVoice(null); setVoicePick(null); };
+
+  const sendPendingVoice = async () => {
+    if (!pendingVoice || voiceBusy) return;
+    setVoiceBusy(true);
+    try {
+      if (voicePick) {
+        await handleVoiceSend(voicePick.dataUrl, pendingVoice.duration, voicePick.fx);
+      } else {
+        // Untouched: the original recording goes as it was captured.
+        const url = await new Promise<string>((resolve, reject) => {
+          const fr = new FileReader();
+          fr.onload = () => resolve(String(fr.result));
+          fr.onerror = () => reject(new Error('read failed'));
+          fr.readAsDataURL(pendingVoice.blob);
+        });
+        await handleVoiceSend(url, pendingVoice.duration, null);
+      }
+      discardVoice();
+    } catch { setVoiceError('ვერ გაიგზავნა'); }
+    finally { setVoiceBusy(false); }
+  };
 
   const handleImagePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -1574,7 +1619,53 @@ export function DmPanel() {
                   </AnimatePresence>
 
                   <AnimatePresence mode="wait">
-                    {recording ? (
+                    {pendingVoice ? (
+                      /* ── Review: hear it, pick a voice, then send ── */
+                      <motion.div
+                        key="voice-review"
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 6 }}
+                        className="flex flex-col gap-2"
+                      >
+                        <VoiceFxPicker
+                          source={pendingVoice.blob}
+                          maxChars={2_400_000}
+                          onPick={setVoicePick}
+                        />
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={discardVoice}
+                            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 active:scale-90"
+                            style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}
+                            title={t.dmPanel.delete}
+                          >✕</button>
+
+                          <audio
+                            key={voicePick?.dataUrl ?? 'original'}
+                            src={voicePick?.dataUrl ?? undefined}
+                            ref={el => { if (el && !voicePick && pendingVoice) el.src = URL.createObjectURL(pendingVoice.blob); }}
+                            controls
+                            className="flex-1 min-w-0"
+                            style={{ height: 34 }}
+                          />
+
+                          <motion.button
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => void sendPendingVoice()}
+                            disabled={voiceBusy}
+                            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all disabled:opacity-50"
+                            style={{ background: MY_BUBBLE_BG, color: '#fff' }}
+                          >
+                            {voiceBusy ? '…' : (
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                              </svg>
+                            )}
+                          </motion.button>
+                        </div>
+                      </motion.div>
+                    ) : recording ? (
                       /* ── Recording bar: tap Send or Cancel ── */
                       <motion.div
                         key="recording"
@@ -1614,10 +1705,10 @@ export function DmPanel() {
                           <span className="text-xs font-mono text-red-400 flex-shrink-0 tabular-nums">{formatDuration(seconds)}</span>
                         </div>
 
-                        {/* Send */}
+                        {/* Stop — the clip then waits for review */}
                         <motion.button
                           whileTap={{ scale: 0.9 }}
-                          onClick={sendRecording}
+                          onClick={finishRecording}
                           className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all"
                           style={{ background: MY_BUBBLE_BG, color: '#fff' }}
                         >

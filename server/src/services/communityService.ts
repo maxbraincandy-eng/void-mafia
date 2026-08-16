@@ -849,6 +849,7 @@ async function buildPostV2(row: any, viewerId: string): Promise<CommunityPostV2>
     authorBio: isAnon ? '' : (row.author_bio ?? ''),
     authorCoverUrl: isAnon ? null : (row.author_cover_url ?? null),
     audioUrl: row.audio_url ?? null,
+    audioFx: row.audio_fx ?? null,
     reactions,
     myReaction,
     editedAt: row.edited_at ? Number(row.edited_at) : null,
@@ -863,6 +864,7 @@ export async function createPostV2(authorId: string, data: {
   gifUrl?: string | null;
   videoUrl?: string | null;
   audioUrl?: string | null;
+  audioFx?: string | null;
   recTitle?: string | null;
   recCategory?: string | null;
   poll?: { question: string; options: string[]; endsAt?: number | null } | null;
@@ -871,6 +873,10 @@ export async function createPostV2(authorId: string, data: {
 }): Promise<CommunityPostV2> {
   if (data.imageUrl && data.imageUrl.length > 680_000) throw new Error('Image too large — please use a smaller image.');
   if (data.audioUrl && data.audioUrl.length > 5_000_000) throw new Error('Audio too large.');
+  // The badge on a post must mean something, so only a known effect name is
+  // kept — a modified client cannot label a post with arbitrary text.
+  const KNOWN_FX = ['deep', 'high', 'ghost', 'robot', 'radio', 'giant', 'echo'];
+  data.audioFx = data.audioUrl && KNOWN_FX.includes(String(data.audioFx ?? '')) ? String(data.audioFx) : null;
   const id = `post_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const now = Date.now();
   const hashtags = extractHashtags(data.content);
@@ -879,8 +885,8 @@ export async function createPostV2(authorId: string, data: {
   const isAnonymous = Boolean(data.isAnonymous);
 
   await sql`
-    INSERT INTO community_posts (id, author_id, content, image_url, post_type, gif_url, video_url, audio_url, rec_title, rec_category, hashtags, visibility, likes_count, comments_count, saves_count, is_pinned, is_featured, hidden, is_anonymous, created_at)
-    VALUES (${id}, ${authorId}, ${data.content}, ${data.imageUrl ?? null}, ${data.postType}, ${data.gifUrl ?? null}, ${data.videoUrl ?? null}, ${data.audioUrl ?? null}, ${data.recTitle ?? null}, ${data.recCategory ?? null}, ${hashtagsJson}, ${visibility}, 0, 0, 0, false, false, false, ${isAnonymous}, ${now})
+    INSERT INTO community_posts (id, author_id, content, image_url, post_type, gif_url, video_url, audio_url, audio_fx, rec_title, rec_category, hashtags, visibility, likes_count, comments_count, saves_count, is_pinned, is_featured, hidden, is_anonymous, created_at)
+    VALUES (${id}, ${authorId}, ${data.content}, ${data.imageUrl ?? null}, ${data.postType}, ${data.gifUrl ?? null}, ${data.videoUrl ?? null}, ${data.audioUrl ?? null}, ${data.audioFx ?? null}, ${data.recTitle ?? null}, ${data.recCategory ?? null}, ${hashtagsJson}, ${visibility}, 0, 0, 0, false, false, false, ${isAnonymous}, ${now})
   `;
 
   if (data.postType === 'poll' && data.poll) {

@@ -3,9 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import { useT } from '@/store/langStore';
 import { startVoiceCapture, recorderOptions, type VoiceCapture } from '@/lib/voiceCapture';
+import { VoiceFxPicker } from '@/components/ui/VoiceFxPicker';
+import type { RenderedVoice, VoiceFx } from '@/lib/voiceFx';
 
 interface Props {
-  onDone: (audioDataUri: string, duration: number) => void;
+  onDone: (audioDataUri: string, duration: number, fx: VoiceFx | null) => void;
   onClose: () => void;
 }
 
@@ -15,6 +17,8 @@ export function VoicePostRecorder({ onDone, onClose }: Props) {
   const [elapsed, setElapsed] = useState(0);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioData, setAudioData] = useState<string | null>(null);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [pick, setPick] = useState<RenderedVoice | null>(null);
   const [audioDuration, setAudioDuration] = useState(0);
   const mrRef = useRef<MediaRecorder | null>(null);
   const captureRef = useRef<VoiceCapture | null>(null);
@@ -35,6 +39,7 @@ export function VoicePostRecorder({ onDone, onClose }: Props) {
         captureRef.current?.stop();
         captureRef.current = null;
         const blob = new Blob(chunksRef.current, { type: mr.mimeType });
+        setAudioBlob(blob);
         const url = URL.createObjectURL(blob);
         setAudioUrl(url);
         setAudioDuration(elapsed);
@@ -63,7 +68,10 @@ export function VoicePostRecorder({ onDone, onClose }: Props) {
   useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
 
   const handlePost = () => {
-    if (audioData) onDone(audioData, audioDuration);
+    // Whichever voice is selected is what gets posted; the effect name travels
+    // with it so the feed can label the post.
+    if (pick) { onDone(pick.dataUrl, audioDuration, pick.fx); return; }
+    if (audioData) onDone(audioData, audioDuration, null);
   };
 
   const pct = (elapsed / MAX) * 100;
@@ -111,9 +119,11 @@ export function VoicePostRecorder({ onDone, onClose }: Props) {
 
         {state === 'preview' && audioUrl && (
           <div className="flex flex-col gap-4">
-            <audio src={audioUrl} controls style={{ width: '100%', borderRadius: 10 }} />
+            <VoiceFxPicker source={audioBlob} maxChars={4_800_000} onPick={setPick} />
+            <audio key={pick?.dataUrl ?? 'original'} src={pick?.dataUrl ?? audioUrl}
+              controls style={{ width: '100%', borderRadius: 10 }} />
             <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => { setAudioUrl(null); setAudioData(null); setState('idle'); setElapsed(0); }}
+              <button onClick={() => { setAudioUrl(null); setAudioData(null); setAudioBlob(null); setPick(null); setState('idle'); setElapsed(0); }}
                 style={{ flex: 1, padding: '10px 0', borderRadius: 12, fontFamily: 'monospace', fontSize: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)', cursor: 'pointer' }}>
                 {t.commB.restart}
               </button>
