@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { socket, emitWithAck } from '@/lib/socket';
 import { startVoiceCapture, recorderOptions, type VoiceCapture } from '@/lib/voiceCapture';
 import { VoiceFxPicker } from '@/components/ui/VoiceFxPicker';
+import { masterVoice } from '@/lib/voiceMaster';
 import { FX_LABEL, type RenderedVoice, type VoiceFx } from '@/lib/voiceFx';
 import { useSocialStore } from '@/store/socialStore';
 import { useAuthStore } from '@/store/authStore';
@@ -536,7 +537,15 @@ export function DmPanel() {
   const [voiceBusy, setVoiceBusy] = useState(false);
 
   const { recording, seconds, start: startRecording, finish: finishRecording, cancel: cancelRecording } =
-    useVoiceRecorder((blob, duration) => { setPendingVoice({ blob, duration }); setVoicePick(null); });
+    useVoiceRecorder((blob, duration) => {
+      // Show it immediately, then replace it with the levelled version — the
+      // measurement takes a moment and the person should not wait on it.
+      setPendingVoice({ blob, duration });
+      setVoicePick(null);
+      void masterVoice(blob, 2_400_000)
+        .then(m => { if (m.changed) setPendingVoice({ blob: m.blob, duration }); })
+        .catch(() => { /* the original is already usable */ });
+    });
 
   const discardVoice = () => { setPendingVoice(null); setVoicePick(null); };
 

@@ -16,15 +16,17 @@
  *
  * WHAT IS AND IS NOT DONE TO THE SOUND
  * ────────────────────────────────────
- * Level only — the shared capture in lib/voiceCapture lifts a quiet phone mic
- * and stops peaks from clipping. Nothing denoises, nothing "enhances", and the
- * recording is never transcoded after the fact: whatever the browser captured
- * is what is stored, and what is stored is what plays. A voice cleaned up into
- * something smoother is no longer quite that person's voice.
+ * Level only. The clip is measured after recording (lib/voiceMaster) and, if it
+ * is too quiet to hear comfortably, raised by exactly the amount it needs — a
+ * recording nobody can hear preserves nothing. A recording that is already at a
+ * good level is stored byte-for-byte as the browser captured it. Nothing
+ * denoises and nothing "enhances": a voice smoothed into something cleaner is
+ * no longer quite that person's voice.
  */
 import { useEffect, useRef, useState } from 'react';
 import { emitWithAck } from '@/lib/socket';
 import { startVoiceCapture, recorderOptions, type VoiceCapture } from '@/lib/voiceCapture';
+import { masterVoice } from '@/lib/voiceMaster';
 import type { Res } from '@/types/index';
 import { genitive, type MarsVoiceClip } from './types';
 import * as sfx from './sfx';
@@ -81,8 +83,7 @@ export function MarsVoice({
     setError(null);
     try {
       // The same capture the rest of the app uses: no telephony processing,
-      // level shaped, 96 kbps. A voice kept for a lifetime deserves at least
-      // as much care as a voice note — see lib/voiceCapture.
+      // 96 kbps, microphone straight into the recorder — see lib/voiceCapture.
       const capture = await startVoiceCapture();
       captureRef.current = capture;
       const r = new MediaRecorder(capture.stream, recorderOptions(capture));
@@ -94,6 +95,10 @@ export function MarsVoice({
         const blob = new Blob(chunks.current, { type: r.mimeType || 'audio/webm' });
         const ms = Date.now() - startedAt.current;
         setPending({ url: URL.createObjectURL(blob), blob, ms });
+        // A voice kept for a lifetime should not be kept too quiet to hear.
+        void masterVoice(blob, MAX_CHARS)
+          .then(m => { if (m.changed) setPending({ url: URL.createObjectURL(m.blob), blob: m.blob, ms }); })
+          .catch(() => { /* the original stands */ });
       };
       startedAt.current = Date.now();
       r.start();

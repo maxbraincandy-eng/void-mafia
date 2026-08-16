@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { useT } from '@/store/langStore';
 import { startVoiceCapture, recorderOptions, type VoiceCapture } from '@/lib/voiceCapture';
 import { VoiceFxPicker } from '@/components/ui/VoiceFxPicker';
+import { masterVoice } from '@/lib/voiceMaster';
 import type { RenderedVoice, VoiceFx } from '@/lib/voiceFx';
 
 interface Props {
@@ -40,13 +41,19 @@ export function VoicePostRecorder({ onDone, onClose }: Props) {
         captureRef.current = null;
         const blob = new Blob(chunksRef.current, { type: mr.mimeType });
         setAudioBlob(blob);
-        const url = URL.createObjectURL(blob);
-        setAudioUrl(url);
+        setAudioUrl(URL.createObjectURL(blob));
         setAudioDuration(elapsed);
         const reader = new FileReader();
         reader.onload = () => setAudioData(reader.result as string);
         reader.readAsDataURL(blob);
         setState('preview');
+        // Levelled in the background; the preview swaps over when it is ready.
+        void masterVoice(blob, 4_800_000).then(m => {
+          if (!m.changed) return;
+          setAudioBlob(m.blob);
+          setAudioUrl(URL.createObjectURL(m.blob));
+          setAudioData(m.dataUrl);
+        }).catch(() => { /* keep the original */ });
       };
       mr.start(100);
       setState('recording');
