@@ -50,7 +50,15 @@ const ASK_SUGGESTIONS = ['ვინ ხარ შენ?', 'მართლა �
 
 let msgSeq = 0;
 
-export function MarsTerminal({ onClose }: { onClose: () => void }) {
+export function MarsTerminal({ onClose, openRecord }: {
+  onClose: () => void;
+  /**
+   * A record to open on arrival. The standalone site uses this when a steward
+   * presses "edit" on their own record page: the editor lives in the console,
+   * so the console has to be able to start with that record already open.
+   */
+  openRecord?: string | null;
+}) {
   const [tab, setTab] = useState<Tab>('card');
   const [subject, setSubject] = useState<Subject | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -65,7 +73,7 @@ export function MarsTerminal({ onClose }: { onClose: () => void }) {
   const [booting, setBooting] = useState(true);
   const [bootLines, setBootLines] = useState<string[]>([]);
   const [sheet, setSheet] = useState<null | 'upload' | 'about' | 'purge' | 'memorial'>(null);
-  const [openCode, setOpenCode] = useState<string | null>(null);
+  const [openCode, setOpenCode] = useState<string | null>(openRecord ?? null);
   const [lifeTab, setLifeTab] = useState<LifeStatus>('alive');
   const touchX = useRef<number | null>(null);
   const [editMemorial, setEditMemorial] = useState<RecordView | null>(null);

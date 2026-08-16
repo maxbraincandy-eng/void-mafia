@@ -77,6 +77,21 @@ export interface PrivateFields {
   docs: MarsDoc[];
 }
 
+/**
+ * Photographs and voice carry no bytes here on purpose: the record page gets
+ * ids and fetches /mars/photo/<id> and /mars/voice/<id> over HTTP, so the
+ * browser caches them and audio can be seeked. See server/services/marsMedia.
+ */
+export interface MarsPhoto {
+  id: string; caption: string; year: number | null; bytes: number;
+}
+export interface MarsVoiceClip {
+  id: string; caption: string; year: number | null; durationMs: number; bytes: number;
+}
+export interface LifeEvent {
+  id: string; year: number; month: number | null; title: string; note: string; createdAt: number;
+}
+
 export interface Passage {
   text: string;
   sourceKind: 'manifest' | 'letter' | 'note' | 'memory';

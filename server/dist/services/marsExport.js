@@ -23,7 +23,7 @@ function dateText(ms) {
         return '';
     }
 }
-export function buildExportHtml({ subject: s, memories, includePrivate }) {
+export function buildExportHtml({ subject: s, memories, includePrivate, media = [], events = [] }) {
     const name = s.kind === 'memorial' && s.personFirst
         ? `${s.personFirst} ${s.personLast}`.trim()
         : s.designation;
@@ -52,6 +52,14 @@ export function buildExportHtml({ subject: s, memories, includePrivate }) {
             author: m.authorName, relation: m.relation, text: m.text,
             photo: m.photo, createdAt: m.createdAt,
         })),
+        photos: media.filter(m => m.kind === 'photo').map(m => ({
+            caption: m.caption, year: m.year, mime: m.mime, data: m.data,
+        })),
+        voices: media.filter(m => m.kind === 'voice').map(m => ({
+            caption: m.caption, year: m.year, mime: m.mime,
+            durationMs: m.durationMs, data: m.data,
+        })),
+        events: events.map(e => ({ year: e.year, month: e.month, title: e.title, note: e.note })),
         ...(includePrivate ? {
             letter: s.letter,
             restoreNote: s.restoreNote,
@@ -63,6 +71,31 @@ export function buildExportHtml({ subject: s, memories, includePrivate }) {
             documents: s.docs.map(d => ({ name: d.name, type: d.type, size: d.size, data: d.data })),
         } : {}),
     };
+    const photos = media.filter(m => m.kind === 'photo');
+    const voices = media.filter(m => m.kind === 'voice');
+    const galleryHtml = photos.length ? `
+      <h2>ფოტოები (${photos.length})</h2>
+      <div class="gallery">${photos.map(p => `
+        <figure>
+          <img src="${esc(p.data)}" alt="${esc(p.caption)}" loading="lazy">
+          ${p.caption || p.year ? `<figcaption>${esc(p.caption)}${p.year ? `<span class="y">${p.year}</span>` : ''}</figcaption>` : ''}
+        </figure>`).join('')}</div>` : '';
+    // The audio is inlined as a data URI, so the clip plays from the file itself
+    // with no server and no network — which is the whole promise of this export.
+    const voiceHtml = voices.length ? `
+      <h2>ხმა (${voices.length})</h2>
+      ${voices.map(v => `
+      <div class="voice">
+        <p class="vlabel">${esc(v.caption || 'ჩანაწერი')}${v.year ? ` · ${v.year}` : ''}${v.durationMs ? ` · ${Math.floor(v.durationMs / 60000)}:${String(Math.floor(v.durationMs / 1000) % 60).padStart(2, '0')}` : ''}</p>
+        <audio controls preload="none" src="${esc(v.data)}"></audio>
+      </div>`).join('')}` : '';
+    const timelineHtml = events.length ? `
+      <h2>ცხოვრების ხაზი</h2>
+      <ol class="timeline">${events.map(e => `
+        <li>
+          <span class="when">${e.year}${e.month ? `.${String(e.month).padStart(2, '0')}` : ''}</span>
+          <span class="what"><b>${esc(e.title)}</b>${e.note ? `<br>${esc(e.note)}` : ''}</span>
+        </li>`).join('')}</ol>` : '';
     const memoryHtml = memories.map(m => `
       <article class="memory">
         <p class="who">${esc(m.authorName)}${m.relation ? ` <span class="rel">${esc(m.relation)}</span>` : ''}
@@ -122,6 +155,21 @@ export function buildExportHtml({ subject: s, memories, includePrivate }) {
   footer { margin-top:36px; padding-top:14px; border-top:1px solid rgba(255,255,255,.08);
            color:rgba(255,255,255,.3); font-size:12px; text-align:center; }
   a { color:#7df9ff; }
+  .gallery { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; }
+  .gallery figure { margin:0; }
+  .gallery img { width:100%; border-radius:10px; display:block; border:1px solid rgba(255,255,255,.10); }
+  figcaption { font-size:12px; color:rgba(255,255,255,.5); margin-top:4px; }
+  figcaption .y { color:rgba(57,255,106,.7); margin-left:6px; }
+  .voice { border:1px solid rgba(125,249,255,.22); background:rgba(125,249,255,.05);
+           border-radius:12px; padding:10px; margin-bottom:8px; }
+  .vlabel { margin:0 0 6px; color:#7df9ff; font-size:13px; }
+  .voice audio { width:100%; }
+  .timeline { list-style:none; margin:0; padding:0 0 0 14px; border-left:1px solid rgba(57,255,106,.25); }
+  .timeline li { position:relative; padding:0 0 12px 14px; }
+  .timeline li::before { content:''; position:absolute; left:-19px; top:8px; width:8px; height:8px;
+                         border-radius:50%; background:#39ff6a; box-shadow:0 0 8px rgba(57,255,106,.6); }
+  .when { display:inline-block; min-width:64px; color:#39ff6a; font-size:13px; }
+  .what { color:rgba(230,255,240,.85); font-size:13px; }
   @media print { body { background:#fff; color:#000; } .memory,.private,.traits div { border-color:#ccc; } }
 </style>
 </head>
@@ -147,11 +195,15 @@ export function buildExportHtml({ subject: s, memories, includePrivate }) {
   </div>
   <p class="note">სექტორი ${esc(s.sector)} · მთლიანობა ${s.integrity}%</p>
 
+  ${timelineHtml}
+  ${galleryHtml}
+  ${voiceHtml}
+
   ${memories.length ? `<h2>მოგონებები (${memories.length})</h2>${memoryHtml}` : ''}
   ${privateHtml}
 
   <footer>
-    ეს ფაილი სრულია — ყველა სურათი და დოკუმენტი მასშივეა ჩაშენებული.<br>
+    ეს ფაილი სრულია — ყველა სურათი, ხმოვანი ჩანაწერი და დოკუმენტი მასშივეა ჩაშენებული.<br>
     გახსნა ნებისმიერ ბრაუზერში შეიძლება, ინტერნეტის გარეშე.<br>
     ექსპორტი: ${esc(dateText(Date.now()))} · M.A.R.S.
   </footer>

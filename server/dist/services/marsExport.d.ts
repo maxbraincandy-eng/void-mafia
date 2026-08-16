@@ -19,11 +19,17 @@
  */
 import type { Subject } from './marsService.js';
 import type { Memory } from './marsMemorial.js';
+import type { LifeEvent, MediaItem } from './marsMedia.js';
 export interface ExportInput {
     subject: Subject;
     memories: Memory[];
     /** Only true for the record's own owner; gates every private field. */
     includePrivate: boolean;
+    /** Pictures and voice, WITH their bytes — inlined so the file works offline. */
+    media?: Array<MediaItem & {
+        data: string;
+    }>;
+    events?: LifeEvent[];
 }
-export declare function buildExportHtml({ subject: s, memories, includePrivate }: ExportInput): string;
+export declare function buildExportHtml({ subject: s, memories, includePrivate, media, events }: ExportInput): string;
 //# sourceMappingURL=marsExport.d.ts.map

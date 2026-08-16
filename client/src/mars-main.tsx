@@ -50,6 +50,7 @@ function readCode(): string | null {
 function MarsApp() {
   const [screen, setScreen] = useState<Screen>('landing');
   const [openCode, setOpenCode] = useState<string | null>(null);
+  const [consoleRecord, setConsoleRecord] = useState<string | null>(null);
   const [connected, setConnected] = useState(socket.connected);
 
   const isAuthed = useAuthStore(s => s.isAuthed);
@@ -113,13 +114,25 @@ function MarsApp() {
         <MarsLanding onEnter={enter} onOpenRecord={openRecord} authed={isAuthed} />
       )}
       {screen === 'auth' && <MarsAuth onDone={() => setScreen('console')} onBack={() => setScreen('landing')} />}
-      {screen === 'console' && <MarsTerminal onClose={() => setScreen('landing')} />}
+      {screen === 'console' && <MarsTerminal onClose={() => setScreen('landing')} openRecord={consoleRecord} />}
 
       {/* A shared record opens over whatever is behind it. */}
       <AnimatePresence>
         {openCode && (
           <div className="fixed inset-0" style={{ zIndex: 2147483000 }}>
-            <MarsRecordView code={openCode} onClose={closeRecord} />
+            <MarsRecordView
+              code={openCode}
+              onClose={closeRecord}
+              /* Editing the record itself lives in the console, so following
+                 your own shared link and pressing edit has to take you there
+                 with the record already open — not leave the button missing. */
+              onEdit={isAuthed ? rec => {
+                setOpenCode(null);
+                setConsoleRecord(rec.code);
+                window.history.pushState({}, '', BASE);
+                setScreen('console');
+              } : undefined}
+            />
           </div>
         )}
       </AnimatePresence>

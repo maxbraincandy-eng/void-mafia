@@ -49,7 +49,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 3000);
 const CLIENT_URL = process.env.CLIENT_URL ?? 'http://localhost:5173';
 const IS_PROD = process.env.NODE_ENV === 'production';
-const CLIENT_BUILD = '2026-07-28-v575';
+const CLIENT_BUILD = '2026-07-28-v576';
 console.log('[Startup] Void Mafia server starting');
 console.log(`[Startup] Client build: ${CLIENT_BUILD}`);
 console.log(`[Startup] NODE_ENV=${process.env.NODE_ENV ?? 'development'}`);
@@ -470,6 +470,52 @@ if (IS_PROD) {
             res.setHeader('Content-Type', m[1]);
             res.setHeader('Cache-Control', 'public, max-age=300');
             res.end(Buffer.from(m[2], 'base64'));
+        }
+        catch {
+            res.status(404).end();
+        }
+    });
+    /**
+     * A photograph or a voice recording, served as bytes.
+     *
+     * The socket hands the page ids; the browser fetches the media here. That is
+     * what makes a gallery workable: the images are cached by the browser like
+     * any other image, and audio can be SEEKED, because this endpoint answers
+     * byte-range requests. Without range support, Safari refuses to play at all
+     * and every scrub re-downloads the clip.
+     */
+    app.get('/mars/:kind(photo|voice)/:id', async (req, res) => {
+        try {
+            const { getMediaWithData } = await import('./services/marsMedia.js');
+            const item = await getMediaWithData(String(req.params.id ?? ''));
+            const wanted = req.params.kind === 'voice' ? 'voice' : 'photo';
+            // A withdrawn record stops serving its media too — otherwise hiding a
+            // page would leave its pictures reachable by anyone holding a link.
+            if (!item || item.kind !== wanted || item.subjectHidden) {
+                res.status(404).end();
+                return;
+            }
+            const comma = item.data.indexOf(',');
+            const buf = Buffer.from(item.data.slice(comma + 1), 'base64');
+            res.setHeader('Content-Type', item.mime);
+            res.setHeader('Cache-Control', 'public, max-age=86400');
+            res.setHeader('Accept-Ranges', 'bytes');
+            const range = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range ?? ''));
+            if (range) {
+                const start = range[1] ? Number(range[1]) : 0;
+                const end = range[2] ? Math.min(Number(range[2]), buf.length - 1) : buf.length - 1;
+                if (!(start >= 0 && start <= end && end < buf.length)) {
+                    res.status(416).setHeader('Content-Range', `bytes */${buf.length}`).end();
+                    return;
+                }
+                res.status(206);
+                res.setHeader('Content-Range', `bytes ${start}-${end}/${buf.length}`);
+                res.setHeader('Content-Length', String(end - start + 1));
+                res.end(buf.subarray(start, end + 1));
+                return;
+            }
+            res.setHeader('Content-Length', String(buf.length));
+            res.end(buf);
         }
         catch {
             res.status(404).end();

@@ -732,6 +732,48 @@ export async function initializeDatabase() {
     )
   `;
     await sql `CREATE INDEX IF NOT EXISTS idx_mars_memories_subject ON mars_memories(subject_id, created_at DESC)`;
+    /**
+     * Photographs and voice recordings attached to a record.
+     *
+     * A ROW PER ITEM, not a JSON column like `docs`. With a JSON array, adding
+     * one photo means sending every photo back up and rewriting the whole blob —
+     * on a record with twenty pictures that is a multi-megabyte round trip to add
+     * one. A row per item keeps every write the size of the thing being written.
+     *
+     * The bytes stay out of the socket entirely: the record page gets IDs, and
+     * the browser fetches /mars/photo/:id and /mars/voice/:id over HTTP, where
+     * caching and range requests already exist.
+     */
+    await sql `
+    CREATE TABLE IF NOT EXISTS mars_media (
+      id          TEXT PRIMARY KEY,
+      subject_id  TEXT NOT NULL REFERENCES mars_subjects(id) ON DELETE CASCADE,
+      kind        TEXT NOT NULL,
+      mime        TEXT NOT NULL,
+      data        TEXT NOT NULL,
+      caption     TEXT NOT NULL DEFAULT '',
+      year        INT,
+      duration_ms INT NOT NULL DEFAULT 0,
+      bytes       INT NOT NULL DEFAULT 0,
+      sort        INT NOT NULL DEFAULT 0,
+      added_by    TEXT NOT NULL,
+      created_at  BIGINT NOT NULL
+    )
+  `;
+    await sql `CREATE INDEX IF NOT EXISTS idx_mars_media_subject ON mars_media(subject_id, kind, sort, created_at)`;
+    /** A life, as its own events: year, what happened, and a note. */
+    await sql `
+    CREATE TABLE IF NOT EXISTS mars_events (
+      id         TEXT PRIMARY KEY,
+      subject_id TEXT NOT NULL REFERENCES mars_subjects(id) ON DELETE CASCADE,
+      year       INT NOT NULL,
+      month      INT,
+      title      TEXT NOT NULL,
+      note       TEXT NOT NULL DEFAULT '',
+      created_at BIGINT NOT NULL
+    )
+  `;
+    await sql `CREATE INDEX IF NOT EXISTS idx_mars_events_subject ON mars_events(subject_id, year, month)`;
     // Reports against a record. A memorial goes live immediately — grieving
     // families should not wait in a queue — so the safety net is downstream:
     // anyone can flag one, and repeated "this person is alive" reports hide it

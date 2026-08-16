@@ -90,6 +90,12 @@ import {
   addMemory as marsAddMemory, listMemories as marsListMemories, deleteMemory as marsDeleteMemory,
   buildCorpus as marsBuildCorpus, speak as marsSpeak,
 } from './services/marsMemorial.js';
+import {
+  addMedia as marsAddMedia, listMedia as marsListMedia, listMediaWithData as marsListMediaWithData,
+  deleteMedia as marsDeleteMedia, updateMediaCaption as marsUpdateCaption, subjectIdOfMedia,
+  addEvent as marsAddEvent, listEvents as marsListEvents, deleteEvent as marsDeleteEvent, subjectIdOfEvent,
+  PHOTOS_MAX, VOICES_MAX, EVENTS_MAX,
+} from './services/marsMedia.js';
 import { buildExportHtml } from './services/marsExport.js';
 import { issueRecoveryCode, hasRecoveryCode, resetWithCode } from './services/recoveryService.js';
 import {
@@ -103,6 +109,23 @@ const marsTurns = new Map<string, number>();
 // Uploads run a text analysis and two DB statements; without a floor a script
 // could re-upload in a loop. One every 3 seconds is far above any human edit.
 const marsUploadAt = new Map<string, number>();
+
+/**
+ * Media adds get their own, much shorter floor.
+ *
+ * The upload throttle is 3 seconds because an upload re-analyses the manifest.
+ * Adding a photo does none of that, and a person picking eight pictures at
+ * once should not wait 24 seconds for them. What actually bounds this is the
+ * per-record cap and the per-item size limit, not the clock.
+ */
+const marsMediaAt = new Map<string, number>();
+function marsMediaRateOk(profileId: string): boolean {
+  const now = Date.now();
+  const last = marsMediaAt.get(profileId) ?? 0;
+  if (now - last < 400) return false;
+  marsMediaAt.set(profileId, now);
+  return true;
+}
 function marsUploadRateOk(profileId: string): boolean {
   const now = Date.now();
   const last = marsUploadAt.get(profileId) ?? 0;
@@ -1917,7 +1940,7 @@ export function attachSocketHandlers(io: AppServer): void {
       // check than this blanket 16 KB. Leaving it off this list is what made
       // "the image won't upload" — ANY real photo blew the 16 KB ceiling here
       // and was rejected before its handler ever ran.
-      const largePayloadEvents = new Set(['player:update_avatar', 'community:post_create_v2', 'community:profile_update', 'clan:update_image', 'community:story_create', 'dm:voice', 'dm:image', 'owner:gift_create', 'owner:gift_update', 'mars:upload', 'mars:memorial_save', 'mars:memory_add']);
+      const largePayloadEvents = new Set(['player:update_avatar', 'community:post_create_v2', 'community:profile_update', 'clan:update_image', 'community:story_create', 'dm:voice', 'dm:image', 'owner:gift_create', 'owner:gift_update', 'mars:upload', 'mars:memorial_save', 'mars:memory_add', 'mars:media_add']);
       // 4. Payload size limit — reject anything over 16 KB
       const payload = args[0];
       if (!largePayloadEvents.has(event) && payload !== null && payload !== undefined && typeof payload === 'object') {
@@ -4625,7 +4648,7 @@ export function attachSocketHandlers(io: AppServer): void {
                       : 'ჩანაწერი მოდერატორმა დაფარა.')
                   : 'ეს ჩანაწერი დაფარულია.',
               },
-              memories: [], privateFields: null,
+              memories: [], privateFields: null, photos: [], voices: [], events: [],
             }));
             return;
           }
@@ -4647,8 +4670,20 @@ export function attachSocketHandlers(io: AppServer): void {
           manifest: s.kind === 'memorial' || isOwner ? s.manifest : '',
           canEdit: isOwner,
         };
+        // Metadata only. The pictures and the recordings are fetched over HTTP
+        // by id — see marsMedia for why they never travel through the socket.
+        const media = await marsListMedia(s.id);
+        const events = await marsListEvents(s.id);
+
         cb(ok({
           record: pub,
+          photos: media.filter(m => m.kind === 'photo').map(m => ({
+            id: m.id, caption: m.caption, year: m.year, bytes: m.bytes,
+          })),
+          voices: media.filter(m => m.kind === 'voice').map(m => ({
+            id: m.id, caption: m.caption, year: m.year, durationMs: m.durationMs, bytes: m.bytes,
+          })),
+          events,
           memories: memories.map(m => ({
             id: m.id, authorId: m.authorId, authorName: m.authorName,
             relation: m.relation, text: m.text, photo: m.photo, createdAt: m.createdAt,
@@ -4661,6 +4696,82 @@ export function attachSocketHandlers(io: AppServer): void {
           } : null,
         }));
       } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Photographs, voice, and the life as events ─────────────────────
+    //
+    // All three are edited only by the record's steward. Anyone may LEAVE a
+    // memory on a record — that is the point of a memorial — but the gallery,
+    // the voice and the timeline are the record's own substance, and letting
+    // strangers append to them would turn a person's page into a wall.
+
+    /** The steward of a record, or null. Every write below goes through this. */
+    const marsStewardOf = async (subjectId: string) => {
+      const viewer = socket.data.profileId ?? null;
+      if (!viewer) throw new Error('ACCESS DENIED — ჯერ შედი სისტემაში.');
+      const s = await marsGetById(String(subjectId ?? ''));
+      if (!s) throw new Error('ჩანაწერი ვერ მოიძებნა.');
+      const isOwner = s.stewardId === viewer || (s.kind === 'self' && s.playerId === viewer);
+      if (!isOwner) throw new Error('ამ ჩანაწერის რედაქტირების უფლება არ გაქვს.');
+      return s;
+    };
+
+    socket.on('mars:media_add' as any, async (data: any, cb: any) => {
+      try {
+        const s = await marsStewardOf(data?.subjectId);
+        if (!marsMediaRateOk(socket.data.profileId!)) throw new Error('THROTTLED — ცოტა მოითმინე.');
+        const item = await marsAddMedia({
+          subjectId: s.id,
+          kind: data?.kind === 'voice' ? 'voice' : 'photo',
+          data: String(data?.data ?? ''),
+          caption: String(data?.caption ?? ''),
+          year: data?.year,
+          durationMs: data?.durationMs,
+          addedBy: socket.data.profileId!,
+        });
+        cb(ok(item));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('mars:media_update' as any, async (data: any, cb: any) => {
+      try {
+        const subjectId = await subjectIdOfMedia(String(data?.mediaId ?? ''));
+        if (!subjectId) throw new Error('ვერ მოიძებნა.');
+        await marsStewardOf(subjectId);
+        cb(ok(await marsUpdateCaption(String(data.mediaId), String(data?.caption ?? ''), data?.year)));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('mars:media_delete' as any, async (data: any, cb: any) => {
+      try {
+        const subjectId = await subjectIdOfMedia(String(data?.mediaId ?? ''));
+        if (!subjectId) { cb(ok({ deleted: false })); return; }
+        await marsStewardOf(subjectId);
+        cb(ok({ deleted: await marsDeleteMedia(String(data.mediaId)) }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('mars:event_add' as any, async (data: any, cb: any) => {
+      try {
+        const s = await marsStewardOf(data?.subjectId);
+        cb(ok(await marsAddEvent({
+          subjectId: s.id, year: data?.year, month: data?.month,
+          title: String(data?.title ?? ''), note: String(data?.note ?? ''),
+        })));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('mars:event_delete' as any, async (data: any, cb: any) => {
+      try {
+        const subjectId = await subjectIdOfEvent(String(data?.eventId ?? ''));
+        if (!subjectId) { cb(ok({ deleted: false })); return; }
+        await marsStewardOf(subjectId);
+        cb(ok({ deleted: await marsDeleteEvent(String(data.eventId)) }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('mars:media_limits' as any, (cb: any) => {
+      cb(ok({ photosMax: PHOTOS_MAX, voicesMax: VOICES_MAX, eventsMax: EVENTS_MAX }));
     });
 
     /** Leave a memory on a record. */
@@ -4746,10 +4857,16 @@ export function attachSocketHandlers(io: AppServer): void {
         // otherwise, so a stranger's export of it carries no text either.
         const shareable = s.kind === 'memorial' || isOwner;
         const memories = await marsListMemories(s.id, 500);
+        // With the bytes: an export that links back to this server would stop
+        // working the moment the server does, which defeats the point of it.
+        const media = await marsListMediaWithData(s.id);
+        const events = await marsListEvents(s.id);
         const html = buildExportHtml({
           subject: shareable ? s : { ...s, manifest: '' },
           memories,
           includePrivate: isOwner,
+          media,
+          events,
         });
         cb(ok({ filename: `mars-${s.code}.html`, html, includesPrivate: isOwner }));
       } catch (e: any) { cb(err(e.message)); }

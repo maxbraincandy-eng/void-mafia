@@ -19,11 +19,15 @@ import { compressImage } from '@/lib/imageUtils';
 import type { Res } from '@/types/index';
 import {
   genitive, lifespan, recordUrl, sectorOf, SAMPLE_INFO, SAMPLE_KIND_LABEL, REPORT_REASON_LABEL, LIFE_INFO,
+  type LifeEvent, type MarsPhoto, type MarsVoiceClip,
   type Memory, type PrivateFields, type RecordView, type SpeakReply,
 } from './types';
+import { MarsGallery } from './MarsGallery';
+import { MarsVoice } from './MarsVoice';
+import { MarsTimeline } from './MarsTimeline';
 import * as sfx from './sfx';
 
-type Tab = 'about' | 'memories' | 'speak';
+type Tab = 'about' | 'life' | 'memories' | 'speak';
 
 const IMAGE_ACCEPT = 'image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif';
 
@@ -41,6 +45,9 @@ export function MarsRecordView({
 }) {
   const [rec, setRec] = useState<RecordView | null>(null);
   const [memories, setMemories] = useState<Memory[]>([]);
+  const [photos, setPhotos] = useState<MarsPhoto[]>([]);
+  const [voices, setVoices] = useState<MarsVoiceClip[]>([]);
+  const [events, setEvents] = useState<LifeEvent[]>([]);
   const [priv, setPriv] = useState<PrivateFields | null>(null);
   const [tab, setTab] = useState<Tab>('about');
   const [loading, setLoading] = useState(true);
@@ -69,12 +76,17 @@ export function MarsRecordView({
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await emitWithAck<{ code: string }, Res<{ record: RecordView; memories: Memory[]; privateFields: PrivateFields | null } | null>>(
-        'mars:open', { code });
+      const res = await emitWithAck<{ code: string }, Res<{
+        record: RecordView; memories: Memory[]; privateFields: PrivateFields | null;
+        photos?: MarsPhoto[]; voices?: MarsVoiceClip[]; events?: LifeEvent[];
+      } | null>>('mars:open', { code });
       if ('ok' in res && res.ok && res.data) {
         setRec(res.data.record);
         setMemories(res.data.memories);
         setPriv(res.data.privateFields);
+        setPhotos(res.data.photos ?? []);
+        setVoices(res.data.voices ?? []);
+        setEvents(res.data.events ?? []);
       } else setError('ჩანაწერი ვერ მოიძებნა.');
     } catch { setError('კავშირი დაიკარგა.'); }
     finally { setLoading(false); }
@@ -308,18 +320,21 @@ export function MarsRecordView({
         )}
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 mb-3">
+      {/* Tabs. They WRAP rather than scroll: a tab you have to scroll sideways
+          to discover is a tab nobody presses. Two rows of two on a phone. */}
+      <div className="flex flex-wrap gap-1 mb-3">
         {/* Tense follows the status: a living person "is", not "was". */}
         {([
           ['about', rec.lifeStatus === 'alive' ? 'ვინ არის' : 'ვინ იყო'],
+          ['life', `ცხოვრება${photos.length + voices.length ? ` (${photos.length + voices.length})` : ''}`],
           ['memories', `მოგონებები${memories.length ? ` (${memories.length})` : ''}`],
           ['speak', 'ესაუბრე'],
         ] as const)
           .map(([id, label]) => (
             <button key={id} onClick={() => setTab(id)}
-              className="flex-1 py-2 rounded-lg font-mono text-[11px] transition-all active:scale-[0.98]"
+              className="py-2 rounded-lg font-mono text-[11px] transition-all active:scale-[0.98]"
               style={{
+                flex: '1 1 44%',
                 border: `1px solid ${tab === id ? sec.color + '66' : 'rgba(255,255,255,0.10)'}`,
                 background: tab === id ? `${sec.color}14` : 'rgba(255,255,255,0.02)',
                 color: tab === id ? sec.color : 'rgba(255,255,255,0.45)',
@@ -369,6 +384,38 @@ export function MarsRecordView({
                 </a>
               ))}
             </div>
+          )}
+        </div>
+      )}
+
+      {tab === 'life' && (
+        <div className="space-y-5">
+          <MarsTimeline
+            subjectId={rec.id} events={events}
+            bornYear={rec.bornYear} diedYear={rec.diedYear}
+            canEdit={rec.canEdit} accent={sec.color}
+            onChange={setEvents}
+          />
+          <MarsGallery
+            subjectId={rec.id} photos={photos} canEdit={rec.canEdit}
+            accent={sec.color} onChange={setPhotos}
+          />
+          <MarsVoice
+            subjectId={rec.id} clips={voices} canEdit={rec.canEdit}
+            accent="#7df9ff" personName={name} onChange={setVoices}
+          />
+          {rec.canEdit && (
+            /* Said where the choice is made, not only in a policy page. */
+            <p className="font-mono text-[10px] leading-relaxed pt-1"
+              style={{ borderTop: '1px solid rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.3)' }}>
+              ფოტოები, ხმა და ცხოვრების ხაზი ჩანაწერის საჯარო ნაწილია — მათ ყველა ხედავს, ვისაც ბმული აქვს.
+              პირადი რჩება მხოლოდ ის, რაც „აღდგენის პაკეტშია": წერილი, დოკუმენტები, ნიმუშის ადგილი და კონტაქტი.
+            </p>
+          )}
+          {!rec.canEdit && photos.length === 0 && voices.length === 0 && events.length === 0 && (
+            <p className="font-mono text-[12px] text-center py-6" style={{ color: 'rgba(255,255,255,0.35)' }}>
+              ამ ჩანაწერს ჯერ ფოტო და ხმა არ აქვს.
+            </p>
           )}
         </div>
       )}
