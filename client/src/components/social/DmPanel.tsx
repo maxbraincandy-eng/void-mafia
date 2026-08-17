@@ -4,6 +4,7 @@ import { socket, emitWithAck } from '@/lib/socket';
 import { startVoiceCapture, recorderOptions, type VoiceCapture } from '@/lib/voiceCapture';
 import { VoiceFxPicker } from '@/components/ui/VoiceFxPicker';
 import { masterVoice } from '@/lib/voiceMaster';
+import { copyText } from '@/lib/clipboard';
 import { FX_LABEL, type RenderedVoice, type VoiceFx } from '@/lib/voiceFx';
 import { useSocialStore } from '@/store/socialStore';
 import { useAuthStore } from '@/store/authStore';
@@ -485,6 +486,7 @@ export function DmPanel() {
   const [otherTyping, setOtherTyping] = useState(false);
   const [replyTo, setReplyTo] = useState<DirectMessage | null>(null);
   const [pickerFor, setPickerFor] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showAttach, setShowAttach] = useState(false);
   const [showStickers, setShowStickers] = useState(false);
   const [showGifPicker, setShowGifPicker] = useState(false);
@@ -1322,6 +1324,31 @@ export function DmPanel() {
                                         {em}
                                       </button>
                                     ))}
+                                    {/* The same long-press that reacts can also
+                                        copy — that is what people reach for. */}
+                                    {msg.type !== 'voice' && msg.type !== 'image' && msg.text && !msg.text.startsWith('data:') && (
+                                      <button
+                                        onClick={async () => {
+                                          const ok = await copyText(msg.text);
+                                          setPickerFor(null);
+                                          setCopiedId(ok ? msg.id : null);
+                                          setTimeout(() => setCopiedId(null), 1800);
+                                        }}
+                                        className="text-base leading-none px-1.5 active:scale-125 transition-transform"
+                                        title="კოპირება"
+                                      >
+                                        📋
+                                      </button>
+                                    )}
+                                  </motion.div>
+                                )}
+                                {copiedId === msg.id && (
+                                  <motion.div
+                                    initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                                    className={`absolute -top-6 z-30 px-2 py-0.5 rounded-full font-mono text-[10px] ${isMe ? 'right-0' : 'left-0'}`}
+                                    style={{ background: 'rgba(22,13,44,0.98)', border: '1px solid rgba(74,222,128,0.35)', color: '#4ade80' }}
+                                  >
+                                    დაკოპირდა
                                   </motion.div>
                                 )}
                               </AnimatePresence>

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { copyText } from '@/lib/clipboard';
 import { FX_LABEL, type VoiceFx } from '@/lib/voiceFx';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useT } from '@/store/langStore';
@@ -417,6 +418,7 @@ export function PostCardV2({
   const [showComments, setShowComments] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [showModMenu, setShowModMenu] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [pollVoting, setPollVoting] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editDraft, setEditDraft] = useState('');
@@ -550,9 +552,25 @@ export function PostCardV2({
         <div className="flex items-center gap-1 flex-shrink-0">
           {(isMod || isOwn) && (
             <div className="relative">
+              {copied && (
+                <span className="font-mono text-[10px] mr-1" style={{ color: 'rgba(74,222,128,0.9)' }}>დაკოპირდა</span>
+              )}
               <button onClick={() => setShowModMenu(v => !v)} className="font-mono text-[11px] text-white/25 hover:text-white/50 px-1 transition-colors">⋯</button>
               {showModMenu && (
                 <div className="absolute right-0 top-full mt-1 z-10 rounded-xl border border-white/10 bg-black/90 backdrop-blur-xl p-2 space-y-1 min-w-[140px]">
+                  {/* Copy comes first and belongs to everyone: quoting someone
+                      is the most common thing people want from a post. */}
+                  {post.content?.trim() && (
+                    <button
+                      onClick={async () => {
+                        setCopied(await copyText(post.content));
+                        setShowModMenu(false);
+                        setTimeout(() => setCopied(false), 2000);
+                      }}
+                      className="w-full text-left px-2 py-1 rounded-lg font-mono text-[11px] text-white/60 hover:text-white hover:bg-white/5 transition-colors">
+                      📋 ტექსტის კოპირება
+                    </button>
+                  )}
                   {isOwn && (
                     <>
                       {/* Post Boost — only when you actually hold one, and not

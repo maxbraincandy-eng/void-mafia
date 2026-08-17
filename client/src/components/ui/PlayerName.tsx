@@ -34,8 +34,12 @@ export function PlayerName({
   const glow = enabled && color ? nameColorGlow(color) : undefined;
   const tier = useVerifiedTier(verified ? profileId : null);
 
+  // `vm-select` because a name is very often the thing someone wants to copy —
+  // to search for it, to paste it into a message — and names are drawn inside
+  // buttons, which are unselectable by default so that dragging a control does
+  // not highlight its label.
   const label = (
-    <span className={className} style={{ ...style, ...(enabled && color ? { color } : null), ...(glow ? { textShadow: glow } : null) }}>
+    <span className={`vm-select${className ? ` ${className}` : ''}`} style={{ ...style, ...(enabled && color ? { color } : null), ...(glow ? { textShadow: glow } : null) }}>
       {children ?? name}
     </span>
   );

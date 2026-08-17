@@ -324,13 +324,43 @@
     box-sizing: border-box;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
-    /* Prevent text selection & iOS callout (long-press menu) everywhere */
+  }
+
+  /*
+   * TEXT IS SELECTABLE; THINGS YOU PRESS ARE NOT.
+   *
+   * This used to be the other way round — `user-select: none` on every element
+   * — which did stop stray selection while tapping around a game board, and
+   * also made it impossible to copy a message, a post, someone's name, or a
+   * code out of the app. On a social app that is not a small annoyance: people
+   * quote each other, save what someone wrote, paste a name into a search.
+   *
+   * So the default is now normal web behaviour, and selection is switched off
+   * only on the controls, where dragging across a button and highlighting its
+   * label is the thing nobody wants. Anything that must not be selectable can
+   * opt out with `.vm-no-select`; anything inside a control that SHOULD be
+   * copyable (a code, a name) can opt back in with `.vm-select`.
+   */
+  html, body {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  button, a, nav, label, select, summary,
+  [role="button"], [role="tab"], [role="menuitem"], [role="switch"],
+  .vm-no-select {
     -webkit-user-select: none;
     -webkit-touch-callout: none;
     user-select: none;
   }
 
-  /* Re-enable text selection only in form fields */
+  .vm-select, .vm-select * {
+    -webkit-user-select: text;
+    user-select: text;
+    -webkit-touch-callout: default;
+  }
+
+  /* Re-enable text selection in form fields */
   input, textarea, [contenteditable], [contenteditable="true"] {
     -webkit-user-select: text;
     user-select: text;
