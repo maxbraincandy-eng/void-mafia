@@ -17,7 +17,8 @@ import { useT } from '@/store/langStore';
 
 type TFn = ReturnType<typeof useT>;
 
-const MAX_VOICE_SECONDS = 30;
+/** A minute. Long enough to actually say something. */
+const MAX_VOICE_SECONDS = 60;
 const GROUP_WINDOW_MS = 4 * 60 * 1000; // messages within 4min from same sender stack together
 
 // Quick-reaction set (mirrors the server's DM_REACTION_EMOJIS whitelist)
@@ -550,7 +551,7 @@ export function DmPanel() {
       // measurement takes a moment and the person should not wait on it.
       setPendingVoice({ blob, duration });
       setVoicePick(null);
-      void masterVoice(blob, 2_400_000)
+      void masterVoice(blob, 6_800_000)
         .then(m => { if (m.changed) setPendingVoice({ blob: m.blob, duration }); })
         .catch(() => { /* the original is already usable */ });
     });
@@ -1672,7 +1673,7 @@ export function DmPanel() {
                       >
                         <VoiceFxPicker
                           source={pendingVoice.blob}
-                          maxChars={2_400_000}
+                          maxChars={6_800_000}
                           onPick={setVoicePick}
                         />
                         <div className="flex items-center gap-2">

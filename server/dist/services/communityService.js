@@ -812,7 +812,7 @@ async function buildPostV2(row, viewerId) {
 export async function createPostV2(authorId, data) {
     if (data.imageUrl && data.imageUrl.length > 680000)
         throw new Error('Image too large — please use a smaller image.');
-    if (data.audioUrl && data.audioUrl.length > 5000000)
+    if (data.audioUrl && data.audioUrl.length > 9000000)
         throw new Error('Audio too large.');
     // The badge on a post must mean something, so only a known effect name is
     // kept — a modified client cannot label a post with arbitrary text.

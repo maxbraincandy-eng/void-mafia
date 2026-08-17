@@ -6004,7 +6004,9 @@ export function attachSocketHandlers(io: AppServer): void {
         const senderId = socket.data.profileId;
         if (!senderId) throw new Error('Not authenticated.');
         if (!data.audioData?.startsWith('data:audio')) throw new Error('Invalid audio data.');
-        if (data.audioData.length > 2_500_000) throw new Error('Voice message too large.');
+        // A minute of speech: ~1 MB as Opus, more when the clip has been
+        // levelled or had a voice applied and is therefore delivered as WAV.
+        if (data.audioData.length > 7_000_000) throw new Error('Voice message too large.');
         const [conv] = await sql`SELECT * FROM conversations WHERE id = ${data.conversationId}` as any[];
         if (!conv) throw new Error('Conversation not found.');
         if (conv.participant1 !== senderId && conv.participant2 !== senderId) throw new Error('Not a participant.');

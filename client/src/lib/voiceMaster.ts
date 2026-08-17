@@ -287,5 +287,25 @@ export async function masterVoice(source: Blob, maxChars = 2_400_000): Promise<M
   return { blob, dataUrl: await blobToDataUrl(blob), durationMs, changed: true, stats };
 }
 
+/**
+ * Bring a rendered buffer to the same loudness the rest of the app uses.
+ *
+ * The voice effects need this: a vocoder's output level depends on how loud the
+ * input happened to be, so without it a chosen voice can arrive 10 dB quieter
+ * than the recording it replaced. Measured on the speech, ceilinged so it
+ * cannot clip.
+ */
+export function normalise(
+  data: Float32Array<ArrayBuffer>, rate: number, targetDb = TARGET_RMS_DB,
+): { data: Float32Array<ArrayBuffer>; gainDb: number } {
+  // The real rate matters: the analysis frames speech in 20 ms windows, and
+  // guessing the rate mis-sizes every one of them.
+  const { speech } = analyseVoice(data, rate);
+  const gain = Math.min(fromDb(targetDb) / Math.max(speech, 1e-9), fromDb(MAX_GAIN_DB));
+  const out = new Float32Array(new ArrayBuffer(data.length * 4));
+  for (let i = 0; i < data.length; i++) out[i] = softCeil(data[i] * gain);
+  return { data: out, gainDb: +dB(gain).toFixed(1) };
+}
+
 /** Exported for tests: the frame analysis, without any file handling. */
 export const __internals = { frameLevels, softCeil, dB, fromDb };

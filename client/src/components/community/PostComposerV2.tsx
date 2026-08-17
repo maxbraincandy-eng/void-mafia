@@ -325,7 +325,7 @@ export function PostComposerV2({ onClose }: { onClose: () => void }) {
                   className="w-full flex items-center justify-center gap-2 px-3 py-3 rounded-xl font-mono text-sm transition-all active:scale-95"
                   style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', color: '#fca5a5' }}
                 >
-                  🎙 Record Voice (max 30s)
+                  🎙 Record Voice (max 60s)
                 </button>
               )}
               <div className="flex items-start gap-2.5 mt-2">

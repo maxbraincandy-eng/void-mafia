@@ -872,7 +872,7 @@ export async function createPostV2(authorId: string, data: {
   isAnonymous?: boolean;
 }): Promise<CommunityPostV2> {
   if (data.imageUrl && data.imageUrl.length > 680_000) throw new Error('Image too large — please use a smaller image.');
-  if (data.audioUrl && data.audioUrl.length > 5_000_000) throw new Error('Audio too large.');
+  if (data.audioUrl && data.audioUrl.length > 9_000_000) throw new Error('Audio too large.');
   // The badge on a post must mean something, so only a known effect name is
   // kept — a modified client cannot label a post with arbitrary text.
   const KNOWN_FX = ['deep', 'high', 'ghost', 'robot', 'radio', 'giant', 'echo', 'detective', 'anonymous'];

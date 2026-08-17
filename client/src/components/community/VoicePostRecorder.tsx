@@ -28,7 +28,7 @@ export function VoicePostRecorder({ onDone, onClose }: Props) {
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const MAX = 30;
+  const MAX = 60;
 
   const start = async () => {
     try {
@@ -51,7 +51,7 @@ export function VoicePostRecorder({ onDone, onClose }: Props) {
         reader.readAsDataURL(blob);
         setState('preview');
         // Levelled in the background; the preview swaps over when it is ready.
-        void masterVoice(blob, 4_800_000).then(m => {
+        void masterVoice(blob, 8_800_000).then(m => {
           if (!m.changed) return;
           setAudioBlob(m.blob);
           setAudioUrl(URL.createObjectURL(m.blob));
@@ -135,7 +135,7 @@ export function VoicePostRecorder({ onDone, onClose }: Props) {
 
         {state === 'preview' && audioUrl && (
           <div className="flex flex-col gap-4">
-            <VoiceFxPicker source={audioBlob} maxChars={4_800_000} onPick={setPick} />
+            <VoiceFxPicker source={audioBlob} maxChars={8_800_000} onPick={setPick} />
             <audio key={pick?.dataUrl ?? 'original'} src={pick?.dataUrl ?? audioUrl}
               onPlay={preparePlayback}
               controls style={{ width: '100%', borderRadius: 10 }} />
