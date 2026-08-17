@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { preparePlayback } from '@/lib/voiceCapture';
 import { copyText } from '@/lib/clipboard';
 import { FX_LABEL, type VoiceFx } from '@/lib/voiceFx';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -678,7 +679,7 @@ export function PostCardV2({
       )}
       {post.audioUrl && (
         <div style={{ marginTop: 8, borderRadius: 12, overflow: 'hidden' }}>
-          <audio src={post.audioUrl} controls style={{ width: '100%', height: 36 }} />
+          <audio src={post.audioUrl} controls onPlay={preparePlayback} style={{ width: '100%', height: 36 }} />
           {/* A changed voice says so. Hiding it would make this a tool for
               sounding like somebody else. */}
           {post.audioFx && (

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { preparePlayback } from '@/lib/voiceCapture';
 import { FX_LABEL, type VoiceFx } from '@/lib/voiceFx';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -158,7 +159,7 @@ function PostLightbox({
                     {post.audioFx ? `შეცვლილი ხმა · ${FX_LABEL[post.audioFx as VoiceFx] ?? post.audioFx}` : 'VOICE POST'}
                   </span>
                 </div>
-                <audio src={post.audioUrl} controls style={{ width: '100%', height: 32 }} />
+                <audio src={post.audioUrl} controls onPlay={preparePlayback} style={{ width: '100%', height: 32 }} />
               </div>
             )}
 
@@ -333,7 +334,7 @@ function PostTextCard({ post: initialPost, readMoreLabel, onExpand }: {
                 {post.audioFx ? `შეცვლილი ხმა · ${FX_LABEL[post.audioFx as VoiceFx] ?? post.audioFx}` : 'VOICE POST'}
               </span>
             </div>
-            <audio src={post.audioUrl} controls style={{ width: '100%', height: 32 }} />
+            <audio src={post.audioUrl} controls onPlay={preparePlayback} style={{ width: '100%', height: 32 }} />
           </div>
         )}
 

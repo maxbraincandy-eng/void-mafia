@@ -2,7 +2,8 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import { useT } from '@/store/langStore';
-import { startVoiceCapture, recorderOptions, type VoiceCapture } from '@/lib/voiceCapture';
+import { startVoiceCapture, recorderOptions, preparePlayback, type VoiceCapture } from '@/lib/voiceCapture';
+import { MicLevel } from '@/components/ui/MicLevel';
 import { VoiceFxPicker } from '@/components/ui/VoiceFxPicker';
 import { masterVoice } from '@/lib/voiceMaster';
 import type { RenderedVoice, VoiceFx } from '@/lib/voiceFx';
@@ -23,6 +24,7 @@ export function VoicePostRecorder({ onDone, onClose }: Props) {
   const [audioDuration, setAudioDuration] = useState(0);
   const mrRef = useRef<MediaRecorder | null>(null);
   const captureRef = useRef<VoiceCapture | null>(null);
+  const [levelFn, setLevelFn] = useState<(() => number | null) | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -32,6 +34,7 @@ export function VoicePostRecorder({ onDone, onClose }: Props) {
     try {
       const capture = await startVoiceCapture();
       captureRef.current = capture;
+      setLevelFn(() => capture.level);
       const mr = new MediaRecorder(capture.stream, recorderOptions(capture));
       mrRef.current = mr;
       chunksRef.current = [];
@@ -117,6 +120,12 @@ export function VoicePostRecorder({ onDone, onClose }: Props) {
               onClick={stop}
               style={{ width: 80, height: 80, borderRadius: '50%', background: 'rgba(255,0,80,0.18)', border: '2px solid rgba(255,0,80,0.7)', color: '#ff2255', fontSize: 32, cursor: 'pointer', boxShadow: '0 0 28px rgba(255,0,80,0.3)' }}
             >⏹</motion.button>
+            {/* What the microphone is actually hearing, above the time bar. */}
+            {levelFn && (
+              <div style={{ width: '100%', display: 'flex', alignItems: 'flex-end' }}>
+                <MicLevel level={levelFn} bars={28} color="#ff2255" dim="rgba(255,34,85,0.2)" height={22} />
+              </div>
+            )}
             <div style={{ width: '100%', height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
               <div style={{ height: '100%', borderRadius: 2, background: '#ff2255', width: `${pct}%`, transition: 'width 1s linear' }}/>
             </div>
@@ -128,6 +137,7 @@ export function VoicePostRecorder({ onDone, onClose }: Props) {
           <div className="flex flex-col gap-4">
             <VoiceFxPicker source={audioBlob} maxChars={4_800_000} onPick={setPick} />
             <audio key={pick?.dataUrl ?? 'original'} src={pick?.dataUrl ?? audioUrl}
+              onPlay={preparePlayback}
               controls style={{ width: '100%', borderRadius: 10 }} />
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => { setAudioUrl(null); setAudioData(null); setAudioBlob(null); setPick(null); setState('idle'); setElapsed(0); }}

@@ -1,7 +1,8 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { socket, emitWithAck } from '@/lib/socket';
-import { startVoiceCapture, recorderOptions, type VoiceCapture } from '@/lib/voiceCapture';
+import { startVoiceCapture, recorderOptions, preparePlayback, type VoiceCapture } from '@/lib/voiceCapture';
+import { MicLevel } from '@/components/ui/MicLevel';
 import { VoiceFxPicker } from '@/components/ui/VoiceFxPicker';
 import { masterVoice } from '@/lib/voiceMaster';
 import { copyText } from '@/lib/clipboard';
@@ -97,6 +98,7 @@ function useVoiceRecorder(onReady: (blob: Blob, duration: number) => void) {
 
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
+  const captureLevel = useRef<(() => number | null) | null>(null);
 
   const stopMedia = useCallback((doSend: boolean) => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
@@ -127,6 +129,7 @@ function useVoiceRecorder(onReady: (blob: Blob, duration: number) => void) {
       // See lib/voiceCapture for the measurements behind those choices.
       const capture = await startVoiceCapture();
       captureRef.current = capture;
+      captureLevel.current = capture.level;
       const mr = new MediaRecorder(capture.stream, recorderOptions(capture));
       chunksRef.current = [];
       mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
@@ -146,7 +149,7 @@ function useVoiceRecorder(onReady: (blob: Blob, duration: number) => void) {
 
   useEffect(() => () => { stopMedia(false); }, [stopMedia]);
 
-  return { recording, seconds, start, finish, cancel };
+  return { recording, seconds, start, finish, cancel, level: () => captureLevel.current?.() ?? null };
 }
 
 // ── Image helpers ────────────────────────────────────────────────────
@@ -259,6 +262,9 @@ function VoiceMessageBubble({ msg, isMe }: { msg: DirectMessage; isMe: boolean }
   }, []);
 
   const toggle = useCallback(async () => {
+    // iOS keeps the session in play-and-record after the microphone has been
+    // used, which sends playback to the earpiece. Put it back on the speaker.
+    preparePlayback();
     if (playing) {
       audioRef.current?.pause();
       setPlaying(false);
@@ -538,7 +544,7 @@ export function DmPanel() {
   const [voicePick, setVoicePick] = useState<RenderedVoice | null>(null);
   const [voiceBusy, setVoiceBusy] = useState(false);
 
-  const { recording, seconds, start: startRecording, finish: finishRecording, cancel: cancelRecording } =
+  const { recording, seconds, start: startRecording, finish: finishRecording, cancel: cancelRecording, level: micLevel } =
     useVoiceRecorder((blob, duration) => {
       // Show it immediately, then replace it with the levelled version — the
       // measurement takes a moment and the person should not wait on it.
@@ -1727,17 +1733,8 @@ export function DmPanel() {
                             transition={{ repeat: Infinity, duration: 0.9 }}
                             className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0"
                           />
-                          <div className="flex items-end gap-px flex-1 h-5">
-                            {Array.from({ length: 24 }).map((_, i) => (
-                              <motion.div
-                                key={i}
-                                className="flex-1 rounded-full bg-red-400/60"
-                                animate={{ scaleY: [0.3, 1, 0.3] }}
-                                transition={{ repeat: Infinity, duration: 0.5 + (i % 3) * 0.2, delay: i * 0.04 }}
-                                style={{ transformOrigin: 'bottom' }}
-                              />
-                            ))}
-                          </div>
+                          {/* The real input, not an animation on a timer. */}
+                          <MicLevel level={micLevel} bars={24} color="#f87171" dim="rgba(248,113,113,0.22)" height={20} />
                           <span className="text-xs font-mono text-red-400 flex-shrink-0 tabular-nums">{formatDuration(seconds)}</span>
                         </div>
 

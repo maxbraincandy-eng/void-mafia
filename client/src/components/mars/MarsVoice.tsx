@@ -25,7 +25,8 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { emitWithAck } from '@/lib/socket';
-import { startVoiceCapture, recorderOptions, type VoiceCapture } from '@/lib/voiceCapture';
+import { startVoiceCapture, recorderOptions, preparePlayback, type VoiceCapture } from '@/lib/voiceCapture';
+import { MicLevel } from '@/components/ui/MicLevel';
 import { masterVoice } from '@/lib/voiceMaster';
 import type { Res } from '@/types/index';
 import { genitive, type MarsVoiceClip } from './types';
@@ -69,6 +70,7 @@ export function MarsVoice({
 
   const rec = useRef<MediaRecorder | null>(null);
   const captureRef = useRef<VoiceCapture | null>(null);
+  const [levelFn, setLevelFn] = useState<(() => number | null) | null>(null);
   const chunks = useRef<Blob[]>([]);
   const startedAt = useRef(0);
   const timer = useRef<number | null>(null);
@@ -86,6 +88,7 @@ export function MarsVoice({
       // 96 kbps, microphone straight into the recorder — see lib/voiceCapture.
       const capture = await startVoiceCapture();
       captureRef.current = capture;
+      setLevelFn(() => capture.level);
       const r = new MediaRecorder(capture.stream, recorderOptions(capture));
       chunks.current = [];
       r.ondataavailable = e => { if (e.data.size > 0) chunks.current.push(e.data); };
@@ -194,7 +197,8 @@ export function MarsVoice({
               )}
             </div>
             {/* preload="none": a page with eight clips must not fetch eight files. */}
-            <audio controls preload="none" src={`/mars/voice/${c.id}`} className="w-full" style={{ height: 34 }} />
+            <audio controls preload="none" src={`/mars/voice/${c.id}`} onPlay={preparePlayback}
+              className="w-full" style={{ height: 34 }} />
           </div>
         ))}
       </div>
@@ -206,7 +210,7 @@ export function MarsVoice({
               <p className="font-mono text-[11px] mb-1.5" style={{ color: accent }}>
                 მოისმინე, სანამ შეინახავ · {clock(pending.ms)}
               </p>
-              <audio controls src={pending.url} className="w-full" style={{ height: 34 }} />
+              <audio controls src={pending.url} onPlay={preparePlayback} className="w-full" style={{ height: 34 }} />
               <input value={caption} onChange={e => setCaption(e.target.value.slice(0, 160))}
                 placeholder="რა არის ეს ჩანაწერი? (მაგ. სიმღერა, ზღაპარი, ჩვეულებრივი დილა)"
                 className="w-full mt-2 rounded-lg px-2.5 py-2 font-mono text-[12px] outline-none"
@@ -225,11 +229,18 @@ export function MarsVoice({
               </div>
             </div>
           ) : recording ? (
-            <button onClick={stop}
-              className="w-full py-3 rounded-xl font-mono text-[13px] font-bold transition-all active:scale-[0.98]"
-              style={{ border: '1px solid rgba(255,95,109,0.6)', background: 'rgba(255,95,109,0.16)', color: '#ff8a94' }}>
-              ⏹ გაჩერება · {clock(elapsed)}
-            </button>
+            <div>
+              {levelFn && (
+                <div className="mb-2 px-1 flex items-end">
+                  <MicLevel level={levelFn} bars={26} color="#ff8a94" dim="rgba(255,138,148,0.2)" height={22} />
+                </div>
+              )}
+              <button onClick={stop}
+                className="w-full py-3 rounded-xl font-mono text-[13px] font-bold transition-all active:scale-[0.98]"
+                style={{ border: '1px solid rgba(255,95,109,0.6)', background: 'rgba(255,95,109,0.16)', color: '#ff8a94' }}>
+                ⏹ გაჩერება · {clock(elapsed)}
+              </button>
+            </div>
           ) : (
             <div className="flex gap-2">
               <button onClick={() => void start()} disabled={busy}
