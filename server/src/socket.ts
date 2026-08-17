@@ -264,7 +264,9 @@ import { buildIceConfig } from './lib/iceConfig.js';
 // ── Rate limiting ─────────────────────────────────────────────────────
 const rateLimits = new Map<string, { count: number; resetAt: number }>();
 /** The voice effects a client may claim. Anything else is stored as none. */
-const VOICE_FX_NAMES = new Set(['deep', 'high', 'ghost', 'robot', 'radio', 'giant', 'echo']);
+const VOICE_FX_NAMES = new Set([
+  'deep', 'high', 'ghost', 'robot', 'radio', 'giant', 'echo', 'detective', 'anonymous',
+]);
 
 function rateOk(socketId: string, limit = 15): boolean {
   const now = Date.now();

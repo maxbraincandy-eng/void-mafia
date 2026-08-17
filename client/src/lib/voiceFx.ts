@@ -28,7 +28,9 @@
  */
 import { ensurePitchWorklet, PITCH_NODE } from './voiceMask';
 
-export type VoiceFx = 'none' | 'deep' | 'high' | 'ghost' | 'robot' | 'radio' | 'giant' | 'echo';
+export type VoiceFx =
+  | 'none' | 'deep' | 'high' | 'ghost' | 'robot' | 'radio' | 'giant' | 'echo'
+  | 'detective' | 'anonymous';
 
 export interface VoiceFxInfo { id: VoiceFx; label: string; icon: string }
 
@@ -42,6 +44,9 @@ export const VOICE_FX: VoiceFxInfo[] = [
   { id: 'robot', label: 'რობოტი',    icon: '🤖' },
   { id: 'radio', label: 'რადიო',     icon: '📻' },
   { id: 'echo',  label: 'ექო',       icon: '🌌' },
+  // The two built to be convincing rather than funny — see buildGraph.
+  { id: 'detective', label: 'L',          icon: '🕵' },
+  { id: 'anonymous', label: 'ანონიმუსი',  icon: '👤' },
 ];
 
 export const FX_LABEL: Record<VoiceFx, string> =
@@ -54,6 +59,12 @@ const RATIO: Partial<Record<VoiceFx, number>> = {
   giant: 0.58,
   ghost: 0.86,
   robot: 0.92,
+  // Only a little down. The character of these two comes from what happens
+  // AFTER the shift, not from the shift itself — a voice dropped far enough to
+  // be unrecognisable is also unintelligible, which is the mistake that makes
+  // most voice changers sound like toys.
+  detective: 0.90,
+  anonymous: 0.80,
 };
 
 const WORK_RATE = 48_000;      // the rate the shifter was tuned at
@@ -73,6 +84,113 @@ function driveCurve(amount = 8, points = 2048): Float32Array<ArrayBuffer> {
     curve[i] = Math.tanh(amount * x) / Math.tanh(amount) * 0.9;
   }
   return curve;
+}
+
+
+// ── building blocks, for the profiles that need more than a pitch shift ──
+
+/**
+ * A short synthetic room.
+ *
+ * A ConvolverNode needs an impulse response and there is no file to ship one
+ * in, so it is generated: noise under an exponential decay, slightly darker as
+ * it fades, which is what a real small room does. This is the difference
+ * between a voice that sounds pasted on and one that sounds like it is coming
+ * out of a speaker somewhere.
+ */
+function roomImpulse(ctx: BaseAudioContext, seconds: number, decay: number): AudioBuffer {
+  const n = Math.max(1, Math.floor(ctx.sampleRate * seconds));
+  const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+  const d = buf.getChannelData(0);
+  let seed = 20260817;
+  let lp = 0;
+  for (let i = 0; i < n; i++) {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    const white = (seed / 0x7fffffff) * 2 - 1;
+    // One-pole low pass that closes as the tail decays: high frequencies die
+    // first in any real space.
+    const t = i / n;
+    lp += (white - lp) * (0.55 - 0.35 * t);
+    d[i] = lp * Math.pow(1 - t, decay);
+  }
+  return buf;
+}
+
+/** Wet/dry around any effect, so nothing is ever all-or-nothing. */
+function mixed(ctx: OfflineAudioContext, input: AudioNode, wetChain: AudioNode, wetEnd: AudioNode, wet: number): AudioNode {
+  const dryGain = ctx.createGain(); dryGain.gain.value = 1 - wet;
+  const wetGain = ctx.createGain(); wetGain.gain.value = wet;
+  const out = ctx.createGain();
+  input.connect(dryGain); dryGain.connect(out);
+  input.connect(wetChain);
+  wetEnd.connect(wetGain); wetGain.connect(out);
+  return out;
+}
+
+/** A very short feedback delay: the metallic ring of a small enclosure. */
+function comb(ctx: OfflineAudioContext, input: AudioNode, ms: number, feedback: number, wet: number): AudioNode {
+  const delay = ctx.createDelay(0.1);
+  delay.delayTime.value = ms / 1000;
+  const fb = ctx.createGain(); fb.gain.value = feedback;
+  delay.connect(fb); fb.connect(delay);
+  return mixed(ctx, input, delay, delay, wet);
+}
+
+/** Two slightly detuned, slightly delayed copies — a voice that is not one voice. */
+function chorus(ctx: OfflineAudioContext, input: AudioNode, wet: number): AudioNode {
+  const sum = ctx.createGain();
+  for (const [ms, rate, depth] of [[14, 0.23, 0.0022], [21, 0.17, 0.0031]] as const) {
+    const d = ctx.createDelay(0.2);
+    d.delayTime.value = ms / 1000;
+    const lfo = ctx.createOscillator();
+    lfo.frequency.value = rate;
+    const amt = ctx.createGain();
+    amt.gain.value = depth;
+    lfo.connect(amt); amt.connect(d.delayTime);
+    lfo.start();
+    input.connect(d); d.connect(sum);
+  }
+  return mixed(ctx, input, sum, sum, wet);
+}
+
+/** Amplitude modulation by a tone: the classic electronic edge. */
+function ringMod(ctx: OfflineAudioContext, input: AudioNode, hz: number, wet: number): AudioNode {
+  const ring = ctx.createGain();
+  ring.gain.value = 0;                 // driven entirely by the oscillator
+  const osc = ctx.createOscillator();
+  osc.type = 'sine';
+  osc.frequency.value = hz;
+  osc.connect(ring.gain);
+  osc.start();
+  input.connect(ring);
+  return mixed(ctx, input, ring, ring, wet);
+}
+
+function band(ctx: OfflineAudioContext, input: AudioNode, lowHz: number, highHz: number, poles = 2): AudioNode {
+  let node: AudioNode = input;
+  for (let i = 0; i < poles; i++) {
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'highpass'; hp.frequency.value = lowHz; hp.Q.value = 0.707;
+    node.connect(hp); node = hp;
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = highHz; lp.Q.value = 0.707;
+    node.connect(lp); node = lp;
+  }
+  return node;
+}
+
+function saturate(ctx: OfflineAudioContext, input: AudioNode, amount: number): AudioNode {
+  const shaper = ctx.createWaveShaper();
+  shaper.curve = driveCurve(amount);
+  shaper.oversample = '4x';
+  input.connect(shaper);
+  return shaper;
+}
+
+function reverb(ctx: OfflineAudioContext, input: AudioNode, seconds: number, decay: number, wet: number): AudioNode {
+  const conv = ctx.createConvolver();
+  conv.buffer = roomImpulse(ctx, seconds, decay);
+  return mixed(ctx, input, conv, conv, wet);
 }
 
 /** Build the effect graph between `src` and the context destination. */
@@ -130,6 +248,54 @@ function buildGraph(ctx: OfflineAudioContext, src: AudioNode, fx: VoiceFx): void
     shelf.type = 'lowshelf'; shelf.frequency.value = 220; shelf.gain.value = 5;
     node.connect(shelf);
     node = shelf;
+  }
+
+  /*
+   * L.
+   *
+   * Not a pitch trick: the voice from Death Note is a BROADCAST. It arrives
+   * through a public-address speaker, so it is band-limited the way a speaker
+   * is, driven a little too hard, ringing slightly with the box it comes out
+   * of, and sitting in the room it is played into. Each of those is a separate
+   * stage here, and the pitch barely moves — an announcement you cannot make
+   * out is not menacing, it is just noise.
+   */
+  if (fx === 'detective') {
+    node = band(ctx, node, 320, 3400, 2);          // the speaker's own limits
+    node = comb(ctx, node, 1.4, 0.55, 0.35);       // metal box resonance
+    node = ringMod(ctx, node, 24, 0.22);           // a faint electronic edge
+    node = saturate(ctx, node, 6);                 // pushed through the amp
+    const presence = ctx.createBiquadFilter();     // the harshness of a PA horn
+    presence.type = 'peaking';
+    presence.frequency.value = 2100;
+    presence.Q.value = 1.1;
+    presence.gain.value = 7;
+    node.connect(presence);
+    node = presence;
+    node = reverb(ctx, node, 0.42, 2.6, 0.24);     // the room it plays into
+  }
+
+  /*
+   * Anonymous.
+   *
+   * The voice from those videos is a machine speaking, not a person disguised:
+   * lowered, thickened into several copies of itself so no single larynx is
+   * audible, given a synthetic edge, and left oddly flat and roomy. Fully
+   * intelligible on purpose — the whole point of that voice is that it is
+   * making a statement.
+   */
+  if (fx === 'anonymous') {
+    node = chorus(ctx, node, 0.5);                 // no longer one voice
+    node = ringMod(ctx, node, 47, 0.28);           // machine, not person
+    node = band(ctx, node, 140, 5200, 2);
+    const body = ctx.createBiquadFilter();         // weight where a chest would be
+    body.type = 'lowshelf';
+    body.frequency.value = 260;
+    body.gain.value = 4;
+    node.connect(body);
+    node = body;
+    node = saturate(ctx, node, 4);
+    node = reverb(ctx, node, 0.75, 2.2, 0.28);     // the empty room they film in
   }
 
   if (fx === 'echo') {

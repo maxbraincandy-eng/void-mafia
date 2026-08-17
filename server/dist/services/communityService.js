@@ -816,7 +816,7 @@ export async function createPostV2(authorId, data) {
         throw new Error('Audio too large.');
     // The badge on a post must mean something, so only a known effect name is
     // kept — a modified client cannot label a post with arbitrary text.
-    const KNOWN_FX = ['deep', 'high', 'ghost', 'robot', 'radio', 'giant', 'echo'];
+    const KNOWN_FX = ['deep', 'high', 'ghost', 'robot', 'radio', 'giant', 'echo', 'detective', 'anonymous'];
     data.audioFx = data.audioUrl && KNOWN_FX.includes(String(data.audioFx ?? '')) ? String(data.audioFx) : null;
     const id = `post_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const now = Date.now();
