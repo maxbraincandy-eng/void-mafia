@@ -4,8 +4,6 @@ import { useT, useLangStore } from '@/store/langStore';
 import { haptic } from '@/lib/haptics';
 import { VoidCommunityIcon } from '@/components/ui/VoidCommunityIcon';
 import { VoidGamesIcon } from '@/components/ui/VoidGamesIcon';
-import { VoidClansIcon } from '@/components/ui/VoidClansIcon';
-import { VoidStatsIcon } from '@/components/ui/VoidStatsIcon';
 import { VoidProfileIcon } from '@/components/ui/VoidProfileIcon';
 
 export type NavTab = 'rooms' | 'games' | 'community' | 'clans' | 'leaderboard' | 'profile' | 'mod' | 'economy' | 'replays';
@@ -79,54 +77,45 @@ type TabDef = { id: NavTab; label: string } & (
   | { kind: 'svg'; renderIcon: (active: boolean, color: string) => React.ReactElement }
 );
 
+// Clans and Top used to sit here. They now live at the top of the Mafia page
+// (and still in ☰ მეტი), which leaves the bar four items wide — the labels
+// stopped being cramped and the centre FAB got room to breathe.
 const LEFT_TABS: TabDef[] = [
   {
     id: 'community', kind: 'svg', label: 'კომუნითი',
-    renderIcon: (a, c) => <VoidCommunityIcon size={21} active={a} color={c} />,
+    renderIcon: (a, c) => <VoidCommunityIcon size={22} active={a} color={c} />,
   },
   {
     id: 'games', kind: 'svg', label: 'თამაშები',
-    renderIcon: (a, c) => <VoidGamesIcon size={21} active={a} color={c} />,
-  },
-  {
-    id: 'clans', kind: 'svg', label: 'კლანები',
-    renderIcon: (a, c) => <VoidClansIcon size={21} active={a} color={c} />,
+    renderIcon: (a, c) => <VoidGamesIcon size={22} active={a} color={c} />,
   },
 ];
 
 const RIGHT_TABS: TabDef[] = [
   {
-    id: 'leaderboard', kind: 'svg', label: 'ტოპი',
-    renderIcon: (a, c) => <VoidStatsIcon size={21} active={a} color={c} />,
-  },
-  {
     id: 'profile', kind: 'svg', label: 'პროფილი',
-    renderIcon: (a, c) => <VoidProfileIcon size={21} active={a} color={c} />,
+    renderIcon: (a, c) => <VoidProfileIcon size={22} active={a} color={c} />,
   },
 ];
 
 const NEON_TAB_COLORS: Record<string, string> = {
-  community: '#9b00ff', games: '#f59e0b', clans: '#ef4444',
-  leaderboard: '#facc15', profile: '#00e5ff',
+  community: '#9b00ff', games: '#f59e0b', profile: '#00e5ff',
 };
 const GLASS_TAB_COLORS: Record<string, string> = {
-  community: '#8b5cf6', games: '#fbbf24', clans: '#f87171',
-  leaderboard: '#fde68a', profile: '#67e8f9',
+  community: '#8b5cf6', games: '#fbbf24', profile: '#67e8f9',
 };
 const GRAPHITE_TAB_COLORS: Record<string, string> = {
-  community: '#7c93ff', games: '#d0a95a', clans: '#d97a7a',
-  leaderboard: '#d8c47a', profile: '#6bc4c4',
+  community: '#7c93ff', games: '#d0a95a', profile: '#6bc4c4',
 };
 
 // ── NavItem ─────────────────────────────────────────────────────────────────
 // Georgian glyphs are wider than Latin/Cyrillic, so long labels
-// (კომუნითი / თამაშები / პროფილი) cram in the narrow tab. Use a slightly
-// smaller size and no letter-spacing for Georgian; keep the roomier style
-// for en/ru.
+// (კომუნითი / თამაშები / პროფილი) need a touch less size and no
+// letter-spacing; keep the roomier style for en/ru.
 function labelStyle(ka: boolean): React.CSSProperties {
   return ka
-    ? { fontSize: 'clamp(8px, 2.35vw, 9.5px)', fontWeight: 600, letterSpacing: 0, display: 'block' }
-    : { fontSize: 'clamp(9px, 2.7vw, 11px)', fontWeight: 600, letterSpacing: '0.02em', display: 'block' };
+    ? { fontSize: 'clamp(9px, 2.7vw, 10.5px)', fontWeight: 600, letterSpacing: 0, display: 'block' }
+    : { fontSize: 'clamp(9.5px, 2.9vw, 11.5px)', fontWeight: 600, letterSpacing: '0.02em', display: 'block' };
 }
 
 function NavItem({ tab, active, color, onPress, label, ka }: { tab: TabDef; active: boolean; color: string; onPress: (id: NavTab) => void; label: string; ka: boolean }) {
@@ -196,7 +185,7 @@ export function BottomNav({ active, onChange, onMoreClick }: Props) {
     >
       <div className="flex items-end max-w-lg mx-auto px-2" style={{ height: 84 }}>
 
-        {/* Left 3 tabs */}
+        {/* Left tabs */}
         {LEFT_TABS.map(tab => (
           <NavItem key={tab.id} tab={tab} ka={ka} label={navLabel(tab.id)} active={active === tab.id} color={TAB_COLORS[tab.id] ?? '#ffffff'} onPress={go} />
         ))}
@@ -221,7 +210,7 @@ export function BottomNav({ active, onChange, onMoreClick }: Props) {
           </button>
         </div>
 
-        {/* Right 2 tabs */}
+        {/* Right tabs */}
         {RIGHT_TABS.map(tab => (
           <NavItem key={tab.id} tab={tab} ka={ka} label={navLabel(tab.id)} active={active === tab.id} color={TAB_COLORS[tab.id] ?? '#ffffff'} onPress={go} />
         ))}

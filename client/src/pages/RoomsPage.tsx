@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { RoomListItem, Season } from '@/types/index';
+import { RoomListItem, Season, ClanPublic, PlayerProfilePublic } from '@/types/index';
 import { useGameStore } from '@/store/gameStore';
 import { useAuthStore } from '@/store/authStore';
 import { useSocialStore } from '@/store/socialStore';
@@ -12,6 +12,9 @@ import { SkeletonRoomCard } from '@/components/ui/Skeleton';
 import { DailyChallengeCard } from '@/components/ui/DailyChallengeCard';
 import { NewsCard } from '@/components/ui/NewsCard';
 import { LobbyChatPanel } from '@/components/social/LobbyChatPanel';
+import { VoidClansIcon } from '@/components/ui/VoidClansIcon';
+import { VoidStatsIcon } from '@/components/ui/VoidStatsIcon';
+import { haptic } from '@/lib/haptics';
 import { emitWithAck } from '@/lib/socket';
 import type { Res } from '@/types/index';
 
@@ -69,7 +72,116 @@ function SeasonBanner() {
 const SURFACE = 'rounded-2xl border border-white/[0.06]';
 const SURFACE_BG = { background: 'var(--vm-surface-bg)' } as const;
 
-export function RoomsPage() {
+// ── Quick access: Clans & Top ───────────────────────────────────────────────
+// Both used to be tabs in the bottom bar. They belong to the Mafia side of the
+// app, so they live here now — one tap from the first thing you see, and each
+// card carries a live line so it reads as part of the page rather than a link
+// bolted on top of it.
+function QuickCard({
+  accent, icon, title, sub, onClick, delay,
+}: {
+  accent: string;
+  icon: React.ReactNode;
+  title: string;
+  sub: string;
+  onClick: () => void;
+  delay: number;
+}) {
+  return (
+    <motion.button
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay, duration: 0.25 }}
+      onClick={() => { haptic('selection'); onClick(); }}
+      className="relative flex items-center gap-2 rounded-2xl px-2.5 py-2.5 text-left overflow-hidden transition-all active:scale-[0.97]"
+      style={{ background: 'var(--vm-surface-bg)', border: '1px solid rgba(255,255,255,0.06)' }}
+    >
+      {/* Accent wash — keeps the two cards distinguishable at a glance */}
+      <span
+        className="absolute inset-0 pointer-events-none"
+        style={{ background: `radial-gradient(120% 110% at 0% 0%, ${accent}1f, transparent 62%)` }}
+      />
+      <span
+        className="relative flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center"
+        style={{ background: `${accent}14`, border: `1px solid ${accent}30` }}
+      >
+        {icon}
+      </span>
+      <span className="relative min-w-0 flex-1">
+        <span className="block font-display font-bold text-[13px] text-white/85 leading-none truncate">
+          {title}
+        </span>
+        <span
+          className="block font-mono text-[10.5px] leading-none truncate"
+          style={{ color: `${accent}cc`, marginTop: 5 }}
+        >
+          {sub}
+        </span>
+      </span>
+      <svg
+        width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"
+        className="relative flex-shrink-0 text-white/20"
+      >
+        <path d="M9 6l6 6-6 6" />
+      </svg>
+    </motion.button>
+  );
+}
+
+function QuickAccessRow({ onOpenClans, onOpenLeaderboard }: { onOpenClans: () => void; onOpenLeaderboard: () => void }) {
+  const t = useT();
+  const myId = useAuthStore(s => s.profile?.id ?? null);
+  const [clanLine, setClanLine] = useState('');
+  const [topLine, setTopLine] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+    emitWithAck<null, Res<ClanPublic | null>>('clan:mine' as any)
+      .then(res => {
+        // The name alone; the card is half a phone wide and the tag pushed it
+        // past the ellipsis.
+        if (!alive || !res.ok || !res.data) return;   // no clan → the invite line stays
+        setClanLine(res.data.name);
+      })
+      .catch(() => {});
+
+    emitWithAck<null, Res<PlayerProfilePublic[]>>('leaderboard:get' as any)
+      .then(res => {
+        if (!alive || !res.ok || !Array.isArray(res.data) || res.data.length === 0) return;
+        const rank = myId ? res.data.findIndex(p => p.id === myId) : -1;
+        setTopLine(rank >= 0
+          ? `${t.rooms.quickYourRank} #${rank + 1}`
+          : `#1 ${res.data[0].username}`);
+      })
+      .catch(() => {});
+
+    return () => { alive = false; };
+  }, [myId]);
+
+  return (
+    <div className="grid grid-cols-2 gap-2.5 mb-3">
+      <QuickCard
+        accent="#ef4444"
+        icon={<VoidClansIcon size={17} color="#ef4444" />}
+        title={t.nav.clans}
+        sub={clanLine || t.rooms.quickClansHint}
+        onClick={onOpenClans}
+        delay={0.04}
+      />
+      <QuickCard
+        accent="#facc15"
+        icon={<VoidStatsIcon size={17} color="#facc15" />}
+        title={t.nav.leaderboard}
+        sub={topLine || t.rooms.quickTopHint}
+        onClick={onOpenLeaderboard}
+        delay={0.09}
+      />
+    </div>
+  );
+}
+
+export function RoomsPage({ onOpenClans, onOpenLeaderboard }: { onOpenClans?: () => void; onOpenLeaderboard?: () => void } = {}) {
   type GameStyle = 'classic' | 'don';
 
   // Base timers (the former "classic" pace). Don mode's engine drives its own
@@ -264,6 +376,14 @@ export function RoomsPage() {
             </button>
           </div>
         </div>
+
+        {/* Clans & Top — moved out of the bottom bar, one tap from the top */}
+        {(onOpenClans || onOpenLeaderboard) && (
+          <QuickAccessRow
+            onOpenClans={onOpenClans ?? (() => {})}
+            onOpenLeaderboard={onOpenLeaderboard ?? (() => {})}
+          />
+        )}
 
         {/* Season Banner */}
         <SeasonBanner />

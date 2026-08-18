@@ -186,7 +186,7 @@ function WinRate({ wins, losses }: { wins: number; losses: number }) {
   );
 }
 
-export function ClansPage() {
+export function ClansPage({ onBack }: { onBack?: () => void } = {}) {
   const t = useT();
   const profile = useAuthStore(s => s.profile);
   const myClanRole = useAuthStore(s => s.myClanRole);
@@ -412,10 +412,23 @@ export function ClansPage() {
 
       <div className="relative z-10 vm-page px-4 pt-8">
         {/* Header */}
-        <div className="mb-6 flex items-start justify-between">
-          <div>
-            <h1 className="font-display text-3xl font-bold gradient-text tracking-wide">VOID MAFIA</h1>
-            <PoweredBy className="block mt-0.5" />
+        <div className="mb-6 flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3 min-w-0">
+            {/* Clans is reached from the Mafia page now, so it needs a way back. */}
+            {onBack && (
+              <button
+                onClick={onBack}
+                className="flex-shrink-0 w-9 h-9 mt-1 rounded-xl flex items-center justify-center transition-all hover:bg-white/8 active:scale-95 text-white/50 hover:text-white/80"
+                style={{ border: '1px solid rgba(255,255,255,0.08)' }}
+                aria-label="Back"
+              >
+                ←
+              </button>
+            )}
+            <div className="min-w-0">
+              <h1 className="font-display text-3xl font-bold gradient-text tracking-wide">VOID MAFIA</h1>
+              <PoweredBy className="block mt-0.5" />
+            </div>
           </div>
           {profile && !amInAnyClan && (
             <button

@@ -338,14 +338,18 @@ function RoomInviteToast() {
   );
 }
 
-const NAV_ORDER: NavTab[] = ['community', 'games', 'clans', 'rooms', 'leaderboard', 'profile'];
+// Swipe order mirrors the bottom bar left-to-right. Clans and Top are no longer
+// in the bar — they are reached from the Mafia page — so they are not stops on
+// the swipe path either; landing on one and swiping sideways would otherwise
+// jump somewhere the gesture never promised.
+const NAV_ORDER: NavTab[] = ['community', 'games', 'rooms', 'profile'];
 // Tabs where a horizontal drag means something else, so it must NOT change tab.
 // These are the screens built from rows that scroll sideways — the games hub has
 // its category chips and the "recently played" strip, community its feed rails —
 // and on a phone a drag on or near one of those reads as "scroll this row", not
 // "leave this screen". Being thrown to another tab mid-scroll is the bug.
 // Nothing is lost by opting out: the bottom nav already reaches every tab.
-const NO_SWIPE_NAV: NavTab[] = ['community', 'games', 'economy'];
+const NO_SWIPE_NAV: NavTab[] = ['community', 'games', 'economy', 'clans', 'leaderboard'];
 
 function PageTransition({ children, direction }: { children: React.ReactNode; direction: 1 | -1 }) {
   return (
@@ -523,10 +527,10 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
       {/* Install banner — rooms tab only, outside AnimatePresence so it vanishes instantly on tab change */}
       {page === 'rooms' && <PWAInstallBanner />}
       <AnimatePresence mode="wait">
-        {page === 'rooms'       && <PageTransition key="rooms"        direction={direction}><RoomsPage /></PageTransition>}
+        {page === 'rooms'       && <PageTransition key="rooms"        direction={direction}><RoomsPage onOpenClans={() => navigate('clans')} onOpenLeaderboard={() => navigate('leaderboard')} /></PageTransition>}
         {page === 'games'       && <PageTransition key="games"        direction={direction}><GamesPage onOpenSpace={() => setSpaceOpen(true)} onOpenBackrooms={() => setBackroomsOpen(true)} onOpenPremium={() => setPremiumOpen(true)} /></PageTransition>}
         {page === 'community'   && <PageTransition key="community"    direction={direction}><CommunityPage /></PageTransition>}
-        {page === 'clans'       && <PageTransition key="clans"        direction={direction}><ClansPage /></PageTransition>}
+        {page === 'clans'       && <PageTransition key="clans"        direction={direction}><ClansPage onBack={() => navigate('rooms')} /></PageTransition>}
         {page === 'replays'     && <PageTransition key={`replays-${initialReplayId ?? ''}`} direction={direction}><ReplaysPage initialReplayId={initialReplayId} /></PageTransition>}
         {page === 'leaderboard' && <PageTransition key="leaderboard"  direction={direction}><LeaderboardPage onBack={() => navigate('rooms')} /></PageTransition>}
         {page === 'profile'     && <PageTransition key="profile"      direction={direction}><ProfilePage onViewReplay={navigateToReplay} /></PageTransition>}
