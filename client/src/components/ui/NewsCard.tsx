@@ -31,7 +31,11 @@ function formatDate(iso: string) {
 
 export function NewsCard() {
   const t = useT();
-  const [expanded, setExpanded] = useState<string | null>(NEWS[0]?.id ?? null);
+  // Collapsed to start. The latest item used to open itself, which cost ~120px
+  // on the Mafia page directly above the room list — enough that a room someone
+  // had just opened could sit off the bottom of the screen. The headline and its
+  // date still show; one tap reads the rest.
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   if (!NEWS.length) return null;
 

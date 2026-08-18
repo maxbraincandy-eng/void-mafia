@@ -491,16 +491,10 @@ export function RoomsPage({ onOpenClans, onOpenLeaderboard }: { onOpenClans?: ()
           />
         )}
 
-        {/* Season, quests and news are the classic ladder's furniture — a
-            hosted table has no season and no daily quests, so the hosted view
-            skips straight from the picker to its own tabs. */}
-        {family === 'classic' && (
-          <>
-            <SeasonBanner />
-            <DailyChallengeCard />
-            <NewsCard />
-          </>
-        )}
+        {/* News stays above the list: it is a few lines and it is the one
+            thing here that is genuinely new information. The season bar and
+            the daily quests moved below the rooms — see the foot of the page. */}
+        {family === 'classic' && <NewsCard />}
 
         {/* ── Mode tabs — underline style ─────────────────────── */}
         <div className="flex border-b border-white/[0.06] mb-5">
@@ -923,6 +917,18 @@ export function RoomsPage({ onOpenClans, onOpenLeaderboard }: { onOpenClans?: ()
               )}
             </div>
           </motion.div>
+        )}
+
+        {/* The season bar and the daily quests used to sit between the header
+            and the room list, and between them they pushed the first room
+            past the fold — someone could open a room and the person waiting
+            for it would never see it appear. They are status, not the reason
+            anyone came to this page, so they read at the foot of it. */}
+        {family === 'classic' && (
+          <div className="mt-7 pt-5" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+            <SeasonBanner />
+            <DailyChallengeCard />
+          </div>
         )}
       </div>
 
