@@ -1,6 +1,15 @@
 import { useSocialStore } from '@/store/socialStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useT, useLangStore } from '@/store/langStore';
+// Imported rather than referenced by path: Vite stamps a content hash into the
+// filename, so the URL changes whenever the picture does. Served from public/
+// the names were stable, and the server marks static files immutable for a
+// year — which froze the old artwork in every browser that had already seen it.
+import communityMark from '@/assets/nav/community.webp';
+import gamesMark from '@/assets/nav/games.webp';
+import mafiaMark from '@/assets/nav/mafia.webp';
+import worldsMark from '@/assets/nav/worlds.webp';
+import profileMark from '@/assets/nav/profile.webp';
 import { haptic } from '@/lib/haptics';
 
 // 'worlds' is not a page — it opens the 3D spaces over whatever is behind it.
@@ -87,17 +96,17 @@ type TabDef = { id: NavTab; label: string } & (
 // squircle with transparent corners, so nothing here draws a box around them —
 // a wrapper border would sit outside the shape the artwork already has.
 const LEFT_TABS: TabDef[] = [
-  { id: 'community', kind: 'art', src: '/nav/community.webp', label: 'კომუნითი' },
-  { id: 'games',     kind: 'art', src: '/nav/games.webp',     label: 'თამაშები' },
+  { id: 'community', kind: 'art', src: communityMark, label: 'კომუნითი' },
+  { id: 'games',     kind: 'art', src: gamesMark,     label: 'თამაშები' },
 ];
 
 const BIG_TABS: TabDef[] = [
-  { id: 'rooms',  kind: 'art', src: '/nav/mafia.webp',  label: 'მაფია' },
-  { id: 'worlds', kind: 'art', src: '/nav/worlds.webp', label: '3D სივრცე' },
+  { id: 'rooms',  kind: 'art', src: mafiaMark,  label: 'მაფია' },
+  { id: 'worlds', kind: 'art', src: worldsMark, label: '3D სივრცე' },
 ];
 
 const RIGHT_TABS: TabDef[] = [
-  { id: 'profile', kind: 'art', src: '/nav/profile.webp', label: 'პროფილი' },
+  { id: 'profile', kind: 'art', src: profileMark, label: 'პროფილი' },
 ];
 
 // Each flagship's glow is taken from its own artwork — the mafia plate's gold

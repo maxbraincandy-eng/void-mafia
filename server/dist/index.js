@@ -49,7 +49,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 3000);
 const CLIENT_URL = process.env.CLIENT_URL ?? 'http://localhost:5173';
 const IS_PROD = process.env.NODE_ENV === 'production';
-const CLIENT_BUILD = '2026-07-28-v593';
+const CLIENT_BUILD = '2026-07-28-v594';
 console.log('[Startup] Void Mafia server starting');
 console.log(`[Startup] Client build: ${CLIENT_BUILD}`);
 console.log(`[Startup] NODE_ENV=${process.env.NODE_ENV ?? 'development'}`);
@@ -431,6 +431,19 @@ if (IS_PROD) {
                 res.setHeader('Expires', '0');
                 res.removeHeader('ETag');
                 res.removeHeader('Last-Modified');
+                return;
+            }
+            // `immutable` above is a promise that a URL's content will never change,
+            // and it is one only Vite's output can keep: everything it emits under
+            // /assets carries a content hash, so a new picture means a new URL.
+            // Files copied verbatim out of public/ keep their name forever, and
+            // marking those immutable froze them in every browser that had already
+            // fetched one — the nav artwork was replaced and phones kept showing the
+            // old set for what would have been a year. Unhashed files revalidate.
+            const isHashedAsset = filePath.includes(`${path.sep}assets${path.sep}`)
+                && /[.-][A-Za-z0-9_-]{8,}\.[a-z0-9]+$/.test(path.basename(filePath));
+            if (!isHashedAsset) {
+                res.setHeader('Cache-Control', 'public, max-age=300, must-revalidate');
             }
         },
     }));

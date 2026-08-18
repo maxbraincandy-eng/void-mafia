@@ -1,6 +1,11 @@
 import { useSocialStore } from '@/store/socialStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useT } from '@/store/langStore';
+import communityMark from '@/assets/nav/community.webp';
+import gamesMark from '@/assets/nav/games.webp';
+import mafiaMark from '@/assets/nav/mafia.webp';
+import worldsMark from '@/assets/nav/worlds.webp';
+import profileMark from '@/assets/nav/profile.webp';
 import { haptic } from '@/lib/haptics';
 import { VoidClansIcon } from '@/components/ui/VoidClansIcon';
 import { VoidStatsIcon } from '@/components/ui/VoidStatsIcon';
@@ -36,15 +41,15 @@ function items(colors: Record<string, string>): Item[] {
   return [
     // The same five marks the phone bar uses, so the two navs read as one app.
     // Clans and Top keep their line drawings — they were never given one.
-    { id: 'rooms', kind: 'art', src: '/nav/mafia.webp', label: 'rooms', color: colors.rooms },
-    { id: 'community', kind: 'art', src: '/nav/community.webp', label: 'community', color: colors.community },
-    { id: 'games', kind: 'art', src: '/nav/games.webp', label: 'games', color: colors.games },
-    { id: 'worlds', kind: 'art', src: '/nav/worlds.webp', label: 'worlds', color: colors.worlds },
+    { id: 'rooms', kind: 'art', src: mafiaMark, label: 'rooms', color: colors.rooms },
+    { id: 'community', kind: 'art', src: communityMark, label: 'community', color: colors.community },
+    { id: 'games', kind: 'art', src: gamesMark, label: 'games', color: colors.games },
+    { id: 'worlds', kind: 'art', src: worldsMark, label: 'worlds', color: colors.worlds },
     { id: 'clans', kind: 'svg', label: 'clans', color: colors.clans,
       renderIcon: (a, c) => <VoidClansIcon size={22} active={a} color={c} /> },
     { id: 'leaderboard', kind: 'svg', label: 'leaderboard', color: colors.leaderboard,
       renderIcon: (a, c) => <VoidStatsIcon size={22} active={a} color={c} /> },
-    { id: 'profile', kind: 'art', src: '/nav/profile.webp', label: 'profile', color: colors.profile },
+    { id: 'profile', kind: 'art', src: profileMark, label: 'profile', color: colors.profile },
   ];
 }
 
@@ -75,7 +80,7 @@ export function SideNav({ active, onChange, onMoreClick }: Props) {
         onClick={() => go('rooms')}
         className="flex items-center gap-3 px-5 h-[72px] flex-shrink-0 transition-opacity hover:opacity-90"
       >
-        <img src="/nav/mafia.webp" alt="" width={34} height={34}
+        <img src={mafiaMark} alt="" width={34} height={34}
           style={{ width: 34, height: 34, flexShrink: 0, filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.5))' }} />
         <span
           className="font-display font-bold tracking-widest text-left leading-tight"
