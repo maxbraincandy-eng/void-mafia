@@ -182,13 +182,16 @@ export function BottomNav({ active, onChange, onMoreClick }: Props) {
 
   return (
     <nav
-      className="vm-bottom-nav fixed bottom-0 left-0 right-0 z-50"
+      /* Position comes from .vm-bottom-nav, which floats it above the page. */
+      className="vm-bottom-nav fixed z-50"
       style={{
-        background: 'var(--vm-nav-bg)',
-        borderTop: '1px solid var(--vm-nav-border)',
-        borderRadius: '20px 20px 0 0',
-        boxShadow: '0 -4px 32px rgba(0,0,0,0.65)',
-        transition: 'background 180ms ease, border-color 180ms ease',
+        backgroundColor: 'var(--vm-nav-bg)',
+        border: '1px solid var(--vm-nav-border)',
+        borderRadius: 24,
+        // A shadow that falls DOWNWARD, because the bar is now above the page
+        // rather than attached to its edge.
+        boxShadow: '0 10px 34px rgba(0,0,0,0.55), 0 1px 0 rgba(255,255,255,0.05) inset',
+        transition: 'background-color 180ms ease, border-color 180ms ease',
       }}
     >
       <div className="flex items-end max-w-lg mx-auto px-2" style={{ height: 84 }}>

@@ -68,7 +68,7 @@
   --vm-header-border: rgba(255,255,255,0.05);
 
   /* ── Bottom nav ── */
-  --vm-nav-bg: rgba(3,0,13,0.97);
+  --vm-nav-bg: rgba(6,2,20,0.62);
   --vm-nav-border: rgba(255,255,255,0.06);
   --vm-fab-off: linear-gradient(145deg, #7c3aed, #4f46e5);
   --vm-fab-on: linear-gradient(145deg, #c026d3, #7c3aed, #0ea5e9);
@@ -205,24 +205,48 @@
   --vm-level-pip-shadow: rgba(139,92,246,0.4);
 }
 
-/* Bottom nav background extends into home indicator zone */
+/*
+ * The bottom nav floats: a glass bar sitting ABOVE the page rather than a slab
+ * bolted to the bottom edge.
+ *
+ * It is lifted just clear of the home indicator, inset from both sides, and
+ * translucent with a real backdrop blur — which is what makes it read as a
+ * layer: the feed slides underneath it as you scroll, and a strip of page stays
+ * visible in the gap below. The blur is not confined to the glass theme any
+ * more, because the effect IS the point of the shape.
+ */
 .vm-bottom-nav {
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+  left: 8px;
+  right: 8px;
+  margin-inline: auto;
+  max-width: 32rem;                 /* matches the row's own max-w-lg */
+  backdrop-filter: blur(26px) saturate(1.7);
+  -webkit-backdrop-filter: blur(26px) saturate(1.7);
+  /*
+   * A dark scrim UNDER the theme tint. Blur alone is not enough: whatever
+   * scrolls past still shows through at full contrast and the labels become
+   * hard to read against it. This keeps the page visible as colour and
+   * movement while the bar stays legible — which is what a glass layer is
+   * supposed to do.
+   */
+  background-image: linear-gradient(180deg, rgba(8,3,24,0.46), rgba(8,3,24,0.62));
 }
 
-/* Minimal-glass: frosted glass nav + panel — backdrop-filter cannot go in CSS vars */
+/* Minimal-glass leans further into it. */
 [data-theme="minimal-glass"] .vm-bottom-nav {
-  backdrop-filter: blur(32px) saturate(1.4);
-  -webkit-backdrop-filter: blur(32px) saturate(1.4);
+  backdrop-filter: blur(36px) saturate(1.5);
+  -webkit-backdrop-filter: blur(36px) saturate(1.5);
 }
 [data-theme="minimal-glass"] .vm-more-panel {
   backdrop-filter: blur(40px) saturate(1.5);
   -webkit-backdrop-filter: blur(40px) saturate(1.5);
 }
 
-/* Page content bottom padding including nav height */
+/* Page content clears the floating bar (84) plus the gap under it (8) plus a
+   little air, so the last item is never trapped behind the glass. */
 .vm-main-pb {
-  padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(98px + env(safe-area-inset-bottom, 0px));
 }
 
 /* ── Desktop shell ─────────────────────────────────────────────────────
