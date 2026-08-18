@@ -531,7 +531,7 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
       {page === 'rooms' && <PWAInstallBanner />}
       <AnimatePresence mode="wait">
         {page === 'rooms'       && <PageTransition key="rooms"        direction={direction}><RoomsPage onOpenClans={() => navigate('clans')} onOpenLeaderboard={() => navigate('leaderboard')} /></PageTransition>}
-        {page === 'games'       && <PageTransition key="games"        direction={direction}><GamesPage onOpenSpace={() => setSpaceOpen(true)} onOpenBackrooms={() => setBackroomsOpen(true)} onOpenPremium={() => setPremiumOpen(true)} /></PageTransition>}
+        {page === 'games'       && <PageTransition key="games"        direction={direction}><GamesPage onOpenSpace={() => setSpaceOpen(true)} onOpenBackrooms={() => setBackroomsOpen(true)} /></PageTransition>}
         {page === 'community'   && <PageTransition key="community"    direction={direction}><CommunityPage /></PageTransition>}
         {page === 'clans'       && <PageTransition key="clans"        direction={direction}><ClansPage onBack={() => navigate('rooms')} /></PageTransition>}
         {page === 'replays'     && <PageTransition key={`replays-${initialReplayId ?? ''}`} direction={direction}><ReplaysPage initialReplayId={initialReplayId} /></PageTransition>}

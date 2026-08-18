@@ -2,14 +2,12 @@ import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react'
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 
-const NeoBandicoot = lazy(() => import('@/components/platformer/NeoBandicoot').then(m => ({ default: m.NeoBandicoot })));
 const AristocracyTest = lazy(() => import('@/components/quiz/AristocracyTest').then(m => ({ default: m.AristocracyTest })));
 const DilemmasHub = lazy(() => import('@/components/dilemmas/DilemmasHub').then(m => ({ default: m.DilemmasHub })));
 const PhilosophyHub = lazy(() => import('@/components/philosophy/PhilosophyHub').then(m => ({ default: m.PhilosophyHub })));
 const PhiloTestExperience = lazy(() => import('@/components/philotest/PhiloTestExperience').then(m => ({ default: m.PhiloTestExperience })));
 const VoidIQHub = lazy(() => import('@/components/iq/VoidIQHub').then(m => ({ default: m.VoidIQHub })));
 const WatchPartyLauncher = lazy(() => import('@/components/watchparty/WatchPartyLauncher').then(m => ({ default: m.WatchPartyLauncher })));
-const DeathrunGame = lazy(() => import('@/components/deathrun/DeathrunGame'));
 const LogicAcademy = lazy(() => import('@/components/logic/LogicAcademy').then(m => ({ default: m.LogicAcademy })));
 const MergeEvolution = lazy(() => import('@/components/merge/MergeEvolution').then(m => ({ default: m.MergeEvolution })));
 const MaxPuzzleExperience = lazy(() => import('@/components/maxpuzzle/MaxPuzzleExperience').then(m => ({ default: m.MaxPuzzleExperience })));
@@ -17,7 +15,6 @@ const NoirAdventure = lazy(() => import('@/components/noir/NoirAdventure').then(
 const MarsTerminal = lazy(() => import('@/components/mars/MarsTerminal').then(m => ({ default: m.MarsTerminal })));
 import { IQLogo } from '@/components/iq/IQLogo';
 import { LogicLogo } from '@/components/logic/LogicLogo';
-import { EvolutionCore } from '@/components/merge/art';
 import { MaxSeal } from '@/components/maxpuzzle/MaxSeal';
 import { VRBustIcon } from '@/components/ui/VRBustIcon';
 import { PhilosopherIcon } from '@/components/philosophy/PhilosopherIcon';
@@ -51,31 +48,61 @@ import type { LudoMatchListItem } from '@/types/ludo';
 import type { WWWListItem } from '@/types/www';
 import type { UnoListItem } from '@/types/uno';
 import { T } from '@/design/tokens';
+import { haptic } from '@/lib/haptics';
 
 
-// ── Categories ───────────────────────────────────────────────────────────────
-type GCat = 'mind' | 'logic' | 'maxpuzzle' | 'deduction' | 'party' | 'classic' | 'bhop' | 'worlds' | 'solo';
-const CAT_ORDER: GCat[] = ['logic', 'mind', 'maxpuzzle', 'deduction', 'party', 'classic', 'bhop', 'worlds', 'solo'];
-const CAT_META: Record<GCat, { section: string; chip: string; emoji: string }> = {
-  // `section` is a CATEGORY name, not a game name — two of these used to repeat
-  // the title of their single game. Icons must also be distinct: logic and mind
-  // both showed 🧠, so the two chips were indistinguishable at a glance.
-  mind:      { section: 'გონება & ცოდნა',      chip: 'ინტელექტი', emoji: '🧠' },
-  logic:     { section: 'ლოგიკა & მსჯელობა',   chip: 'ლოგიკა',    emoji: '🧩' },
-  maxpuzzle: { section: 'ბატონი მაქსი',        chip: 'ბ. მაქსი',  emoji: '🎩' },
-  deduction: { section: 'სოციალური დედუქცია', chip: 'დედუქცია',  emoji: '🕵️' },
-  party:     { section: 'წვეულება & გუნდური', chip: 'წვეულება',  emoji: '🎉' },
-  classic:   { section: 'კლასიკა',            chip: 'კლასიკა',   emoji: '♟' },
-  bhop:      { section: 'ბჰოპი & დეთრანი',     chip: 'ბჰოპი',     emoji: '🏃' },
-  worlds:    { section: 'სამყაროები',          chip: 'სამყაროები', emoji: '🌐' },
-  solo:      { section: 'სოლო',               chip: 'სოლო',      emoji: '🎮' },
-};
+// ── Sections ─────────────────────────────────────────────────────────────────
+// The hub used to open on nine category strips, a carousel and a chip row, and
+// finding a particular game meant scrolling past all of it. It is three
+// sections now, each one a header you tap to fold open, and membership is this
+// list rather than a `cat` field spread across the catalogue — the order below
+// IS the order on screen, so rearranging is editing one array.
+type SectionId = 'fun' | 'mind' | 'spaces';
+
+interface SectionDef {
+  id: SectionId;
+  title: string;
+  emoji: string;
+  accent: string;
+  /** Two per row, in this order. */
+  ids: string[];
+}
+
+const SECTIONS: SectionDef[] = [
+  {
+    id: 'fun', title: 'გართობა', emoji: '🎉', accent: '#ff8c26',
+    ids: [
+      'checkers', 'ludo',
+      'uno', 'joker',
+      'draw', 'spyfall',
+      'lies', 'codenames',
+      'www', 'alias',
+      'blackout', 'mergeevo',
+    ],
+  },
+  {
+    id: 'mind', title: 'გონება', emoji: '🧠', accent: '#7c9cff',
+    ids: [
+      'voidiq', 'logic',
+      'philosophy', 'philotest',
+      'aristocracy', 'noir',
+      'ganab', 'maxpuzzle',
+      'dilemmas',
+    ],
+  },
+  {
+    id: 'spaces', title: 'სივრცეები', emoji: '🌐', accent: '#4a76c4',
+    ids: [
+      'space', 'watchparty',
+      'backrooms', 'mars',
+    ],
+  },
+];
 
 interface GameDef {
   id: string;
   title: string;
   sub: string;
-  cat: GCat;
   kind: 'match' | 'launch';
   accent: string;
   emoji?: string;
@@ -94,11 +121,10 @@ function pushRecent(id: string): string[] {
   return next;
 }
 
-export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOpenSpace?: () => void; onOpenBackrooms?: () => void; onOpenPremium?: () => void }) {
+export function GamesTab({ onOpenSpace, onOpenBackrooms }: { onOpenSpace?: () => void; onOpenBackrooms?: () => void }) {
   const t = useT();
   const profile = useAuthStore(s => s.profile);
   const playerName = profile?.username ?? 'Player';
-  const [bandicootOpen, setBandicootOpen] = useState(false);
   const [aristocracyOpen, setAristocracyOpen] = useState(false);
   const [dilemmasHubOpen, setDilemmasHubOpen] = useState(false);
   const [philoHubOpen, setPhiloHubOpen] = useState(false);
@@ -106,7 +132,6 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   const [voidIqOpen, setVoidIqOpen] = useState(false);
   const [maxPuzzleOpen, setMaxPuzzleOpen] = useState(false);
   const [watchPartyOpen, setWatchPartyOpen] = useState(false);
-  const [deathrunOpen, setDeathrunOpen] = useState(false);
   const [logicOpen, setLogicOpen] = useState(false);
   const [noirOpen, setNoirOpen] = useState(false);
   const [marsOpen, setMarsOpen] = useState(false);
@@ -198,7 +223,9 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
 
   // ── Hub UI state ─────────────────────────────────────────────────────
   const [query, setQuery] = useState('');
-  const [cat, setCat] = useState<'all' | GCat>('all');
+  // გართობა is open on arrival: a hub whose every drawer is shut shows the
+  // visitor nothing but three headers.
+  const [openSection, setOpenSection] = useState<SectionId | null>('fun');
   const [sheet, setSheet] = useState<string | null>(null); // open match-game launcher
   const [recent, setRecent] = useState<string[]>(() => loadRecent());
   const recordRecent = useCallback((id: string) => setRecent(pushRecent(id)), []);
@@ -321,99 +348,45 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
 
   // ── Catalog ──────────────────────────────────────────────────────────
   const defs: GameDef[] = [
-    { id: 'voidiq', title: 'VOID IQ', sub: 'გაზომე შენი გონება · ლიდერბორდი', cat: 'mind', kind: 'launch', accent: '#4fb8ff', logo: 'iq', badge: true, keywords: 'iq ინტელექტი ტესტი leaderboard', launch: () => setVoidIqOpen(true) },
-    { id: 'www', title: t.games.www.title, sub: t.games.www.subtitle, cat: 'mind', kind: 'match', accent: '#c084fc', emoji: '🧠', keywords: 'www ვიქტორინა quiz რა სად როდის' },
-    { id: 'dilemmas', title: 'დილემები', sub: `მორალური არჩევანი`, cat: 'mind', kind: 'launch', accent: '#7c9cff', emoji: '⚖️', badge: true, keywords: 'dilemma მორალი ეთიკა', launch: () => setDilemmasHubOpen(true) },
-    { id: 'philosophy', title: 'ფილოსოფიური ცდები', sub: `აზროვნების ექსპერიმენტები`, cat: 'mind', kind: 'launch', accent: '#a88cff', logo: 'philosophy', emoji: '🌀', badge: true, keywords: 'philosophy ფილოსოფია ცდა thought experiment ცნობიერება', launch: () => setPhiloHubOpen(true) },
-    { id: 'philotest', title: 'ფილოსოფიური პიროვნების ტესტი', sub: 'ვინ ხარ, როცა ირჩევ', cat: 'mind', kind: 'launch', accent: '#8b5cff', logo: 'sage', emoji: '🎭', badge: true, keywords: 'personality პიროვნება ტესტი ფილოსოფია არქეტიპი profile', launch: () => setPhiloTestOpen(true) },
-    { id: 'aristocracy', title: t.games.aristocracy.title, sub: t.games.aristocracy.subtitle, cat: 'mind', kind: 'launch', accent: '#e8cf7a', emoji: '👑', keywords: 'aristocracy ტესტი quiz', launch: () => setAristocracyOpen(true) },
+    { id: 'voidiq', title: 'VOID IQ', sub: 'გაზომე შენი გონება · ლიდერბორდი', kind: 'launch', accent: '#4fb8ff', logo: 'iq', badge: true, keywords: 'iq ინტელექტი ტესტი leaderboard', launch: () => setVoidIqOpen(true) },
+    { id: 'www', title: t.games.www.title, sub: t.games.www.subtitle, kind: 'match', accent: '#c084fc', emoji: '🧠', keywords: 'www ვიქტორინა quiz რა სად როდის' },
+    { id: 'dilemmas', title: 'დილემები', sub: `მორალური არჩევანი`, kind: 'launch', accent: '#7c9cff', emoji: '⚖️', badge: true, keywords: 'dilemma მორალი ეთიკა', launch: () => setDilemmasHubOpen(true) },
+    { id: 'philosophy', title: 'ფილოსოფიური ცდები', sub: `აზროვნების ექსპერიმენტები`, kind: 'launch', accent: '#a88cff', logo: 'philosophy', emoji: '🌀', badge: true, keywords: 'philosophy ფილოსოფია ცდა thought experiment ცნობიერება', launch: () => setPhiloHubOpen(true) },
+    { id: 'philotest', title: 'ფილოსოფიური პიროვნების ტესტი', sub: 'ვინ ხარ, როცა ირჩევ', kind: 'launch', accent: '#8b5cff', logo: 'sage', emoji: '🎭', badge: true, keywords: 'personality პიროვნება ტესტი ფილოსოფია არქეტიპი profile', launch: () => setPhiloTestOpen(true) },
+    { id: 'aristocracy', title: t.games.aristocracy.title, sub: t.games.aristocracy.subtitle, kind: 'launch', accent: '#e8cf7a', emoji: '👑', keywords: 'aristocracy ტესტი quiz', launch: () => setAristocracyOpen(true) },
 
-    { id: 'mars', title: 'M.A.R.S.', sub: 'ატვირთე ცნობიერება · ტერმინალი', cat: 'mind', kind: 'launch', accent: '#39ff6a', emoji: '🖥', badge: true, keywords: 'mars terminal matrix cyberpunk ცნობიერება ატვირთვა სიმულაცია ტერმინალი მატრიცა', launch: () => setMarsOpen(true) },
+    { id: 'mars', title: 'M.A.R.S.', sub: 'ატვირთე ცნობიერება · ტერმინალი', kind: 'launch', accent: '#39ff6a', emoji: '🖥', badge: true, keywords: 'mars terminal matrix cyberpunk ცნობიერება ატვირთვა სიმულაცია ტერმინალი მატრიცა', launch: () => setMarsOpen(true) },
 
-    { id: 'maxpuzzle', title: 'ბატონი მაქსის თავსატეხი', sub: 'კითხვები სწორი პასუხების გარეშე', cat: 'maxpuzzle', kind: 'launch', accent: '#d9b45a', logo: 'maxseal', badge: true, keywords: 'max puzzle თავსატეხი დილემა ფსიქოლოგია პროფილი არქეტიპი mr max', launch: () => setMaxPuzzleOpen(true) },
+    { id: 'maxpuzzle', title: 'ბატონი მაქსის თავსატეხი', sub: 'კითხვები სწორი პასუხების გარეშე', kind: 'launch', accent: '#d9b45a', logo: 'maxseal', badge: true, keywords: 'max puzzle თავსატეხი დილემა ფსიქოლოგია პროფილი არქეტიპი mr max', launch: () => setMaxPuzzleOpen(true) },
 
-    { id: 'spyfall', title: 'ჯაშუში', sub: 'იპოვე ჯაშუში ხმით · 3-10 მოთ.', cat: 'deduction', kind: 'match', accent: '#ff5d6c', emoji: '🕵️', badge: true, keywords: 'spyfall ჯაშუში დედუქცია' },
-    { id: 'codenames', title: 'Codenames', sub: '2 გუნდი · მინიშნებები · 4-16 მოთ.', cat: 'deduction', kind: 'match', accent: '#25c8f2', logo: 'codenames', emoji: '🔤', badge: true, keywords: 'codenames კოდი გუნდი' },
-    { id: 'blackout', title: t.games.blackout.title, sub: t.games.blackout.subtitle, cat: 'solo', kind: 'match', accent: '#ffd34d', emoji: '🔦', badge: true, keywords: 'blackout impostor დედუქცია' },
+    { id: 'spyfall', title: 'ჯაშუში', sub: 'იპოვე ჯაშუში ხმით · 3-10 მოთ.', kind: 'match', accent: '#ff5d6c', emoji: '🕵️', badge: true, keywords: 'spyfall ჯაშუში დედუქცია' },
+    { id: 'codenames', title: 'Codenames', sub: '2 გუნდი · მინიშნებები · 4-16 მოთ.', kind: 'match', accent: '#25c8f2', logo: 'codenames', emoji: '🔤', badge: true, keywords: 'codenames კოდი გუნდი' },
+    { id: 'blackout', title: t.games.blackout.title, sub: t.games.blackout.subtitle, kind: 'match', accent: '#ffd34d', emoji: '🔦', badge: true, keywords: 'blackout impostor დედუქცია' },
 
-    { id: 'lies', title: 'ტყუილების ოსტატი', sub: 'მოატყუე ან იპოვე სიმართლე · 3-12 მოთ.', cat: 'party', kind: 'match', accent: '#a855f7', logo: 'liar', emoji: '🎭', badge: true, keywords: 'lies ტყუილი fibbage ბლეფი bluff სიმართლე' },
-    { id: 'alias', title: 'ალიასი', sub: 'გუნდური სიტყვების თამაში · 4-12 მოთ.', cat: 'party', kind: 'match', accent: '#4d9fff', emoji: '🗣', badge: true, keywords: 'alias სიტყვები taboo' },
-    { id: 'draw', title: 'დახაზე & გამოიცანი', sub: 'ხატავ და გამოიცნობ · 2-12 მოთ.', cat: 'party', kind: 'match', accent: '#ff8c26', emoji: '🎨', badge: true, keywords: 'draw ხატვა pictionary' },
+    { id: 'lies', title: 'ტყუილების ოსტატი', sub: 'მოატყუე ან იპოვე სიმართლე · 3-12 მოთ.', kind: 'match', accent: '#a855f7', logo: 'liar', emoji: '🎭', badge: true, keywords: 'lies ტყუილი fibbage ბლეფი bluff სიმართლე' },
+    { id: 'alias', title: 'ალიასი', sub: 'გუნდური სიტყვების თამაში · 4-12 მოთ.', kind: 'match', accent: '#4d9fff', emoji: '🗣', badge: true, keywords: 'alias სიტყვები taboo' },
+    { id: 'draw', title: 'დახაზე & გამოიცანი', sub: 'ხატავ და გამოიცნობ · 2-12 მოთ.', kind: 'match', accent: '#ff8c26', emoji: '🎨', badge: true, keywords: 'draw ხატვა pictionary' },
 
-    { id: 'checkers', title: t.games.checkers.title, sub: t.games.checkers.subtitle, cat: 'classic', kind: 'match', accent: '#b06cff', emoji: '♟', keywords: 'checkers დამკა' },
-    { id: 'ludo', title: t.games.ludo.title, sub: t.games.ludo.subtitle, cat: 'classic', kind: 'match', accent: '#22c55e', emoji: '🎲', keywords: 'ludo ლუდო' },
-    { id: 'joker', title: t.games.joker.title, sub: t.games.joker.subtitle, cat: 'classic', kind: 'match', accent: '#fbbf24', emoji: '🃏', keywords: 'joker ჯოკერი კარტი' },
-    { id: 'uno', title: t.games.uno.title, sub: t.games.uno.subtitle, cat: 'classic', kind: 'match', accent: '#e3243b', logo: 'uno', emoji: '🃠', keywords: 'uno უნო კარტი' },
+    { id: 'checkers', title: t.games.checkers.title, sub: t.games.checkers.subtitle, kind: 'match', accent: '#b06cff', emoji: '♟', keywords: 'checkers დამკა' },
+    { id: 'ludo', title: t.games.ludo.title, sub: t.games.ludo.subtitle, kind: 'match', accent: '#22c55e', emoji: '🎲', keywords: 'ludo ლუდო' },
+    { id: 'joker', title: t.games.joker.title, sub: t.games.joker.subtitle, kind: 'match', accent: '#fbbf24', emoji: '🃏', keywords: 'joker ჯოკერი კარტი' },
+    { id: 'uno', title: t.games.uno.title, sub: t.games.uno.subtitle, kind: 'match', accent: '#e3243b', logo: 'uno', emoji: '🃠', keywords: 'uno უნო კარტი' },
 
-    { id: 'ganab', title: t.games.ganab.title, sub: t.games.ganab.subtitle, cat: 'mind', kind: 'launch', accent: '#d9a24a', logo: 'ganab', badge: true, keywords: 'ganab განაბ roguelike', launch: () => useSocialStore.getState().requestOpenGanab() },
-    { id: 'bandicoot', title: t.games.bandicoot.title, sub: t.games.bandicoot.subtitle, cat: 'solo', kind: 'launch', accent: '#ffb46a', emoji: '🦊', keywords: 'bandicoot platformer', launch: () => setBandicootOpen(true) },
+    { id: 'ganab', title: t.games.ganab.title, sub: t.games.ganab.subtitle, kind: 'launch', accent: '#d9a24a', logo: 'ganab', badge: true, keywords: 'ganab განაბ roguelike', launch: () => useSocialStore.getState().requestOpenGanab() },
   ];
-  if (onOpenPremium) defs.push({ id: 'premium', title: t.nav.worlds, sub: 'Beach Camp 3D · ' + t.commB.premiumSub, cat: 'worlds', kind: 'launch', accent: '#ff8c3c', emoji: '🔥', badge: true, keywords: 'premium worlds 3d beach სივრცე', launch: onOpenPremium });
-  if (onOpenSpace) defs.push({ id: 'space', title: 'Virtual Space', sub: t.commB.spaceSub, cat: 'worlds', kind: 'launch', accent: '#4a76c4', logo: 'vspace', emoji: '🌐', keywords: 'space virtual სივრცე vr', launch: onOpenSpace });
-  if (onOpenBackrooms) defs.push({ id: 'backrooms', title: 'Backrooms', sub: t.commB.backroomsSub, cat: 'solo', kind: 'launch', accent: '#f5de80', emoji: '🟨', keywords: 'backrooms horror', launch: onOpenBackrooms });
-  defs.push({ id: 'mergeevo', title: 'Merge Evolution', sub: 'გაზარდე ციფრული ორგანიზმი · ყუთები · შერწყმა', cat: 'solo', kind: 'launch', accent: '#4dd4c4', emoji: '🧬', badge: true, keywords: 'merge evolution ევოლუცია შერწყმა dna დნმ ორგანიზმი ყუთი chest idle კლიკერი განვითარება', launch: () => setMergeOpen(true) });
-  defs.push({ id: 'logic', title: 'ფორმალური ლოგიკის აკადემია', sub: 'სილოგიზმები · არგუმენტაცია · Logic Rating', cat: 'logic', kind: 'launch', accent: '#F9C81C', logo: 'logic', emoji: '🧠', badge: true, keywords: 'logic ლოგიკა სილოგიზმი არგუმენტი დედუქცია აკადემია რეიტინგი formal ფორმალური მსჯელობა fallacy შეცდომა', launch: () => setLogicOpen(true) });
-  defs.push({ id: 'noir', title: 'ნუარი', sub: 'ინტერაქტიული თავგადასავალი · შენ წყვეტ', cat: 'solo', kind: 'launch', accent: '#ff2d55', emoji: '🌃', badge: true, keywords: 'noir ნუარი თავგადასავალი ამბავი არჩევანი ისტორია adventure story choice მაფია დეტექტივი', launch: () => setNoirOpen(true) });
-  defs.push({ id: 'deathrun', title: 'Deathrun · ბჰოპი', sub: '10 ხაფანგი · ბჰოპ სექცია · ხმალაობა · 2-16 მოთ.', cat: 'bhop', kind: 'launch', accent: '#ff6b4a', emoji: '🏁', badge: true, keywords: 'deathrun bhop ბჰოპი ხაფანგი temple ტაძარი სირბილი ხმალი surf დეთრანი', launch: () => setDeathrunOpen(true) });
-  defs.push({ id: 'watchparty', title: 'კინო სივრცე', sub: 'ერთად უყურეთ ვიდეოს · სინქრონში + ხმა', cat: 'worlds', kind: 'launch', accent: '#ff5d5d', emoji: '🎬', badge: true, keywords: 'watch party კინო ფილმი youtube ვიდეო together სინქრონი co-watch cinema', launch: () => setWatchPartyOpen(true) });
+  if (onOpenSpace) defs.push({ id: 'space', title: 'Virtual Space', sub: t.commB.spaceSub, kind: 'launch', accent: '#4a76c4', logo: 'vspace', emoji: '🌐', keywords: 'space virtual სივრცე vr', launch: onOpenSpace });
+  if (onOpenBackrooms) defs.push({ id: 'backrooms', title: 'Backrooms', sub: t.commB.backroomsSub, kind: 'launch', accent: '#f5de80', emoji: '🟨', keywords: 'backrooms horror', launch: onOpenBackrooms });
+  defs.push({ id: 'mergeevo', title: 'Merge Evolution', sub: 'გაზარდე ციფრული ორგანიზმი · ყუთები · შერწყმა', kind: 'launch', accent: '#4dd4c4', emoji: '🧬', badge: true, keywords: 'merge evolution ევოლუცია შერწყმა dna დნმ ორგანიზმი ყუთი chest idle კლიკერი განვითარება', launch: () => setMergeOpen(true) });
+  defs.push({ id: 'logic', title: 'ფორმალური ლოგიკის აკადემია', sub: 'სილოგიზმები · არგუმენტაცია · Logic Rating', kind: 'launch', accent: '#F9C81C', logo: 'logic', emoji: '🧠', badge: true, keywords: 'logic ლოგიკა სილოგიზმი არგუმენტი დედუქცია აკადემია რეიტინგი formal ფორმალური მსჯელობა fallacy შეცდომა', launch: () => setLogicOpen(true) });
+  defs.push({ id: 'noir', title: 'ნუარი', sub: 'ინტერაქტიული თავგადასავალი · შენ წყვეტ', kind: 'launch', accent: '#ff2d55', emoji: '🌃', badge: true, keywords: 'noir ნუარი თავგადასავალი ამბავი არჩევანი ისტორია adventure story choice მაფია დეტექტივი', launch: () => setNoirOpen(true) });
+  defs.push({ id: 'watchparty', title: 'კინო სივრცე', sub: 'ერთად უყურეთ ვიდეოს · სინქრონში + ხმა', kind: 'launch', accent: '#ff5d5d', emoji: '🎬', badge: true, keywords: 'watch party კინო ფილმი youtube ვიდეო together სინქრონი co-watch cinema', launch: () => setWatchPartyOpen(true) });
 
   const byId = (id: string) => defs.find(d => d.id === id);
-  // Order here is the order on screen. Adding a game to the hub's flagship strip
-  // is one entry — the card and the "remove from its category" behaviour both
-  // follow from it.
-  // The three that never require a scroll or a swipe — see QuickTiles.
-  const QUICK_CARDS: QuickDef[] = [
-    {
-      id: 'voidiq', label: 'VOID IQ', sub: 'IQ ტესტი',
-      art: <IQLogo size={42} />,
-      bg: 'linear-gradient(150deg, #0a2a4a 0%, #1a1a4a 60%, #12122e 100%)',
-      edge: 'rgba(79,184,255,0.45)',
-    },
-    {
-      id: 'logic', label: 'ლოგიკის ტესტი', sub: 'აკადემია',
-      art: <LogicLogo size={42} label={false} />,
-      bg: 'linear-gradient(150deg, #3a2f08 0%, #241a2e 60%, #14121c 100%)',
-      edge: 'rgba(249,200,28,0.45)',
-    },
-    // 3D სივრცე only exists when the host screen can open it.
-    ...(onOpenPremium ? [{
-      id: 'premium', label: t.nav.worlds, sub: 'Beach Camp 3D',
-      art: <span style={{ fontSize: 34, filter: 'drop-shadow(0 4px 12px rgba(255,140,60,0.55))' }}>🔥</span>,
-      bg: 'linear-gradient(150deg, #1a2b4a 0%, #4a2c1a 60%, #2e1c10 100%)',
-      edge: 'rgba(192,132,252,0.42)',
-    } as QuickDef] : []),
-  ];
-
-  // Order here is the order in the carousel.
-  const FEATURED_CARDS: FeaturedDef[] = [
-    {
-      id: 'watchparty', title: 'კინო სივრცე', sub: 'ერთად უყურეთ ვიდეოს · სინქრონში + ხმა',
-      art: <span style={{ fontSize: 44, filter: 'drop-shadow(0 4px 14px rgba(255,93,93,0.5))' }}>🎬</span>,
-      titleGrad: 'linear-gradient(90deg,#ffe3e3,#ff5d5d)', tracking: '0.1em',
-      bg: 'linear-gradient(135deg, #3a0f14 0%, #24101c 55%, #120a10 100%)',
-      edge: 'rgba(255,93,93,0.45)', glow: 'rgba(255,60,70,0.18)',
-      badgeBg: 'rgba(255,60,70,0.9)', badgeFg: '#fff',
-    },
-    {
-      id: 'mergeevo', title: 'MERGE EVOLUTION', sub: 'გაზარდე ციფრული ორგანიზმი · ყუთები',
-      art: <EvolutionCore stage={3} hue={188} size={64} />,
-      titleGrad: 'linear-gradient(90deg,#d8fffa,#4dd4c4)', tracking: '0.08em',
-      bg: 'linear-gradient(135deg, #082b32 0%, #101a34 55%, #0c1020 100%)',
-      edge: 'rgba(77,212,196,0.45)', glow: 'rgba(77,212,196,0.16)',
-      badgeBg: 'rgba(77,212,196,0.92)', badgeFg: '#04211f',
-    },
-    {
-      id: 'maxpuzzle', title: 'ბატონი მაქსის თავსატეხი', sub: 'კითხვები სწორი პასუხების გარეშე',
-      art: <MaxSeal size={52} />,
-      titleGrad: 'linear-gradient(90deg,#f7ecd0,#d9b45a)',
-      bg: 'linear-gradient(135deg, #2a1f4a 0%, #1c1230 55%, #2e2410 100%)',
-      edge: 'rgba(217,180,90,0.45)', glow: 'rgba(217,180,90,0.14)',
-      badgeBg: 'rgba(217,180,90,0.92)', badgeFg: '#1a1206',
-    },
-  ];
-  // Both strips feed this: a game promoted to either one is removed from its
-  // category section, so nothing on the page appears twice.
-  const FEATURED = [...QUICK_CARDS.map(c => c.id), ...FEATURED_CARDS.map(c => c.id)];
+  // Every game reachable from the hub, in the order the sections declare. An
+  // id in SECTIONS with no matching entry here is simply skipped, so a game
+  // that is conditional on a prop (Backrooms, Virtual Space) can be listed
+  // unconditionally above.
+  const sectionGames = (sec: SectionDef) => sec.ids.map(byId).filter(Boolean) as GameDef[];
 
   const q = query.trim().toLowerCase();
   const matchesQ = (d: GameDef) => !q || d.title.toLowerCase().includes(q) || d.keywords.toLowerCase().includes(q) || d.sub.toLowerCase().includes(q);
@@ -454,15 +427,6 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   return (
     <div className="space-y-4">
 
-      {/* Flagship banners — only in the default view */}
-      {cat === 'all' && !q && (
-        <>
-          <QuickTiles items={QUICK_CARDS} onOpen={id => openGame(byId(id)!)} />
-          <FeaturedCarousel cards={FEATURED_CARDS} onOpen={id => openGame(byId(id)!)} />
-
-        </>
-      )}
-
       {/* Search + refresh */}
       <div className="flex gap-2 items-center">
         <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}>
@@ -476,18 +440,8 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
           style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)' }}>↻</button>
       </div>
 
-      {/* Filter chips */}
-      {!q && (
-        <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1" style={{ scrollbarWidth: 'none' }}>
-          <Chip active={cat === 'all'} onClick={() => setCat('all')}>ყველა</Chip>
-          {CAT_ORDER.map(c => (
-            <Chip key={c} active={cat === c} onClick={() => setCat(c)}>{CAT_META[c].emoji} {CAT_META[c].chip}</Chip>
-          ))}
-        </div>
-      )}
-
       {/* Recently played */}
-      {cat === 'all' && !q && recent.length > 0 && (
+      {!q && recent.length > 0 && (
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-white/30 mb-2">🕹 ბოლოს ნათამაშები</p>
           <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1" style={{ scrollbarWidth: 'none' }}>
@@ -504,22 +458,47 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
         </div>
       )}
 
-      {/* Grid */}
+      {/* Searching cuts across every section — the point of a search box is not
+          to care which drawer a thing lives in. */}
       {q ? (
-        (() => { const items = defs.filter(matchesQ); return items.length ? <Grid items={items} /> : <p className="text-center font-mono text-[12px] text-white/30 py-10">ვერაფერი მოიძებნა „{query}"</p>; })()
-      ) : cat === 'all' ? (
-        CAT_ORDER.map(c => {
-          const items = defs.filter(d => d.cat === c && !FEATURED.includes(d.id));
-          if (!items.length) return null;
-          return (
-            <div key={c}>
-              <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-white/35 mb-2">{CAT_META[c].emoji} {CAT_META[c].section}</p>
-              <Grid items={items} />
-            </div>
-          );
-        })
+        (() => {
+          const items = defs.filter(matchesQ);
+          return items.length
+            ? <Grid items={items} />
+            : <p className="text-center font-mono text-[12px] text-white/30 py-10">ვერაფერი მოიძებნა „{query}"</p>;
+        })()
       ) : (
-        <Grid items={defs.filter(d => d.cat === cat)} />
+        <div className="space-y-3">
+          {/* გართობა and გონება side by side, as headers you tap; სივრცეები is
+              the short one and sits full width beneath them. */}
+          <div className="grid grid-cols-2 gap-2.5">
+            {SECTIONS.filter(sec => sec.id !== 'spaces').map(sec => (
+              <SectionHeader
+                key={sec.id}
+                sec={sec}
+                count={sectionGames(sec).length}
+                open={openSection === sec.id}
+                onToggle={() => setOpenSection(openSection === sec.id ? null : sec.id)}
+              />
+            ))}
+          </div>
+          {SECTIONS.filter(sec => sec.id !== 'spaces').map(sec => (
+            openSection === sec.id ? <Grid key={sec.id} items={sectionGames(sec)} /> : null
+          ))}
+
+          {SECTIONS.filter(sec => sec.id === 'spaces').map(sec => (
+            <div key={sec.id} className="space-y-3">
+              <SectionHeader
+                sec={sec}
+                count={sectionGames(sec).length}
+                open={openSection === sec.id}
+                onToggle={() => setOpenSection(openSection === sec.id ? null : sec.id)}
+                wide
+              />
+              {openSection === sec.id && <Grid items={sectionGames(sec)} />}
+            </div>
+          ))}
+        </div>
       )}
 
       {/* ── Centered launcher modal for match games ───────────────────── */}
@@ -564,15 +543,68 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
       {dilemmasHubOpen && <Suspense fallback={null}><DilemmasHub onClose={() => setDilemmasHubOpen(false)} /></Suspense>}
       {philoHubOpen && <Suspense fallback={null}><PhilosophyHub onClose={() => setPhiloHubOpen(false)} /></Suspense>}
       {philoTestOpen && <Suspense fallback={null}><PhiloTestExperience onClose={() => setPhiloTestOpen(false)} /></Suspense>}
-      {bandicootOpen && <Suspense fallback={null}><NeoBandicoot onClose={() => setBandicootOpen(false)} /></Suspense>}
       {watchPartyOpen && <Suspense fallback={null}><WatchPartyLauncher onClose={() => setWatchPartyOpen(false)} /></Suspense>}
-      {deathrunOpen && <Suspense fallback={null}><DeathrunGame nickname={playerName} onClose={() => setDeathrunOpen(false)} /></Suspense>}
       {logicOpen && <Suspense fallback={null}><LogicAcademy onClose={() => setLogicOpen(false)} /></Suspense>}
       {noirOpen && <Suspense fallback={null}><NoirAdventure onClose={() => setNoirOpen(false)} /></Suspense>}
       {marsOpen && <Suspense fallback={null}><MarsTerminal onClose={() => setMarsOpen(false)} /></Suspense>}
       {mergeOpen && <Suspense fallback={null}><MergeEvolution onClose={() => setMergeOpen(false)} /></Suspense>}
       {aristocracyOpen && <Suspense fallback={null}><AristocracyTest onClose={() => setAristocracyOpen(false)} /></Suspense>}
     </div>
+  );
+}
+
+/**
+ * A section header that is also its own switch.
+ *
+ * The lit edge and the chevron both turn with the open state, so the thing you
+ * pressed visibly is the thing that opened — with two of these side by side and
+ * one grid appearing below them, that feedback is the only way to tell which
+ * one you are looking at.
+ */
+function SectionHeader({ sec, count, open, onToggle, wide }: {
+  sec: SectionDef; count: number; open: boolean; onToggle: () => void; wide?: boolean;
+}) {
+  return (
+    <button
+      onClick={() => { haptic('selection'); onToggle(); }}
+      className={`w-full flex items-center rounded-2xl transition-all active:scale-[0.98] ${wide ? 'gap-3 px-3.5 py-2.5' : 'gap-2.5 px-3 py-3'}`}
+      style={{
+        background: open
+          ? `linear-gradient(150deg, ${sec.accent}22, rgba(255,255,255,0.02))`
+          : 'rgba(255,255,255,0.03)',
+        border: `1px solid ${open ? `${sec.accent}66` : 'rgba(255,255,255,0.07)'}`,
+        boxShadow: open ? `0 6px 20px ${sec.accent}1f` : 'none',
+      }}
+    >
+      <span
+        className="flex-shrink-0 flex items-center justify-center rounded-xl"
+        style={{
+          width: wide ? 30 : 34, height: wide ? 30 : 34, fontSize: wide ? 15 : 17,
+          background: `${sec.accent}${open ? '26' : '14'}`,
+          border: `1px solid ${sec.accent}${open ? '4d' : '26'}`,
+        }}
+      >{sec.emoji}</span>
+      <span className="min-w-0 flex-1 text-left">
+        <span className="block font-display font-bold leading-tight truncate"
+          style={{ fontSize: wide ? 13.5 : 14, color: open ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.6)' }}>
+          {sec.title}
+        </span>
+        <span className="block font-mono text-[10px] leading-none mt-1"
+          style={{ color: open ? `${sec.accent}cc` : 'rgba(255,255,255,0.25)' }}>
+          {count} თამაში
+        </span>
+      </span>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"
+        className="flex-shrink-0"
+        style={{
+          color: open ? sec.accent : 'rgba(255,255,255,0.25)',
+          transform: open ? 'rotate(180deg)' : 'none',
+          transition: 'transform 180ms ease, color 180ms ease',
+        }}>
+        <path d="M6 9l6 6 6-6" />
+      </svg>
+    </button>
   );
 }
 
@@ -626,41 +658,6 @@ function MatchLauncher({ cfg, onDone, onRecord }: { cfg: LauncherCfg; onDone: ()
 }
 
 /**
- * A flagship banner in the Games hub.
- *
- * Extracted because the five of these were hand-written copies that had drifted
- * apart — minHeight 92 vs 84, gap 14 vs 12, padding 13/18 vs 12/16, glow 34 vs
- * 30px — which is precisely what makes a hub read as assembled rather than
- * designed. More importantly, the old arrangement had a trap: `FEATURED` only
- * REMOVES an id from its category section, so adding one there without also
- * hand-writing a card here made the game disappear from the hub completely.
- * That happened twice. Now the card list IS the FEATURED list, so the two
- * cannot disagree.
- *
- * Per-game gradients stay bespoke on purpose: this is cover art, and a hub of
- * identical cards is a worse hub. The structure around the art is what's shared.
- */
-interface FeaturedDef {
-  id: string;
-  art: React.ReactNode;
-  title: string;
-  /** Two stops for the title's gradient text — the game's own colours. */
-  titleGrad: string;
-  sub: string;
-  /** Hero background. */
-  bg: string;
-  /** Border + outer glow, from the game's accent. */
-  edge: string;
-  glow: string;
-  /** The NEW pill. */
-  badgeBg: string;
-  badgeFg: string;
-  /** Georgian titles are already wide; extra tracking wraps them to a second
-   *  line, so it is opt-in per card rather than a default. */
-  tracking?: string;
-}
-
-/**
  * One game's artwork: dedicated logo component, bundled image, or emoji.
  *
  * Extracted because this exact switch was pasted twice at different sizes — the
@@ -690,157 +687,7 @@ function GameArt({ d, size }: { d: GameDef; size: number }) {
  * carried the badge, which is the same as none of them carrying it. Keep this
  * list short and prune it as things stop being new.
  */
-const NEW_GAMES = new Set(['noir', 'mergeevo', 'logic', 'deathrun']);
-
-function FeaturedCard({ def, onClick }: { def: FeaturedDef; onClick: () => void }) {
-  return (
-    <button onClick={onClick} className="w-full text-left rounded-2xl overflow-hidden transition-all active:scale-[0.99]"
-      style={{ border: `1px solid ${def.edge}`, boxShadow: `0 6px 34px ${def.glow}` }}>
-      {/* minHeight (never a fixed height) + vertical padding: Georgian wraps to
-          two lines on narrow phones and a fixed height clipped it at both ends. */}
-      <div style={{
-        minHeight: 92, background: def.bg, display: 'flex', alignItems: 'center',
-        gap: 14, padding: '13px 18px', position: 'relative',
-      }}>
-        <div style={{ width: 58, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          {def.art}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-display font-black text-white text-base leading-tight"
-            style={{ background: def.titleGrad, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', letterSpacing: def.tracking }}>
-            {def.title}
-          </p>
-          <p className="font-mono text-[12px] text-white/55 mt-0.5">{def.sub}</p>
-        </div>
-        {/* Being featured already says "look at this" — the pill is reserved for
-            genuinely recent additions so it keeps meaning something. */}
-        {NEW_GAMES.has(def.id) && (
-          <span style={{
-            fontFamily: 'monospace', fontSize: T.font.micro, letterSpacing: 1,
-            color: def.badgeFg, background: def.badgeBg, borderRadius: T.radius.sm, padding: '3px 8px',
-          }}>NEW</span>
-        )}
-      </div>
-    </button>
-  );
-}
-
-/**
- * Flagship carousel.
- *
- * The six banners used to stack vertically at 632-776px — more than a phone's
- * visible area — so the search box and the entire catalogue sat below the fold
- * and every session started with a scroll past six adverts. One card at a time
- * with a peek at the next brings that to ~190px including the dots.
- *
- * Horizontal scrolling is safe here specifically because the games tab opts out
- * of the app's swipe-to-change-tab gesture (NO_SWIPE_NAV in App.tsx); a sideways
- * drag on this screen belongs to a rail and nothing else.
- */
-/**
- * Primary picks — the three experiences that must never cost a scroll or a
- * swipe to reach.
- *
- * They used to sit at positions 2, 3 and 5 of the flagship carousel, so after
- * the carousel landed Premium Worlds was four sideways drags out of view. This
- * is the trade: less artwork per item than a hero banner, but all three visible
- * the instant the tab opens, which is what they are actually for.
- *
- * Their ids stay in FEATURED, so they are still removed from the category grids
- * below and each game appears exactly once on the screen.
- */
-interface QuickDef {
-  id: string;
-  label: string;
-  sub: string;
-  art: React.ReactNode;
-  bg: string;
-  edge: string;
-}
-
-function QuickTiles({ items, onOpen }: { items: QuickDef[]; onOpen: (id: string) => void }) {
-  if (!items.length) return null;
-  return (
-    <div className="grid grid-cols-3 gap-2">
-      {items.map(q => (
-        <button
-          key={q.id}
-          onClick={() => onOpen(q.id)}
-          className="vm-quick-tile rounded-2xl px-2 pt-3 pb-2.5 flex flex-col items-center gap-1.5 text-center transition-all active:scale-[0.97]"
-          // minHeight, never a fixed height: at ~114px wide these labels wrap to
-          // two lines in Georgian and a fixed box would clip them.
-          style={{ background: q.bg, border: `1px solid ${q.edge}`, minHeight: 112 }}
-        >
-          <div className="flex items-center justify-center" style={{ height: 44 }}>{q.art}</div>
-          <div className="w-full min-w-0">
-            <p className="font-display font-bold text-white leading-tight"
-              style={{ fontSize: T.font.caption, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-              {q.label}
-            </p>
-            <p className="font-mono leading-tight mt-0.5 truncate" style={{ fontSize: T.font.micro, color: T.text.faint }}>
-              {q.sub}
-            </p>
-          </div>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function FeaturedCarousel({ cards, onOpen }: { cards: FeaturedDef[]; onOpen: (id: string) => void }) {
-  const railRef = useRef<HTMLDivElement>(null);
-  const [active, setActive] = useState(0);
-
-  const syncActive = () => {
-    const el = railRef.current;
-    if (!el || cards.length === 0) return;
-    // Every card has the same width, so the scroll pitch is the full scrollable
-    // width divided by the card count — no per-card measuring needed.
-    const pitch = el.scrollWidth / cards.length;
-    setActive(Math.max(0, Math.min(cards.length - 1, Math.round(el.scrollLeft / pitch))));
-  };
-
-  return (
-    <div>
-      <div
-        ref={railRef}
-        onScroll={syncActive}
-        className="flex gap-3 overflow-x-auto -mx-1 px-1 pb-1"
-        style={{
-          scrollSnapType: 'x mandatory', scrollbarWidth: 'none',
-          WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y',
-        }}
-      >
-        {cards.map(def => (
-          // 88% leaves a sliver of the next card visible, which is what tells a
-          // first-time viewer the rail scrolls at all.
-          <div key={def.id} className="vm-featured-card" style={{ scrollSnapAlign: 'center' }}>
-            <FeaturedCard def={def} onClick={() => onOpen(def.id)} />
-          </div>
-        ))}
-      </div>
-      <div className="flex justify-center items-center gap-1.5 mt-2">
-        {cards.map((c, i) => (
-          <span key={c.id} style={{
-            width: i === active ? 16 : 5, height: 5, borderRadius: 999,
-            background: i === active ? T.color.accent : T.surface.lineStrong,
-            transition: 'width .22s ease, background .22s ease',
-          }} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function Chip({ children, active, onClick }: { children: React.ReactNode; active: boolean; onClick: () => void }) {
-  return (
-    <button onClick={onClick}
-      className="px-3 py-1.5 rounded-full font-mono text-[11px] uppercase tracking-wider whitespace-nowrap transition-all flex-shrink-0"
-      style={{ background: active ? 'rgba(0,229,255,0.15)' : 'rgba(255,255,255,0.04)', border: active ? '1px solid rgba(0,229,255,0.5)' : '1px solid rgba(255,255,255,0.1)', color: active ? '#8ee9ff' : 'rgba(255,255,255,0.45)' }}>
-      {children}
-    </button>
-  );
-}
+const NEW_GAMES = new Set(['noir', 'mergeevo', 'logic']);
 
 function NumPicker({ label, values, value, onChange, accent }: { label: string; values: number[]; value: number; onChange: (n: number) => void; accent: string }) {
   return (
