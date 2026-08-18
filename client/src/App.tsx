@@ -671,17 +671,41 @@ function ResumingSplash({ subtitle }: { subtitle?: string }) {
         transition={{ duration: 0.45, ease: 'easeOut' }}
         className="relative flex flex-col items-center gap-4"
       >
-        {/* Logo icon */}
+        {/* Logo art. Bigger than the emoji tile it replaced, because a
+            photograph at 80px is just a smudge — this is the first thing anyone
+            sees of the app and it should look like something. */}
         <motion.div
-          animate={{ boxShadow: ['0 0 28px rgba(0,229,255,0.10)', '0 0 52px rgba(0,229,255,0.22)', '0 0 28px rgba(0,229,255,0.10)'] }}
+          animate={{ boxShadow: ['0 0 30px rgba(0,229,255,0.10)', '0 0 60px rgba(0,229,255,0.20)', '0 0 30px rgba(0,229,255,0.10)'] }}
           transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
-          className="w-20 h-20 rounded-3xl flex items-center justify-center text-4xl"
+          className="rounded-3xl overflow-hidden"
           style={{
-            background: 'linear-gradient(135deg, rgba(0,229,255,0.10), rgba(155,0,255,0.08))',
+            width: 132, height: 132,
             border: '1px solid rgba(0,229,255,0.22)',
+            background: 'linear-gradient(135deg, rgba(0,229,255,0.10), rgba(155,0,255,0.08))',
           }}
         >
-          🎭
+          <img
+            src="/splash-art.jpg"
+            alt=""
+            width={132}
+            height={132}
+            className="w-full h-full object-cover"
+            /* If the file is ever missing, fall back to the mark rather than
+               leaving a broken-image box on the first screen of the app. */
+            onError={e => {
+              const el = e.currentTarget;
+              el.style.display = 'none';
+              const box = el.parentElement;
+              if (box && !box.dataset.fallback) {
+                box.dataset.fallback = '1';
+                box.style.display = 'flex';
+                box.style.alignItems = 'center';
+                box.style.justifyContent = 'center';
+                box.style.fontSize = '44px';
+                box.textContent = '🎭';
+              }
+            }}
+          />
         </motion.div>
 
         {/* Title */}
