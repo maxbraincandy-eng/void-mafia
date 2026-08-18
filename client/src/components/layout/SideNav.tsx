@@ -2,11 +2,16 @@ import { useSocialStore } from '@/store/socialStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useT } from '@/store/langStore';
 import communityMark from '@/assets/nav/community.webp';
+import communityIdle from '@/assets/nav/community-idle.webp';
 import gamesMark from '@/assets/nav/games.webp';
+import gamesIdle from '@/assets/nav/games-idle.webp';
 import mafiaMark from '@/assets/nav/mafia.webp';
+import mafiaIdle from '@/assets/nav/mafia-idle.webp';
 import worldsMark from '@/assets/nav/worlds.webp';
+import worldsIdle from '@/assets/nav/worlds-idle.webp';
 import profileMark from '@/assets/nav/profile.webp';
-import moreMark from '@/assets/nav/more.webp';
+import profileIdle from '@/assets/nav/profile-idle.webp';
+import moreIdle from '@/assets/nav/more-idle.webp';
 import { haptic } from '@/lib/haptics';
 import { VoidClansIcon } from '@/components/ui/VoidClansIcon';
 import { VoidStatsIcon } from '@/components/ui/VoidStatsIcon';
@@ -21,7 +26,7 @@ interface Props {
 
 type Item = { id: NavTab; label: string; color: string } & (
   | { kind: 'emoji'; icon: string }
-  | { kind: 'art'; src: string }
+  | { kind: 'art'; src: string; idle: string }
   | { kind: 'svg'; renderIcon: (active: boolean, color: string) => React.ReactElement }
 );
 
@@ -42,15 +47,15 @@ function items(colors: Record<string, string>): Item[] {
   return [
     // The same five marks the phone bar uses, so the two navs read as one app.
     // Clans and Top keep their line drawings — they were never given one.
-    { id: 'rooms', kind: 'art', src: mafiaMark, label: 'rooms', color: colors.rooms },
-    { id: 'community', kind: 'art', src: communityMark, label: 'community', color: colors.community },
-    { id: 'games', kind: 'art', src: gamesMark, label: 'games', color: colors.games },
-    { id: 'worlds', kind: 'art', src: worldsMark, label: 'worlds', color: colors.worlds },
+    { id: 'rooms', kind: 'art', src: mafiaMark, idle: mafiaIdle, label: 'rooms', color: colors.rooms },
+    { id: 'community', kind: 'art', src: communityMark, idle: communityIdle, label: 'community', color: colors.community },
+    { id: 'games', kind: 'art', src: gamesMark, idle: gamesIdle, label: 'games', color: colors.games },
+    { id: 'worlds', kind: 'art', src: worldsMark, idle: worldsIdle, label: 'worlds', color: colors.worlds },
     { id: 'clans', kind: 'svg', label: 'clans', color: colors.clans,
       renderIcon: (a, c) => <VoidClansIcon size={22} active={a} color={c} /> },
     { id: 'leaderboard', kind: 'svg', label: 'leaderboard', color: colors.leaderboard,
       renderIcon: (a, c) => <VoidStatsIcon size={22} active={a} color={c} /> },
-    { id: 'profile', kind: 'art', src: profileMark, label: 'profile', color: colors.profile },
+    { id: 'profile', kind: 'art', src: profileMark, idle: profileIdle, label: 'profile', color: colors.profile },
   ];
 }
 
@@ -147,8 +152,8 @@ export function SideNav({ active, onChange, onMoreClick }: Props) {
           style={{ color: 'rgba(255,255,255,0.55)' }}
         >
           <span className="flex items-center justify-center flex-shrink-0" style={{ width: 26, height: 26 }}>
-            <img src={moreMark} alt="" width={26} height={26}
-              style={{ width: 26, height: 26, display: 'block', opacity: 0.6 }} />
+            <img src={moreIdle} alt="" width={26} height={26}
+              style={{ width: 26, height: 26, display: 'block' }} />
           </span>
           <span className="font-display font-semibold tracking-wide" style={{ fontSize: 14.5 }}>{t.nav.more}</span>
           {unreadDmCount > 0 && (

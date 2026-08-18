@@ -26,6 +26,12 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
+    // Keep every asset a real file. The default inlines anything under 4 KB,
+    // which split the nav set in half — the larger marks became hashed files
+    // and the smaller ones base64 inside the bundle. Icons change far less
+    // often than the code does, so as files they stay cached across releases
+    // instead of being re-downloaded with every build.
+    assetsInlineLimit: 0,
     rollupOptions: {
       // Two entries, one build. M.A.R.S. is a separate SITE (its own shell,
       // landing page and sign-in) but not a separate project — it shares the

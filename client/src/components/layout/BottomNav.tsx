@@ -6,11 +6,16 @@ import { useT, useLangStore } from '@/store/langStore';
 // the names were stable, and the server marks static files immutable for a
 // year — which froze the old artwork in every browser that had already seen it.
 import communityMark from '@/assets/nav/community.webp';
+import communityIdle from '@/assets/nav/community-idle.webp';
 import gamesMark from '@/assets/nav/games.webp';
+import gamesIdle from '@/assets/nav/games-idle.webp';
 import mafiaMark from '@/assets/nav/mafia.webp';
+import mafiaIdle from '@/assets/nav/mafia-idle.webp';
 import worldsMark from '@/assets/nav/worlds.webp';
+import worldsIdle from '@/assets/nav/worlds-idle.webp';
 import profileMark from '@/assets/nav/profile.webp';
-import moreMark from '@/assets/nav/more.webp';
+import profileIdle from '@/assets/nav/profile-idle.webp';
+import moreIdle from '@/assets/nav/more-idle.webp';
 import { haptic } from '@/lib/haptics';
 
 // 'worlds' is not a page — it opens the 3D spaces over whatever is behind it.
@@ -81,39 +86,37 @@ function VoidMafiaIcon({ size = 18, active = false, color = 'currentColor' }: { 
 }
 
 // ── Tab definitions ─────────────────────────────────────────────────────────
-type TabDef = { id: NavTab; label: string; flagship?: boolean } & (
+type TabDef = { id: NavTab; label: string } & (
   | { kind: 'emoji'; icon: string }
-  | { kind: 'art'; src: string }
+  /** `src` is the lit state, `idle` the grey one — the set ships both. */
+  | { kind: 'art'; src: string; idle: string }
   | { kind: 'svg'; renderIcon: (active: boolean, color: string) => React.ReactElement }
 );
 
 // ქომუნითი · თამაშები · მაფია · 3D სივრცე · პროფილი · მეტი
 //
-// One size for all six.
+// One size for all six, and one weight.
 //
-// Mafia and the 3D spaces were drawn at 52px against the others' 28, and the
-// row came out as a staircase: with every label sharing one baseline a taller
-// mark can only grow upward, so the big pair sat 22px higher than their
-// neighbours and their centres were 10px out. There is no arrangement that
-// keeps both a common baseline and a size difference — one of the two has to
-// go, and the even line is worth more than the extra pixels.
+// Two earlier arrangements are worth not repeating. Drawing mafia and the 3D
+// spaces at 52px against the others' 28 turned the row into a staircase: with
+// every label on a shared baseline a taller mark can only grow upward, so the
+// big pair sat 22px above their neighbours. And plated artwork — each glyph on
+// its own filled square — made six competing tiles out of what should read as
+// one line of marks.
 //
-// The two flagships are still the loud ones: they keep their full colour while
-// every other mark is dimmed, and they carry a glow of their own. That reads as
-// hierarchy without breaking the line the eye follows across the bar.
-//
-// Each file carries its own squircle with transparent corners, so nothing here
-// draws a box around them — a wrapper border would sit outside the shape the
-// artwork already has.
+// This set solves both by being what a bar actually wants: bare glyphs on
+// transparency, drawn at one size, shipped in two states. The lit lavender is
+// "you are here" and the grey is everything else, so the state lives in the
+// artwork rather than in an opacity this file invents.
 const LEFT_TABS: TabDef[] = [
-  { id: 'community', kind: 'art', src: communityMark, label: 'კომუნითი' },
-  { id: 'games',     kind: 'art', src: gamesMark,     label: 'თამაშები' },
-  { id: 'rooms',     kind: 'art', src: mafiaMark,     label: 'მაფია',    flagship: true },
-  { id: 'worlds',    kind: 'art', src: worldsMark,    label: '3D სივრცე', flagship: true },
+  { id: 'community', kind: 'art', src: communityMark, idle: communityIdle, label: 'კომუნითი' },
+  { id: 'games',     kind: 'art', src: gamesMark,     idle: gamesIdle,     label: 'თამაშები' },
+  { id: 'rooms',     kind: 'art', src: mafiaMark,     idle: mafiaIdle,     label: 'მაფია' },
+  { id: 'worlds',    kind: 'art', src: worldsMark,    idle: worldsIdle,    label: '3D სივრცე' },
 ];
 
 const RIGHT_TABS: TabDef[] = [
-  { id: 'profile', kind: 'art', src: profileMark, label: 'პროფილი' },
+  { id: 'profile', kind: 'art', src: profileMark, idle: profileIdle, label: 'პროფილი' },
 ];
 
 // Each flagship's glow is taken from its own artwork — the mafia plate's gold
@@ -159,21 +162,16 @@ function NavItem({ tab, active, color, onPress, label, ka }: { tab: TabDef; acti
         {tab.kind === 'svg' ? tab.renderIcon(active, color)
           : tab.kind === 'art' ? (
             <img
-              src={tab.src}
+              src={active ? tab.src : tab.idle}
               alt=""
               width={ICON}
               height={ICON}
               style={{
                 width: ICON, height: ICON, display: 'block',
-                // The flagships stay lit whether or not you are on them; that,
-                // and not size, is what makes them the loud pair.
-                opacity: active ? 1 : tab.flagship ? 0.94 : 0.5,
                 // drop-shadow, not box-shadow: the glow has to follow the
-                // squircle's alpha rather than square off around it.
-                filter: active
-                  ? `drop-shadow(0 0 8px ${color}99)`
-                  : tab.flagship ? `drop-shadow(0 0 6px ${color}55)` : 'none',
-                transition: 'opacity 160ms ease, filter 160ms ease',
+                // glyph's alpha rather than square off around it.
+                filter: active ? `drop-shadow(0 0 8px ${color}80)` : 'none',
+                transition: 'filter 160ms ease',
               }}
             />
           ) : (
@@ -243,16 +241,13 @@ export function BottomNav({ active, onChange, onMoreClick }: Props) {
         >
           <span className="flex items-center justify-center" style={{ height: ICON }}>
             <img
-              src={moreMark}
+              // The menu is never "the page you are on", so it wears the idle
+              // face always.
+              src={moreIdle}
               alt=""
               width={ICON}
               height={ICON}
-              style={{
-                width: ICON, height: ICON, display: 'block',
-                // The menu is never "the page you are on", so it carries no
-                // active state — it sits at exactly an idle tab's weight.
-                opacity: 0.5,
-              }}
+              style={{ width: ICON, height: ICON, display: 'block' }}
             />
           </span>
           <span className="font-mono uppercase leading-none text-center relative" style={labelStyle(ka)}>
