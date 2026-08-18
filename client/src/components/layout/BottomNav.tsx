@@ -2,8 +2,6 @@ import { useSocialStore } from '@/store/socialStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useT, useLangStore } from '@/store/langStore';
 import { haptic } from '@/lib/haptics';
-import { VoidCommunityIcon } from '@/components/ui/VoidCommunityIcon';
-import { VoidGamesIcon } from '@/components/ui/VoidGamesIcon';
 import { VoidProfileIcon } from '@/components/ui/VoidProfileIcon';
 
 // 'worlds' is not a page — it opens the 3D spaces over whatever is behind it.
@@ -76,23 +74,24 @@ function VoidMafiaIcon({ size = 18, active = false, color = 'currentColor' }: { 
 // ── Tab definitions ─────────────────────────────────────────────────────────
 type TabDef = { id: NavTab; label: string } & (
   | { kind: 'emoji'; icon: string }
+  | { kind: 'art'; src: string }
   | { kind: 'svg'; renderIcon: (active: boolean, color: string) => React.ReactElement }
 );
 
-// ქომუნითი · თამაშები · მაფია — [3D სივრცე] — პროფილი · მეტი
-// Mafia used to be the raised centre button. The 3D spaces are the thing worth
-// pointing at now, so they take the pedestal and mafia sits back among the
-// ordinary tabs, where its label finally reads at the same size as the rest.
+// ქომუნითი · თამაშები · [მაფია] · [3D სივრცე] · პროფილი · მეტი
+//
+// The four artworks are app-icon squares, so they are drawn as squircles
+// rather than cropped into circles — a round mask cuts the frames off their
+// own corners. Mafia and the 3D spaces are the two flagships and get the large
+// tile; everything else stays a tab-sized mark.
 const LEFT_TABS: TabDef[] = [
-  {
-    id: 'community', kind: 'svg', label: 'კომუნითი',
-    renderIcon: (a, c) => <VoidCommunityIcon size={22} active={a} color={c} />,
-  },
-  {
-    id: 'games', kind: 'svg', label: 'თამაშები',
-    renderIcon: (a, c) => <VoidGamesIcon size={22} active={a} color={c} />,
-  },
-  { id: 'rooms', kind: 'emoji', icon: '🎩', label: 'მაფია' },
+  { id: 'community', kind: 'art', src: '/nav/community.webp', label: 'კომუნითი' },
+  { id: 'games',     kind: 'art', src: '/nav/games.webp',     label: 'თამაშები' },
+];
+
+const BIG_TABS: TabDef[] = [
+  { id: 'rooms',  kind: 'art', src: '/nav/mafia.webp',  label: 'მაფია' },
+  { id: 'worlds', kind: 'art', src: '/nav/worlds.webp', label: '3D სივრცე' },
 ];
 
 const RIGHT_TABS: TabDef[] = [
@@ -102,14 +101,16 @@ const RIGHT_TABS: TabDef[] = [
   },
 ];
 
+// Each flagship's glow is taken from its own artwork — the mafia plate's gold
+// leaf, the hexagon's violet.
 const NEON_TAB_COLORS: Record<string, string> = {
-  community: '#9b00ff', games: '#f59e0b', rooms: '#c084fc', profile: '#00e5ff',
+  community: '#9b00ff', games: '#f59e0b', rooms: '#e0b64a', worlds: '#a78bfa', profile: '#00e5ff',
 };
 const GLASS_TAB_COLORS: Record<string, string> = {
-  community: '#8b5cf6', games: '#fbbf24', rooms: '#c4b5fd', profile: '#67e8f9',
+  community: '#8b5cf6', games: '#fbbf24', rooms: '#e8c76b', worlds: '#c4b5fd', profile: '#67e8f9',
 };
 const GRAPHITE_TAB_COLORS: Record<string, string> = {
-  community: '#7c93ff', games: '#d0a95a', rooms: '#a89ad0', profile: '#6bc4c4',
+  community: '#7c93ff', games: '#d0a95a', rooms: '#c8a95e', worlds: '#a89ad0', profile: '#6bc4c4',
 };
 
 // ── NavItem ─────────────────────────────────────────────────────────────────
@@ -136,10 +137,25 @@ function NavItem({ tab, active, color, onPress, label, ka }: { tab: TabDef; acti
         />
       )}
 
-      <span className="flex items-center justify-center" style={{ height: 24 }}>
-        {tab.kind === 'svg'
-          ? tab.renderIcon(active, color)
-          : (
+      <span className="flex items-center justify-center" style={{ height: 28 }}>
+        {tab.kind === 'svg' ? tab.renderIcon(active, color)
+          : tab.kind === 'art' ? (
+            <img
+              src={tab.src}
+              alt=""
+              width={28}
+              height={28}
+              style={{
+                width: 28, height: 28, borderRadius: 9,
+                objectFit: 'cover',
+                // Dimmed while inactive so the bar does not read as four
+                // competing posters; full colour is how "you are here" shows.
+                opacity: active ? 1 : 0.62,
+                filter: active ? `saturate(1.15) drop-shadow(0 0 6px ${color}99)` : 'saturate(0.8)',
+                transition: 'opacity 160ms ease, filter 160ms ease',
+              }}
+            />
+          ) : (
             <span
               className="leading-none"
               style={{ fontSize: 21, filter: active ? `drop-shadow(0 0 5px ${color})` : 'none' }}
@@ -160,12 +176,57 @@ function NavItem({ tab, active, color, onPress, label, ka }: { tab: TabDef; acti
   );
 }
 
+// ── BigNavItem ──────────────────────────────────────────────────────────────
+// Mafia and the 3D spaces, at the size the artwork actually deserves. The tile
+// is 54px against the other tabs' 26, but the LABEL sits on the same baseline
+// as theirs — six labels on one line, two of them under something much bigger.
+function BigNavItem({ tab, active, color, onPress, label, ka }: { tab: TabDef; active: boolean; color: string; onPress: (id: NavTab) => void; label: string; ka: boolean }) {
+  const src = tab.kind === 'art' ? tab.src : '';
+  return (
+    <button
+      onClick={() => onPress(tab.id)}
+      className="flex flex-col items-center justify-end transition-all duration-150 active:scale-95 relative"
+      style={{ color: active ? color : 'rgba(255,255,255,0.5)', height: 84, paddingBottom: 13, gap: 3, flex: 1.3 }}
+    >
+      <span
+        className="flex items-center justify-center overflow-hidden"
+        style={{
+          width: 54, height: 54, borderRadius: 16, boxSizing: 'border-box',
+          border: `1px solid ${active ? `${color}aa` : `${color}3d`}`,
+          boxShadow: active
+            ? `0 0 0 1px ${color}55, 0 0 22px ${color}70, 0 6px 16px rgba(0,0,0,0.55)`
+            : `0 4px 12px rgba(0,0,0,0.45)`,
+          transition: 'box-shadow 180ms ease, border-color 180ms ease',
+        }}
+      >
+        <img
+          src={src}
+          alt=""
+          width={54}
+          height={54}
+          style={{
+            width: '100%', height: '100%', objectFit: 'cover', display: 'block',
+            opacity: active ? 1 : 0.72,
+            filter: active ? 'saturate(1.1)' : 'saturate(0.8)',
+            transition: 'opacity 180ms ease, filter 180ms ease',
+          }}
+        />
+      </span>
+      <span
+        className="font-mono leading-none text-center w-full overflow-hidden whitespace-nowrap"
+        style={{ ...labelStyle(ka), fontWeight: 700, textOverflow: 'ellipsis' }}
+      >
+        {label}
+      </span>
+    </button>
+  );
+}
+
 // ── BottomNav ───────────────────────────────────────────────────────────────
 export function BottomNav({ active, onChange, onMoreClick }: Props) {
   const { unreadDmCount } = useSocialStore();
   const themeMode = useSettingsStore(s => s.themeMode) ?? 'void-neon';
   const TAB_COLORS = themeMode === 'minimal-glass' ? GLASS_TAB_COLORS : themeMode === 'graphite' ? GRAPHITE_TAB_COLORS : NEON_TAB_COLORS;
-  const isWorlds = active === 'worlds';
   const t = useT();
   const ka = useLangStore(s => s.lang) === 'ka';
   const navLabel = (id: NavTab) => (t.nav as Record<string, string>)[id] ?? id;
@@ -194,35 +255,10 @@ export function BottomNav({ active, onChange, onMoreClick }: Props) {
           <NavItem key={tab.id} tab={tab} ka={ka} label={navLabel(tab.id)} active={active === tab.id} color={TAB_COLORS[tab.id] ?? '#ffffff'} onPress={go} />
         ))}
 
-        {/* CENTER FAB — 3D სივრცე */}
-        <div className="flex-1 flex justify-center" style={{ position: 'relative', height: 84 }}>
-          <button
-            onClick={() => go('worlds')}
-            className="absolute transition-all duration-200 active:scale-90 flex flex-col items-center justify-center"
-            style={{
-              // Larger and lifted higher than the pedestal mafia sat on, and in
-              // its own warm colour rather than the app-wide purple, because the
-              // point of moving it here was to make it the thing you notice.
-              width: 66, height: 66, borderRadius: '50%', bottom: 14,
-              background: isWorlds
-                ? 'linear-gradient(150deg, #ffb45c, #ff6a2b 45%, #a855f7)'
-                : 'linear-gradient(150deg, #ff9a3c, #e8551f 55%, #7c3aed)',
-              boxShadow: isWorlds
-                ? '0 0 0 2px rgba(255,154,60,0.55), 0 0 30px rgba(255,106,43,0.7), 0 6px 18px rgba(0,0,0,0.6)'
-                : '0 0 0 1.5px rgba(255,154,60,0.4), 0 0 20px rgba(232,85,31,0.45), 0 6px 18px rgba(0,0,0,0.5)',
-              zIndex: 2,
-            }}
-            aria-label="3D Space"
-          >
-            <span style={{ fontSize: 27, lineHeight: 1, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.4))' }}>🔥</span>
-            {/* "3D სივრცე" is wider than "მაფია" was; without the tighter
-                tracking it wraps inside a 62px circle. */}
-            <span className="font-mono uppercase text-white/85 leading-none whitespace-nowrap"
-              style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: '0.02em', marginTop: 3 }}>
-              {t.nav.worlds}
-            </span>
-          </button>
-        </div>
+        {/* The two flagships */}
+        {BIG_TABS.map(tab => (
+          <BigNavItem key={tab.id} tab={tab} ka={ka} label={navLabel(tab.id)} active={active === tab.id} color={TAB_COLORS[tab.id] ?? '#ffffff'} onPress={go} />
+        ))}
 
         {/* Right tabs */}
         {RIGHT_TABS.map(tab => (

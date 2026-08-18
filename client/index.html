@@ -9,6 +9,12 @@
          React mounts. On a slow connection that is the difference between the
          first screen showing the art and showing an empty tile. -->
     <link rel="preload" as="image" href="/splash-art.jpg" />
+    <!-- The bottom bar's artwork. Four small files, but the bar is on screen
+         from the first frame, so fetching them late shows empty tiles. -->
+    <link rel="preload" as="image" href="/nav/mafia.webp" />
+    <link rel="preload" as="image" href="/nav/worlds.webp" />
+    <link rel="preload" as="image" href="/nav/community.webp" />
+    <link rel="preload" as="image" href="/nav/games.webp" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&family=Inter:wght@400;500;600;700&family=Noto+Sans+Georgian:wght@400;500;600;700;800&display=swap" rel="stylesheet" />

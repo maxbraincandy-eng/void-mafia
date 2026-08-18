@@ -2,8 +2,6 @@ import { useSocialStore } from '@/store/socialStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useT } from '@/store/langStore';
 import { haptic } from '@/lib/haptics';
-import { VoidCommunityIcon } from '@/components/ui/VoidCommunityIcon';
-import { VoidGamesIcon } from '@/components/ui/VoidGamesIcon';
 import { VoidClansIcon } from '@/components/ui/VoidClansIcon';
 import { VoidStatsIcon } from '@/components/ui/VoidStatsIcon';
 import { VoidProfileIcon } from '@/components/ui/VoidProfileIcon';
@@ -18,6 +16,7 @@ interface Props {
 
 type Item = { id: NavTab; label: string; color: string } & (
   | { kind: 'emoji'; icon: string }
+  | { kind: 'art'; src: string }
   | { kind: 'svg'; renderIcon: (active: boolean, color: string) => React.ReactElement }
 );
 
@@ -36,12 +35,11 @@ const GRAPHITE_COLORS: Record<string, string> = {
 
 function items(colors: Record<string, string>): Item[] {
   return [
-    { id: 'rooms', kind: 'emoji', icon: '🎩', label: 'rooms', color: colors.rooms },
-    { id: 'community', kind: 'svg', label: 'community', color: colors.community,
-      renderIcon: (a, c) => <VoidCommunityIcon size={22} active={a} color={c} /> },
-    { id: 'games', kind: 'svg', label: 'games', color: colors.games,
-      renderIcon: (a, c) => <VoidGamesIcon size={22} active={a} color={c} /> },
-    { id: 'worlds', kind: 'emoji', icon: '🔥', label: 'worlds', color: colors.worlds },
+    // Same four artworks as the phone bar, so the two navs read as one app.
+    { id: 'rooms', kind: 'art', src: '/nav/mafia.webp', label: 'rooms', color: colors.rooms },
+    { id: 'community', kind: 'art', src: '/nav/community.webp', label: 'community', color: colors.community },
+    { id: 'games', kind: 'art', src: '/nav/games.webp', label: 'games', color: colors.games },
+    { id: 'worlds', kind: 'art', src: '/nav/worlds.webp', label: 'worlds', color: colors.worlds },
     { id: 'clans', kind: 'svg', label: 'clans', color: colors.clans,
       renderIcon: (a, c) => <VoidClansIcon size={22} active={a} color={c} /> },
     { id: 'leaderboard', kind: 'svg', label: 'leaderboard', color: colors.leaderboard,
@@ -78,7 +76,8 @@ export function SideNav({ active, onChange, onMoreClick }: Props) {
         onClick={() => go('rooms')}
         className="flex items-center gap-3 px-5 h-[72px] flex-shrink-0 transition-opacity hover:opacity-90"
       >
-        <span style={{ fontSize: 30, lineHeight: 1, filter: 'drop-shadow(0 2px 6px rgba(155,0,255,0.5))' }}>🎩</span>
+        <img src="/nav/mafia.webp" alt="" width={34} height={34}
+          style={{ width: 34, height: 34, borderRadius: 10, objectFit: 'cover', flexShrink: 0, boxShadow: '0 2px 10px rgba(0,0,0,0.5)' }} />
         <span
           className="font-display font-bold tracking-widest text-left leading-tight"
           style={{ fontSize: 15, background: 'linear-gradient(120deg,#c084fc,#00e5ff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}
@@ -111,9 +110,17 @@ export function SideNav({ active, onChange, onMoreClick }: Props) {
                   style={{ background: color, boxShadow: `0 0 8px ${color}` }}
                 />
               )}
-              <span className="flex items-center justify-center flex-shrink-0" style={{ width: 24, height: 24 }}>
-                {item.kind === 'svg'
-                  ? item.renderIcon(isActive, color)
+              <span className="flex items-center justify-center flex-shrink-0 overflow-hidden" style={{ width: 26, height: 26 }}>
+                {item.kind === 'svg' ? item.renderIcon(isActive, color)
+                  : item.kind === 'art' ? (
+                    <img src={item.src} alt="" width={26} height={26}
+                      style={{
+                        width: 26, height: 26, borderRadius: 8, objectFit: 'cover', display: 'block',
+                        opacity: isActive ? 1 : 0.6,
+                        filter: isActive ? `saturate(1.15) drop-shadow(0 0 6px ${color}99)` : 'saturate(0.7)',
+                        transition: 'opacity 160ms ease, filter 160ms ease',
+                      }} />
+                  )
                   : <span style={{ fontSize: 21, lineHeight: 1, filter: isActive ? `drop-shadow(0 0 5px ${color})` : 'none' }}>{item.icon}</span>}
               </span>
               <span
