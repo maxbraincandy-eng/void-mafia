@@ -39,8 +39,6 @@ import { useSpyfallStore } from '@/store/spyfallStore';
 import type { SpyfallListItem } from '@/types/spyfall';
 import { useLiesStore } from '@/store/liesStore';
 import type { LiesListItem } from '@/types/lies';
-import { useSxvaMafiaStore } from '@/store/sxvaMafiaStore';
-import type { XmListItem } from '@/types/sxvaMafia';
 import { useDrawStore } from '@/store/drawStore';
 import type { DrawListItem } from '@/types/draw';
 import { useCodenamesStore } from '@/store/codenamesStore';
@@ -54,7 +52,6 @@ import type { WWWListItem } from '@/types/www';
 import type { UnoListItem } from '@/types/uno';
 import { T } from '@/design/tokens';
 
-const RED_XM = '#ff3b47'; // სხვა მაფია accent
 
 // ── Categories ───────────────────────────────────────────────────────────────
 type GCat = 'mind' | 'logic' | 'maxpuzzle' | 'deduction' | 'party' | 'classic' | 'bhop' | 'worlds' | 'solo';
@@ -182,12 +179,8 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   } = useLiesStore();
   const [liJoinCode, setLiJoinCode] = useState('');
 
-  // ── სხვა მაფია (Other Mafia) ─────────────────────────────────────────
-  const {
-    matchList: xmList, isLoading: xmLoading, error: xmError,
-    fetchList: xmFetch, createMatch: xmCreate, joinMatch: xmJoin, clearError: xmClear,
-  } = useSxvaMafiaStore();
-  const [xmJoinCode, setXmJoinCode] = useState('');
+  // მაფია ჰოსტით used to live here. It is a mafia game, so it now opens from
+  // the Mafia tab alongside the classic rooms — see RoomsPage.
 
   // ── Draw & Guess ────────────────────────────────────────────────────
   const {
@@ -211,11 +204,11 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   const recordRecent = useCallback((id: string) => setRecent(pushRecent(id)), []);
 
   const handleRefresh = useCallback(() => {
-    ckClear(); jkClear(); ldClear(); wwClear(); unoClear(); boClear(); alClear(); drClear(); cnClear(); spClear(); liClear(); xmClear();
-    ckFetch(); jkFetch(); ldFetch(); wwFetch(); unoFetch(); boFetch(); alFetch(); drFetch(); cnFetch(); spFetch(); liFetch(); xmFetch();
-  }, [ckFetch, jkFetch, ldFetch, wwFetch, unoFetch, boFetch, alFetch, drFetch, cnFetch, spFetch, liFetch, xmFetch, ckClear, jkClear, ldClear, wwClear, unoClear, boClear, alClear, drClear, cnClear, spClear, liClear, xmClear]);
+    ckClear(); jkClear(); ldClear(); wwClear(); unoClear(); boClear(); alClear(); drClear(); cnClear(); spClear(); liClear();
+    ckFetch(); jkFetch(); ldFetch(); wwFetch(); unoFetch(); boFetch(); alFetch(); drFetch(); cnFetch(); spFetch(); liFetch();
+  }, [ckFetch, jkFetch, ldFetch, wwFetch, unoFetch, boFetch, alFetch, drFetch, cnFetch, spFetch, liFetch, ckClear, jkClear, ldClear, wwClear, unoClear, boClear, alClear, drClear, cnClear, spClear, liClear]);
 
-  useEffect(() => { ckFetch(); jkFetch(); ldFetch(); wwFetch(); unoFetch(); boFetch(); alFetch(); drFetch(); cnFetch(); spFetch(); liFetch(); xmFetch(); }, [ckFetch, jkFetch, ldFetch, wwFetch, unoFetch, boFetch, alFetch, drFetch, cnFetch, spFetch, liFetch, xmFetch]);
+  useEffect(() => { ckFetch(); jkFetch(); ldFetch(); wwFetch(); unoFetch(); boFetch(); alFetch(); drFetch(); cnFetch(); spFetch(); liFetch(); }, [ckFetch, jkFetch, ldFetch, wwFetch, unoFetch, boFetch, alFetch, drFetch, cnFetch, spFetch, liFetch]);
 
   useEffect(() => {
     const handler = () => { if (!document.hidden) handleRefresh(); };
@@ -250,8 +243,6 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   const handleSpJoin = () => { if (spJoinCode.trim()) { spJoin(spJoinCode.trim().toUpperCase(), playerName); setSpJoinCode(''); } };
   const handleLiCreate = () => liCreate(playerName);
   const handleLiJoin = () => { if (liJoinCode.trim()) { liJoin(liJoinCode.trim().toUpperCase(), playerName); setLiJoinCode(''); } };
-  const handleXmCreate = () => xmCreate(playerName);
-  const handleXmJoin = () => { if (xmJoinCode.trim()) { xmJoin(xmJoinCode.trim().toUpperCase(), playerName); setXmJoinCode(''); } };
   const handleDrCreate = () => drCreate(playerName);
   const handleDrJoin = () => { if (drJoinCode.trim()) { drJoin(drJoinCode.trim().toUpperCase(), playerName); setDrJoinCode(''); } };
   const handleCnCreate = () => cnCreate(playerName);
@@ -311,11 +302,6 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
       onJoin: handleLiJoin, codeMax: 6, codePh: 'XXXXXX', list: liList, error: liError, clearError: liClear,
       renderRow: m => <LiesRow key={m.id} match={m} onJoin={code => { recordRecent('lies'); liJoin(code, playerName); }} />,
     },
-    othermafia: {
-      accent: RED_XM, onCreate: handleXmCreate, loading: xmLoading, joinCode: xmJoinCode, setJoinCode: setXmJoinCode,
-      onJoin: handleXmJoin, codeMax: 6, codePh: 'XXXXXX', list: xmList, error: xmError, clearError: xmClear,
-      renderRow: m => <XmRow key={m.id} match={m} onJoin={code => { recordRecent('othermafia'); xmJoin(code, playerName); }} />,
-    },
     alias: {
       accent: '#4d9fff', onCreate: handleAlCreate, loading: alLoading, joinCode: alJoinCode, setJoinCode: setAlJoinCode,
       onJoin: handleAlJoin, codeMax: 6, codePh: 'XXXXXX', list: alList, error: alError, clearError: alClear,
@@ -365,7 +351,6 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
   if (onOpenPremium) defs.push({ id: 'premium', title: 'Premium Worlds', sub: 'Beach Camp 3D · ' + t.commB.premiumSub, cat: 'worlds', kind: 'launch', accent: '#ff8c3c', emoji: '🔥', badge: true, keywords: 'premium worlds 3d beach', launch: onOpenPremium });
   if (onOpenSpace) defs.push({ id: 'space', title: 'Virtual Space', sub: t.commB.spaceSub, cat: 'worlds', kind: 'launch', accent: '#4a76c4', logo: 'vspace', emoji: '🌐', keywords: 'space virtual სივრცე vr', launch: onOpenSpace });
   if (onOpenBackrooms) defs.push({ id: 'backrooms', title: 'Backrooms', sub: t.commB.backroomsSub, cat: 'solo', kind: 'launch', accent: '#f5de80', emoji: '🟨', keywords: 'backrooms horror', launch: onOpenBackrooms });
-  defs.push({ id: 'othermafia', title: 'თუჯიტური მაფია', sub: 'ვიდეო-მაფია ჰოსტით · 4-14 მოთ.', cat: 'worlds', kind: 'match', accent: RED_XM, logo: 'mafianight', emoji: '🎭', badge: true, keywords: 'mafia მაფია თუჯიტური tujituri video ვიდეო table host' });
   defs.push({ id: 'mergeevo', title: 'Merge Evolution', sub: 'გაზარდე ციფრული ორგანიზმი · ყუთები · შერწყმა', cat: 'solo', kind: 'launch', accent: '#4dd4c4', emoji: '🧬', badge: true, keywords: 'merge evolution ევოლუცია შერწყმა dna დნმ ორგანიზმი ყუთი chest idle კლიკერი განვითარება', launch: () => setMergeOpen(true) });
   defs.push({ id: 'logic', title: 'ფორმალური ლოგიკის აკადემია', sub: 'სილოგიზმები · არგუმენტაცია · Logic Rating', cat: 'logic', kind: 'launch', accent: '#F9C81C', logo: 'logic', emoji: '🧠', badge: true, keywords: 'logic ლოგიკა სილოგიზმი არგუმენტი დედუქცია აკადემია რეიტინგი formal ფორმალური მსჯელობა fallacy შეცდომა', launch: () => setLogicOpen(true) });
   defs.push({ id: 'noir', title: 'ნუარი', sub: 'ინტერაქტიული თავგადასავალი · შენ წყვეტ', cat: 'solo', kind: 'launch', accent: '#ff2d55', emoji: '🌃', badge: true, keywords: 'noir ნუარი თავგადასავალი ამბავი არჩევანი ისტორია adventure story choice მაფია დეტექტივი', launch: () => setNoirOpen(true) });
@@ -542,7 +527,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
           the fixed overlay to the page (forcing the user to scroll to it). */}
       {createPortal(
       <AnimatePresence>
-        {sheet && sheet !== 'othermafia' && MATCH[sheet] && (
+        {sheet && MATCH[sheet] && (
           <motion.div className="fixed inset-0 z-[520] flex items-center justify-center px-4 py-6 overflow-y-auto" style={{ background: 'rgba(4,4,10,0.72)' }}
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSheet(null)}
             onTouchStart={e => e.stopPropagation()} onTouchEnd={e => e.stopPropagation()}>
@@ -574,11 +559,6 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
       document.body)}
 
       {/* Overlays */}
-      <AnimatePresence>
-        {sheet === 'othermafia' && MATCH.othermafia && (
-          <TujituriLauncher cfg={MATCH.othermafia} onClose={() => setSheet(null)} onRecord={() => recordRecent('othermafia')} />
-        )}
-      </AnimatePresence>
       {voidIqOpen && <Suspense fallback={null}><VoidIQHub onClose={() => setVoidIqOpen(false)} /></Suspense>}
       {maxPuzzleOpen && <Suspense fallback={null}><MaxPuzzleExperience onClose={() => setMaxPuzzleOpen(false)} /></Suspense>}
       {dilemmasHubOpen && <Suspense fallback={null}><DilemmasHub onClose={() => setDilemmasHubOpen(false)} /></Suspense>}
@@ -613,30 +593,6 @@ interface LauncherCfg {
   extra?: JSX.Element;
 }
 
-// თუჯიტური მაფია — a tongue-in-cheek "tech support" error shown on entry.
-function TujituriSplash({ onAgree, onClose }: { onAgree: () => void; onClose: () => void }) {
-  return (
-    <div className="text-center">
-      <div className="flex items-center gap-2 -mt-1 mb-4 pb-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-        <span className="text-lg">⚙️</span>
-        <span className="font-mono text-[12px] text-white/60 flex-1 text-left">billing-system.exe</span>
-        <button onClick={onClose} className="w-6 h-6 rounded flex items-center justify-center text-white/40 text-xs" style={{ border: '1px solid rgba(255,255,255,0.15)' }}>✕</button>
-      </div>
-      <motion.div initial={{ scale: 0.6, opacity: 0, rotate: -8 }} animate={{ scale: 1, opacity: 1, rotate: 0 }} transition={{ type: 'spring', damping: 11 }} className="text-5xl mb-2">⚠️</motion.div>
-      <p className="font-display font-black" style={{ fontSize: 20, color: '#ffcc33' }}>შეცდომა 404</p>
-      <p className="font-mono text-[13px] mt-1" style={{ color: RED_XM }}>50 ლარი ვერ მოიძებნა</p>
-      <div className="mt-4 rounded-xl p-3.5 text-left font-mono text-[12.5px] leading-relaxed" style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.75)' }}>
-        <p><span style={{ color: RED_XM }}>&gt;</span> სამწუხაროდ, ჩვენმა ბილინგის სისტემამ ვერ იპოვა ფუნქცია, სადაც მოთამაშეს თვეში <b style={{ color: '#fff' }}>50 ლარს</b> ვართმევთ.</p>
-        <p className="mt-2"><span style={{ color: RED_XM }}>&gt;</span> დეველოპერებმა განაცხადეს, რომ „<b style={{ color: '#fff' }}>თუჯიტურ მაფიაში</b>" თამაში <b style={{ color: '#7fe0a0' }}>უფასოა</b> და ასეც დარჩება.</p>
-      </div>
-      <button onClick={onAgree} className="mt-4 w-full py-3.5 rounded-2xl font-display font-bold text-white text-[14px] active:scale-[0.98]" style={{ background: `linear-gradient(135deg, ${RED_XM}, #b81020)` }}>
-        ❌ ხარვეზის იგნორირება / თამაშის დაწყება
-      </button>
-      <p className="font-mono text-[9px] text-white/25 mt-2.5">error_id: 0x7A3F · თუჯიტური მაფია™</p>
-    </div>
-  );
-}
-
 function MatchLauncher({ cfg, onDone, onRecord }: { cfg: LauncherCfg; onDone: () => void; onRecord: () => void }) {
   const create = () => { onRecord(); cfg.onCreate(); onDone(); };
   const join = () => { if (!cfg.joinCode.trim()) return; onRecord(); cfg.onJoin(); onDone(); };
@@ -666,61 +622,6 @@ function MatchLauncher({ cfg, onDone, onRecord }: { cfg: LauncherCfg; onDone: ()
         </div>
       )}
     </div>
-  );
-}
-
-// თუჯიტური მაფია — a dedicated, full-screen themed launcher (splash → create/join).
-function TujituriLauncher({ cfg, onClose, onRecord }: { cfg: LauncherCfg; onClose: () => void; onRecord: () => void }) {
-  const [agreed, setAgreed] = useState(false);
-  const create = () => { onRecord(); cfg.onCreate(); onClose(); };
-  const join = () => { if (!cfg.joinCode.trim()) return; onRecord(); cfg.onJoin(); onClose(); };
-  return createPortal(
-    <motion.div className="fixed inset-0 z-[545] flex flex-col select-none" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      style={{ background: 'radial-gradient(ellipse 120% 60% at 50% -8%, #2a0a14 0%, #08060a 60%)', fontFamily: 'Rajdhani, "Noto Sans Georgian", system-ui, sans-serif' }}
-      onTouchStart={e => e.stopPropagation()} onTouchEnd={e => e.stopPropagation()}>
-      <div className="flex-shrink-0 flex justify-end p-4 pt-[calc(env(safe-area-inset-top,0px)+12px)]">
-        <button onClick={onClose} className="w-9 h-9 rounded-full flex items-center justify-center text-white/60" style={{ border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.04)' }}>✕</button>
-      </div>
-      <div className="flex-1 overflow-y-auto px-6 pb-10 flex flex-col">
-        <AnimatePresence mode="wait">
-          {!agreed ? (
-            <motion.div key="splash" initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.96 }} className="flex-1 flex items-center justify-center">
-              <div className="w-full max-w-sm rounded-3xl p-5" style={{ background: 'rgba(12,10,24,0.92)', border: `1px solid ${RED_XM}44`, boxShadow: `0 18px 60px rgba(0,0,0,0.6), 0 0 40px ${RED_XM}14` }}>
-                <TujituriSplash onAgree={() => setAgreed(true)} onClose={onClose} />
-              </div>
-            </motion.div>
-          ) : (
-            <motion.div key="launch" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="flex-1 max-w-sm w-full mx-auto flex flex-col">
-              <div className="text-center pt-1">
-                <motion.img src="/mafia-night.webp" alt="" initial={{ scale: 0.7, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', damping: 12 }} className="xm-float" style={{ width: 148, height: 148, objectFit: 'contain', margin: '0 auto', filter: 'drop-shadow(0 8px 30px rgba(255,59,71,0.35))' }} />
-                <h1 className="font-display font-black text-white mt-2" style={{ fontSize: 26 }}>თუჯიტური მაფია</h1>
-                <p className="font-mono text-[12px] text-white/50 mt-1">ვიდეო-მაფია ჰოსტით · 4–14 მოთამაშე</p>
-              </div>
-              <div className="mt-6 space-y-3">
-                <button onClick={create} disabled={cfg.loading} className="w-full py-3.5 rounded-2xl font-display font-black text-white text-[15px] disabled:opacity-50 active:scale-[0.98]" style={{ background: `linear-gradient(135deg, ${RED_XM}, #b81020)`, boxShadow: `0 8px 26px ${RED_XM}44` }}>
-                  {cfg.loading ? '…' : '🎬 ოთახის შექმნა'}
-                </button>
-                <div className="flex items-center gap-2 text-white/25 font-mono text-[10px]"><div className="flex-1 h-px bg-white/10" />ან შეუერთდი კოდით<div className="flex-1 h-px bg-white/10" /></div>
-                <div className="flex gap-2">
-                  <input value={cfg.joinCode} onChange={e => cfg.setJoinCode(e.target.value.toUpperCase())} onKeyDown={e => { if (e.key === 'Enter') join(); }} placeholder="XXXXXX" maxLength={cfg.codeMax}
-                    className="flex-1 bg-transparent font-mono text-center text-lg text-white placeholder-white/20 outline-none px-3 py-3 rounded-xl transition-colors tracking-[0.3em]" style={{ border: '1px solid rgba(255,255,255,0.15)' }} />
-                  <button onClick={join} disabled={!cfg.joinCode.trim() || cfg.loading} className="px-5 rounded-xl font-mono text-xs uppercase tracking-wider active:scale-95 disabled:opacity-40" style={{ background: `${RED_XM}22`, border: `1px solid ${RED_XM}66`, color: '#ff8a92' }}>შესვლა</button>
-                </div>
-                {cfg.error && <p className="font-mono text-[12px] text-center" style={{ color: RED_XM }} onClick={cfg.clearError}>{cfg.error}</p>}
-              </div>
-              {cfg.list.length > 0 && (
-                <div className="mt-6 space-y-1.5">
-                  <p className="font-mono text-[11px] uppercase tracking-widest text-white/30">🟢 ღია ოთახები</p>
-                  {cfg.list.map(cfg.renderRow)}
-                </div>
-              )}
-              <p className="font-mono text-[10px] text-white/20 text-center mt-auto pt-6">ჰოსტი მართავს თამაშს · მინ. 4 მოთამაშე</p>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-    </motion.div>,
-    document.body,
   );
 }
 
@@ -1070,26 +971,6 @@ function SpyfallRow({ match, onJoin }: { match: SpyfallListItem; onJoin: (code: 
         className="px-2.5 py-1 rounded-lg font-mono text-[12px] uppercase tracking-wider transition-all active:scale-95"
         style={{ background: 'rgba(255,45,85,0.1)', border: '1px solid rgba(255,45,85,0.25)', color: '#ff5d6c' }}>
         შეუერთდი
-      </button>
-    </div>
-  );
-}
-
-function XmRow({ match, onJoin }: { match: XmListItem; onJoin: (code: string) => void }) {
-  return (
-    <div className="flex items-center gap-3 px-2 py-2 rounded-xl" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
-      <div className="flex-1 min-w-0">
-        <p className="font-mono text-xs text-white truncate">{match.hostName} <span className="text-white/30">(ჰოსტი)</span></p>
-        <div className="flex items-center gap-2 mt-0.5">
-          <span className="font-mono text-[12px] text-white/25 tracking-widest">{match.code}</span>
-          <span className="font-mono text-[12px] text-white/20">{match.seatCount}/{match.maxSeats}</span>
-          {match.phase !== 'lobby' && <span className="font-mono text-[10px] text-amber-400/60">მიმდინარეობს</span>}
-        </div>
-      </div>
-      <button onClick={() => onJoin(match.code)}
-        className="px-2.5 py-1 rounded-lg font-mono text-[12px] uppercase tracking-wider transition-all active:scale-95"
-        style={{ background: 'rgba(255,59,71,0.12)', border: '1px solid rgba(255,59,71,0.3)', color: '#ff8a92' }}>
-        {match.phase === 'lobby' ? 'შესვლა' : 'ყურება'}
       </button>
     </div>
   );

@@ -15,6 +15,7 @@ import { LobbyChatPanel } from '@/components/social/LobbyChatPanel';
 import { VoidClansIcon } from '@/components/ui/VoidClansIcon';
 import { VoidStatsIcon } from '@/components/ui/VoidStatsIcon';
 import { haptic } from '@/lib/haptics';
+import { useSxvaMafiaStore } from '@/store/sxvaMafiaStore';
 import { emitWithAck } from '@/lib/socket';
 import type { Res } from '@/types/index';
 
@@ -181,6 +182,69 @@ function QuickAccessRow({ onOpenClans, onOpenLeaderboard }: { onOpenClans: () =>
   );
 }
 
+// ── The two mafias ──────────────────────────────────────────────────────────
+// The hosted table used to be a card in the games hub, next to Merge Evolution
+// and the philosophy quizzes, which is not where anyone looks for a game of
+// mafia. Both live under the Mafia tab now and this is what chooses between
+// them: the page below the picker changes, the page around it does not.
+type Family = 'classic' | 'host';
+
+const HOST_ACCENT = '#ff3b47';
+
+function FamilyPicker({ value, onChange, classic, classicSub, host, hostSub }: {
+  value: Family;
+  onChange: (f: Family) => void;
+  classic: string; classicSub: string; host: string; hostSub: string;
+}) {
+  const OPTS: { id: Family; icon: React.ReactNode; label: string; sub: string; accent: string }[] = [
+    { id: 'classic', icon: <span style={{ fontSize: 19, lineHeight: 1 }}>🎩</span>, label: classic, sub: classicSub, accent: '#00e5ff' },
+    { id: 'host',    icon: <span style={{ fontSize: 19, lineHeight: 1 }}>🎬</span>, label: host,    sub: hostSub,    accent: HOST_ACCENT },
+  ];
+  return (
+    <div className="grid grid-cols-2 gap-2.5 mb-4">
+      {OPTS.map(o => {
+        const on = value === o.id;
+        return (
+          <button
+            key={o.id}
+            onClick={() => { if (!on) { haptic('selection'); onChange(o.id); } }}
+            className="relative rounded-2xl px-3 py-3 text-left overflow-hidden transition-all active:scale-[0.98]"
+            style={{
+              background: on ? `linear-gradient(160deg, ${o.accent}1c, rgba(255,255,255,0.02))` : 'var(--vm-surface-bg)',
+              border: `1px solid ${on ? `${o.accent}55` : 'rgba(255,255,255,0.06)'}`,
+              boxShadow: on ? `0 6px 22px ${o.accent}1f` : 'none',
+            }}
+          >
+            {/* The chosen one carries a lit edge — at a glance you can tell
+                which table the list below belongs to. */}
+            {on && (
+              <span className="absolute top-0 left-3 right-3 h-px rounded-full"
+                style={{ background: o.accent, boxShadow: `0 0 8px ${o.accent}` }} />
+            )}
+            {/* Stacked, not icon-beside-label: half a phone minus a 32px badge
+                leaves too little for "კლასიკური მაფია", which was arriving as
+                "კლასიკური …". On its own line the whole name fits. */}
+            <span
+              className="flex w-8 h-8 rounded-xl items-center justify-center mb-2"
+              style={{ background: `${o.accent}${on ? '1f' : '12'}`, border: `1px solid ${o.accent}${on ? '3d' : '20'}` }}
+            >
+              {o.icon}
+            </span>
+            <span className="block font-display font-bold text-[13px] leading-tight"
+              style={{ color: on ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.5)' }}>
+              {o.label}
+            </span>
+            <span className="block font-mono text-[10px] leading-snug mt-1 truncate"
+              style={{ color: on ? `${o.accent}cc` : 'rgba(255,255,255,0.22)' }}>
+              {o.sub}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function RoomsPage({ onOpenClans, onOpenLeaderboard }: { onOpenClans?: () => void; onOpenLeaderboard?: () => void } = {}) {
   type GameStyle = 'classic' | 'don';
 
@@ -198,6 +262,18 @@ export function RoomsPage({ onOpenClans, onOpenLeaderboard }: { onOpenClans?: ()
   const [joinAsSpectator, setJoinAsSpectator] = useState(false);
   const [joinPassword, setJoinPassword] = useState('');
   const [joinChoice, setJoinChoice] = useState<{ code: string; isLobby: boolean; password?: string } | null>(null);
+
+  // ── Hosted mafia ──────────────────────────────────────────────────────
+  const [family, setFamily] = useState<Family>('classic');
+  const [hostSeats, setHostSeats] = useState(10);
+  const [hostCode, setHostCode] = useState('');
+  const hostList    = useSxvaMafiaStore(s => s.matchList);
+  const hostLoading = useSxvaMafiaStore(s => s.isLoading);
+  const hostError   = useSxvaMafiaStore(s => s.error);
+  const hostFetch   = useSxvaMafiaStore(s => s.fetchList);
+  const hostCreate  = useSxvaMafiaStore(s => s.createMatch);
+  const hostJoin    = useSxvaMafiaStore(s => s.joinMatch);
+  const hostClear   = useSxvaMafiaStore(s => s.clearError);
 
   const { createRoom, joinRoom, isLoading, joinError, clearJoinError } = useGameStore(s => ({
     createRoom: s.createRoom,
@@ -255,6 +331,26 @@ export function RoomsPage({ onOpenClans, onOpenLeaderboard }: { onOpenClans?: ()
     e.preventDefault();
     if (code.length < 6) return;
     await joinRoom(code.toUpperCase(), username, joinAsSpectator, joinPassword);
+  };
+
+  // The hosted list is pushed over the socket on every change, but a poll keeps
+  // it honest for anyone who opened the tab while disconnected.
+  useEffect(() => {
+    if (family !== 'host') return;
+    hostFetch();
+    const id = setInterval(hostFetch, 6000);
+    return () => clearInterval(id);
+  }, [family, hostFetch]);
+
+  const handleHostCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await hostCreate(username || 'Host', { maxSeats: hostSeats });
+  };
+
+  const handleHostJoin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (hostCode.length < 6) return;
+    await hostJoin(hostCode.toUpperCase(), username || 'Player');
   };
 
   // Server rejects a non-spectator join to a room whose game already started, asking
@@ -377,6 +473,16 @@ export function RoomsPage({ onOpenClans, onOpenLeaderboard }: { onOpenClans?: ()
           </div>
         </div>
 
+        {/* ── Which mafia ─────────────────────────────────────── */}
+        <FamilyPicker
+          value={family}
+          onChange={setFamily}
+          classic={t.rooms.familyClassic}
+          classicSub={t.rooms.familyClassicSub}
+          host={t.rooms.familyHost}
+          hostSub={t.rooms.familyHostSub}
+        />
+
         {/* Clans & Top — moved out of the bottom bar, one tap from the top */}
         {(onOpenClans || onOpenLeaderboard) && (
           <QuickAccessRow
@@ -385,14 +491,16 @@ export function RoomsPage({ onOpenClans, onOpenLeaderboard }: { onOpenClans?: ()
           />
         )}
 
-        {/* Season Banner */}
-        <SeasonBanner />
-
-        {/* Daily challenge */}
-        <DailyChallengeCard />
-
-        {/* News */}
-        <NewsCard />
+        {/* Season, quests and news are the classic ladder's furniture — a
+            hosted table has no season and no daily quests, so the hosted view
+            skips straight from the picker to its own tabs. */}
+        {family === 'classic' && (
+          <>
+            <SeasonBanner />
+            <DailyChallengeCard />
+            <NewsCard />
+          </>
+        )}
 
         {/* ── Mode tabs — underline style ─────────────────────── */}
         <div className="flex border-b border-white/[0.06] mb-5">
@@ -405,17 +513,18 @@ export function RoomsPage({ onOpenClans, onOpenLeaderboard }: { onOpenClans?: ()
               }`}
             >
               {m.label}
+              {/* The underline takes the chosen table's colour, so the tabs
+                  never look like they belong to the other one. */}
               <span
-                className={`absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-px rounded-full transition-all duration-200 ${
-                  mode === m.id ? 'bg-neon-cyan/60' : 'bg-transparent'
-                }`}
+                className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-px rounded-full transition-all duration-200"
+                style={{ background: mode === m.id ? (family === 'host' ? `${HOST_ACCENT}aa` : 'rgba(0,229,255,0.6)') : 'transparent' }}
               />
             </button>
           ))}
         </div>
 
         {/* ── Browse ──────────────────────────────────────────── */}
-        {mode === 'browse' && (
+        {family === 'classic' && mode === 'browse' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
             <div className="flex items-center justify-between mb-3">
               <span className="text-[11px] font-mono text-white/28">
@@ -511,7 +620,7 @@ export function RoomsPage({ onOpenClans, onOpenLeaderboard }: { onOpenClans?: ()
         )}
 
         {/* ── Create ──────────────────────────────────────────── */}
-        {mode === 'create' && (
+        {family === 'classic' && mode === 'create' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
             <div className={`${SURFACE} p-5`} style={SURFACE_BG}>
               <h3 className="font-display font-bold text-white/70 tracking-widest uppercase text-sm mb-5">
@@ -595,7 +704,7 @@ export function RoomsPage({ onOpenClans, onOpenLeaderboard }: { onOpenClans?: ()
         )}
 
         {/* ── Join by code ─────────────────────────────────────── */}
-        {mode === 'join' && (
+        {family === 'classic' && mode === 'join' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
             <div className={`${SURFACE} p-5`} style={SURFACE_BG}>
               <h3 className="font-display font-bold text-white/70 tracking-widest uppercase text-sm mb-5">
@@ -652,6 +761,166 @@ export function RoomsPage({ onOpenClans, onOpenLeaderboard }: { onOpenClans?: ()
                   {t.rooms.joinRoom}
                 </Button>
               </form>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── Hosted: browse ──────────────────────────────────── */}
+        {/* Deliberately the same furniture as the classic browse above — the
+            count line, the refresh link, the row shape — so switching tables
+            does not feel like switching apps. */}
+        {family === 'host' && mode === 'browse' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[11px] font-mono text-white/28">
+                {hostList.length} {hostList.length === 1 ? t.rooms.activeRooms : t.rooms.activeRoomsPlural}
+              </span>
+              <button
+                onClick={() => hostFetch()}
+                className="text-[11px] font-mono text-white/22 hover:text-white/55 transition-colors"
+              >
+                {t.rooms.refresh}
+              </button>
+            </div>
+
+            {hostList.length === 0 && (
+              <div className="text-center py-14">
+                <p className="text-white/22 font-mono text-sm">{t.rooms.hostNoRooms}</p>
+                <p className="text-white/12 font-mono text-xs mt-1.5">{t.rooms.hostNoRoomsHint}</p>
+              </div>
+            )}
+
+            <div className="space-y-2 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-2">
+              {hostList.map((m, i) => {
+                const isLobby = m.phase === 'lobby';
+                return (
+                  <motion.div
+                    key={m.id}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.04 }}
+                    className={`${SURFACE} px-4 py-3.5 flex items-center gap-3`}
+                    style={SURFACE_BG}
+                  >
+                    <div className="w-2 h-2 rounded-full shrink-0"
+                      style={{ background: isLobby ? `${HOST_ACCENT}88` : 'rgba(250,204,21,0.5)' }} />
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="font-medium text-sm text-white/70 truncate">{m.hostName}</span>
+                        <span className="text-[12px] px-1.5 py-0.5 rounded font-mono tracking-wider uppercase flex-shrink-0"
+                          style={isLobby
+                            ? { background: `${HOST_ACCENT}14`, color: `${HOST_ACCENT}cc`, border: `1px solid ${HOST_ACCENT}26` }
+                            : { background: 'rgba(250,204,21,0.08)', color: 'rgba(250,204,21,0.7)', border: '1px solid rgba(250,204,21,0.2)' }}>
+                          {isLobby ? t.rooms.hostBadge : t.rooms.hostRunning}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[11px] font-mono">
+                        <span className="font-bold tracking-widest" style={{ color: `${HOST_ACCENT}99` }}>{m.code}</span>
+                        <span className="text-white/12">·</span>
+                        <span className="text-white/30">{m.seatCount}/{m.maxSeats} {t.rooms.players}</span>
+                      </div>
+                    </div>
+
+                    <div className="shrink-0">
+                      <Button
+                        size="sm"
+                        variant={isLobby ? 'danger' : 'ghost'}
+                        loading={hostLoading}
+                        onClick={() => hostJoin(m.code, username || 'Player')}
+                      >
+                        {isLobby ? t.rooms.joinCode : t.rooms.hostSpectate}
+                      </Button>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+
+            {hostError && (
+              <p className="font-mono text-[12px] text-neon-red mt-3 text-center" onClick={hostClear}>{hostError}</p>
+            )}
+          </motion.div>
+        )}
+
+        {/* ── Hosted: create ──────────────────────────────────── */}
+        {family === 'host' && mode === 'create' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <div className={`${SURFACE} p-5`} style={SURFACE_BG}>
+              <h3 className="font-display font-bold text-white/70 tracking-widest uppercase text-sm mb-2">
+                {t.rooms.hostCreateRoom}
+              </h3>
+              <p className="font-mono text-[11px] text-white/30 leading-relaxed mb-5">{t.rooms.hostAbout}</p>
+
+              <p className="text-[12px] font-mono text-white/28 uppercase tracking-widest mb-2">{t.rooms.hostSeats}</p>
+              {/* A stepper rather than a dropdown: the useful range is eleven
+                  values wide and the number is the whole decision. */}
+              <div className="flex items-center gap-3 mb-1.5">
+                <button
+                  type="button"
+                  onClick={() => setHostSeats(v => Math.max(4, v - 1))}
+                  disabled={hostSeats <= 4}
+                  className="w-11 h-11 rounded-xl font-mono text-lg text-white/60 transition-all active:scale-95 disabled:opacity-25"
+                  style={{ border: '1px solid rgba(255,255,255,0.1)' }}
+                >−</button>
+                <div className="flex-1 text-center">
+                  <p className="font-display font-black leading-none" style={{ fontSize: 30, color: HOST_ACCENT }}>{hostSeats}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setHostSeats(v => Math.min(14, v + 1))}
+                  disabled={hostSeats >= 14}
+                  className="w-11 h-11 rounded-xl font-mono text-lg text-white/60 transition-all active:scale-95 disabled:opacity-25"
+                  style={{ border: '1px solid rgba(255,255,255,0.1)' }}
+                >＋</button>
+              </div>
+              <p className="text-[11px] font-mono text-white/22 text-center mb-5">{t.rooms.hostSeatsHint}</p>
+
+              <form onSubmit={handleHostCreate}>
+                <Button fullWidth variant="danger" loading={hostLoading}>
+                  {t.rooms.hostCreateRoom}
+                </Button>
+              </form>
+
+              {hostError && (
+                <p className="font-mono text-[12px] text-neon-red mt-3 text-center" onClick={hostClear}>{hostError}</p>
+              )}
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── Hosted: join by code ────────────────────────────── */}
+        {family === 'host' && mode === 'join' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <div className={`${SURFACE} p-5`} style={SURFACE_BG}>
+              <h3 className="font-display font-bold text-white/70 tracking-widest uppercase text-sm mb-5">
+                {t.rooms.hostJoinRoom}
+              </h3>
+
+              <form onSubmit={handleHostJoin} className="space-y-3">
+                <div>
+                  <label className="block text-[12px] font-mono text-white/28 uppercase tracking-widest mb-2">
+                    {t.rooms.roomCodeLabel}
+                  </label>
+                  <input
+                    type="text"
+                    value={hostCode}
+                    onChange={e => setHostCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))}
+                    placeholder={t.rooms.roomCodePlaceholder}
+                    maxLength={6}
+                    className="w-full bg-white/[0.03] rounded-xl px-4 py-3 placeholder-white/15 font-mono text-2xl tracking-[0.4em] text-center focus:outline-none transition-colors"
+                    style={{ color: `${HOST_ACCENT}dd`, border: '1px solid rgba(255,255,255,0.07)' }}
+                  />
+                </div>
+
+                <Button fullWidth variant="danger" loading={hostLoading} disabled={hostCode.length < 6}>
+                  {t.rooms.hostJoinRoom}
+                </Button>
+              </form>
+
+              {hostError && (
+                <p className="font-mono text-[12px] text-neon-red mt-3 text-center" onClick={hostClear}>{hostError}</p>
+              )}
             </div>
           </motion.div>
         )}

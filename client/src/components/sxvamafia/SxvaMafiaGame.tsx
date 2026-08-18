@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SFX } from '@/lib/audioEngine';
 import { haptic } from '@/lib/haptics';
+import { copyText } from '@/lib/clipboard';
 import { useAuthStore } from '@/store/authStore';
 import { useSxvaMafiaStore } from '@/store/sxvaMafiaStore';
 import { useLiveKitGate, useLivekitRoomVoice } from '@/hooks/useLivekitVoice';
@@ -194,6 +195,7 @@ export function SxvaMafiaGame() {
 
   const [now, setNow] = useState(Date.now());
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const [codeCopied, setCodeCopied] = useState(false);
   const [roleOpen, setRoleOpen] = useState(false);
   const [journalOpen, setJournalOpen] = useState(false);
   const [foulMode, setFoulMode] = useState(false);
@@ -510,7 +512,7 @@ export function SxvaMafiaGame() {
       <div className="flex-shrink-0 px-4 pt-[calc(env(safe-area-inset-top,0px)+10px)] pb-2" style={{ borderBottom: `1px solid ${RED}22` }}>
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
-            <p className="font-display font-black text-white leading-none" style={{ fontSize: 15 }}>თუჯიტური მაფია 🎭</p>
+            <p className="font-display font-black text-white leading-none" style={{ fontSize: 15 }}>მაფია ჰოსტით 🎬</p>
             <p className="font-mono text-[10px] mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>
               <span style={{ color: RED, letterSpacing: 2 }}>{match.code}</span>
               {match.phase !== 'lobby' && <> · რაუნდი {match.round} · {phaseTitle}</>}
@@ -683,7 +685,23 @@ export function SxvaMafiaGame() {
             </div>
             {match.phase === 'lobby' && (
               <>
-                <p className="text-center font-mono text-[12px] text-white/40 mt-4">
+                {/* The code is the whole invitation, and the top bar prints it
+                    at 10px next to five other things. Here it is the thing on
+                    the screen, and tapping it copies. */}
+                <button
+                  onClick={async () => {
+                    SFX.click?.(); haptic('selection');
+                    if (await copyText(match.code)) { setCodeCopied(true); setTimeout(() => setCodeCopied(false), 1600); }
+                  }}
+                  className="mx-auto mt-4 flex items-center gap-2.5 px-4 py-2.5 rounded-2xl transition-all active:scale-[0.97]"
+                  style={{ background: `${RED}12`, border: `1px solid ${RED}3a` }}
+                >
+                  <span className="font-mono font-bold" style={{ fontSize: 22, letterSpacing: '0.34em', color: '#ff8a92' }}>{match.code}</span>
+                  <span className="font-mono text-[10px] uppercase tracking-wider" style={{ color: codeCopied ? '#7fe0a0' : 'rgba(255,255,255,0.35)' }}>
+                    {codeCopied ? '✓ დაკოპირდა' : '⧉ კოპირება'}
+                  </span>
+                </button>
+                <p className="text-center font-mono text-[12px] text-white/40 mt-3">
                   {isHost ? 'გააზიარე კოდი და დაელოდე მოთამაშეებს (მინ. 4). ჰოსტი მოთამაშე არ არის — ის მართავს თამაშს.' : 'დაელოდე, სანამ ჰოსტი დაიწყებს…'}
                 </p>
 
