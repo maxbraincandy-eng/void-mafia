@@ -105,7 +105,7 @@ function Lobby({ onEnter, onClose }: { onEnter: (id: string) => void; onClose: (
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: 'max(18px, env(safe-area-inset-top))', paddingBottom: 12 }}>
         <span style={{ fontSize: 24 }}>✨</span>
         <div style={{ flex: 1 }}>
-          <div style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 700, fontSize: 17, letterSpacing: 1, color: '#c084fc' }}>PREMIUM WORLDS</div>
+          <div style={{ fontFamily: '"Space Grotesk",monospace', fontWeight: 700, fontSize: 17, letterSpacing: 1, color: '#c084fc' }}>{t.nav.worlds.toUpperCase()}</div>
           <div style={{ fontFamily: 'monospace', fontSize: 10, letterSpacing: 2, color: 'rgba(192,132,252,0.45)' }}>{t.worlds.lobbySubtitle}</div>
         </div>
         <button onClick={onClose} style={{ width: 38, height: 38, borderRadius: '50%', background: 'rgba(20,16,40,0.6)', border: '1px solid rgba(192,132,252,0.3)', color: '#e9d5ff', fontSize: 17 }}>✕</button>

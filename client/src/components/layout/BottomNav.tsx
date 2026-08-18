@@ -6,7 +6,9 @@ import { VoidCommunityIcon } from '@/components/ui/VoidCommunityIcon';
 import { VoidGamesIcon } from '@/components/ui/VoidGamesIcon';
 import { VoidProfileIcon } from '@/components/ui/VoidProfileIcon';
 
-export type NavTab = 'rooms' | 'games' | 'community' | 'clans' | 'leaderboard' | 'profile' | 'mod' | 'economy' | 'replays';
+// 'worlds' is not a page — it opens the 3D spaces over whatever is behind it.
+// It is in this union because the nav addresses it like any other destination.
+export type NavTab = 'rooms' | 'games' | 'community' | 'clans' | 'leaderboard' | 'profile' | 'worlds' | 'mod' | 'economy' | 'replays';
 
 interface Props {
   active: NavTab;
@@ -77,9 +79,10 @@ type TabDef = { id: NavTab; label: string } & (
   | { kind: 'svg'; renderIcon: (active: boolean, color: string) => React.ReactElement }
 );
 
-// Clans and Top used to sit here. They now live at the top of the Mafia page
-// (and still in ☰ მეტი), which leaves the bar four items wide — the labels
-// stopped being cramped and the centre FAB got room to breathe.
+// ქომუნითი · თამაშები · მაფია — [3D სივრცე] — პროფილი · მეტი
+// Mafia used to be the raised centre button. The 3D spaces are the thing worth
+// pointing at now, so they take the pedestal and mafia sits back among the
+// ordinary tabs, where its label finally reads at the same size as the rest.
 const LEFT_TABS: TabDef[] = [
   {
     id: 'community', kind: 'svg', label: 'კომუნითი',
@@ -89,6 +92,7 @@ const LEFT_TABS: TabDef[] = [
     id: 'games', kind: 'svg', label: 'თამაშები',
     renderIcon: (a, c) => <VoidGamesIcon size={22} active={a} color={c} />,
   },
+  { id: 'rooms', kind: 'emoji', icon: '🎩', label: 'მაფია' },
 ];
 
 const RIGHT_TABS: TabDef[] = [
@@ -99,13 +103,13 @@ const RIGHT_TABS: TabDef[] = [
 ];
 
 const NEON_TAB_COLORS: Record<string, string> = {
-  community: '#9b00ff', games: '#f59e0b', profile: '#00e5ff',
+  community: '#9b00ff', games: '#f59e0b', rooms: '#c084fc', profile: '#00e5ff',
 };
 const GLASS_TAB_COLORS: Record<string, string> = {
-  community: '#8b5cf6', games: '#fbbf24', profile: '#67e8f9',
+  community: '#8b5cf6', games: '#fbbf24', rooms: '#c4b5fd', profile: '#67e8f9',
 };
 const GRAPHITE_TAB_COLORS: Record<string, string> = {
-  community: '#7c93ff', games: '#d0a95a', profile: '#6bc4c4',
+  community: '#7c93ff', games: '#d0a95a', rooms: '#a89ad0', profile: '#6bc4c4',
 };
 
 // ── NavItem ─────────────────────────────────────────────────────────────────
@@ -161,7 +165,7 @@ export function BottomNav({ active, onChange, onMoreClick }: Props) {
   const { unreadDmCount } = useSocialStore();
   const themeMode = useSettingsStore(s => s.themeMode) ?? 'void-neon';
   const TAB_COLORS = themeMode === 'minimal-glass' ? GLASS_TAB_COLORS : themeMode === 'graphite' ? GRAPHITE_TAB_COLORS : NEON_TAB_COLORS;
-  const isRooms = active === 'rooms';
+  const isWorlds = active === 'worlds';
   const t = useT();
   const ka = useLangStore(s => s.lang) === 'ka';
   const navLabel = (id: NavTab) => (t.nav as Record<string, string>)[id] ?? id;
@@ -190,22 +194,32 @@ export function BottomNav({ active, onChange, onMoreClick }: Props) {
           <NavItem key={tab.id} tab={tab} ka={ka} label={navLabel(tab.id)} active={active === tab.id} color={TAB_COLORS[tab.id] ?? '#ffffff'} onPress={go} />
         ))}
 
-        {/* CENTER FAB — Mafia */}
+        {/* CENTER FAB — 3D სივრცე */}
         <div className="flex-1 flex justify-center" style={{ position: 'relative', height: 84 }}>
           <button
-            onClick={() => go('rooms')}
+            onClick={() => go('worlds')}
             className="absolute transition-all duration-200 active:scale-90 flex flex-col items-center justify-center"
             style={{
-              width: 62, height: 62, borderRadius: '50%', bottom: 9,
-              background: isRooms ? 'var(--vm-fab-on)' : 'var(--vm-fab-off)',
-              boxShadow: isRooms ? 'var(--vm-fab-shadow-on)' : 'var(--vm-fab-shadow-off)',
+              // Larger and lifted higher than the pedestal mafia sat on, and in
+              // its own warm colour rather than the app-wide purple, because the
+              // point of moving it here was to make it the thing you notice.
+              width: 66, height: 66, borderRadius: '50%', bottom: 14,
+              background: isWorlds
+                ? 'linear-gradient(150deg, #ffb45c, #ff6a2b 45%, #a855f7)'
+                : 'linear-gradient(150deg, #ff9a3c, #e8551f 55%, #7c3aed)',
+              boxShadow: isWorlds
+                ? '0 0 0 2px rgba(255,154,60,0.55), 0 0 30px rgba(255,106,43,0.7), 0 6px 18px rgba(0,0,0,0.6)'
+                : '0 0 0 1.5px rgba(255,154,60,0.4), 0 0 20px rgba(232,85,31,0.45), 0 6px 18px rgba(0,0,0,0.5)',
               zIndex: 2,
             }}
-            aria-label="Mafia"
+            aria-label="3D Space"
           >
-            <span style={{ fontSize: 29, lineHeight: 1, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.4))' }}>🎩</span>
-            <span className="font-mono uppercase text-white/80 leading-none" style={{ fontSize: 9.5, fontWeight: 600, letterSpacing: '0.08em', marginTop: 2 }}>
-              {t.nav.rooms}
+            <span style={{ fontSize: 27, lineHeight: 1, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.4))' }}>🔥</span>
+            {/* "3D სივრცე" is wider than "მაფია" was; without the tighter
+                tracking it wraps inside a 62px circle. */}
+            <span className="font-mono uppercase text-white/85 leading-none whitespace-nowrap"
+              style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: '0.02em', marginTop: 3 }}>
+              {t.nav.worlds}
             </span>
           </button>
         </div>

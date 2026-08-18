@@ -479,6 +479,9 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
   const swipeLocked = useRef(false);
 
   const navigate = useCallback((tab: NavTab) => {
+    // 3D სივრცე is an overlay, not a page: it opens on top of wherever you
+    // were, and closing it puts you back there rather than on a blank tab.
+    if (tab === 'worlds') { setPremiumOpen(true); return; }
     const from = NAV_ORDER.indexOf(page);
     const to   = NAV_ORDER.indexOf(tab);
     setDirection(to >= from ? 1 : -1);
@@ -536,8 +539,8 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
         {page === 'profile'     && <PageTransition key="profile"      direction={direction}><ProfilePage onViewReplay={navigateToReplay} /></PageTransition>}
 {page === 'economy' && isOwner && <PageTransition key="economy" direction={direction}><EconomyAdminPage /></PageTransition>}
       </AnimatePresence>
-      {!inGame && <SideNav active={page} isMod={isMod} onChange={tab => navigate(tab)} onMoreClick={openMoreMenu} />}
-      {!inGame && <div className="lg:hidden">{<BottomNav active={page} isMod={isMod} onChange={tab => navigate(tab)} onMoreClick={openMoreMenu} />}</div>}
+      {!inGame && <SideNav active={premiumOpen ? 'worlds' : page} isMod={isMod} onChange={tab => navigate(tab)} onMoreClick={openMoreMenu} />}
+      {!inGame && <div className="lg:hidden">{<BottomNav active={premiumOpen ? 'worlds' : page} isMod={isMod} onChange={tab => navigate(tab)} onMoreClick={openMoreMenu} />}</div>}
 
       {/* Game overlays — rendered outside PageTransition so fixed inset-0 works correctly */}
       <AnimatePresence>{checkersMatch && <CheckersGame />}</AnimatePresence>

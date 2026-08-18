@@ -348,7 +348,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
     { id: 'ganab', title: t.games.ganab.title, sub: t.games.ganab.subtitle, cat: 'mind', kind: 'launch', accent: '#d9a24a', logo: 'ganab', badge: true, keywords: 'ganab განაბ roguelike', launch: () => useSocialStore.getState().requestOpenGanab() },
     { id: 'bandicoot', title: t.games.bandicoot.title, sub: t.games.bandicoot.subtitle, cat: 'solo', kind: 'launch', accent: '#ffb46a', emoji: '🦊', keywords: 'bandicoot platformer', launch: () => setBandicootOpen(true) },
   ];
-  if (onOpenPremium) defs.push({ id: 'premium', title: 'Premium Worlds', sub: 'Beach Camp 3D · ' + t.commB.premiumSub, cat: 'worlds', kind: 'launch', accent: '#ff8c3c', emoji: '🔥', badge: true, keywords: 'premium worlds 3d beach', launch: onOpenPremium });
+  if (onOpenPremium) defs.push({ id: 'premium', title: t.nav.worlds, sub: 'Beach Camp 3D · ' + t.commB.premiumSub, cat: 'worlds', kind: 'launch', accent: '#ff8c3c', emoji: '🔥', badge: true, keywords: 'premium worlds 3d beach სივრცე', launch: onOpenPremium });
   if (onOpenSpace) defs.push({ id: 'space', title: 'Virtual Space', sub: t.commB.spaceSub, cat: 'worlds', kind: 'launch', accent: '#4a76c4', logo: 'vspace', emoji: '🌐', keywords: 'space virtual სივრცე vr', launch: onOpenSpace });
   if (onOpenBackrooms) defs.push({ id: 'backrooms', title: 'Backrooms', sub: t.commB.backroomsSub, cat: 'solo', kind: 'launch', accent: '#f5de80', emoji: '🟨', keywords: 'backrooms horror', launch: onOpenBackrooms });
   defs.push({ id: 'mergeevo', title: 'Merge Evolution', sub: 'გაზარდე ციფრული ორგანიზმი · ყუთები · შერწყმა', cat: 'solo', kind: 'launch', accent: '#4dd4c4', emoji: '🧬', badge: true, keywords: 'merge evolution ევოლუცია შერწყმა dna დნმ ორგანიზმი ყუთი chest idle კლიკერი განვითარება', launch: () => setMergeOpen(true) });
@@ -375,9 +375,9 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms, onOpenPremium }: { onOp
       bg: 'linear-gradient(150deg, #3a2f08 0%, #241a2e 60%, #14121c 100%)',
       edge: 'rgba(249,200,28,0.45)',
     },
-    // Premium Worlds only exists when the host screen can open it.
+    // 3D სივრცე only exists when the host screen can open it.
     ...(onOpenPremium ? [{
-      id: 'premium', label: 'Premium Worlds', sub: '3D სივრცე',
+      id: 'premium', label: t.nav.worlds, sub: 'Beach Camp 3D',
       art: <span style={{ fontSize: 34, filter: 'drop-shadow(0 4px 12px rgba(255,140,60,0.55))' }}>🔥</span>,
       bg: 'linear-gradient(150deg, #1a2b4a 0%, #4a2c1a 60%, #2e1c10 100%)',
       edge: 'rgba(192,132,252,0.42)',

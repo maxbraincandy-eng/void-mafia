@@ -22,15 +22,15 @@ type Item = { id: NavTab; label: string; color: string } & (
 );
 
 const NEON_COLORS: Record<string, string> = {
-  rooms: '#9b00ff', community: '#9b00ff', games: '#f59e0b',
+  rooms: '#9b00ff', community: '#9b00ff', games: '#f59e0b', worlds: '#ff8c3c',
   clans: '#ef4444', leaderboard: '#facc15', profile: '#00e5ff',
 };
 const GLASS_COLORS: Record<string, string> = {
-  rooms: '#8b5cf6', community: '#8b5cf6', games: '#fbbf24',
+  rooms: '#8b5cf6', community: '#8b5cf6', games: '#fbbf24', worlds: '#fdba74',
   clans: '#f87171', leaderboard: '#fde68a', profile: '#67e8f9',
 };
 const GRAPHITE_COLORS: Record<string, string> = {
-  rooms: '#7c93ff', community: '#7c93ff', games: '#d0a95a',
+  rooms: '#7c93ff', community: '#7c93ff', games: '#d0a95a', worlds: '#d09a6a',
   clans: '#d97a7a', leaderboard: '#d8c47a', profile: '#6bc4c4',
 };
 
@@ -41,6 +41,7 @@ function items(colors: Record<string, string>): Item[] {
       renderIcon: (a, c) => <VoidCommunityIcon size={22} active={a} color={c} /> },
     { id: 'games', kind: 'svg', label: 'games', color: colors.games,
       renderIcon: (a, c) => <VoidGamesIcon size={22} active={a} color={c} /> },
+    { id: 'worlds', kind: 'emoji', icon: '🔥', label: 'worlds', color: colors.worlds },
     { id: 'clans', kind: 'svg', label: 'clans', color: colors.clans,
       renderIcon: (a, c) => <VoidClansIcon size={22} active={a} color={c} /> },
     { id: 'leaderboard', kind: 'svg', label: 'leaderboard', color: colors.leaderboard,
