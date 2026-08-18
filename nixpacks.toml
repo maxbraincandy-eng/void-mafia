@@ -1,8 +1,20 @@
 [phases.install]
 cmds = ["npm ci"]
 
+# No build phase.
+#
+# server/dist and client/dist are committed, and `server/scripts/check-dist.mjs`
+# refuses to let a commit through unless every compiled server file is in it —
+# the repo's contract is that what ships is what was built and tested here.
+# Rebuilding on Railway did the same work a second time on a smaller machine,
+# and v600 is where it stopped fitting: two identical runs scheduled a build and
+# came back "Deploy failed" seven minutes later, with a server tree byte for
+# byte the same as the version that had deployed fine an hour earlier.
+#
+# railway.toml already said `echo 'using pre-built dist'`. This file was quietly
+# contradicting it. Now they agree, and a deploy is an upload and a restart.
 [phases.build]
-cmds = ["npm run build -w server && npm run build -w client"]
+cmds = ["echo 'dist is committed and verified by check-dist.mjs — nothing to build'"]
 
 [start]
 cmd = "NODE_ENV=production node server/dist/index.js"
