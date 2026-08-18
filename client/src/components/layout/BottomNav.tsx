@@ -1,6 +1,8 @@
 import { useSocialStore } from '@/store/socialStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useT, useLangStore } from '@/store/langStore';
+import { VoidCommunityIcon } from '@/components/ui/VoidCommunityIcon';
+import { VoidGamesIcon } from '@/components/ui/VoidGamesIcon';
 import { haptic } from '@/lib/haptics';
 import { VoidProfileIcon } from '@/components/ui/VoidProfileIcon';
 
@@ -84,9 +86,19 @@ type TabDef = { id: NavTab; label: string } & (
 // rather than cropped into circles — a round mask cuts the frames off their
 // own corners. Mafia and the 3D spaces are the two flagships and get the large
 // tile; everything else stays a tab-sized mark.
+// The ordinary tabs keep the line-drawn marks. Painted artwork at 28px is
+// four competing pictures in a row; a bar wants marks, not posters. The
+// artwork earns its place only on the two flagships, which are drawn big
+// enough to read as pictures.
 const LEFT_TABS: TabDef[] = [
-  { id: 'community', kind: 'art', src: '/nav/community.webp', label: 'კომუნითი' },
-  { id: 'games',     kind: 'art', src: '/nav/games.webp',     label: 'თამაშები' },
+  {
+    id: 'community', kind: 'svg', label: 'კომუნითი',
+    renderIcon: (a, c) => <VoidCommunityIcon size={22} active={a} color={c} />,
+  },
+  {
+    id: 'games', kind: 'svg', label: 'თამაშები',
+    renderIcon: (a, c) => <VoidGamesIcon size={22} active={a} color={c} />,
+  },
 ];
 
 const BIG_TABS: TabDef[] = [
@@ -119,15 +131,15 @@ const GRAPHITE_TAB_COLORS: Record<string, string> = {
 // letter-spacing; keep the roomier style for en/ru.
 function labelStyle(ka: boolean): React.CSSProperties {
   return ka
-    ? { fontSize: 'clamp(9px, 2.7vw, 10.5px)', fontWeight: 600, letterSpacing: 0, display: 'block' }
-    : { fontSize: 'clamp(9.5px, 2.9vw, 11.5px)', fontWeight: 600, letterSpacing: '0.02em', display: 'block' };
+    ? { fontSize: 'clamp(8px, 2.35vw, 9.5px)', fontWeight: 600, letterSpacing: 0, display: 'block', paddingInline: 3 }
+    : { fontSize: 'clamp(8.5px, 2.6vw, 10.5px)', fontWeight: 600, letterSpacing: '0.02em', display: 'block', paddingInline: 3 };
 }
 
 function NavItem({ tab, active, color, onPress, label, ka }: { tab: TabDef; active: boolean; color: string; onPress: (id: NavTab) => void; label: string; ka: boolean }) {
   return (
     <button
       onClick={() => onPress(tab.id)}
-      className="flex flex-col items-center justify-end flex-1 transition-all duration-150 active:scale-90 relative"
+      className="flex flex-col items-center justify-end flex-1 min-w-0 transition-all duration-150 active:scale-90 relative"
       style={{ color: active ? color : 'rgba(255,255,255,0.34)', height: 84, paddingBottom: 15, gap: 3 }}
     >
       {active && (
@@ -186,7 +198,7 @@ function BigNavItem({ tab, active, color, onPress, label, ka }: { tab: TabDef; a
     <button
       onClick={() => onPress(tab.id)}
       className="flex flex-col items-center justify-end transition-all duration-150 active:scale-95 relative"
-      style={{ color: active ? color : 'rgba(255,255,255,0.5)', height: 84, paddingBottom: 13, gap: 3, flex: 1.3 }}
+      style={{ color: active ? color : 'rgba(255,255,255,0.5)', height: 84, paddingBottom: 13, gap: 3, flex: 1.15, minWidth: 0 }}
     >
       <span
         className="flex items-center justify-center overflow-hidden"

@@ -1,6 +1,8 @@
 import { useSocialStore } from '@/store/socialStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useT } from '@/store/langStore';
+import { VoidCommunityIcon } from '@/components/ui/VoidCommunityIcon';
+import { VoidGamesIcon } from '@/components/ui/VoidGamesIcon';
 import { haptic } from '@/lib/haptics';
 import { VoidClansIcon } from '@/components/ui/VoidClansIcon';
 import { VoidStatsIcon } from '@/components/ui/VoidStatsIcon';
@@ -35,10 +37,13 @@ const GRAPHITE_COLORS: Record<string, string> = {
 
 function items(colors: Record<string, string>): Item[] {
   return [
-    // Same four artworks as the phone bar, so the two navs read as one app.
+    // Artwork for the two flagships; the line-drawn marks everywhere else, the
+    // same split the phone bar uses.
     { id: 'rooms', kind: 'art', src: '/nav/mafia.webp', label: 'rooms', color: colors.rooms },
-    { id: 'community', kind: 'art', src: '/nav/community.webp', label: 'community', color: colors.community },
-    { id: 'games', kind: 'art', src: '/nav/games.webp', label: 'games', color: colors.games },
+    { id: 'community', kind: 'svg', label: 'community', color: colors.community,
+      renderIcon: (a, c) => <VoidCommunityIcon size={22} active={a} color={c} /> },
+    { id: 'games', kind: 'svg', label: 'games', color: colors.games,
+      renderIcon: (a, c) => <VoidGamesIcon size={22} active={a} color={c} /> },
     { id: 'worlds', kind: 'art', src: '/nav/worlds.webp', label: 'worlds', color: colors.worlds },
     { id: 'clans', kind: 'svg', label: 'clans', color: colors.clans,
       renderIcon: (a, c) => <VoidClansIcon size={22} active={a} color={c} /> },
