@@ -1,12 +1,9 @@
 import { useSocialStore } from '@/store/socialStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useT } from '@/store/langStore';
-import { VoidCommunityIcon } from '@/components/ui/VoidCommunityIcon';
-import { VoidGamesIcon } from '@/components/ui/VoidGamesIcon';
 import { haptic } from '@/lib/haptics';
 import { VoidClansIcon } from '@/components/ui/VoidClansIcon';
 import { VoidStatsIcon } from '@/components/ui/VoidStatsIcon';
-import { VoidProfileIcon } from '@/components/ui/VoidProfileIcon';
 import type { NavTab } from './BottomNav';
 
 interface Props {
@@ -37,20 +34,17 @@ const GRAPHITE_COLORS: Record<string, string> = {
 
 function items(colors: Record<string, string>): Item[] {
   return [
-    // Artwork for the two flagships; the line-drawn marks everywhere else, the
-    // same split the phone bar uses.
+    // The same five marks the phone bar uses, so the two navs read as one app.
+    // Clans and Top keep their line drawings — they were never given one.
     { id: 'rooms', kind: 'art', src: '/nav/mafia.webp', label: 'rooms', color: colors.rooms },
-    { id: 'community', kind: 'svg', label: 'community', color: colors.community,
-      renderIcon: (a, c) => <VoidCommunityIcon size={22} active={a} color={c} /> },
-    { id: 'games', kind: 'svg', label: 'games', color: colors.games,
-      renderIcon: (a, c) => <VoidGamesIcon size={22} active={a} color={c} /> },
+    { id: 'community', kind: 'art', src: '/nav/community.webp', label: 'community', color: colors.community },
+    { id: 'games', kind: 'art', src: '/nav/games.webp', label: 'games', color: colors.games },
     { id: 'worlds', kind: 'art', src: '/nav/worlds.webp', label: 'worlds', color: colors.worlds },
     { id: 'clans', kind: 'svg', label: 'clans', color: colors.clans,
       renderIcon: (a, c) => <VoidClansIcon size={22} active={a} color={c} /> },
     { id: 'leaderboard', kind: 'svg', label: 'leaderboard', color: colors.leaderboard,
       renderIcon: (a, c) => <VoidStatsIcon size={22} active={a} color={c} /> },
-    { id: 'profile', kind: 'svg', label: 'profile', color: colors.profile,
-      renderIcon: (a, c) => <VoidProfileIcon size={22} active={a} color={c} /> },
+    { id: 'profile', kind: 'art', src: '/nav/profile.webp', label: 'profile', color: colors.profile },
   ];
 }
 
@@ -82,7 +76,7 @@ export function SideNav({ active, onChange, onMoreClick }: Props) {
         className="flex items-center gap-3 px-5 h-[72px] flex-shrink-0 transition-opacity hover:opacity-90"
       >
         <img src="/nav/mafia.webp" alt="" width={34} height={34}
-          style={{ width: 34, height: 34, borderRadius: 10, objectFit: 'cover', flexShrink: 0, boxShadow: '0 2px 10px rgba(0,0,0,0.5)' }} />
+          style={{ width: 34, height: 34, flexShrink: 0, filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.5))' }} />
         <span
           className="font-display font-bold tracking-widest text-left leading-tight"
           style={{ fontSize: 15, background: 'linear-gradient(120deg,#c084fc,#00e5ff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}
@@ -120,9 +114,9 @@ export function SideNav({ active, onChange, onMoreClick }: Props) {
                   : item.kind === 'art' ? (
                     <img src={item.src} alt="" width={26} height={26}
                       style={{
-                        width: 26, height: 26, borderRadius: 8, objectFit: 'cover', display: 'block',
+                        width: 26, height: 26, display: 'block',
                         opacity: isActive ? 1 : 0.6,
-                        filter: isActive ? `saturate(1.15) drop-shadow(0 0 6px ${color}99)` : 'saturate(0.7)',
+                        filter: isActive ? `drop-shadow(0 0 7px ${color}88)` : 'none',
                         transition: 'opacity 160ms ease, filter 160ms ease',
                       }} />
                   )

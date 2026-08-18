@@ -1,10 +1,7 @@
 import { useSocialStore } from '@/store/socialStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useT, useLangStore } from '@/store/langStore';
-import { VoidCommunityIcon } from '@/components/ui/VoidCommunityIcon';
-import { VoidGamesIcon } from '@/components/ui/VoidGamesIcon';
 import { haptic } from '@/lib/haptics';
-import { VoidProfileIcon } from '@/components/ui/VoidProfileIcon';
 
 // 'worlds' is not a page — it opens the 3D spaces over whatever is behind it.
 // It is in this union because the nav addresses it like any other destination.
@@ -86,19 +83,12 @@ type TabDef = { id: NavTab; label: string } & (
 // rather than cropped into circles — a round mask cuts the frames off their
 // own corners. Mafia and the 3D spaces are the two flagships and get the large
 // tile; everything else stays a tab-sized mark.
-// The ordinary tabs keep the line-drawn marks. Painted artwork at 28px is
-// four competing pictures in a row; a bar wants marks, not posters. The
-// artwork earns its place only on the two flagships, which are drawn big
-// enough to read as pictures.
+// One family of marks for the whole bar. Each file already carries its own
+// squircle with transparent corners, so nothing here draws a box around them —
+// a wrapper border would sit outside the shape the artwork already has.
 const LEFT_TABS: TabDef[] = [
-  {
-    id: 'community', kind: 'svg', label: 'კომუნითი',
-    renderIcon: (a, c) => <VoidCommunityIcon size={22} active={a} color={c} />,
-  },
-  {
-    id: 'games', kind: 'svg', label: 'თამაშები',
-    renderIcon: (a, c) => <VoidGamesIcon size={22} active={a} color={c} />,
-  },
+  { id: 'community', kind: 'art', src: '/nav/community.webp', label: 'კომუნითი' },
+  { id: 'games',     kind: 'art', src: '/nav/games.webp',     label: 'თამაშები' },
 ];
 
 const BIG_TABS: TabDef[] = [
@@ -107,10 +97,7 @@ const BIG_TABS: TabDef[] = [
 ];
 
 const RIGHT_TABS: TabDef[] = [
-  {
-    id: 'profile', kind: 'svg', label: 'პროფილი',
-    renderIcon: (a, c) => <VoidProfileIcon size={22} active={a} color={c} />,
-  },
+  { id: 'profile', kind: 'art', src: '/nav/profile.webp', label: 'პროფილი' },
 ];
 
 // Each flagship's glow is taken from its own artwork — the mafia plate's gold
@@ -158,12 +145,11 @@ function NavItem({ tab, active, color, onPress, label, ka }: { tab: TabDef; acti
               width={28}
               height={28}
               style={{
-                width: 28, height: 28, borderRadius: 9,
-                objectFit: 'cover',
-                // Dimmed while inactive so the bar does not read as four
-                // competing posters; full colour is how "you are here" shows.
-                opacity: active ? 1 : 0.62,
-                filter: active ? `saturate(1.15) drop-shadow(0 0 6px ${color}99)` : 'saturate(0.8)',
+                width: 28, height: 28, display: 'block',
+                // drop-shadow, not box-shadow: the glow has to follow the
+                // squircle's alpha rather than square off around it.
+                opacity: active ? 1 : 0.55,
+                filter: active ? `drop-shadow(0 0 7px ${color}88)` : 'none',
                 transition: 'opacity 160ms ease, filter 160ms ease',
               }}
             />
@@ -200,26 +186,18 @@ function BigNavItem({ tab, active, color, onPress, label, ka }: { tab: TabDef; a
       className="flex flex-col items-center justify-end transition-all duration-150 active:scale-95 relative"
       style={{ color: active ? color : 'rgba(255,255,255,0.5)', height: 84, paddingBottom: 13, gap: 3, flex: 1.15, minWidth: 0 }}
     >
-      <span
-        className="flex items-center justify-center overflow-hidden"
-        style={{
-          width: 54, height: 54, borderRadius: 16, boxSizing: 'border-box',
-          border: `1px solid ${active ? `${color}aa` : `${color}3d`}`,
-          boxShadow: active
-            ? `0 0 0 1px ${color}55, 0 0 22px ${color}70, 0 6px 16px rgba(0,0,0,0.55)`
-            : `0 4px 12px rgba(0,0,0,0.45)`,
-          transition: 'box-shadow 180ms ease, border-color 180ms ease',
-        }}
-      >
+      <span className="flex items-center justify-center" style={{ width: 52, height: 52 }}>
         <img
           src={src}
           alt=""
-          width={54}
-          height={54}
+          width={52}
+          height={52}
           style={{
-            width: '100%', height: '100%', objectFit: 'cover', display: 'block',
-            opacity: active ? 1 : 0.72,
-            filter: active ? 'saturate(1.1)' : 'saturate(0.8)',
+            width: 52, height: 52, display: 'block',
+            opacity: active ? 1 : 0.78,
+            filter: active
+              ? `drop-shadow(0 0 12px ${color}90) drop-shadow(0 4px 10px rgba(0,0,0,0.5))`
+              : 'drop-shadow(0 3px 8px rgba(0,0,0,0.45))',
             transition: 'opacity 180ms ease, filter 180ms ease',
           }}
         />
