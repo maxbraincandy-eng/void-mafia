@@ -10,6 +10,7 @@ import gamesMark from '@/assets/nav/games.webp';
 import mafiaMark from '@/assets/nav/mafia.webp';
 import worldsMark from '@/assets/nav/worlds.webp';
 import profileMark from '@/assets/nav/profile.webp';
+import moreMark from '@/assets/nav/more.webp';
 import { haptic } from '@/lib/haptics';
 
 // 'worlds' is not a page — it opens the 3D spaces over whatever is behind it.
@@ -264,13 +265,26 @@ export function BottomNav({ active, onChange, onMoreClick }: Props) {
           <NavItem key={tab.id} tab={tab} ka={ka} label={navLabel(tab.id)} active={active === tab.id} color={TAB_COLORS[tab.id] ?? '#ffffff'} onPress={go} />
         ))}
 
-        {/* ☰ მეტი */}
+        {/* მეტი — the last text glyph in the bar, now a mark like the rest */}
         <button
           onClick={goMore}
-          className="flex flex-col items-center justify-end flex-1 transition-all duration-150 active:scale-90 relative"
+          className="flex flex-col items-center justify-end flex-1 min-w-0 transition-all duration-150 active:scale-90 relative"
           style={{ color: 'rgba(255,255,255,0.34)', height: 84, paddingBottom: 15, gap: 3 }}
         >
-          <span className="leading-none flex items-center justify-center" style={{ fontSize: 20, height: 24 }}>☰</span>
+          <span className="flex items-center justify-center" style={{ height: 28 }}>
+            <img
+              src={moreMark}
+              alt=""
+              width={28}
+              height={28}
+              style={{
+                width: 28, height: 28, display: 'block',
+                // The menu is never "the page you are on", so it carries no
+                // active state — it sits at the same weight as an idle tab.
+                opacity: 0.55,
+              }}
+            />
+          </span>
           <span className="font-mono uppercase leading-none text-center relative" style={labelStyle(ka)}>
             {t.nav.more}
             {unreadDmCount > 0 && (

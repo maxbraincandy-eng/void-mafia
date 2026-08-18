@@ -6,6 +6,7 @@ import gamesMark from '@/assets/nav/games.webp';
 import mafiaMark from '@/assets/nav/mafia.webp';
 import worldsMark from '@/assets/nav/worlds.webp';
 import profileMark from '@/assets/nav/profile.webp';
+import moreMark from '@/assets/nav/more.webp';
 import { haptic } from '@/lib/haptics';
 import { VoidClansIcon } from '@/components/ui/VoidClansIcon';
 import { VoidStatsIcon } from '@/components/ui/VoidStatsIcon';
@@ -145,7 +146,10 @@ export function SideNav({ active, onChange, onMoreClick }: Props) {
           className="relative flex items-center gap-3.5 rounded-xl px-3.5 py-3 w-full transition-all active:scale-[0.98] hover:bg-white/[0.04]"
           style={{ color: 'rgba(255,255,255,0.55)' }}
         >
-          <span className="flex items-center justify-center flex-shrink-0" style={{ width: 24, height: 24, fontSize: 20 }}>☰</span>
+          <span className="flex items-center justify-center flex-shrink-0" style={{ width: 26, height: 26 }}>
+            <img src={moreMark} alt="" width={26} height={26}
+              style={{ width: 26, height: 26, display: 'block', opacity: 0.6 }} />
+          </span>
           <span className="font-display font-semibold tracking-wide" style={{ fontSize: 14.5 }}>{t.nav.more}</span>
           {unreadDmCount > 0 && (
             <span
