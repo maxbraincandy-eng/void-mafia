@@ -81,29 +81,35 @@ function VoidMafiaIcon({ size = 18, active = false, color = 'currentColor' }: { 
 }
 
 // ── Tab definitions ─────────────────────────────────────────────────────────
-type TabDef = { id: NavTab; label: string } & (
+type TabDef = { id: NavTab; label: string; flagship?: boolean } & (
   | { kind: 'emoji'; icon: string }
   | { kind: 'art'; src: string }
   | { kind: 'svg'; renderIcon: (active: boolean, color: string) => React.ReactElement }
 );
 
-// ქომუნითი · თამაშები · [მაფია] · [3D სივრცე] · პროფილი · მეტი
+// ქომუნითი · თამაშები · მაფია · 3D სივრცე · პროფილი · მეტი
 //
-// The four artworks are app-icon squares, so they are drawn as squircles
-// rather than cropped into circles — a round mask cuts the frames off their
-// own corners. Mafia and the 3D spaces are the two flagships and get the large
-// tile; everything else stays a tab-sized mark.
-// One family of marks for the whole bar. Each file already carries its own
-// squircle with transparent corners, so nothing here draws a box around them —
-// a wrapper border would sit outside the shape the artwork already has.
+// One size for all six.
+//
+// Mafia and the 3D spaces were drawn at 52px against the others' 28, and the
+// row came out as a staircase: with every label sharing one baseline a taller
+// mark can only grow upward, so the big pair sat 22px higher than their
+// neighbours and their centres were 10px out. There is no arrangement that
+// keeps both a common baseline and a size difference — one of the two has to
+// go, and the even line is worth more than the extra pixels.
+//
+// The two flagships are still the loud ones: they keep their full colour while
+// every other mark is dimmed, and they carry a glow of their own. That reads as
+// hierarchy without breaking the line the eye follows across the bar.
+//
+// Each file carries its own squircle with transparent corners, so nothing here
+// draws a box around them — a wrapper border would sit outside the shape the
+// artwork already has.
 const LEFT_TABS: TabDef[] = [
   { id: 'community', kind: 'art', src: communityMark, label: 'კომუნითი' },
   { id: 'games',     kind: 'art', src: gamesMark,     label: 'თამაშები' },
-];
-
-const BIG_TABS: TabDef[] = [
-  { id: 'rooms',  kind: 'art', src: mafiaMark,  label: 'მაფია' },
-  { id: 'worlds', kind: 'art', src: worldsMark, label: '3D სივრცე' },
+  { id: 'rooms',     kind: 'art', src: mafiaMark,     label: 'მაფია',    flagship: true },
+  { id: 'worlds',    kind: 'art', src: worldsMark,    label: '3D სივრცე', flagship: true },
 ];
 
 const RIGHT_TABS: TabDef[] = [
@@ -121,6 +127,9 @@ const GLASS_TAB_COLORS: Record<string, string> = {
 const GRAPHITE_TAB_COLORS: Record<string, string> = {
   community: '#7c93ff', games: '#d0a95a', rooms: '#c8a95e', worlds: '#a89ad0', profile: '#6bc4c4',
 };
+
+/** One size for every mark in the bar — see the note on the tab lists. */
+const ICON = 32;
 
 // ── NavItem ─────────────────────────────────────────────────────────────────
 // Georgian glyphs are wider than Latin/Cyrillic, so long labels
@@ -146,20 +155,24 @@ function NavItem({ tab, active, color, onPress, label, ka }: { tab: TabDef; acti
         />
       )}
 
-      <span className="flex items-center justify-center" style={{ height: 28 }}>
+      <span className="flex items-center justify-center" style={{ height: ICON }}>
         {tab.kind === 'svg' ? tab.renderIcon(active, color)
           : tab.kind === 'art' ? (
             <img
               src={tab.src}
               alt=""
-              width={28}
-              height={28}
+              width={ICON}
+              height={ICON}
               style={{
-                width: 28, height: 28, display: 'block',
+                width: ICON, height: ICON, display: 'block',
+                // The flagships stay lit whether or not you are on them; that,
+                // and not size, is what makes them the loud pair.
+                opacity: active ? 1 : tab.flagship ? 0.94 : 0.5,
                 // drop-shadow, not box-shadow: the glow has to follow the
                 // squircle's alpha rather than square off around it.
-                opacity: active ? 1 : 0.55,
-                filter: active ? `drop-shadow(0 0 7px ${color}88)` : 'none',
+                filter: active
+                  ? `drop-shadow(0 0 8px ${color}99)`
+                  : tab.flagship ? `drop-shadow(0 0 6px ${color}55)` : 'none',
                 transition: 'opacity 160ms ease, filter 160ms ease',
               }}
             />
@@ -177,44 +190,6 @@ function NavItem({ tab, active, color, onPress, label, ka }: { tab: TabDef; acti
       <span
         className="font-mono leading-none text-center w-full overflow-hidden whitespace-nowrap"
         style={{ ...labelStyle(ka), textOverflow: 'ellipsis' }}
-      >
-        {label}
-      </span>
-    </button>
-  );
-}
-
-// ── BigNavItem ──────────────────────────────────────────────────────────────
-// Mafia and the 3D spaces, at the size the artwork actually deserves. The tile
-// is 54px against the other tabs' 26, but the LABEL sits on the same baseline
-// as theirs — six labels on one line, two of them under something much bigger.
-function BigNavItem({ tab, active, color, onPress, label, ka }: { tab: TabDef; active: boolean; color: string; onPress: (id: NavTab) => void; label: string; ka: boolean }) {
-  const src = tab.kind === 'art' ? tab.src : '';
-  return (
-    <button
-      onClick={() => onPress(tab.id)}
-      className="flex flex-col items-center justify-end transition-all duration-150 active:scale-95 relative"
-      style={{ color: active ? color : 'rgba(255,255,255,0.5)', height: 84, paddingBottom: 13, gap: 3, flex: 1.15, minWidth: 0 }}
-    >
-      <span className="flex items-center justify-center" style={{ width: 52, height: 52 }}>
-        <img
-          src={src}
-          alt=""
-          width={52}
-          height={52}
-          style={{
-            width: 52, height: 52, display: 'block',
-            opacity: active ? 1 : 0.78,
-            filter: active
-              ? `drop-shadow(0 0 12px ${color}90) drop-shadow(0 4px 10px rgba(0,0,0,0.5))`
-              : 'drop-shadow(0 3px 8px rgba(0,0,0,0.45))',
-            transition: 'opacity 180ms ease, filter 180ms ease',
-          }}
-        />
-      </span>
-      <span
-        className="font-mono leading-none text-center w-full overflow-hidden whitespace-nowrap"
-        style={{ ...labelStyle(ka), fontWeight: 700, textOverflow: 'ellipsis' }}
       >
         {label}
       </span>
@@ -255,11 +230,6 @@ export function BottomNav({ active, onChange, onMoreClick }: Props) {
           <NavItem key={tab.id} tab={tab} ka={ka} label={navLabel(tab.id)} active={active === tab.id} color={TAB_COLORS[tab.id] ?? '#ffffff'} onPress={go} />
         ))}
 
-        {/* The two flagships */}
-        {BIG_TABS.map(tab => (
-          <BigNavItem key={tab.id} tab={tab} ka={ka} label={navLabel(tab.id)} active={active === tab.id} color={TAB_COLORS[tab.id] ?? '#ffffff'} onPress={go} />
-        ))}
-
         {/* Right tabs */}
         {RIGHT_TABS.map(tab => (
           <NavItem key={tab.id} tab={tab} ka={ka} label={navLabel(tab.id)} active={active === tab.id} color={TAB_COLORS[tab.id] ?? '#ffffff'} onPress={go} />
@@ -271,17 +241,17 @@ export function BottomNav({ active, onChange, onMoreClick }: Props) {
           className="flex flex-col items-center justify-end flex-1 min-w-0 transition-all duration-150 active:scale-90 relative"
           style={{ color: 'rgba(255,255,255,0.34)', height: 84, paddingBottom: 15, gap: 3 }}
         >
-          <span className="flex items-center justify-center" style={{ height: 28 }}>
+          <span className="flex items-center justify-center" style={{ height: ICON }}>
             <img
               src={moreMark}
               alt=""
-              width={28}
-              height={28}
+              width={ICON}
+              height={ICON}
               style={{
-                width: 28, height: 28, display: 'block',
+                width: ICON, height: ICON, display: 'block',
                 // The menu is never "the page you are on", so it carries no
-                // active state — it sits at the same weight as an idle tab.
-                opacity: 0.55,
+                // active state — it sits at exactly an idle tab's weight.
+                opacity: 0.5,
               }}
             />
           </span>
