@@ -6,7 +6,6 @@ import communityIdle from '@/assets/nav/community-idle.webp';
 import gamesMark from '@/assets/nav/games.webp';
 import gamesIdle from '@/assets/nav/games-idle.webp';
 import mafiaMark from '@/assets/nav/mafia.webp';
-import mafiaIdle from '@/assets/nav/mafia-idle.webp';
 import worldsMark from '@/assets/nav/worlds.webp';
 import worldsIdle from '@/assets/nav/worlds-idle.webp';
 import profileMark from '@/assets/nav/profile.webp';
@@ -47,7 +46,8 @@ function items(colors: Record<string, string>): Item[] {
   return [
     // The same five marks the phone bar uses, so the two navs read as one app.
     // Clans and Top keep their line drawings — they were never given one.
-    { id: 'rooms', kind: 'art', src: mafiaMark, idle: mafiaIdle, label: 'rooms', color: colors.rooms },
+    // Same reasoning as the phone bar: 🎩 is the mark people read.
+    { id: 'rooms', kind: 'emoji', icon: '🎩', label: 'rooms', color: colors.rooms },
     { id: 'community', kind: 'art', src: communityMark, idle: communityIdle, label: 'community', color: colors.community },
     { id: 'games', kind: 'art', src: gamesMark, idle: gamesIdle, label: 'games', color: colors.games },
     { id: 'worlds', kind: 'art', src: worldsMark, idle: worldsIdle, label: 'worlds', color: colors.worlds },
@@ -131,7 +131,11 @@ export function SideNav({ active, onChange, onMoreClick }: Props) {
                         transition: 'opacity 160ms ease, filter 160ms ease',
                       }} />
                   )
-                  : <span style={{ fontSize: 21, lineHeight: 1, filter: isActive ? `drop-shadow(0 0 5px ${color})` : 'none' }}>{item.icon}</span>}
+                  : <span style={{
+                      fontSize: 21, lineHeight: 1,
+                      opacity: isActive ? 1 : 0.6,
+                      filter: isActive ? `drop-shadow(0 0 6px ${color}aa)` : 'grayscale(0.25)',
+                    }}>{item.icon}</span>}
               </span>
               <span
                 className="font-display font-semibold tracking-wide truncate"

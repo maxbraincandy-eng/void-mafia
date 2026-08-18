@@ -9,8 +9,6 @@ import communityMark from '@/assets/nav/community.webp';
 import communityIdle from '@/assets/nav/community-idle.webp';
 import gamesMark from '@/assets/nav/games.webp';
 import gamesIdle from '@/assets/nav/games-idle.webp';
-import mafiaMark from '@/assets/nav/mafia.webp';
-import mafiaIdle from '@/assets/nav/mafia-idle.webp';
 import worldsMark from '@/assets/nav/worlds.webp';
 import worldsIdle from '@/assets/nav/worlds-idle.webp';
 import profileMark from '@/assets/nav/profile.webp';
@@ -111,7 +109,10 @@ type TabDef = { id: NavTab; label: string } & (
 const LEFT_TABS: TabDef[] = [
   { id: 'community', kind: 'art', src: communityMark, idle: communityIdle, label: 'კომუნითი' },
   { id: 'games',     kind: 'art', src: gamesMark,     idle: gamesIdle,     label: 'თამაშები' },
-  { id: 'rooms',     kind: 'art', src: mafiaMark,     idle: mafiaIdle,     label: 'მაფია' },
+  // The hat is the emoji, not a drawn glyph. The flat lavender fedora read as
+  // an anonymous shape at 32px; 🎩 is the one mark here people recognise
+  // instantly, which is worth more than a perfectly uniform set.
+  { id: 'rooms',     kind: 'emoji', icon: '🎩', label: 'მაფია' },
   { id: 'worlds',    kind: 'art', src: worldsMark,    idle: worldsIdle,    label: '3D სივრცე' },
 ];
 
@@ -177,7 +178,17 @@ function NavItem({ tab, active, color, onPress, label, ka }: { tab: TabDef; acti
           ) : (
             <span
               className="leading-none"
-              style={{ fontSize: 21, filter: active ? `drop-shadow(0 0 5px ${color})` : 'none' }}
+              style={{
+                // Sized to the drawn glyphs' optical height, not to ICON: an
+                // emoji fills its em box, so matching 32 exactly would make it
+                // visibly the largest thing in the row.
+                fontSize: 26,
+                // The drawn marks ship a grey variant for the idle state; an
+                // emoji has no such thing, so it is dimmed to match them.
+                opacity: active ? 1 : 0.55,
+                filter: active ? `drop-shadow(0 0 7px ${color}aa)` : 'grayscale(0.25)',
+                transition: 'opacity 160ms ease, filter 160ms ease',
+              }}
             >
               {tab.icon}
             </span>
