@@ -1,6 +1,22 @@
 [build]
 buildCommand = "echo 'using pre-built dist'"
 
+# Build on every push, always.
+#
+# Railway lets a service carry "watch paths" set in its dashboard, and when a
+# push does not touch them it answers `no changes detected in watch paths,
+# build will skip` and keeps the old container running. The CI job still
+# uploads happily, so nothing looks wrong until you notice the live build
+# number has stopped moving — which is exactly what happened to v592: both
+# services skipped, production stayed on v591, and the only clue was one line
+# in the middle of the deploy log.
+#
+# Every push here is meant to deploy — dist/ is committed, so a change to any
+# part of the repo can be a change to what is served. Declaring the pattern in
+# the file makes that a property of the repository rather than a setting
+# someone has to remember is there.
+watchPatterns = ["**"]
+
 [deploy]
 startCommand = "NODE_ENV=production node server/dist/index.js"
 healthcheckPath = "/health"
