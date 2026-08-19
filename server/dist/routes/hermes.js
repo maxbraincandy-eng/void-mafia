@@ -103,27 +103,50 @@ export function createHermesRouter() {
             res.json({ ok: false, error: e?.message });
         }
     });
-    // ── GET /api/hermes/probe-groq — which Groq models work for this key ──
+    // ── GET /api/hermes/probe-groq — what this key can actually reach ──────
+    //
+    // This used to try a hard-coded list of model names, which is exactly the
+    // habit that broke Hermes: it can only ever tell you about models someone
+    // thought of in advance. Now it asks Groq for the catalogue and reports what
+    // came back, so a key with nothing usable is distinguishable at a glance
+    // from a key that is simply pointed at a retired name.
     router.get('/probe-groq', async (_req, res) => {
-        const key = process.env.GROQ_API_KEY;
-        if (!key) {
-            res.json({ ok: false, error: 'GROQ_API_KEY not set' });
-            return;
-        }
-        const { default: OpenAI } = await import('openai');
-        const client = new OpenAI({ apiKey: key, baseURL: 'https://api.groq.com/openai/v1' });
-        const models = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'llama3-70b-8192', 'gemma2-9b-it'];
-        const results = [];
-        for (const m of models) {
+        try {
+            if (!process.env.GROQ_API_KEY) {
+                res.json({ ok: false, error: 'GROQ_API_KEY not set' });
+                return;
+            }
+            const { GroqProvider } = await import('../ai/groqProvider.js');
+            const p = new GroqProvider();
+            let catalogue = [];
+            let listError = null;
             try {
-                const r = await client.chat.completions.create({ model: m, messages: [{ role: 'user', content: 'თქვი ერთი მოკლე ქართული წინადადება მაფიის თამაშიდან.' }], max_tokens: 60 });
-                results.push({ model: m, ok: true, reply: r.choices[0]?.message?.content?.trim() });
+                catalogue = await p.listUsable();
             }
             catch (e) {
-                results.push({ model: m, ok: false, error: (e?.status ?? '') + ' ' + (e?.message ?? '').slice(0, 90) });
+                listError = `${e?.status ?? ''} ${e?.message ?? e}`.trim();
             }
+            let reply = null;
+            let chatError = null;
+            try {
+                const r = await p.chat([{ role: 'user', content: 'თქვი ერთი მოკლე ქართული წინადადება მაფიის თამაშიდან.' }], 'You are Hermes.', 60);
+                reply = r.text;
+            }
+            catch (e) {
+                chatError = (e?.message ?? String(e)).slice(0, 200);
+            }
+            res.json({
+                ok: !chatError,
+                keyPrefix: (process.env.GROQ_API_KEY ?? '').slice(0, 7) + '…',
+                usableModels: catalogue,
+                listError,
+                reply,
+                chatError,
+            });
         }
-        res.json({ ok: true, results });
+        catch (e) {
+            res.status(500).json({ ok: false, error: e?.message ?? String(e) });
+        }
     });
     // ── POST /api/hermes/chat ─────────────────────────────────────────────
     router.post('/chat', async (req, res) => {
