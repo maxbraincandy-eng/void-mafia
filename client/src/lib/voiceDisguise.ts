@@ -62,16 +62,22 @@ export type Disguise = typeof DISGUISES[number];
 export const NATURAL: readonly Disguise[] = ['baritone', 'tenor', 'alto', 'soprano'];
 export const SYNTHETIC: readonly Disguise[] = ['phantom', 'machine'];
 
+/**
+ * Display names only. The KEYS stay `alto` and `soprano` on purpose: the chosen
+ * voice is persisted in localStorage by key, so renaming those would silently
+ * reset the choice of everyone already using one.
+ */
 export const DISGUISE_LABEL: Record<Disguise, string> = {
   baritone: 'ბარიტონი',
   tenor:    'ტენორი',
-  alto:     'ალტი',
-  soprano:  'სოპრანო',
+  alto:     'Sakha',
+  soprano:  'Blackstar',
   phantom:  'ფანტომი',
   machine:  'მანქანა',
 };
 export const DISGUISE_ICON: Record<Disguise, string> = {
-  baritone: '🎻', tenor: '🎺', alto: '🪈', soprano: '🕊',
+  // A dove beside "Blackstar" read as a mistake, so that one moved with the name.
+  baritone: '🎻', tenor: '🎺', alto: '🪈', soprano: '✴️',
   phantom: '🌑', machine: '🤖',
 };
 
