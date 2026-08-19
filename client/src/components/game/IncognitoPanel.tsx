@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useIncognitoStore } from '@/store/incognitoStore';
 import { useMyLimits } from '@/store/vipStore';
 import { VipSheet } from '@/components/ui/VipSheet';
 import {
-  DISGUISES, DISGUISE_LABEL, DISGUISE_ICON, buildDisguise, type Disguise,
+  NATURAL, SYNTHETIC, DISGUISE_LABEL, DISGUISE_ICON, buildDisguise, type Disguise,
 } from '@/lib/voiceDisguise';
 
 /**
@@ -60,7 +60,7 @@ function useVoicePreview() {
       const mono = off.createBuffer(1, buf.length, buf.sampleRate);
       mono.getChannelData(0).set(buf.getChannelData(0));
       src.buffer = mono;
-      const g = buildDisguise(off, src, voice);
+      const g = await buildDisguise(off, src, voice);
       g.output.connect(off.destination);
       src.start();
       const out = await off.startRendering();
@@ -79,6 +79,21 @@ function useVoicePreview() {
   };
 
   return { state, run };
+}
+
+function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className="px-2.5 py-1.5 rounded-full font-mono transition-all active:scale-95"
+      style={{
+        fontSize: 11,
+        border: `1px solid ${on ? 'rgba(167,139,250,0.6)' : 'rgba(255,255,255,0.12)'}`,
+        background: on ? 'rgba(167,139,250,0.18)' : 'rgba(255,255,255,0.04)',
+        color: on ? '#c4b5fd' : 'rgba(255,255,255,0.5)',
+      }}
+    >{children}</button>
+  );
 }
 
 export function IncognitoPanel() {
@@ -160,33 +175,36 @@ export function IncognitoPanel() {
               {/* ── voice ── */}
               <p className="font-display font-bold text-white" style={{ fontSize: 12.5 }}>ხმის შეცვლა</p>
               <p className="font-mono text-white/35 mb-2" style={{ fontSize: 10.5, lineHeight: 1.4 }}>
-                არა ეფექტი — სხვა ხმა. შენი ხმის სიმაღლე მთლიანად იცვლება.
+                არა ეფექტი — სხვა ხმა. სიტყვები სუფთად ისმის.
               </p>
 
-              <div className="flex flex-wrap gap-1.5">
-                <button
-                  onClick={() => void setVoice(null)}
-                  className="px-2.5 py-1.5 rounded-full font-mono transition-all active:scale-95"
-                  style={{
-                    fontSize: 11,
-                    border: `1px solid ${!voice ? 'rgba(167,139,250,0.6)' : 'rgba(255,255,255,0.12)'}`,
-                    background: !voice ? 'rgba(167,139,250,0.18)' : 'rgba(255,255,255,0.04)',
-                    color: !voice ? '#c4b5fd' : 'rgba(255,255,255,0.5)',
-                  }}
-                >🎙 ჩემი ხმა</button>
+              {/* Two groups, because they answer different questions. The
+                  natural ones keep your own vocal folds and resize them: fully
+                  clear, plainly a person, just not you. The synthetic ones
+                  replace the source entirely — nobody can place you, at the
+                  cost of sounding built. Saying which is which is the only way
+                  a player can choose the trade they actually want. */}
+              <Chip on={!voice} onClick={() => void setVoice(null)}>🎙 ჩემი ხმა</Chip>
 
-                {DISGUISES.map(d => (
-                  <button
-                    key={d}
-                    onClick={() => void setVoice(d)}
-                    className="px-2.5 py-1.5 rounded-full font-mono transition-all active:scale-95"
-                    style={{
-                      fontSize: 11,
-                      border: `1px solid ${voice === d ? 'rgba(167,139,250,0.6)' : 'rgba(255,255,255,0.12)'}`,
-                      background: voice === d ? 'rgba(167,139,250,0.18)' : 'rgba(255,255,255,0.04)',
-                      color: voice === d ? '#c4b5fd' : 'rgba(255,255,255,0.5)',
-                    }}
-                  >{DISGUISE_ICON[d]} {DISGUISE_LABEL[d]}</button>
+              <p className="font-mono text-white/25 mt-2.5 mb-1" style={{ fontSize: 9.5, letterSpacing: 0.4 }}>
+                ბუნებრივი — სუფთად ისმის, სხვა ადამიანი
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {NATURAL.map(d => (
+                  <Chip key={d} on={voice === d} onClick={() => void setVoice(d)}>
+                    {DISGUISE_ICON[d]} {DISGUISE_LABEL[d]}
+                  </Chip>
+                ))}
+              </div>
+
+              <p className="font-mono text-white/25 mt-2.5 mb-1" style={{ fontSize: 9.5, letterSpacing: 0.4 }}>
+                სინთეზური — ვერავინ გიცნობს, ოდნავ მექანიკური
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {SYNTHETIC.map(d => (
+                  <Chip key={d} on={voice === d} onClick={() => void setVoice(d)}>
+                    {DISGUISE_ICON[d]} {DISGUISE_LABEL[d]}
+                  </Chip>
                 ))}
               </div>
 

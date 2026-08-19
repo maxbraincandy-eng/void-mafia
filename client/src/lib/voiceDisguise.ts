@@ -1,117 +1,164 @@
 /**
- * A REAL-TIME voice disguise — not an effect on a voice, a different voice.
+ * A REAL-TIME voice disguise — you, sounding like somebody else, clearly.
  *
- * WHY THE PITCH MASK WAS NOT ENOUGH
- * ─────────────────────────────────
- * lib/voiceMask shifts pitch. That changes how high you sound and almost
- * nothing about who you are. Identity in speech lives in two places: the
- * GLOTTAL SOURCE (the rate and shape of the vocal folds opening) and the VOCAL
- * TRACT (the resonances its length and shape impose — the formants). A pitch
- * shifter moves both together, so a listener who knows you hears you, higher.
- * That is why the offline effects file says the same thing about `detective`:
- * band-limiting a voice produced "a broadcast — of the SAME PERSON".
+ * TWO KINDS, BECAUSE THEY TRADE DIFFERENTLY
+ * ─────────────────────────────────────────
+ * NATURAL presets keep your own glottal source and move it: pitch and vocal
+ * tract are resized together, so what comes out is a real human voice, fully
+ * intelligible, that is not yours. Someone who knows you very well may still
+ * place you — a uniform transform preserves the differences between speakers.
  *
- * WHAT THIS DOES INSTEAD
- * ──────────────────────
- * A channel vocoder throws the source away and keeps only the shape.
+ * SYNTHETIC presets throw your source away and rebuild the voice from a carrier
+ * we choose (a channel vocoder). Everyone through one preset comes out at the
+ * same pitch, which is the property that makes you unidentifiable — and the
+ * reason it costs some naturalness.
  *
- *   1. Split the microphone into 16 bands, log-spaced the way hearing is.
- *   2. Measure how loud each band is, moment to moment — rectify and smooth.
- *      Those 16 curves are WHAT WAS SAID; they carry the words and nothing of
- *      the larynx that said them.
- *   3. Build a completely synthetic voice: a buzzing sawtooth at a FIXED pitch
- *      we choose, plus a little noise so consonants survive.
- *   4. Split THAT into the same 16 bands and open each one by the matching
- *      envelope from step 2.
+ * The panel labels which is which, because "clear" and "anonymous" are not the
+ * same request and a player should get to choose which one they are making.
  *
- * What comes out has your words and someone else's throat. Your own pitch is
- * gone — everyone speaking through one preset comes out at the same pitch,
- * which is exactly the property that makes you unidentifiable.
+ * WHAT WAS WRONG WITH THE FIRST VOCODER
+ * ─────────────────────────────────────
+ * It buzzed, and the words were hard to make out. Measured rather than argued:
+ * in the source signal a fricative has a periodicity of 0.20 — it is noise,
+ * which is what "s" IS — and through the old presets it came out at 0.89–0.94,
+ * a TONE. Every s, sh and f had become a hum at the carrier pitch, and the
+ * consonant/vowel band separation collapsed from 9.0 to about 2.5.
  *
- * AND THE FORMANTS TOO
- * ────────────────────
- * Step 4 does not have to use the same centre frequencies as step 2. Multiply
- * them by `formant` and the whole spectral envelope moves, which is what
- * changing the LENGTH of a vocal tract does. Pitch replaced and vocal tract
- * resized: there is nothing left of the original speaker to recognise.
+ * One omission caused all of it: the carrier buzzed all the time. Real speech
+ * has two sources — the vocal folds for vowels, turbulent noise for fricatives —
+ * and a vocoder offering only the first turns half of speech into hum.
+ *
+ * So the carrier here is both, mixed by frequency AND by moment:
+ *   · statically — the saw is rolled off above ~3.5 kHz and the noise rolled off
+ *     below ~1.8 kHz, so the top of the carrier is breath where fricatives live
+ *     and the bottom stays periodic where vowels live;
+ *   · dynamically — a high-band envelope follower opens the noise and DUCKS the
+ *     saw during fricatives. That is voiced/unvoiced detection built out of a
+ *     gain node with a negative coefficient: no division, no worklet, and no
+ *     decision to get wrong, because it is continuous.
+ *
+ * Two more intelligibility fixes: 24 bands instead of 16 (neighbouring bands
+ * were 1.24 apart, coarser than the detail separating one consonant from
+ * another; at 24 they are 1.17 apart and overlap properly), and a 42 Hz
+ * envelope filter instead of 16 Hz — a stop consonant is a 20–30 ms event, and
+ * at 16 Hz it was smeared into whatever sat on either side of it.
  *
  * WHY NATIVE NODES AND NOT A WORKLET
  * ──────────────────────────────────
  * A GainNode whose `gain` is driven by another node's OUTPUT is a multiplier,
- * and BiquadFilterNode is a filter. That is the entire vocoder, so the whole
- * thing is native code on the audio thread — no worklet, no per-sample
- * JavaScript in the path a room full of people is listening to.
+ * and BiquadFilterNode is a filter. That is the entire vocoder, so it runs as
+ * native code on the audio thread — no per-sample JavaScript in the path a room
+ * full of people is listening to.
  */
+import { ensurePitchWorklet, PITCH_NODE } from './voiceMask';
 
-export const DISGUISES = ['stranger', 'phantom', 'machine', 'siren'] as const;
+export const DISGUISES = [
+  // Natural first: this is what most people actually want.
+  'baritone', 'tenor', 'alto', 'soprano',
+  'phantom', 'machine',
+] as const;
 export type Disguise = typeof DISGUISES[number];
 
+export const NATURAL: readonly Disguise[] = ['baritone', 'tenor', 'alto', 'soprano'];
+export const SYNTHETIC: readonly Disguise[] = ['phantom', 'machine'];
+
 export const DISGUISE_LABEL: Record<Disguise, string> = {
-  stranger: 'უცნობი',
+  baritone: 'ბარიტონი',
+  tenor:    'ტენორი',
+  alto:     'ალტი',
+  soprano:  'სოპრანო',
   phantom:  'ფანტომი',
   machine:  'მანქანა',
-  siren:    'სირენა',
 };
 export const DISGUISE_ICON: Record<Disguise, string> = {
-  stranger: '🕴', phantom: '🌑', machine: '🤖', siren: '🎼',
+  baritone: '🎻', tenor: '🎺', alto: '🪈', soprano: '🕊',
+  phantom: '🌑', machine: '🤖',
 };
 
-interface Spec {
-  /** The new larynx, in Hz. Nobody's own pitch survives this. */
+export function isNatural(d: Disguise): boolean { return NATURAL.includes(d); }
+
+// ── natural: the real voice, resized ────────────────────────────────────────
+
+interface NaturalSpec {
+  /** Granular shift. Moves pitch AND vocal tract together, like a differently
+   *  sized person — which is exactly why it stays natural. */
+  ratio: number;
+  /** dB at 2.8 kHz. Shifting down drags consonant energy down with it and the
+   *  speech goes muddy; this puts the clarity back. */
+  presence: number;
+  /** dB below 250 Hz. Shifting up thins the voice; this restores the body. */
+  body: number;
+  /** dB at 6.5 kHz. Negative de-esses a voice that has been raised. */
+  air: number;
+  /**
+   * Read-head jitter — available, and deliberately 0.
+   *
+   * It does break up the comb (fricative periodicity 0.47 → 0.24 on the upward
+   * presets), but it breaks up the vowels with it: periodicity fell from 0.93
+   * to 0.61 and the pitch tracker lost the higher test speaker entirely. That
+   * is a hoarse voice traded for a cleaner hiss. Once the fricatives were
+   * routed around the shifter the trade stopped being worth making, so the
+   * knob stays here, measured, at zero.
+   */
+  jitter: number;
+}
+
+const NATURAL_SPEC: Record<'baritone' | 'tenor' | 'alto' | 'soprano', NaturalSpec> = {
+  // Deep and calm. The largest downward move the shifter still tracks cleanly —
+  // below about 0.7 it warbles on already-low voices.
+  baritone: { ratio: 0.78, presence: 4.5, body: -1.5, air: 2, jitter: 0 },
+  // Subtle. For someone who wants to be a different person, not a character.
+  tenor:    { ratio: 0.90, presence: 2.5, body: 0,    air: 1, jitter: 0 },
+  // Lighter and higher, still plainly an adult.
+  alto:     { ratio: 1.14, presence: 1,   body: 3,    air: -1.5, jitter: 0 },
+  // Clearly higher. The body lift is what stops it becoming a cartoon.
+  soprano:  { ratio: 1.28, presence: 0,   body: 4.5,  air: -3, jitter: 0 },
+};
+
+// ── synthetic: the vocoder ──────────────────────────────────────────────────
+
+interface VocoderSpec {
+  /** The replacement larynx, in Hz. */
   carrierHz: number;
-  /** A dead monotone is a robot; a little wander is a person. */
+  /** A dead monotone is a machine; a slow wander is a person. */
   vibratoHz: number;
   vibratoCents: number;
   /** Carrier band centres = modulator centres × this. Resizes the vocal tract. */
   formant: number;
-  /** Breath mixed into the carrier, or every s / sh / f disappears. */
-  noise: number;
-  /** Detuned copies — smears whatever individuality survived. */
-  chorus: number;
-  /** High-shelf dB. Brightness is most of "which person is this". */
-  tilt: number;
+  /** Standing breath in the carrier, before the dynamic part. */
+  noiseFloor: number;
+  /** dB at 2.8 kHz — consonant clarity. */
+  presence: number;
 }
 
-const SPEC: Record<Disguise, Spec> = {
-  // A different man, plainly. The most usable of the four for a long game.
-  stranger: { carrierHz: 118, vibratoHz: 4.8, vibratoCents: 25, formant: 0.92, noise: 0.20, chorus: 0.35, tilt: 3 },
-  // Lower and longer-throated, darkened. Unsettling rather than comic.
-  phantom:  { carrierHz: 96,  vibratoHz: 3.2, vibratoCents: 40, formant: 0.82, noise: 0.16, chorus: 0.50, tilt: -2 },
-  // No vibrato at all: unmistakably synthetic, and the hardest to place.
-  machine:  { carrierHz: 88,  vibratoHz: 0,   vibratoCents: 0,  formant: 1.00, noise: 0.13, chorus: 0,    tilt: 2 },
-  // High carrier and a short tract — reads as a different person entirely.
-  siren:    { carrierHz: 196, vibratoHz: 5.4, vibratoCents: 30, formant: 1.18, noise: 0.18, chorus: 0.30, tilt: 4 },
+const VOCODER_SPEC: Record<'phantom' | 'machine', VocoderSpec> = {
+  phantom: { carrierHz: 104, vibratoHz: 3.6, vibratoCents: 35, formant: 0.88, noiseFloor: 0.22, presence: 5 },
+  machine: { carrierHz: 92,  vibratoHz: 0,   vibratoCents: 0,  formant: 1.0,  noiseFloor: 0.18, presence: 4 },
 };
 
-/** 16 bands, log-spaced from 180 Hz to 5.2 kHz — see the offline vocoder. */
-const BANDS = 16;
-const LO = 180;
-const HI = 5200;
-const Q = 4.2;
+const BANDS = 24;
+const LO = 150;
+const HI = 6500;
+const Q = 3.4;
+const ENV_HZ = 42;
 
 /**
- * Envelope smoothing, in Hz.
+ * How hard the envelopes open the gates.
  *
- * Too slow and consonants smear into the vowels around them; too fast and the
- * carrier's own pitch period gets through as a buzz, which puts a trace of the
- * speaker back. 16 Hz is below the lowest voice fundamental and above the rate
- * syllables actually change at.
+ * Measured, not guessed: a rectified, smoothed band sits well below the signal
+ * that produced it, so without scaling the disguise is a whisper. Re-measured
+ * after the envelope filter widened to 42 Hz, which passes more energy through:
+ * at 5.5 the output peaked at 1.17 and clipped past the limiter; 3.5 lands
+ * under 1.0 while still sitting louder than the voice it replaces, which is
+ * what "I can't hear it" needed.
  */
-const ENV_HZ = 16;
+const ENV_GAIN = 3.3;
 
-/**
- * How hard to open the gates.
- *
- * A rectified, 16 Hz-smoothed band sits far below the signal that produced it,
- * so the envelopes need scaling or the disguise is a whisper. Measured rather
- * than guessed: at 11 the four presets came out at 1.4×–1.8× the input's RMS
- * and the loudest was starting to touch the limiter. 7 lands them beside the
- * voice they replace, which is what the rest of the room's mix expects.
- */
-const ENV_GAIN = 7;
+/** Where the carrier stops being periodic and starts being breath. */
+const SAW_TOP = 3500;
+const NOISE_BOTTOM = 1800;
 
 function absCurve(points = 1024): Float32Array<ArrayBuffer> {
-  // A WaveShaper is the cheapest full-wave rectifier available: |x|.
   const c = new Float32Array(new ArrayBuffer(points * 4));
   for (let i = 0; i < points; i++) c[i] = Math.abs((i / (points - 1)) * 2 - 1);
   return c;
@@ -135,58 +182,158 @@ function bandCentres(): number[] {
   return out;
 }
 
-/** Two detuned, slightly delayed copies — one voice stops being one voice. */
-function chorus(ctx: BaseAudioContext, input: AudioNode, wet: number, started: AudioScheduledSourceNode[]): AudioNode {
-  if (wet <= 0) return input;
-  const sum = ctx.createGain();
-  for (const [ms, rate, depth] of [[13, 0.21, 0.0021], [19, 0.16, 0.0029]] as const) {
-    const d = ctx.createDelay(0.2);
-    d.delayTime.value = ms / 1000;
-    const lfo = ctx.createOscillator();
-    lfo.frequency.value = rate;
-    const amt = ctx.createGain();
-    amt.gain.value = depth;
-    lfo.connect(amt); amt.connect(d.delayTime);
-    lfo.start(); started.push(lfo);
-    input.connect(d); d.connect(sum);
-  }
-  const dry = ctx.createGain(); dry.gain.value = 1 - wet;
-  const wetG = ctx.createGain(); wetG.gain.value = wet;
-  const out = ctx.createGain();
-  input.connect(dry); dry.connect(out);
-  sum.connect(wetG); wetG.connect(out);
-  return out;
+/** Rectify + smooth: a control signal that follows how loud something is. */
+function follower(
+  ctx: BaseAudioContext, input: AudioNode, curve: Float32Array<ArrayBuffer>, hz: number, gain: number,
+): GainNode {
+  const rect = ctx.createWaveShaper();
+  rect.curve = curve;
+  rect.oversample = 'none';
+  input.connect(rect);
+
+  const lp = ctx.createBiquadFilter();
+  lp.type = 'lowpass'; lp.frequency.value = hz; lp.Q.value = 0.707;
+  rect.connect(lp);
+
+  const g = ctx.createGain();
+  g.gain.value = gain;
+  lp.connect(g);
+  return g;
+}
+
+function band(ctx: BaseAudioContext, input: AudioNode, lo: number, hi: number): AudioNode {
+  const hp = ctx.createBiquadFilter();
+  hp.type = 'highpass'; hp.frequency.value = lo; hp.Q.value = 0.707;
+  const lp = ctx.createBiquadFilter();
+  lp.type = 'lowpass'; lp.frequency.value = hi; lp.Q.value = 0.707;
+  input.connect(hp); hp.connect(lp);
+  return lp;
 }
 
 export interface DisguiseGraph {
-  /** Feed the microphone in here. */
   output: AudioNode;
-  /** Change preset without rebuilding — no audible gap. */
-  retune: (d: Disguise) => void;
+  /** Retune within the same kind. Returns false if the graph must be rebuilt. */
+  retune: (d: Disguise) => boolean;
   stop: () => void;
 }
 
 /**
- * Build the vocoder. `input` is the microphone; the returned node is the voice
- * that replaces it.
+ * Build the disguise. `input` is the microphone; the returned node is the voice
+ * that replaces it. Async because the natural presets load the pitch worklet.
  */
-export function buildDisguise(ctx: BaseAudioContext, input: AudioNode, preset: Disguise): DisguiseGraph {
-  let spec = SPEC[preset];
+export async function buildDisguise(
+  ctx: BaseAudioContext, input: AudioNode, preset: Disguise,
+): Promise<DisguiseGraph> {
+  return isNatural(preset)
+    ? buildNatural(ctx, input, preset as keyof typeof NATURAL_SPEC)
+    : buildVocoder(ctx, input, preset as keyof typeof VOCODER_SPEC);
+}
+
+// ── natural ─────────────────────────────────────────────────────────────────
+
+/**
+ * Where the voice stops carrying identity and starts being turbulence.
+ *
+ * Below this, energy is the vocal folds through the vocal tract — the first
+ * three formants, and everything a listener uses to recognise a person. Above
+ * it, a fricative is broadband hiss produced at the teeth and tongue, which
+ * says almost nothing about who is speaking.
+ *
+ * That asymmetry is worth exploiting, because the granular shifter's three read
+ * heads are a comb filter, and a comb turns hiss into a TONE — measured at 0.29
+ * periodicity going down and 0.65 going up, against 0.205 for real speech.
+ * Head jitter cures it, but it cures it everywhere: at the smallest setting
+ * that worked the vowels dropped from 0.99 periodicity to 0.6, which is a
+ * hoarse voice. Routing the hiss AROUND the shifter instead costs nothing —
+ * the part left unshifted was not disguising anyone.
+ */
+const IDENTITY_TOP = 3200;
+
+async function buildNatural(
+  ctx: BaseAudioContext, input: AudioNode, preset: keyof typeof NATURAL_SPEC,
+): Promise<DisguiseGraph> {
+  let spec = NATURAL_SPEC[preset];
+  await ensurePitchWorklet(ctx);
+
+  // Voiced path: everything that identifies the speaker, shifted.
+  const lp1 = ctx.createBiquadFilter();
+  lp1.type = 'lowpass'; lp1.frequency.value = IDENTITY_TOP; lp1.Q.value = 0.707;
+  const lp2 = ctx.createBiquadFilter();
+  lp2.type = 'lowpass'; lp2.frequency.value = IDENTITY_TOP; lp2.Q.value = 0.707;
+  input.connect(lp1); lp1.connect(lp2);
+
+  const shifter = new AudioWorkletNode(ctx, PITCH_NODE, {
+    numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1],
+  });
+  shifter.parameters.get('ratio')!.value = spec.ratio;
+  shifter.parameters.get('jitter')!.value = spec.jitter;
+  lp2.connect(shifter);
+
+  // Breath path: straight through, so an "s" is still an "s".
+  const hp1 = ctx.createBiquadFilter();
+  hp1.type = 'highpass'; hp1.frequency.value = IDENTITY_TOP; hp1.Q.value = 0.707;
+  const hp2 = ctx.createBiquadFilter();
+  hp2.type = 'highpass'; hp2.frequency.value = IDENTITY_TOP; hp2.Q.value = 0.707;
+  input.connect(hp1); hp1.connect(hp2);
+
+  const merged = ctx.createGain();
+  shifter.connect(merged);
+  hp2.connect(merged);
+
+  const presence = ctx.createBiquadFilter();
+  presence.type = 'peaking'; presence.frequency.value = 2800; presence.Q.value = 0.9;
+  presence.gain.value = spec.presence;
+  const body = ctx.createBiquadFilter();
+  body.type = 'lowshelf'; body.frequency.value = 250; body.gain.value = spec.body;
+  const air = ctx.createBiquadFilter();
+  air.type = 'highshelf'; air.frequency.value = 6500; air.gain.value = spec.air;
+
+  merged.connect(presence); presence.connect(body); body.connect(air);
+
+  const hp = ctx.createBiquadFilter();
+  hp.type = 'highpass'; hp.frequency.value = 70; hp.Q.value = 0.707;
+  air.connect(hp);
+
+  const limit = ctx.createDynamicsCompressor();
+  limit.threshold.value = -5; limit.knee.value = 0; limit.ratio.value = 20;
+  limit.attack.value = 0.001; limit.release.value = 0.12;
+  hp.connect(limit);
+
+  return {
+    output: limit,
+    retune(d: Disguise) {
+      if (!isNatural(d)) return false;
+      spec = NATURAL_SPEC[d as keyof typeof NATURAL_SPEC];
+      const t = ctx.currentTime;
+      shifter.parameters.get('ratio')!.setTargetAtTime(spec.ratio, t, 0.02);
+      shifter.parameters.get('jitter')!.setTargetAtTime(spec.jitter, t, 0.02);
+      presence.gain.setTargetAtTime(spec.presence, t, 0.02);
+      body.gain.setTargetAtTime(spec.body, t, 0.02);
+      air.gain.setTargetAtTime(spec.air, t, 0.02);
+      return true;
+    },
+    stop() { try { shifter.disconnect(); } catch { /* already gone */ } },
+  };
+}
+
+// ── synthetic ───────────────────────────────────────────────────────────────
+
+function buildVocoder(
+  ctx: BaseAudioContext, input: AudioNode, preset: keyof typeof VOCODER_SPEC,
+): DisguiseGraph {
+  let spec = VOCODER_SPEC[preset];
   const started: AudioScheduledSourceNode[] = [];
   const centres = bandCentres();
   const curve = absCurve();
 
-  // ── the synthetic larynx ───────────────────────────────────────────
+  // ── the replacement source: periodic below, breath above ─────────────
   const carrier = ctx.createGain();
 
   const saw = ctx.createOscillator();
   saw.type = 'sawtooth';
   saw.frequency.value = spec.carrierHz;
-  const sawGain = ctx.createGain(); sawGain.gain.value = 1;
-  saw.connect(sawGain); sawGain.connect(carrier);
   saw.start(); started.push(saw);
 
-  // Vibrato, in cents so the depth means the same thing at every carrier pitch.
   const vib = ctx.createOscillator();
   vib.frequency.value = spec.vibratoHz || 0.001;
   const vibAmt = ctx.createGain();
@@ -194,37 +341,55 @@ export function buildDisguise(ctx: BaseAudioContext, input: AudioNode, preset: D
   vib.connect(vibAmt); vibAmt.connect(saw.frequency);
   vib.start(); started.push(vib);
 
+  const sawTop = ctx.createBiquadFilter();
+  sawTop.type = 'lowpass'; sawTop.frequency.value = SAW_TOP; sawTop.Q.value = 0.707;
+  saw.connect(sawTop);
+
+  const sawVca = ctx.createGain();
+  sawVca.gain.value = 1;                       // ducked by `unvoiced`, below
+  sawTop.connect(sawVca); sawVca.connect(carrier);
+
   const noise = ctx.createBufferSource();
   noise.buffer = noiseBuffer(ctx);
   noise.loop = true;
-  const noiseGain = ctx.createGain(); noiseGain.gain.value = spec.noise;
-  noise.connect(noiseGain); noiseGain.connect(carrier);
   noise.start(); started.push(noise);
 
-  // ── 16 × (measure the mic, open the carrier) ───────────────────────
+  const noiseBottom = ctx.createBiquadFilter();
+  noiseBottom.type = 'highpass'; noiseBottom.frequency.value = NOISE_BOTTOM; noiseBottom.Q.value = 0.707;
+  noise.connect(noiseBottom);
+
+  const noiseVca = ctx.createGain();
+  noiseVca.gain.value = spec.noiseFloor;       // opened by `unvoiced`, below
+  noiseBottom.connect(noiseVca); noiseVca.connect(carrier);
+
+  /*
+   * Voiced / unvoiced, built out of a gain node.
+   *
+   * The high band of speech is loud during a fricative and quiet during a
+   * vowel, so its envelope IS an unvoicedness signal. Feeding it to the noise
+   * gate opens the breath; feeding it through a NEGATIVE gain to the saw gate
+   * closes the buzz. It is continuous, so a sound that is half of each comes
+   * out half of each — there is no threshold to get wrong.
+   */
+  const unvoiced = follower(ctx, band(ctx, input, 3000, 8000), curve, ENV_HZ, 1);
+
+  const openNoise = ctx.createGain(); openNoise.gain.value = 26;
+  unvoiced.connect(openNoise); openNoise.connect(noiseVca.gain);
+
+  const duckSaw = ctx.createGain(); duckSaw.gain.value = -16;
+  unvoiced.connect(duckSaw); duckSaw.connect(sawVca.gain);
+
+  // ── 24 × (measure the mic, open the carrier) ─────────────────────────
   const sum = ctx.createGain();
   const carrierBands: BiquadFilterNode[] = [];
 
   for (const fc of centres) {
-    // What was said, in this band.
     const modBp = ctx.createBiquadFilter();
     modBp.type = 'bandpass'; modBp.frequency.value = fc; modBp.Q.value = Q;
     input.connect(modBp);
 
-    const rect = ctx.createWaveShaper();
-    rect.curve = curve;
-    rect.oversample = 'none';
-    modBp.connect(rect);
+    const env = follower(ctx, modBp, curve, ENV_HZ, ENV_GAIN);
 
-    const env = ctx.createBiquadFilter();
-    env.type = 'lowpass'; env.frequency.value = ENV_HZ; env.Q.value = 0.707;
-    rect.connect(env);
-
-    const envGain = ctx.createGain();
-    envGain.gain.value = ENV_GAIN;
-    env.connect(envGain);
-
-    // The same band of the synthetic voice — moved by `formant`.
     const carBp = ctx.createBiquadFilter();
     carBp.type = 'bandpass';
     carBp.frequency.value = Math.min(fc * spec.formant, ctx.sampleRate / 2 - 500);
@@ -232,51 +397,47 @@ export function buildDisguise(ctx: BaseAudioContext, input: AudioNode, preset: D
     carrier.connect(carBp);
     carrierBands.push(carBp);
 
-    // gain STARTS at zero and is driven entirely by the envelope: that is the
-    // multiplication, and it is why nothing of the carrier is heard in silence.
     const vca = ctx.createGain();
-    vca.gain.value = 0;
-    envGain.connect(vca.gain);
+    vca.gain.value = 0;                        // driven entirely by the envelope
+    env.connect(vca.gain);
     carBp.connect(vca);
     vca.connect(sum);
   }
 
-  // ── shaping ────────────────────────────────────────────────────────
-  const tilt = ctx.createBiquadFilter();
-  tilt.type = 'highshelf'; tilt.frequency.value = 2200; tilt.gain.value = spec.tilt;
-  sum.connect(tilt);
+  // ── shaping ──────────────────────────────────────────────────────────
+  const presence = ctx.createBiquadFilter();
+  presence.type = 'peaking'; presence.frequency.value = 2800; presence.Q.value = 0.9;
+  presence.gain.value = spec.presence;
+  sum.connect(presence);
 
-  const wide = chorus(ctx, tilt, spec.chorus, started);
+  const airShelf = ctx.createBiquadFilter();
+  airShelf.type = 'highshelf'; airShelf.frequency.value = 6500; airShelf.gain.value = 2;
+  presence.connect(airShelf);
 
-  // Speech only. Below the lowest carrier there is nothing but rumble, and
-  // above the top band there is nothing at all.
   const hp = ctx.createBiquadFilter();
   hp.type = 'highpass'; hp.frequency.value = 90; hp.Q.value = 0.707;
-  wide.connect(hp);
+  airShelf.connect(hp);
 
-  // A ceiling, so no preset can hand the room something that clips.
   const limit = ctx.createDynamicsCompressor();
-  limit.threshold.value = -3; limit.knee.value = 0; limit.ratio.value = 20;
-  limit.attack.value = 0.003; limit.release.value = 0.12;
+  limit.threshold.value = -5; limit.knee.value = 0; limit.ratio.value = 20;
+  limit.attack.value = 0.001; limit.release.value = 0.12;
   hp.connect(limit);
 
   return {
     output: limit,
     retune(d: Disguise) {
-      spec = SPEC[d];
+      if (isNatural(d)) return false;
+      spec = VOCODER_SPEC[d as keyof typeof VOCODER_SPEC];
       const t = ctx.currentTime;
       saw.frequency.setTargetAtTime(spec.carrierHz, t, 0.02);
       vib.frequency.setTargetAtTime(spec.vibratoHz || 0.001, t, 0.02);
       vibAmt.gain.setTargetAtTime(spec.carrierHz * (Math.pow(2, spec.vibratoCents / 1200) - 1), t, 0.02);
-      noiseGain.gain.setTargetAtTime(spec.noise, t, 0.02);
-      tilt.gain.setTargetAtTime(spec.tilt, t, 0.02);
+      noiseVca.gain.setTargetAtTime(spec.noiseFloor, t, 0.02);
+      presence.gain.setTargetAtTime(spec.presence, t, 0.02);
       carrierBands.forEach((b, i) => {
         b.frequency.setTargetAtTime(Math.min(centres[i]! * spec.formant, ctx.sampleRate / 2 - 500), t, 0.02);
       });
-      // Chorus depth is structural rather than a parameter, so switching to a
-      // preset with a different width keeps the old width until the graph is
-      // rebuilt. Inaudible next to the pitch and formant change, and worth it
-      // to avoid a gap in the middle of somebody's sentence.
+      return true;
     },
     stop() {
       for (const s of started) { try { s.stop(); } catch { /* already stopped */ } }

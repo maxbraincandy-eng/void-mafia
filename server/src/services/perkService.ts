@@ -389,7 +389,11 @@ export function aliasFor(seed: string): string {
   let h = 0;
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
   const adj = ANON_ADJ[h % ANON_ADJ.length];
-  const noun = ANON_NOUN[(h >> 5) % ANON_NOUN.length];
+  // `>>>`, not `>>`. h is unsigned, but the SIGNED shift turns any seed with
+  // the top bit set into a negative number, `negative % 6` is negative, and the
+  // lookup returns undefined — which is how an alias came out reading
+  // "ბუნდოვანი undefined #18". Half of all seeds hit it.
+  const noun = ANON_NOUN[(h >>> 5) % ANON_NOUN.length];
   const num = (h % 89) + 10;   // 10–98, two digits
   return `${adj} ${noun} #${num}`;
 }

@@ -56,6 +56,8 @@ class PitchShiftProcessor extends AudioWorkletProcessor {
       { name: 'ratio', defaultValue: 1, minValue: 0.4, maxValue: 2.5, automationRate: 'k-rate' },
       { name: 'wobbleHz', defaultValue: 0, minValue: 0, maxValue: 8, automationRate: 'k-rate' },
       { name: 'wobbleDepth', defaultValue: 0, minValue: 0, maxValue: 0.3, automationRate: 'k-rate' },
+      // Read-head jitter. Default 0, so every existing caller is untouched.
+      { name: 'jitter', defaultValue: 0, minValue: 0, maxValue: 0.4, automationRate: 'k-rate' },
     ];
   }
   constructor() {
@@ -73,6 +75,19 @@ class PitchShiftProcessor extends AudioWorkletProcessor {
     this.grain = 1536;                // ~32ms at 48kHz
     this.heads = 3;
     this.t = 0;
+    // The heads sit at FIXED offsets of grain/heads, which is a comb filter:
+    // on a noisy sound (every s, sh and f) the comb turns noise into a tone at
+    // the head spacing, and it gets worse the further the ratio is from 1 —
+    // measured 0.23 periodicity at ratio 0.72 rising to 0.65 at 1.36, against
+    // 0.205 for the untouched signal. Drifting the offsets smears the comb's
+    // notches so the artifact spreads out instead of concentrating into a buzz.
+    this.jOff = new Float32Array(this.heads);
+    this.jTarget = new Float32Array(this.heads);
+    this.jSeed = 22222;
+  }
+  nextRand() {
+    this.jSeed = (this.jSeed * 1103515245 + 12345) & 0x7fffffff;
+    return (this.jSeed / 0x7fffffff) * 2 - 1;
   }
   process(inputs, outputs, parameters) {
     const input = inputs[0];
@@ -89,6 +104,14 @@ class PitchShiftProcessor extends AudioWorkletProcessor {
     const ratio = parameters.ratio[0];
     const hz = parameters.wobbleHz[0];
     const depth = parameters.wobbleDepth[0];
+    const jitter = parameters.jitter[0];
+
+    // One new target per block, reached smoothly across it — a step change in
+    // read position would be a click, and there are 375 blocks a second.
+    const jAmt = jitter * this.grain;
+    for (let h = 0; h < this.heads; h++) this.jTarget[h] = this.nextRand() * jAmt;
+    const jStep = new Float32Array(this.heads);
+    for (let h = 0; h < this.heads; h++) jStep[h] = (this.jTarget[h] - this.jOff[h]) / n;
 
     for (let i = 0; i < n; i++) {
       this.buf[this.write] = inCh[i];
@@ -113,7 +136,9 @@ class PitchShiftProcessor extends AudioWorkletProcessor {
       // regardless of head count rather than swelling with it.
       let acc = 0, gsum = 0;
       for (let h = 0; h < this.heads; h++) {
-        const ph = (this.phase + (this.grain * h) / this.heads) % this.grain;
+        if (jitter > 0) this.jOff[h] += jStep[h];
+        let ph = (this.phase + (this.grain * h) / this.heads + this.jOff[h]) % this.grain;
+        if (ph < 0) ph += this.grain;
         const s = Math.sin(Math.PI * (ph / this.grain));
         const g = s * s;
         acc += this.sample(this.write - this.grain + ph) * g;
@@ -185,8 +210,7 @@ export class VoiceMaskProcessor {
     this.dest = this.ctx.createMediaStreamDestination();
 
     if (isDisguise(this.preset)) {
-      // No worklet at all on this path: the vocoder is native nodes end to end.
-      this.disguise = buildDisguise(this.ctx, this.source, this.preset);
+      this.disguise = await buildDisguise(this.ctx, this.source, this.preset);
       this.disguise.output.connect(this.dest);
     } else {
       await ensurePitchWorklet(this.ctx);
@@ -213,7 +237,9 @@ export class VoiceMaskProcessor {
     if (wasDisguise !== isNowDisguise) return false;
     this.preset = preset;
 
-    if (isNowDisguise) { this.disguise?.retune(preset as Disguise); return true; }
+    // A disguise can also refuse: natural and synthetic are different graphs,
+    // so switching between those two kinds is a rebuild as well.
+    if (isNowDisguise) return this.disguise?.retune(preset as Disguise) ?? true;
 
     const p = this.node?.parameters;
     if (!p) return true;
