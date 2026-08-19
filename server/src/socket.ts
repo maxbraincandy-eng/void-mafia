@@ -1763,7 +1763,7 @@ async function emitGameOver(io: AppServer, room: Room): Promise<void> {
   try {
     const promoted = promoteQueuedPlayers(room);
     if (promoted.length > 0) {
-      broadcastSystemMsg(io, room, `${promoted.map(p => `${p.name} (seat ${p.seat})`).join(', ')} joined the players for the next game.`);
+      broadcastSystemMsg(io, room, `${promoted.map(p => `${shown(p)} (seat ${p.seat})`).join(', ')} joined the players for the next game.`);
       broadcastQueueUpdated(io, room);
       broadcastRoom(io, room);
     }
@@ -1935,7 +1935,7 @@ function announceVoteResult(io: AppServer, room: Room): void {
       const revealedRole = isNoReveal ? null : (target.role ?? null);
       broadcastSystemMsg(io, room, voteDeathMsg(target.name, revealedRole, target.lastWill));
       if (isNoReveal) {
-        broadcastSystemMsg(io, room, `${target.name}'s role remains hidden. (No Reveal Day)`);
+        broadcastSystemMsg(io, room, `${shown(target)}'s role remains hidden. (No Reveal Day)`);
       }
       if (target.socketId) {
         io.to(target.socketId).emit('voice:force-mute', { reason: 'You were eliminated.' });
@@ -2321,7 +2321,7 @@ export function attachSocketHandlers(io: AppServer): void {
         socket.data.roomId = room.id;
 
         const hostPlayer = room.players.get(room.hostId)!;
-        broadcastSystemMsg(io, room, `${hostPlayer.name} created the room.`);
+        broadcastSystemMsg(io, room, `${shown(hostPlayer)} created the room.`);
         cb(ok(toPublicRoom(room, room.hostId)));
         // Ping friends that a joinable room is up (public rooms only).
         if (profileId && !room.settings.isPrivate) {
@@ -2627,7 +2627,7 @@ export function attachSocketHandlers(io: AppServer): void {
         } else {
           removePlayer(room, playerId);
         }
-        broadcastSystemMsg(io, room, `${target.name} was removed by ${label}.`);
+        broadcastSystemMsg(io, room, `${shown(target)} was removed by ${label}.`);
         broadcastRoom(io, room);
         if (byMod && modProfile) {
           logKick(pid!, modProfile.username, target.profileId ?? '', target.name, room.id, 'In-game moderator kick').catch(() => {});
@@ -2651,7 +2651,7 @@ export function attachSocketHandlers(io: AppServer): void {
         if (target.id === actor.id) throw new Error('Cannot warn yourself.');
 
         const who = (isMod && !actor.isHost) ? (modProfile?.username ?? actor.name) : actor.name;
-        broadcastSystemMsg(io, room, `⚠️ ${who} sent a warning to ${target.name}.`);
+        broadcastSystemMsg(io, room, `⚠️ ${who} sent a warning to ${shown(target)}.`);
         cb(ok(null));
       } catch (e: any) { cb(err(e.message)); }
     });
@@ -2672,7 +2672,7 @@ export function attachSocketHandlers(io: AppServer): void {
         // the crown. Without this the room keeps wearing the old host's palette
         // after they hand over (or leave).
         try { room.skin = await resolveRoomSkin(newHost.profileId ?? null); } catch { /* non-fatal */ }
-        broadcastSystemMsg(io, room, `👑 ${host.name} transferred host to ${newHost.name}.`);
+        broadcastSystemMsg(io, room, `👑 ${shown(host)} transferred host to ${shown(newHost)}.`);
         broadcastRoom(io, room);
         cb(ok(null));
       } catch (e: any) { cb(err(e.message)); }
@@ -2970,9 +2970,9 @@ export function attachSocketHandlers(io: AppServer): void {
         });
 
         if (nomineeId) {
-          broadcastSystemMsg(io, room, `⚖️ ${actor.name} nominated ${nominee?.name ?? '?'}`);
+          broadcastSystemMsg(io, room, `⚖️ ${shown(actor)} nominated ${nominee ? shown(nominee) : '?'}`);
         } else {
-          broadcastSystemMsg(io, room, `${actor.name} withdrew their nomination.`);
+          broadcastSystemMsg(io, room, `${shown(actor)} withdrew their nomination.`);
         }
 
         broadcastRoom(io, room);
@@ -3030,7 +3030,7 @@ export function attachSocketHandlers(io: AppServer): void {
           }
           if (room.donModeratorId) {
             const prev = room.players.get(room.donModeratorId);
-            broadcastSystemMsg(io, room, `♛ წამყვანის ადგილი გათავისუფლდა${prev ? ` (${prev.name})` : ''}.`);
+            broadcastSystemMsg(io, room, `♛ წამყვანის ადგილი გათავისუფლდა${prev ? ` (${shown(prev)})` : ''}.`);
           }
           room.donModeratorId = null;
         }
@@ -3333,7 +3333,7 @@ export function attachSocketHandlers(io: AppServer): void {
           const fatalEndsAt = Date.now() + 6000;
           room.activeFoul = { playerId: presser.id, endsAt: fatalEndsAt };
 
-          broadcastSystemMsg(io, room, `⚠️ ${presser.name}: ფოლი #4 — ბოლო სიტყვა (6 წმ), შემდეგ გარიცხვა`);
+          broadcastSystemMsg(io, room, `⚠️ ${shown(presser)}: ფოლი #4 — ბოლო სიტყვა (6 წმ), შემდეგ გარიცხვა`);
 
           // Open the presser's mic for the fatal word (mesh + LiveKit).
           enforceVoicePhaseRules(io, room);
@@ -3354,7 +3354,7 @@ export function attachSocketHandlers(io: AppServer): void {
             }
             dying.isAlive = false;
             dying.deathType = 'foul';
-            broadcastSystemMsg(io, liveRoom, `⚠️ ${dying.name}: ფოლი #4 — გარიცხულია!`);
+            broadcastSystemMsg(io, liveRoom, `⚠️ ${shown(dying)}: ფოლი #4 — გარიცხულია!`);
             if (checkWin(liveRoom)) {
               timerService.stop(liveRoom.id);
               setPhase(liveRoom, 'game_over');
@@ -3372,7 +3372,7 @@ export function attachSocketHandlers(io: AppServer): void {
         const foulEndsAt = Date.now() + 6000;
         room.activeFoul = { playerId: presser.id, endsAt: foulEndsAt };
 
-        broadcastSystemMsg(io, room, `⚠️ ${presser.name}: ფოლი #${presser.foulCount}/3`);
+        broadcastSystemMsg(io, room, `⚠️ ${shown(presser)}: ფოლი #${presser.foulCount}/3`);
 
         // Give the presser voice access for the foul window. enforceVoicePhaseRules
         // re-applies the speech rules for BOTH mesh and LiveKit users, and its
@@ -3479,7 +3479,7 @@ export function attachSocketHandlers(io: AppServer): void {
         }
 
         if (promotedOnTerminate.length > 0) {
-          broadcastSystemMsg(io, room, `${promotedOnTerminate.map(p => p.name).join(', ')} joined from the queue.`);
+          broadcastSystemMsg(io, room, `${promotedOnTerminate.map(shown).join(', ')} joined from the queue.`);
           broadcastQueueUpdated(io, room);
         }
 
@@ -3532,7 +3532,7 @@ export function attachSocketHandlers(io: AppServer): void {
         }
 
         if (promoted.length > 0) {
-          const names = promoted.map(p => p.name).join(', ');
+          const names = promoted.map(shown).join(', ');
           broadcastSystemMsg(io, room, `${names} joined from the queue and will play next round!`);
           broadcastQueueUpdated(io, room);
         }
@@ -3641,14 +3641,14 @@ export function attachSocketHandlers(io: AppServer): void {
           } else {
             removePlayer(room, target.id);
             if (room.players.size > 0) {
-              broadcastSystemMsg(io, room, `${target.name} was removed by a moderator.`);
+              broadcastSystemMsg(io, room, `${shown(target)} was removed by a moderator.`);
               broadcastRoom(io, room);
             }
           }
         } else {
           removePlayer(room, target.id);
           if (room.players.size > 0) {
-            broadcastSystemMsg(io, room, `${target.name} was removed by a moderator.`);
+            broadcastSystemMsg(io, room, `${shown(target)} was removed by a moderator.`);
             broadcastRoom(io, room);
           }
         }
@@ -3697,14 +3697,14 @@ export function attachSocketHandlers(io: AppServer): void {
           } else {
             removePlayer(foundRoom, foundTarget.id);
             if (foundRoom.players.size > 0) {
-              broadcastSystemMsg(io, foundRoom, `${foundTarget.name} was removed by a moderator.`);
+              broadcastSystemMsg(io, foundRoom, `${shown(foundTarget)} was removed by a moderator.`);
               broadcastRoom(io, foundRoom);
             }
           }
         } else {
           removePlayer(foundRoom, foundTarget.id);
           if (foundRoom.players.size > 0) {
-            broadcastSystemMsg(io, foundRoom, `${foundTarget.name} was removed by a moderator.`);
+            broadcastSystemMsg(io, foundRoom, `${shown(foundTarget)} was removed by a moderator.`);
             broadcastRoom(io, foundRoom);
           }
         }
@@ -5235,7 +5235,7 @@ export function attachSocketHandlers(io: AppServer): void {
         });
 
         // Broadcast to room
-        broadcastSystemMsg(io, room, `${targetPlayer.name} was removed by clan moderation.`);
+        broadcastSystemMsg(io, room, `${shown(targetPlayer)} was removed by clan moderation.`);
 
         await addClanModLog(room.clanId, profileId, actorName, targetPlayerId, targetPlayer.name, 'clan_kick', reason.slice(0, 300), room.id);
 
@@ -9710,7 +9710,7 @@ function handlePlayerLeave(io: AppServer, socket: AppSocket, roomId: string, pla
       if (wasHost) {
         const grace = hostGraceTimers.get(roomId);
         if (grace) { clearTimeout(grace.timer); hostGraceTimers.delete(roomId); }
-        closeRoom(io, room, `${player.name} (host) left. The room has been closed.`);
+        closeRoom(io, room, `${shown(player)} (host) left. The room has been closed.`);
         spectateQueues.delete(roomId);
         return;
       }
@@ -9728,7 +9728,7 @@ function handlePlayerLeave(io: AppServer, socket: AppSocket, roomId: string, pla
 
       if (wasHost) {
         // Existing host-grace logic closes the room if host doesn't return
-        startHostGrace(io, room, player.name, profileId);
+        startHostGrace(io, room, shown(player), profileId);
         spectateQueues.delete(roomId);
       } else {
         broadcastSystemMsg(io, room, `${shown(player)} disconnected.`);
@@ -9753,7 +9753,7 @@ function handlePlayerLeave(io: AppServer, socket: AppSocket, roomId: string, pla
             return;
           }
           if (!wasStillHost) {
-            broadcastSystemMsg(io, currentRoom, `${stillPlayer.name} left the room.`);
+            broadcastSystemMsg(io, currentRoom, `${shown(stillPlayer)} left the room.`);
             broadcastRoom(io, currentRoom);
             promoteFromQueue(io, currentRoom);
           }
@@ -9767,13 +9767,13 @@ function handlePlayerLeave(io: AppServer, socket: AppSocket, roomId: string, pla
       if (explicit) {
         const grace = hostGraceTimers.get(roomId);
         if (grace) { clearTimeout(grace.timer); hostGraceTimers.delete(roomId); }
-        closeRoom(io, room, `${player.name} (host) left. The room has been closed.`);
+        closeRoom(io, room, `${shown(player)} (host) left. The room has been closed.`);
         spectateQueues.delete(roomId);
       } else {
         // During active game — keep player slot, start grace
         player.isConnected = false;
         player.socketId = '';
-        startHostGrace(io, room, player.name, profileId);
+        startHostGrace(io, room, shown(player), profileId);
         spectateQueues.delete(roomId);
       }
       return;

@@ -500,11 +500,24 @@ export function LobbyPage() {
                             : isMe ? 'text-white/90'
                             : 'text-white/60',
                           )}>
-                            <PlayerName profileId={player.profileId} name={player.name} />
+                            {/* Your own row shows the ALIAS while you are
+                                masked. Showing your real name here was correct
+                                and useless: the one thing you need to see is
+                                what the table sees, and a list that looks
+                                unchanged reads as a mask that is not working. */}
+                            {player.incognito && player.myAlias
+                              ? <span style={{ color: '#c4b5fd' }}>🕶 {player.myAlias}</span>
+                              : <PlayerName profileId={player.profileId} name={player.name} />}
                           </span>
                           {isMe && (
                             <span className="text-[12px] font-mono text-white/18 border border-white/[0.08] rounded px-1 py-px">
                               you
+                            </span>
+                          )}
+                          {player.incognito && (
+                            <span className="text-[12px] font-mono rounded px-1 py-px"
+                              style={{ color: '#c4b5fd', border: '1px solid rgba(167,139,250,0.28)' }}>
+                              {player.name}
                             </span>
                           )}
                           {player.isModerator && (

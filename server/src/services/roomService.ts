@@ -517,9 +517,15 @@ export function toPublicRoom(room: Room, viewerPlayerId: string): RoomPublic {
   const isMafia = viewer?.team === 'mafia';
   const isCultLeader = viewer?.role === 'cult_leader';
   const isYakuza = viewer?.team === 'yakuza';
-  // Moderators (and the host running the table) see through the anonymous perk,
-  // so a player can't use an alias to dodge moderation.
-  const viewerSeesThroughAnon = !!(viewer?.isModerator || viewer?.isHost);
+  // Moderators see through a mask, so it can never be used to dodge moderation.
+  //
+  // The HOST used to as well, "because they run the table". They do not run it
+  // by knowing who people are — kick, start and settings all act on a row id —
+  // and a host is simply whoever opened the room, so that clause meant any
+  // player could unmask every incognito player by making a room and inviting
+  // them, or by being handed host. A promise of "nobody here knows who I am"
+  // cannot have an exception that any player can put themselves inside.
+  const viewerSeesThroughAnon = !!viewer?.isModerator;
 
   const mapToPublic = (p: Player): PlayerPublic => {
     // Anonymous perk: replace name/avatar for everyone but the player themselves,

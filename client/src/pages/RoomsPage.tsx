@@ -1002,6 +1002,15 @@ export function RoomsPage({ onOpenClans, onOpenLeaderboard }: { onOpenClans?: ()
               <p className="font-mono font-bold text-neon-cyan/75 tracking-[0.25em] text-xl mb-5">
                 {joinChoice.code}
               </p>
+              {/* The choice belongs HERE, at the door. It was only on the
+                  create form and the join-by-code form, and this modal is how
+                  people actually enter a room — so the one decision the perk
+                  exists for was being made after they had already walked in
+                  under their own name. */}
+              <div className="mb-3 pb-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+                <IncognitoJoinToggle />
+              </div>
+
               <div className="flex flex-col gap-2">
                 <Button
                   fullWidth
