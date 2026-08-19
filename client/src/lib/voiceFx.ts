@@ -31,9 +31,11 @@ import { normalise } from './voiceMaster';
 
 export type VoiceFx =
   | 'none' | 'deep' | 'high' | 'ghost' | 'robot' | 'radio' | 'giant' | 'echo'
-  | 'detective' | 'anonymous';
+  | 'detective' | 'anonymous'
+  // Verified only. See the VIP block in buildGraph.
+  | 'demon' | 'alien' | 'stadium' | 'hologram';
 
-export interface VoiceFxInfo { id: VoiceFx; label: string; icon: string }
+export interface VoiceFxInfo { id: VoiceFx; label: string; icon: string; vip?: boolean }
 
 /** In the order they are offered. "None" first, because it is the honest one. */
 export const VOICE_FX: VoiceFxInfo[] = [
@@ -48,7 +50,17 @@ export const VOICE_FX: VoiceFxInfo[] = [
   // The two built to be convincing rather than funny — see buildGraph.
   { id: 'detective', label: 'L',          icon: '🕵' },
   { id: 'anonymous', label: 'ანონიმუსი',  icon: '👤' },
+  // ── Verified only ─────────────────────────────────────────────────────
+  // Added for VIP rather than taken from free: every voice above is still
+  // available to everyone, exactly as it was.
+  { id: 'demon',    label: 'დემონი',     icon: '😈', vip: true },
+  { id: 'alien',    label: 'უცხოპლანეტელი', icon: '👽', vip: true },
+  { id: 'stadium',  label: 'სტადიონი',   icon: '📢', vip: true },
+  { id: 'hologram', label: 'ჰოლოგრამა',  icon: '🛸', vip: true },
 ];
+
+/** The ids a free account may send. */
+export const FREE_VOICE_FX = new Set(VOICE_FX.filter(f => !f.vip).map(f => f.id));
 
 export const FX_LABEL: Record<VoiceFx, string> =
   Object.fromEntries(VOICE_FX.map(f => [f.id, f.label])) as Record<VoiceFx, string>;
@@ -64,6 +76,9 @@ const RATIO: Partial<Record<VoiceFx, number>> = {
   // all, because its voice comes from a vocoder's carrier rather than from the
   // speaker's own larynx — see buildGraph.
   anonymous: 0.80,
+  // VIP
+  demon: 0.62,
+  alien: 1.18,
 };
 
 const WORK_RATE = 48_000;      // the rate the shifter was tuned at
@@ -408,6 +423,58 @@ function buildGraph(ctx: OfflineAudioContext, src: AudioNode, fx: VoiceFx): void
     node = body;
     node = saturate(ctx, node, 4);
     node = reverb(ctx, node, 0.75, 2.2, 0.28);     // the empty room they film in
+  }
+
+  /*
+   * ── Verified voices ─────────────────────────────────────────────────
+   *
+   * Built from the same blocks as the ones above — no new DSP was written to
+   * make these worth paying for, because a paywall is not a reason to ship a
+   * second, worse pitch shifter. What separates them is the arrangement.
+   */
+
+  /* A larynx too big for the body: shifted far down, rung at a frequency low
+   * enough to be felt rather than heard, and put in a space with no walls. */
+  if (fx === 'demon') {
+    node = ringMod(ctx, node, 31, 0.22);
+    const chest = ctx.createBiquadFilter();
+    chest.type = 'lowshelf'; chest.frequency.value = 180; chest.gain.value = 6;
+    node.connect(chest); node = chest;
+    node = saturate(ctx, node, 6);
+    node = reverb(ctx, node, 1.1, 2.4, 0.30);
+  }
+
+  /* Raised slightly, then ring-modulated well inside the speech band so the
+   * harmonics land where no human throat puts them, and combed short enough to
+   * sound like it is arriving through something. */
+  if (fx === 'alien') {
+    node = ringMod(ctx, node, 168, 0.35);
+    node = chorus(ctx, node, 0.4);
+    node = band(ctx, node, 300, 6000, 2);
+    node = comb(ctx, node, 3.2, 0.40, 0.20);
+  }
+
+  /* The tannoy at the far end of a full stadium: narrowed, pushed, and mostly
+   * the room. Deliberately more reverb than the L broadcast — that one is in a
+   * corridor, this one is in a bowl. */
+  if (fx === 'stadium') {
+    node = band(ctx, node, 260, 4200, 2);
+    node = saturate(ctx, node, 5);
+    const horn = ctx.createBiquadFilter();
+    horn.type = 'peaking'; horn.frequency.value = 1800; horn.Q.value = 1.0; horn.gain.value = 5;
+    node.connect(horn); node = horn;
+    node = comb(ctx, node, 2.1, 0.35, 0.20);
+    node = reverb(ctx, node, 1.6, 1.9, 0.42);
+  }
+
+  /* The same vocoder that erases the speaker for L, but carried by a tone a
+   * third higher and widened afterwards — machine speech that is transmitted
+   * rather than announced. */
+  if (fx === 'hologram') {
+    node = vocoder(ctx, node, { carrierHz: 132, bands: 18, noise: 0.12 });
+    node = chorus(ctx, node, 0.45);
+    node = band(ctx, node, 220, 6200, 2);
+    node = reverb(ctx, node, 0.5, 2.5, 0.22);
   }
 
   if (fx === 'echo') {

@@ -1,3 +1,4 @@
+import { VipSheet } from '@/components/ui/VipSheet';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -180,6 +181,7 @@ export function MorePanel({ isOwner = false, isMod = false, onEconomyClick, onSh
   const [showAchievements, setShowAchievements] = useState(false);
   const [showSeasonPass, setShowSeasonPass] = useState(false);
   const [showReferral, setShowReferral] = useState(false);
+  const [showVip, setShowVip] = useState(false);
 
   const open = (fn: () => void) => () => { closeMoreMenu(); setTimeout(fn, 220); };
 
@@ -282,6 +284,15 @@ export function MorePanel({ isOwner = false, isMod = false, onEconomyClick, onSh
           iconBg: 'linear-gradient(135deg, rgba(251,191,36,0.25), rgba(245,158,11,0.1))',
           iconGlow: 'rgba(251,191,36,0.18)',
           onClick: open(() => setShowCoinHistory(true)),
+        },
+        {
+          icon: '💠',
+          label: 'ვერიფიკაცია',
+          description: 'ლურჯი ნიშანი და მისი პრივილეგიები',
+          iconBg: 'linear-gradient(135deg, rgba(167,139,250,0.3), rgba(99,102,241,0.12))',
+          iconGlow: 'rgba(167,139,250,0.22)',
+          badge: { text: 'VIP', color: '#a78bfa' },
+          onClick: open(() => setShowVip(true)),
         },
         {
           icon: '🔗',
@@ -634,6 +645,7 @@ export function MorePanel({ isOwner = false, isMod = false, onEconomyClick, onSh
       <AchievementsModal open={showAchievements} onClose={() => setShowAchievements(false)} profileId={profileId} />
       <SeasonPassModal open={showSeasonPass} onClose={() => setShowSeasonPass(false)} />
       <ReferralModal open={showReferral} onClose={() => setShowReferral(false)} />
+      <VipSheet open={showVip} onClose={() => setShowVip(false)} />
     </>
   );
 }

@@ -5,6 +5,7 @@ import { startVoiceCapture, recorderOptions, preparePlayback, type VoiceCapture 
 import { MicLevel } from '@/components/ui/MicLevel';
 import { VoiceFxPicker } from '@/components/ui/VoiceFxPicker';
 import { masterVoice } from '@/lib/voiceMaster';
+import { useMyLimits } from '@/store/vipStore';
 import { copyText } from '@/lib/clipboard';
 import { FX_LABEL, type RenderedVoice, type VoiceFx } from '@/lib/voiceFx';
 import { useSocialStore } from '@/store/socialStore';
@@ -18,6 +19,7 @@ import { useT } from '@/store/langStore';
 type TFn = ReturnType<typeof useT>;
 
 /** A minute. Long enough to actually say something. */
+/** The free ceiling. A verified account records longer — see vipStore. */
 const MAX_VOICE_SECONDS = 60;
 const GROUP_WINDOW_MS = 4 * 60 * 1000; // messages within 4min from same sender stack together
 
@@ -87,7 +89,7 @@ function formatDuration(s: number) {
  * step between recording and sending — and a moment to hear what you actually
  * said is worth having on its own.
  */
-function useVoiceRecorder(onReady: (blob: Blob, duration: number) => void) {
+function useVoiceRecorder(onReady: (blob: Blob, duration: number) => void, maxSeconds = MAX_VOICE_SECONDS) {
   const mediaRef   = useRef<MediaRecorder | null>(null);
   const captureRef = useRef<VoiceCapture | null>(null);
   const chunksRef  = useRef<Blob[]>([]);
@@ -143,10 +145,10 @@ function useVoiceRecorder(onReady: (blob: Blob, duration: number) => void) {
       timerRef.current = setInterval(() => {
         const s = (Date.now() - startRef.current) / 1000;
         setSeconds(s);
-        if (s >= MAX_VOICE_SECONDS) stopMedia(true);
+        if (s >= maxSeconds) stopMedia(true);
       }, 200);
     } catch { /* mic denied or not available */ }
-  }, [stopMedia]);
+  }, [stopMedia, maxSeconds]);
 
   useEffect(() => () => { stopMedia(false); }, [stopMedia]);
 
@@ -540,6 +542,11 @@ export function DmPanel() {
     finally { setSending(false); }
   };
 
+  // Seconds and bytes move together with the tier: recording three times as
+  // long against the old byte ceiling would capture the clip and then refuse it.
+  const myLimits = useMyLimits();
+  const dmVoiceCap = Math.max(6_800_000, myLimits.voiceBytes - 200_000);
+
   /* The clip waiting to be sent, and whichever voice is currently chosen. */
   const [pendingVoice, setPendingVoice] = useState<{ blob: Blob; duration: number } | null>(null);
   const [voicePick, setVoicePick] = useState<RenderedVoice | null>(null);
@@ -551,10 +558,10 @@ export function DmPanel() {
       // measurement takes a moment and the person should not wait on it.
       setPendingVoice({ blob, duration });
       setVoicePick(null);
-      void masterVoice(blob, 6_800_000)
+      void masterVoice(blob, dmVoiceCap)
         .then(m => { if (m.changed) setPendingVoice({ blob: m.blob, duration }); })
         .catch(() => { /* the original is already usable */ });
-    });
+    }, myLimits.voiceSeconds);
 
   const discardVoice = () => { setPendingVoice(null); setVoicePick(null); };
 
@@ -1673,7 +1680,7 @@ export function DmPanel() {
                       >
                         <VoiceFxPicker
                           source={pendingVoice.blob}
-                          maxChars={6_800_000}
+                          maxChars={dmVoiceCap}
                           onPick={setVoicePick}
                         />
                         <div className="flex items-center gap-2">

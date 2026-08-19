@@ -49,7 +49,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 3000);
 const CLIENT_URL = process.env.CLIENT_URL ?? 'http://localhost:5173';
 const IS_PROD = process.env.NODE_ENV === 'production';
-const CLIENT_BUILD = '2026-07-28-v605';
+const CLIENT_BUILD = '2026-07-28-v606';
 console.log('[Startup] Void Mafia server starting');
 console.log(`[Startup] Client build: ${CLIENT_BUILD}`);
 console.log(`[Startup] NODE_ENV=${process.env.NODE_ENV ?? 'development'}`);
@@ -652,6 +652,11 @@ async function tryInitDb(attempt = 1) {
             console.log(`[VOID IQ] reconciled ${n} attempt(s) → verified`); })
             .catch(e => console.warn('[VOID IQ] reconcile failed:', e.message));
         initPushService().catch(e => console.warn('[Push] init failed:', e.message));
+        // Keep the synchronous VIP snapshot warm — the mafia phase machine and the
+        // spectator queue read it from places that cannot await. See vipService.
+        import('./services/vipService.js')
+            .then(m => m.startVipSnapshotRefresh())
+            .catch(e => console.warn('[vip] snapshot start failed:', e.message));
         setInterval(() => { computeTrending().catch(e => console.error('[Trending] compute failed:', e)); }, 10 * 60 * 1000);
         // Weekly leaderboard payout (top 3: 500/400/300). Runs on startup (back-pays
         // a missed week) and hourly (settles as soon as a new week begins). Idempotent.

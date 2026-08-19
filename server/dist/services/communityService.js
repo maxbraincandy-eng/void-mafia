@@ -1,6 +1,7 @@
 import { sql } from '../db.js';
 import { generateId } from '../utils/helpers.js';
 import { getClanMembershipByPlayer } from './clanService.js';
+import { limitsFor } from './vipService.js';
 // ── Player lookup helper (lightweight — avoids a full playerService import cycle) ──
 async function getPlayerBasic(id) {
     const [row] = await sql `
@@ -230,7 +231,7 @@ function isValidCommentGif(url) {
     }
 }
 export async function addComment(postId, authorId, content, opts) {
-    const cleanContent = content.trim().slice(0, 500);
+    const cleanContent = content.trim().slice(0, (await limitsFor(authorId)).commentChars);
     const gifUrl = opts?.gifUrl?.trim() || null;
     if (gifUrl && !isValidCommentGif(gifUrl))
         throw new Error('Invalid GIF.');
@@ -688,7 +689,8 @@ export function generateAnonymousName(playerId) {
 export async function updateCommunityProfile(playerId, data) {
     const { bio, coverUrl, favoriteRole } = data;
     if (bio !== undefined) {
-        await sql `UPDATE players SET community_bio = ${bio.slice(0, 500)} WHERE id = ${playerId}`;
+        const max = (await limitsFor(playerId)).bioChars;
+        await sql `UPDATE players SET community_bio = ${bio.slice(0, max)} WHERE id = ${playerId}`;
     }
     if (coverUrl !== undefined) {
         await sql `UPDATE players SET community_cover_url = ${coverUrl || null} WHERE id = ${playerId}`;
@@ -810,14 +812,25 @@ async function buildPostV2(row, viewerId) {
 }
 // Create post V2
 export async function createPostV2(authorId, data) {
+    const limits = await limitsFor(authorId);
     if (data.imageUrl && data.imageUrl.length > 680000)
         throw new Error('Image too large — please use a smaller image.');
-    if (data.audioUrl && data.audioUrl.length > 9000000)
+    // A VIP records three times as long, so the ceiling moves with them. Never
+    // below the 9 MB everyone already had.
+    const audioCap = Math.max(9000000, limits.voiceBytes);
+    if (data.audioUrl && data.audioUrl.length > audioCap)
         throw new Error('Audio too large.');
     // The badge on a post must mean something, so only a known effect name is
     // kept — a modified client cannot label a post with arbitrary text.
     const KNOWN_FX = ['deep', 'high', 'ghost', 'robot', 'radio', 'giant', 'echo', 'detective', 'anonymous'];
-    data.audioFx = data.audioUrl && KNOWN_FX.includes(String(data.audioFx ?? '')) ? String(data.audioFx) : null;
+    const VIP_FX = ['demon', 'alien', 'stadium', 'hologram'];
+    const claimedFx = String(data.audioFx ?? '');
+    const fxAllowed = KNOWN_FX.includes(claimedFx)
+        || (VIP_FX.includes(claimedFx) && limits.vipVoices);
+    data.audioFx = data.audioUrl && fxAllowed ? claimedFx : null;
+    // The composer already stops at the tier's cap; this is the copy that holds
+    // when the request does not come from the composer.
+    data.content = String(data.content ?? '').slice(0, limits.postChars);
     const id = `post_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const now = Date.now();
     const hashtags = extractHashtags(data.content);
@@ -846,7 +859,7 @@ export async function createPostV2(authorId, data) {
 }
 /** Edit a post's text (author only). Re-extracts hashtags and stamps edited_at. */
 export async function editPost(postId, requesterId, newContent) {
-    const content = newContent.trim().slice(0, 2000);
+    const content = newContent.trim().slice(0, (await limitsFor(requesterId)).postChars);
     if (!content)
         throw new Error('Post cannot be empty.');
     const [post] = await sql `SELECT author_id, is_anonymous FROM community_posts WHERE id = ${postId} AND deleted_at IS NULL`;

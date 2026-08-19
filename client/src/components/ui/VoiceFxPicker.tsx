@@ -11,6 +11,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { VOICE_FX, renderVoiceFx, type RenderedVoice, type VoiceFx } from '@/lib/voiceFx';
+import { useMyLimits } from '@/store/vipStore';
 
 export function VoiceFxPicker({
   source, maxChars, accent = '#c084fc', onPick,
@@ -71,6 +72,8 @@ export function VoiceFxPicker({
     }
   };
 
+  const { vipVoices } = useMyLimits();
+
   if (!source) return null;
 
   return (
@@ -78,19 +81,23 @@ export function VoiceFxPicker({
       <div className="flex gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
         {VOICE_FX.map(f => {
           const on = active === f.id;
+          // Locked voices stay VISIBLE and greyed rather than hidden: a perk
+          // nobody knows exists sells nothing, and the tap that explains it is
+          // the only place the pitch is relevant.
+          const locked = Boolean(f.vip) && !vipVoices;
           return (
             <button
               key={f.id}
-              onClick={() => void choose(f.id)}
+              onClick={() => (locked ? setError('ეს ხმა ვერიფიცირებულებისთვისაა 💠') : void choose(f.id))}
               disabled={busy !== null}
               className="flex-shrink-0 px-2.5 py-1.5 rounded-full font-mono text-[11px] transition-all active:scale-95 disabled:opacity-50"
               style={{
-                border: `1px solid ${on ? accent : 'rgba(255,255,255,0.14)'}`,
-                background: on ? `${accent}26` : 'rgba(255,255,255,0.04)',
-                color: on ? accent : 'rgba(255,255,255,0.6)',
+                border: `1px solid ${on ? accent : locked ? 'rgba(167,139,250,0.35)' : 'rgba(255,255,255,0.14)'}`,
+                background: on ? `${accent}26` : locked ? 'rgba(167,139,250,0.07)' : 'rgba(255,255,255,0.04)',
+                color: on ? accent : locked ? 'rgba(167,139,250,0.65)' : 'rgba(255,255,255,0.6)',
               }}
             >
-              {busy === f.id ? '…' : `${f.icon} ${f.label}`}
+              {busy === f.id ? '…' : `${locked ? '🔒 ' : ''}${f.icon} ${f.label}`}
             </button>
           );
         })}

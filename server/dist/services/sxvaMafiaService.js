@@ -19,6 +19,7 @@
  * layer, exactly like the other match games.
  */
 import { randomBytes } from 'crypto';
+import { limitsForSync } from './vipService.js';
 export const XM_FOULS_TO_ELIMINATE = 4;
 const matches = new Map();
 function code6() {
@@ -392,7 +393,7 @@ export function endMafiaMeet(matchId, byUserId) {
     m.nominatedBy = {};
     buildSpeechOrder(m);
     m.phase = 'speech';
-    m.speechEndsAt = Date.now() + m.settings.speechSeconds * 1000;
+    startSpeechClock(m);
     return m;
 }
 export function beginNight(matchId, byUserId) {
@@ -524,6 +525,19 @@ export function advanceNightAuto(matchId) {
     return m;
 }
 // ── Day speech ───────────────────────────────────────────────────────────────
+/**
+ * Start the current speaker's clock.
+ *
+ * A verified player gets `speechBonusSeconds` more than the table's setting —
+ * the one perk that touches play rather than presentation, added deliberately
+ * and kept small. The lookup is the synchronous snapshot because this runs from
+ * timer callbacks where there is nothing to await; see vipService.
+ */
+function startSpeechClock(m) {
+    const speaker = m.speechOrder[m.speechIdx] ?? null;
+    const bonus = limitsForSync(speaker).speechBonusSeconds;
+    m.speechEndsAt = Date.now() + (m.settings.speechSeconds + bonus) * 1000;
+}
 function buildSpeechOrder(m) {
     const alive = aliveSeats(m).sort((a, b) => a.seat - b.seat);
     if (alive.length === 0) {
@@ -544,7 +558,7 @@ export function beginDay(matchId, byUserId) {
     m.nominatedBy = {};
     buildSpeechOrder(m);
     m.phase = 'speech';
-    m.speechEndsAt = Date.now() + m.settings.speechSeconds * 1000;
+    startSpeechClock(m);
     return m;
 }
 export function nextSpeaker(matchId, byUserId) {
@@ -596,7 +610,7 @@ function advanceSpeaker(m) {
         endSpeeches(m);
         return;
     }
-    m.speechEndsAt = Date.now() + m.settings.speechSeconds * 1000;
+    startSpeechClock(m);
 }
 export function extendSpeech(matchId, byUserId, seconds) {
     const m = matches.get(matchId);

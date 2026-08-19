@@ -10,7 +10,9 @@ import { useT } from '@/store/langStore';
 import { emitWithAck } from '@/lib/socket';
 import { compressImage } from '@/lib/imageUtils';
 import type { CommunityProfileV2, CommunityPostV2, CommunityComment, PollResult, Res } from '@/types/index';
-import { Avatar, BadgeRow, MrMaxGlow, Spinner, timeAgo } from '@/components/community/shared';
+import { Avatar, BadgeRow, MrMaxGlow, Spinner, TextArea, timeAgo } from '@/components/community/shared';
+import { ProfileVisitors } from '@/components/community/ProfileVisitors';
+import { useMyLimits } from '@/store/vipStore';
 import { YouTubeEmbed, extractYouTubeId } from '@/components/community/YouTubeEmbed';
 import { PollDisplay } from '@/components/community/PollDisplay';
 import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
@@ -512,6 +514,9 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
   const dragRef = useRef<{ startY: number; startPos: number } | null>(null);
   const avatarFileRef = useRef<HTMLInputElement>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [bioEditing, setBioEditing] = useState(false);
+  const [bioDraft, setBioDraft] = useState('');
+  const [bioSaving, setBioSaving] = useState(false);
 
   const isSelf     = currentUser?.id === profileId;
   const isLoggedIn = !!currentUser;
@@ -536,6 +541,16 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
 
     return () => { cancelled = true; };
   }, [profileId]);
+
+  const myLimits = useMyLimits();
+
+  const saveBio = async () => {
+    setBioSaving(true);
+    try {
+      const r = await emitWithAck<any, Res<CommunityProfileV2>>('community:profile_update', { bio: bioDraft });
+      if (r.ok) { setProfile(r.data); setBioEditing(false); }
+    } finally { setBioSaving(false); }
+  };
 
   const handleToggleFollow = async () => {
     if (!profile || followBusy || isSelf) return;
@@ -745,10 +760,53 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
             <div className="flex mb-2 px-1"><BadgeRow badges={profile.badges} max={8} /></div>
           )}
 
-          {/* Bio */}
-          {profile.bio && (
-            <p className="text-white/58 leading-relaxed mb-3 px-1" style={{ fontSize: 13 }}>{profile.bio}</p>
-          )}
+          {/* Bio — editable in place on your own profile. The cap comes from
+              the tier, so a verified account simply has more room. */}
+          {bioEditing ? (
+            <div className="mb-3 px-1">
+              <TextArea
+                value={bioDraft}
+                onChange={setBioDraft}
+                placeholder="მოგვიყევი შენს შესახებ…"
+                maxLength={myLimits.bioChars}
+                rows={4}
+                accent="purple"
+              />
+              <div className="flex items-center gap-2 mt-1.5">
+                <span className="font-mono text-white/30" style={{ fontSize: 11 }}>
+                  {bioDraft.length}/{myLimits.bioChars}
+                </span>
+                <div className="flex-1" />
+                <button
+                  onClick={() => setBioEditing(false)}
+                  className="font-mono px-3 py-1.5 rounded-lg text-white/50 active:scale-95"
+                  style={{ fontSize: 11, background: 'rgba(255,255,255,0.05)' }}
+                >გაუქმება</button>
+                <button
+                  onClick={saveBio}
+                  disabled={bioSaving}
+                  className="font-mono px-3 py-1.5 rounded-lg active:scale-95 disabled:opacity-50"
+                  style={{ fontSize: 11, background: 'rgba(155,0,255,0.18)', color: '#c084fc', border: '1px solid rgba(155,0,255,0.35)' }}
+                >{bioSaving ? '…' : 'შენახვა'}</button>
+              </div>
+            </div>
+          ) : profile.bio ? (
+            <p
+              className="text-white/58 leading-relaxed mb-3 px-1"
+              style={{ fontSize: 13, cursor: isSelf ? 'pointer' : undefined }}
+              onClick={() => { if (isSelf) { setBioDraft(profile.bio ?? ''); setBioEditing(true); } }}
+            >
+              {profile.bio}{isSelf && <span className="text-white/25"> ✎</span>}
+            </p>
+          ) : isSelf ? (
+            <button
+              onClick={() => { setBioDraft(''); setBioEditing(true); }}
+              className="mb-3 px-1 font-mono text-white/30 active:scale-95"
+              style={{ fontSize: 12 }}
+            >+ დაამატე ბიოგრაფია</button>
+          ) : null}
+
+          {isSelf && <ProfileVisitors />}
 
           {/* Clan */}
           {profile.clanTag && (

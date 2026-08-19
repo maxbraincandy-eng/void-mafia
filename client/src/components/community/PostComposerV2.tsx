@@ -8,6 +8,7 @@ import { compressImage } from '@/lib/imageUtils';
 import { GifPicker } from '@/components/community/GifPicker';
 import { MemeBuilder } from '@/components/community/MemeBuilder';
 import { VoicePostRecorder } from '@/components/community/VoicePostRecorder';
+import { useMyLimits } from '@/store/vipStore';
 
 const TYPE_ICONS: Record<PostType, string> = {
   text: '📝', image: '🖼', gif: '🎞', video: '🎬', poll: '📊', voice: '🎙',
@@ -121,6 +122,7 @@ export function PostComposerV2({ onClose }: { onClose: () => void }) {
   const t = useT();
   const profile = useAuthStore(s => s.profile);
   const createPostV2 = useCommunityStore(s => s.createPostV2);
+  const limits = useMyLimits();
 
   const [postType, setPostType] = useState<PostType>('text');
   const [content, setContent] = useState('');
@@ -257,7 +259,7 @@ export function PostComposerV2({ onClose }: { onClose: () => void }) {
               <Avatar avatar={profile?.avatar ?? '?'} avatarUrl={profile?.avatarUrl ?? null} size={36} />
             )}
             <div className="flex-1 min-w-0">
-              <TextArea value={content} onChange={setContent} placeholder={t.community.feed.composerPh} maxLength={2000} rows={3} />
+              <TextArea value={content} onChange={setContent} placeholder={t.community.feed.composerPh} maxLength={limits.postChars} rows={3} />
             </div>
           </div>
         )}

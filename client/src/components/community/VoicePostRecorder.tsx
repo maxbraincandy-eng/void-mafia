@@ -7,6 +7,7 @@ import { MicLevel } from '@/components/ui/MicLevel';
 import { VoiceFxPicker } from '@/components/ui/VoiceFxPicker';
 import { masterVoice } from '@/lib/voiceMaster';
 import type { RenderedVoice, VoiceFx } from '@/lib/voiceFx';
+import { useMyLimits } from '@/store/vipStore';
 
 interface Props {
   onDone: (audioDataUri: string, duration: number, fx: VoiceFx | null) => void;
@@ -28,7 +29,11 @@ export function VoicePostRecorder({ onDone, onClose }: Props) {
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const MAX = 60;
+  // Both numbers come from the tier, and both have to: capturing 180 seconds
+  // against a 9 MB ceiling would record the clip and then fail to send it.
+  const limits = useMyLimits();
+  const MAX = limits.voiceSeconds;
+  const BYTE_CAP = Math.max(8_800_000, limits.voiceBytes - 200_000);
 
   const start = async () => {
     try {
@@ -51,7 +56,7 @@ export function VoicePostRecorder({ onDone, onClose }: Props) {
         reader.readAsDataURL(blob);
         setState('preview');
         // Levelled in the background; the preview swaps over when it is ready.
-        void masterVoice(blob, 8_800_000).then(m => {
+        void masterVoice(blob, BYTE_CAP).then(m => {
           if (!m.changed) return;
           setAudioBlob(m.blob);
           setAudioUrl(URL.createObjectURL(m.blob));
@@ -135,7 +140,7 @@ export function VoicePostRecorder({ onDone, onClose }: Props) {
 
         {state === 'preview' && audioUrl && (
           <div className="flex flex-col gap-4">
-            <VoiceFxPicker source={audioBlob} maxChars={8_800_000} onPick={setPick} />
+            <VoiceFxPicker source={audioBlob} maxChars={BYTE_CAP} onPick={setPick} />
             <audio key={pick?.dataUrl ?? 'original'} src={pick?.dataUrl ?? audioUrl}
               onPlay={preparePlayback}
               controls style={{ width: '100%', borderRadius: 10 }} />

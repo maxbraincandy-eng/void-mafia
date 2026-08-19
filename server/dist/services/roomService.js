@@ -1,5 +1,6 @@
 import { DEFAULT_DYNAMIC_EVENTS, } from '../types/index.js';
 import { generateId, generateRoomCode, nameToAvatar } from '../utils/helpers.js';
+import { isVipSync } from './vipService.js';
 export function generateVoiceSessionId() {
     return generateId();
 }
@@ -306,11 +307,20 @@ export function enqueueForNextRound(room, playerId) {
     // spectating. Otherwise the queue list and the player list would disagree
     // about who is about to sit down.
     player.invisibleSpectator = false;
-    const position = room.nextRoundQueue.length + 1;
     player.isQueuedNextRound = true;
-    player.queuePosition = position;
-    room.nextRoundQueue.push(player);
-    return position;
+    // A verified player enters ahead of everyone without a badge, and behind
+    // everyone with one — so the perk is "skip the unverified", never "skip the
+    // person who paid before you". Without that second half the queue would
+    // reshuffle among VIPs on every join and nobody's position would hold.
+    const insertAt = isVipSync(player.profileId)
+        ? room.nextRoundQueue.findIndex(p => !isVipSync(p.profileId))
+        : -1;
+    if (insertAt === -1)
+        room.nextRoundQueue.push(player);
+    else
+        room.nextRoundQueue.splice(insertAt, 0, player);
+    room.nextRoundQueue.forEach((p, i) => { p.queuePosition = i + 1; });
+    return player.queuePosition;
 }
 /**
  * Remove a player from the next-round queue and re-number remaining positions.

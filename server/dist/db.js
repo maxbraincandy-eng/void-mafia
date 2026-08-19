@@ -163,6 +163,22 @@ export async function initializeDatabase() {
     // while 'vip' is granted by an owner (and later, bought). Only the grantable
     // one is stored here.
     await sql `ALTER TABLE players ADD COLUMN IF NOT EXISTS verified_tier TEXT`;
+    // ── profile visitors ───────────────────────────────────────────────
+    // One row per (viewer, viewed) pair, updated rather than appended: the
+    // interesting question is "who has looked at me and when did they last do
+    // it", not "how many times". Storing every view would grow without bound to
+    // answer a question nobody asks, and would let one obsessive visitor push
+    // everyone else off the list.
+    await sql `
+    CREATE TABLE IF NOT EXISTS profile_visits (
+      profile_id  TEXT NOT NULL,
+      viewer_id   TEXT NOT NULL,
+      last_at     BIGINT NOT NULL,
+      views       INTEGER NOT NULL DEFAULT 1,
+      PRIMARY KEY (profile_id, viewer_id)
+    )
+  `;
+    await sql `CREATE INDEX IF NOT EXISTS idx_visits_profile ON profile_visits(profile_id, last_at DESC)`;
     // ── appeals ────────────────────────────────────────────────────────
     // Without a route back, a wrongly banned player simply disappears and the
     // mistake is never discovered. An appeal is also the only signal that tells

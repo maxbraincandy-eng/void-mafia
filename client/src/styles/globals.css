@@ -776,3 +776,17 @@ html.large-text .text-3xl { font-size: 34px !important; }
   65%  { transform: translate(-50%, -100%) translateY(6px);   opacity: 1; }
   100% { transform: translate(-50%, -100%) translateY(0);     opacity: 1; }
 }
+
+/* ── Verified name shimmer (PlayerName) ───────────────────────────
+ * The sheen sweeps a gradient across the text rather than fading the
+ * whole name: at any instant the name is at full contrast somewhere,
+ * which a pulsing opacity cannot claim. Names are read, not admired.
+ * Motion-sensitive users get the gradient standing still — the colour
+ * is the badge, the movement is only decoration. */
+@keyframes vmNameShine {
+  0%   { background-position: 130% 0; }
+  100% { background-position: -30% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [style*="vmNameShine"] { animation: none !important; background-position: 50% 0 !important; }
+}

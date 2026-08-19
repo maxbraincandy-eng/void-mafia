@@ -195,6 +195,10 @@ function stickerRateOk(socketId: string): boolean {
 }
 import { submitRun as noirSubmit, leaderboard as noirBoard, myStats as noirStats } from './services/noirService.js';
 import { getVerifiedMap, setVerifiedTier, listVerified } from './services/playerService.js';
+import {
+  tierOf, limitsFor, perkList, recordProfileVisit, getProfileVisitors, getVisitorCounts,
+  refreshVipSnapshot,
+} from './services/vipService.js';
 import { inspectMessage } from './services/autoModService.js';
 import { createAppeal, getAppeals, decideAppeal, getModeratorStats, type EvidenceLine } from './services/moderationService.js';
 import { applyReferral, getReferralCount } from './services/referralService.js';
@@ -266,7 +270,11 @@ const rateLimits = new Map<string, { count: number; resetAt: number }>();
 /** The voice effects a client may claim. Anything else is stored as none. */
 const VOICE_FX_NAMES = new Set([
   'deep', 'high', 'ghost', 'robot', 'radio', 'giant', 'echo', 'detective', 'anonymous',
+  // Verified only — see VIP_VOICE_FX_NAMES below.
+  'demon', 'alien', 'stadium', 'hologram',
 ]);
+/** The subset a badge unlocks. A free account claiming one is stored as none. */
+const VIP_VOICE_FX_NAMES = new Set(['demon', 'alien', 'stadium', 'hologram']);
 
 function rateOk(socketId: string, limit = 15): boolean {
   const now = Date.now();
@@ -4312,6 +4320,10 @@ export function attachSocketHandlers(io: AppServer): void {
         const myProfileId = socket.data.profileId;
         if (myProfileId && myProfileId !== profileId) {
           friendshipStatus = await getFriendshipStatus(myProfileId, profileId);
+          // Recorded for everyone, shown only to VIPs — see vipService. A log
+          // that starts on the day of purchase would be empty when it is first
+          // looked at, which is when the perk has to justify itself.
+          recordProfileVisit(profileId, myProfileId).catch(() => {});
         }
 
         cb(ok({
@@ -4323,6 +4335,30 @@ export function attachSocketHandlers(io: AppServer): void {
           isOnline: isOnline(profileId),
           roleStats,
         }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── VIP ───────────────────────────────────────────────────────────
+    // The pitch and the enforcement come from the same table (vipService), so
+    // the client never carries its own copy of what a badge is worth.
+    socket.on('vip:perks' as any, async (cb: any) => {
+      try {
+        const me = socket.data.profileId;
+        cb(ok({ perks: perkList(), tier: await tierOf(me), limits: await limitsFor(me) }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    socket.on('vip:visitors' as any, async (cb: any) => {
+      try {
+        const me = socket.data.profileId;
+        if (!me) throw new Error('Not authenticated.');
+        const limits = await limitsFor(me);
+        // The counts go out either way: a free user is shown how many people
+        // looked, and has to subscribe to learn who. Hiding the number too
+        // would leave nothing to be curious about.
+        const counts = await getVisitorCounts(me);
+        if (!limits.profileVisitors) return cb(ok({ locked: true, counts, visitors: [] }));
+        cb(ok({ locked: false, counts, visitors: await getProfileVisitors(me, 60) }));
       } catch (e: any) { cb(err(e.message)); }
     });
 
@@ -5562,6 +5598,10 @@ export function attachSocketHandlers(io: AppServer): void {
         }
         const tier = data?.tier === 'vip' ? 'vip' : null;
         await setVerifiedTier(target.id, tier);
+        // The perks a badge unlocks are read from a snapshot that otherwise
+        // refreshes on a timer; without this the new VIP waits up to a minute
+        // for the thing they were just granted.
+        await refreshVipSnapshot();
         await addModLog(
           (tier ? 'verify_grant' : 'verify_revoke') as any,
           me.id, me.username, target.id, target.username, null,
@@ -6006,14 +6046,20 @@ export function attachSocketHandlers(io: AppServer): void {
         if (!data.audioData?.startsWith('data:audio')) throw new Error('Invalid audio data.');
         // A minute of speech: ~1 MB as Opus, more when the clip has been
         // levelled or had a voice applied and is therefore delivered as WAV.
-        if (data.audioData.length > 7_000_000) throw new Error('Voice message too large.');
+        // A VIP records three times as long, so the transport cap has to move
+        // with the recorder's or the longer clip is captured and then refused.
+        const voiceCap = (await limitsFor(senderId)).voiceBytes;
+        if (data.audioData.length > voiceCap) throw new Error('Voice message too large.');
         const [conv] = await sql`SELECT * FROM conversations WHERE id = ${data.conversationId}` as any[];
         if (!conv) throw new Error('Conversation not found.');
         if (conv.participant1 !== senderId && conv.participant2 !== senderId) throw new Error('Not a participant.');
         const receiverId = conv.participant1 === senderId ? conv.participant2 : conv.participant1;
         // Only a name from the known list is stored, so the badge can never
         // be forced to say something arbitrary by a modified client.
-        const fx = VOICE_FX_NAMES.has(String((data as any).fx ?? '')) ? String((data as any).fx) : null;
+        const claimedFx = String((data as any).fx ?? '');
+        const mayUseFx = VOICE_FX_NAMES.has(claimedFx)
+          && (!VIP_VOICE_FX_NAMES.has(claimedFx) || (await limitsFor(senderId)).vipVoices);
+        const fx = mayUseFx ? claimedFx : null;
         const msg = await sendVoiceDm(data.conversationId, senderId, data.audioData, data.duration, receiverId, fx);
         const recipientSocket = findSocketByProfile(io, receiverId);
         const senderProfile = await getPlayer(senderId);

@@ -15,6 +15,7 @@ import { ReactionPicker } from './ReactionPicker';
 import { PlayerName } from '@/components/ui/PlayerName';
 import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
 import { useVerifiedTier } from '@/store/verifiedStore';
+import { useMyLimits } from '@/store/vipStore';
 import { GifPicker } from './GifPicker';
 import { useSocialStore } from '@/store/socialStore';
 
@@ -140,6 +141,7 @@ void URL_RE;
 
 // ── Comments (threaded, likes, GIFs) ───────────────────────────────────
 function CommentsSection({ postId, onOpenProfile, myProfileId }: { postId: string; onOpenProfile: (id: string) => void; myProfileId: string | undefined }) {
+  const myLimits = useMyLimits();
   const t = useT();
   const { fetchComments, addComment, deleteComment } = useCommunityStore();
   const [comments, setComments] = useState<CommunityComment[] | null>(null);
@@ -290,7 +292,7 @@ function CommentsSection({ postId, onOpenProfile, myProfileId }: { postId: strin
           GIF
         </button>
         <div className="flex-1">
-          <TextInput value={draft} onChange={setDraft} placeholder={replyTo ? `პასუხი ${replyTo.authorName}-ს…` : t.community.feed.commentPh} maxLength={500} />
+          <TextInput value={draft} onChange={setDraft} placeholder={replyTo ? `პასუხი ${replyTo.authorName}-ს…` : t.community.feed.commentPh} maxLength={myLimits.commentChars} />
         </div>
         <PillButton onClick={() => send()} disabled={!draft.trim() || sending}>
           {t.community.feed.send}
@@ -413,6 +415,7 @@ export function PostCardV2({
   const { toggleReaction, deletePost, toggleSave, setActiveHashtag, editPost } = useCommunityStore();
   const isMrMax = post.authorBadges?.includes('owner');
   const authorTier = useVerifiedTier(post.authorId);
+  const myLimits = useMyLimits();
   const isMod = profile?.isModerator ?? false;
   const isOwn = post.authorId === profile?.id;
 
@@ -610,7 +613,7 @@ export function PostCardV2({
       {/* Content — or inline edit mode */}
       {editing ? (
         <div className="space-y-2">
-          <TextArea value={editDraft} onChange={setEditDraft} maxLength={2000} rows={4} placeholder="" />
+          <TextArea value={editDraft} onChange={setEditDraft} maxLength={myLimits.postChars} rows={4} placeholder="" />
           <div className="flex gap-2 justify-end">
             <button onClick={() => setEditing(false)}
               className="px-3 py-1.5 rounded-lg font-mono text-[11px] text-white/40 border border-white/10">

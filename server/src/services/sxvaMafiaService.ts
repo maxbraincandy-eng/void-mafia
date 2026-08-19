@@ -19,6 +19,7 @@
  * layer, exactly like the other match games.
  */
 import { randomBytes } from 'crypto';
+import { limitsForSync } from './vipService.js';
 
 export type XmRole = 'don' | 'mafia' | 'sheriff' | 'citizen';
 export type XmPhase = 'lobby' | 'assign' | 'mafia_meet' | 'night' | 'day_announce' | 'speech' | 'vote' | 'last_words' | 'finished';
@@ -478,7 +479,7 @@ export function endMafiaMeet(matchId: string, byUserId: string): XmMatch | null 
   m.nominations = []; m.nominatedBy = {};
   buildSpeechOrder(m);
   m.phase = 'speech';
-  m.speechEndsAt = Date.now() + m.settings.speechSeconds * 1000;
+  startSpeechClock(m);
   return m;
 }
 
@@ -587,6 +588,20 @@ export function advanceNightAuto(matchId: string): XmMatch | null {
 }
 
 // ── Day speech ───────────────────────────────────────────────────────────────
+/**
+ * Start the current speaker's clock.
+ *
+ * A verified player gets `speechBonusSeconds` more than the table's setting —
+ * the one perk that touches play rather than presentation, added deliberately
+ * and kept small. The lookup is the synchronous snapshot because this runs from
+ * timer callbacks where there is nothing to await; see vipService.
+ */
+function startSpeechClock(m: XmMatch): void {
+  const speaker = m.speechOrder[m.speechIdx] ?? null;
+  const bonus = limitsForSync(speaker).speechBonusSeconds;
+  m.speechEndsAt = Date.now() + (m.settings.speechSeconds + bonus) * 1000;
+}
+
 function buildSpeechOrder(m: XmMatch): void {
   const alive = aliveSeats(m).sort((a, b) => a.seat - b.seat);
   if (alive.length === 0) { m.speechOrder = []; m.speechIdx = 0; return; }
@@ -602,7 +617,7 @@ export function beginDay(matchId: string, byUserId: string): XmMatch | null {
   m.nominations = []; m.nominatedBy = {};
   buildSpeechOrder(m);
   m.phase = 'speech';
-  m.speechEndsAt = Date.now() + m.settings.speechSeconds * 1000;
+  startSpeechClock(m);
   return m;
 }
 
@@ -645,7 +660,7 @@ function advanceSpeaker(m: XmMatch): void {
     m.speechIdx += 1;
   }
   if (m.speechIdx >= m.speechOrder.length) { endSpeeches(m); return; }
-  m.speechEndsAt = Date.now() + m.settings.speechSeconds * 1000;
+  startSpeechClock(m);
 }
 
 export function extendSpeech(matchId: string, byUserId: string, seconds: number): XmMatch | null {

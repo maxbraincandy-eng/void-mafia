@@ -8,6 +8,7 @@ import {
   PollOption, PollResult, PostType, FeedCategory,
 } from '../types/index.js';
 import { getClanMembershipByPlayer } from './clanService.js';
+import { limitsFor } from './vipService.js';
 
 // ── Player lookup helper (lightweight — avoids a full playerService import cycle) ──
 async function getPlayerBasic(id: string): Promise<{ username: string; avatar: string; avatarUrl: string | null; publicId: number | null; level: number; joinedAt: number } | null> {
@@ -247,7 +248,7 @@ export async function addComment(
   postId: string, authorId: string, content: string,
   opts?: { parentId?: string | null; gifUrl?: string | null },
 ): Promise<CommunityComment> {
-  const cleanContent = content.trim().slice(0, 500);
+  const cleanContent = content.trim().slice(0, (await limitsFor(authorId)).commentChars);
   const gifUrl = opts?.gifUrl?.trim() || null;
   if (gifUrl && !isValidCommentGif(gifUrl)) throw new Error('Invalid GIF.');
   if (!cleanContent && !gifUrl) throw new Error('Comment cannot be empty.');
@@ -731,7 +732,8 @@ export function generateAnonymousName(playerId: string): string {
 export async function updateCommunityProfile(playerId: string, data: { bio?: string; coverUrl?: string; favoriteRole?: string }): Promise<void> {
   const { bio, coverUrl, favoriteRole } = data;
   if (bio !== undefined) {
-    await sql`UPDATE players SET community_bio = ${bio.slice(0, 500)} WHERE id = ${playerId}`;
+    const max = (await limitsFor(playerId)).bioChars;
+    await sql`UPDATE players SET community_bio = ${bio.slice(0, max)} WHERE id = ${playerId}`;
   }
   if (coverUrl !== undefined) {
     await sql`UPDATE players SET community_cover_url = ${coverUrl || null} WHERE id = ${playerId}`;
@@ -871,12 +873,23 @@ export async function createPostV2(authorId: string, data: {
   visibility?: 'public' | 'friends_only';
   isAnonymous?: boolean;
 }): Promise<CommunityPostV2> {
+  const limits = await limitsFor(authorId);
   if (data.imageUrl && data.imageUrl.length > 680_000) throw new Error('Image too large — please use a smaller image.');
-  if (data.audioUrl && data.audioUrl.length > 9_000_000) throw new Error('Audio too large.');
+  // A VIP records three times as long, so the ceiling moves with them. Never
+  // below the 9 MB everyone already had.
+  const audioCap = Math.max(9_000_000, limits.voiceBytes);
+  if (data.audioUrl && data.audioUrl.length > audioCap) throw new Error('Audio too large.');
   // The badge on a post must mean something, so only a known effect name is
   // kept — a modified client cannot label a post with arbitrary text.
   const KNOWN_FX = ['deep', 'high', 'ghost', 'robot', 'radio', 'giant', 'echo', 'detective', 'anonymous'];
-  data.audioFx = data.audioUrl && KNOWN_FX.includes(String(data.audioFx ?? '')) ? String(data.audioFx) : null;
+  const VIP_FX = ['demon', 'alien', 'stadium', 'hologram'];
+  const claimedFx = String(data.audioFx ?? '');
+  const fxAllowed = KNOWN_FX.includes(claimedFx)
+    || (VIP_FX.includes(claimedFx) && limits.vipVoices);
+  data.audioFx = data.audioUrl && fxAllowed ? claimedFx : null;
+  // The composer already stops at the tier's cap; this is the copy that holds
+  // when the request does not come from the composer.
+  data.content = String(data.content ?? '').slice(0, limits.postChars);
   const id = `post_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const now = Date.now();
   const hashtags = extractHashtags(data.content);
@@ -911,7 +924,7 @@ export async function createPostV2(authorId: string, data: {
 
 /** Edit a post's text (author only). Re-extracts hashtags and stamps edited_at. */
 export async function editPost(postId: string, requesterId: string, newContent: string): Promise<CommunityPostV2> {
-  const content = newContent.trim().slice(0, 2000);
+  const content = newContent.trim().slice(0, (await limitsFor(requesterId)).postChars);
   if (!content) throw new Error('Post cannot be empty.');
   const [post] = await sql`SELECT author_id, is_anonymous FROM community_posts WHERE id = ${postId} AND deleted_at IS NULL` as any[];
   if (!post) throw new Error('Post not found.');
