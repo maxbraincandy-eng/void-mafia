@@ -27,18 +27,38 @@ const PREFERRED = [
     'llama-4-scout',
     'gpt-oss-120b',
     'kimi-k2',
-    'qwen3-32b',
+    'qwen3',
     'deepseek-r1-distill-llama-70b',
     'gpt-oss-20b',
     'llama-3.1-8b',
+    'compound',
     'llama3-70b',
     'gemma2-9b',
 ];
-/** Models that exist but cannot answer a chat turn. */
-const NOT_CHAT = /whisper|tts|guard|embed|vision-preview|distil-whisper/i;
+/**
+ * Models that exist but cannot answer a chat turn.
+ *
+ * `orpheus` is on the list because it is speech synthesis, and this key has
+ * two of them — they list like any other model and would have been picked
+ * ahead of a real one on a key with nothing better.
+ */
+const NOT_CHAT = /whisper|tts|guard|embed|vision-preview|distil-whisper|orpheus|prompt-guard/i;
+/**
+ * Reasoning models bill their thinking to the same token budget as the answer.
+ * gpt-oss with a small budget returns a perfectly successful response whose
+ * content is empty — it spent everything reasoning and had nothing left. Ask
+ * for the least thinking the model will agree to.
+ */
+function reasoningOptions(model) {
+    return /gpt-oss|qwen3|deepseek-r1|compound/i.test(model)
+        ? { reasoning_effort: 'low' }
+        : {};
+}
 export class GroqProvider {
     constructor() {
         this.resolved = null;
+        /** Everything this key can reach, best first — kept so chat() can move on. */
+        this.catalogue = null;
         this.resolving = null;
         if (!process.env.GROQ_API_KEY)
             throw new Error('GROQ_API_KEY not set');
@@ -70,6 +90,7 @@ export class GroqProvider {
             // the same trap as hard-coding, just moved into an env var.
             try {
                 const usable = await this.listUsable();
+                this.catalogue = usable;
                 if (this.pinned && usable.includes(this.pinned)) {
                     this.resolved = this.pinned;
                 }
@@ -100,36 +121,61 @@ export class GroqProvider {
                 { role: 'system', content: systemPrompt },
                 ...messages.map(m => ({ role: m.role, content: m.content })),
             ],
-            max_tokens: maxTokens,
+            // A reasoning model needs headroom for the thinking AND the answer, so
+            // the floor here is not generosity, it is the difference between a reply
+            // and an empty string.
+            max_tokens: Math.max(maxTokens, 512),
             temperature: 0.75,
+            ...reasoningOptions(model),
         });
-        let model = await this.resolveModel();
-        let response;
-        try {
-            response = await this.client.chat.completions.create(body(model));
+        const problems = [];
+        // Preferred first, then everything else the key can reach. A model that
+        // 404s or answers with nothing is skipped rather than fatal — the previous
+        // version bet the whole feature on one name and lost.
+        //
+        // Two passes: the second refreshes the catalogue first, because a cached
+        // list is exactly what goes stale when a provider retires something, and
+        // then every name in it fails for the same reason.
+        for (let pass = 0; pass < 2; pass++) {
+            const first = await this.resolveModel(pass === 1);
+            const rest = (this.catalogue ?? []).filter(m => m !== first);
+            const answer = await this.tryCandidates([first, ...rest], body, problems);
+            if (answer)
+                return answer;
         }
-        catch (e) {
-            const gone = e?.status === 404 || /does not exist|decommission|not found/i.test(e?.message ?? '');
-            if (!gone)
-                throw new Error(`ჰერმესი დროებით გათიშულია — ${e.message ?? 'Groq error'}`);
-            // The model went away underneath us. Ask again and retry once.
-            console.warn(`[Hermes/Groq] "${model}" is gone — re-resolving`);
-            model = await this.resolveModel(true);
+        throw new Error(`ჰერმესი დროებით გათიშულია — no Groq model answered (${problems.slice(0, 3).join('; ')})`);
+    }
+    /** Ask each model in turn; the first with something to say wins. */
+    async tryCandidates(candidates, body, problems) {
+        for (const model of candidates) {
+            let response;
             try {
                 response = await this.client.chat.completions.create(body(model));
             }
-            catch (e2) {
-                throw new Error(`ჰერმესი დროებით გათიშულია — ${e2.message ?? 'Groq error'}`);
+            catch (e) {
+                const skippable = e?.status === 404 || e?.status === 400
+                    || /does not exist|decommission|not found|not supported/i.test(e?.message ?? '');
+                problems.push(`${model}: ${(e?.message ?? e).toString().slice(0, 90)}`);
+                if (skippable)
+                    continue;
+                throw new Error(`ჰერმესი დროებით გათიშულია — ${e.message ?? 'Groq error'}`);
             }
+            const text = response.choices[0]?.message?.content?.trim();
+            if (!text) {
+                problems.push(`${model}: empty content (finish=${response.choices[0]?.finish_reason ?? '?'})`);
+                continue;
+            }
+            if (model !== this.resolved) {
+                console.warn(`[Hermes/Groq] switched to ${model}`);
+                this.resolved = model;
+            }
+            return {
+                text,
+                inputTokens: response.usage?.prompt_tokens,
+                outputTokens: response.usage?.completion_tokens,
+            };
         }
-        const choice = response.choices[0];
-        if (!choice?.message?.content)
-            throw new Error('ჰერმესი დროებით გათიშულია — empty response from Groq');
-        return {
-            text: choice.message.content,
-            inputTokens: response.usage?.prompt_tokens,
-            outputTokens: response.usage?.completion_tokens,
-        };
+        return null;
     }
 }
 //# sourceMappingURL=groqProvider.js.map
