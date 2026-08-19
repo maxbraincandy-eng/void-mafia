@@ -1,6 +1,6 @@
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useVipStore, useMyTier } from '@/store/vipStore';
+import { useVipPerks, useMyTier } from '@/store/vipStore';
 import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
 
 /**
@@ -16,13 +16,11 @@ import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
  * how to get one today, which is the truth.
  */
 export function VipSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const perks = useVipStore(s => s.perks);
-  const ensure = useVipStore(s => s.ensure);
+  const perks = useVipPerks();
   const tier = useMyTier();
   const mine = tier !== 'free';
 
   if (!open) return null;
-  ensure();
 
   return createPortal(
     <AnimatePresence>
@@ -73,6 +71,12 @@ export function VipSheet({ open, onClose }: { open: boolean; onClose: () => void
                 <span className="font-mono text-center" style={{ fontSize: 10, color: '#a78bfa' }}>ვერიფიც.</span>
               </div>
 
+              {perks.length === 0 && (
+                <div className="px-3 py-6 text-center">
+                  <p className="font-mono text-white/25" style={{ fontSize: 11 }}>იტვირთება…</p>
+                </div>
+              )}
+
               {perks.map((p, i) => (
                 <div
                   key={p.title}
@@ -97,7 +101,7 @@ export function VipSheet({ open, onClose }: { open: boolean; onClose: () => void
 
           {/* Footer */}
           <div className="px-5 pb-6 pt-1">
-            {mine ? (
+            {perks.length === 0 ? null : mine ? (
               <button
                 onClick={onClose}
                 className="w-full py-3 rounded-2xl font-display font-bold active:scale-[0.98]"

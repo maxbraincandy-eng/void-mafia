@@ -26,15 +26,37 @@ interface VerifiedState {
 }
 
 let inFlight = false;
+let retryTimer: ReturnType<typeof setTimeout> | null = null;
+let attempt = 0;
+
+/**
+ * A failure is not an answer.
+ *
+ * This used to set `loaded: true` on failure, reasoning that a missing badge
+ * beats retrying forever behind every name on screen. But the request that
+ * fails is almost always the FIRST one — fired while the socket is still
+ * connecting — and marking it loaded meant every badge in the app stayed
+ * missing for the rest of the session, with nothing to trigger another try.
+ * Backing off is the middle ground the original was reaching for: bounded
+ * attempts, never a request per render.
+ */
+function scheduleRetry(set: (p: Partial<VerifiedState>) => void) {
+  if (attempt >= 6) { set({ loaded: true }); return; }   // truly give up, eventually
+  const delay = Math.min(30_000, 1000 * 2 ** attempt);
+  attempt++;
+  if (retryTimer) clearTimeout(retryTimer);
+  retryTimer = setTimeout(() => { retryTimer = null; fetchMap(set); }, delay);
+}
 
 function fetchMap(set: (p: Partial<VerifiedState>) => void) {
-  if (inFlight) return;
+  if (inFlight || retryTimer) return;
   inFlight = true;
   emitWithAck<undefined, Res<Record<string, VerifiedTier>>>('players:verified_list')
-    .then(res => set({ tiers: res.ok ? res.data : {}, loaded: true }))
-    // Mark loaded on failure too: a missing badge is a far smaller problem than
-    // retrying forever behind every name on screen.
-    .catch(() => set({ loaded: true }))
+    .then(res => {
+      if (res.ok) { attempt = 0; set({ tiers: res.data, loaded: true }); }
+      else scheduleRetry(set);
+    })
+    .catch(() => scheduleRetry(set))
     .finally(() => { inFlight = false; });
 }
 
@@ -47,7 +69,7 @@ export const useVerifiedStore = create<VerifiedState>((set, get) => ({
     if (tier) next[profileId] = tier; else delete next[profileId];
     return { tiers: next };
   }),
-  refresh: () => { inFlight = false; fetchMap(set); },
+  refresh: () => { inFlight = false; attempt = 0; if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; } fetchMap(set); },
 }));
 
 /** The tier this profile carries, or null. */
