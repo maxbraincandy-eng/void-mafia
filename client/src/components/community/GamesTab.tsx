@@ -431,6 +431,44 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms }: { onOpenSpace?: () =>
   return (
     <div className="space-y-4">
 
+      {/* ── The newest thing ──────────────────────────────────────────────
+          ცის რუკა shipped into სივრცეები, which is the third section and
+          closed until you open it, below twelve tiles. That is a fine place
+          for the fifth-most-used thing on the page and no place at all for
+          something nobody has seen yet. When it stops being new, delete this
+          block; the tile in its section is still there. */}
+      {!q && (
+        <button
+          onClick={() => { haptic('selection'); setSkyOpen(true); }}
+          className="w-full flex items-center gap-3 rounded-2xl px-3.5 py-3 text-left transition-all active:scale-[0.99] relative overflow-hidden"
+          style={{
+            background: 'linear-gradient(135deg, #16213f 0%, #221a3e 55%, #12101f 100%)',
+            border: '1px solid rgba(124,156,255,0.42)',
+            boxShadow: '0 6px 26px rgba(80,110,220,0.18)',
+          }}
+        >
+          <span className="absolute inset-0 pointer-events-none"
+            style={{ background: 'radial-gradient(120% 140% at 88% 0%, rgba(160,190,255,0.20), transparent 60%)' }} />
+          <span className="relative flex-shrink-0 w-12 h-12 rounded-2xl flex items-center justify-center"
+            style={{ background: 'rgba(124,156,255,0.16)', border: '1px solid rgba(124,156,255,0.34)', fontSize: 24 }}>
+            🔭
+          </span>
+          <span className="relative flex-1 min-w-0">
+            <span className="flex items-center gap-2">
+              <span className="font-display font-black text-white text-[15px] leading-tight">ცის რუკა</span>
+              <span className="font-mono text-[8px] tracking-widest px-1.5 py-0.5 rounded"
+                style={{ background: 'rgba(124,156,255,0.9)', color: '#0b1020' }}>ახალი</span>
+            </span>
+            <span className="block font-mono text-[10.5px] text-white/45 mt-1 leading-snug">
+              მიმართე ტელეფონი ცას · პლანეტები და ვარსკვლავები რეალურ პოზიციაზე
+            </span>
+          </span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+            className="relative flex-shrink-0 text-white/25"><path d="M9 6l6 6-6 6" /></svg>
+        </button>
+      )}
+
       {/* Search + refresh */}
       <div className="flex gap-2 items-center">
         <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}>
