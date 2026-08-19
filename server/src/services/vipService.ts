@@ -50,6 +50,10 @@ export interface Limits {
   vipVoices: boolean;
   /** Name renders with the animated gradient. */
   animatedName: boolean;
+  /** May enter a mafia room under an alias, with their identity withheld. */
+  incognito: boolean;
+  /** May publish their microphone through a live voice disguise. */
+  liveDisguise: boolean;
 }
 
 const FREE: Limits = {
@@ -63,6 +67,8 @@ const FREE: Limits = {
   profileVisitors: false,
   vipVoices: false,
   animatedName: false,
+  incognito: false,
+  liveDisguise: false,
 };
 
 const VIP: Limits = {
@@ -78,6 +84,8 @@ const VIP: Limits = {
   profileVisitors: true,
   vipVoices: true,
   animatedName: true,
+  incognito: true,
+  liveDisguise: true,
 };
 
 export const LIMITS: Record<Tier, Limits> = { free: FREE, vip: VIP, owner: VIP };
@@ -169,7 +177,7 @@ export function perkList(): Perk[] {
   return [
     { icon: '✨', title: 'ანიმირებული სახელი',
       free: 'ჩვეულებრივი', vip: 'ბზინავს ყველგან' },
-    { icon: '👁', title: 'ვინ დაათვალიერა პროფილი',
+    { icon: '👁', title: 'პროფილის ნახვები',
       free: '—', vip: 'სრული სია' },
     { icon: '🎙', title: 'ხმოვანი შეტყობინება',
       free: `${FREE.voiceSeconds} წამი`, vip: `${VIP.voiceSeconds} წამი` },
@@ -185,6 +193,10 @@ export function perkList(): Perk[] {
       free: 'სტანდარტული', vip: `+${VIP.speechBonusSeconds} წამი` },
     { icon: '⚡', title: 'რიგი შემდეგ რაუნდში',
       free: 'ჩვეულებრივი', vip: 'პრიორიტეტული' },
+    { icon: '🕶', title: 'ინკოგნიტო მაფიაში',
+      free: '—', vip: 'სახელი იმალება' },
+    { icon: '🎤', title: 'ხმის შენიღბვა თამაშში',
+      free: '—', vip: 'სხვისი ხმით' },
     { icon: '💠', title: 'ვერიფიკაციის ნიშანი',
       free: '—', vip: 'პროფილზე და ჩატში' },
   ];

@@ -381,10 +381,46 @@ const reportWindows = new Map<string, number[]>();
  * Returns whether the player ended up invisible, so the caller can suppress the
  * arrival announcement — a system message would give them away instantly.
  */
+/**
+ * The name to put in a message the whole room can read.
+ *
+ * Every join/leave/queue announcement used the real name. Masking the player
+ * LIST while the chat log says "Giorgi joined the room" and then shows an alias
+ * in the seat is not a disguise — it is a puzzle with one piece missing, and
+ * everyone solves it. One helper, applied at every announcement, because the
+ * leak only has to survive in one of them.
+ */
+function shown(p: Player): string { return p.anonAlias ?? p.name; }
+
 async function applySpectatorInvisibility(player: Player, profileId: string | null): Promise<boolean> {
   if (!player.isSpectator) return false;
   try { player.invisibleSpectator = await resolveSpectatorInvisible(profileId); } catch { /* non-fatal */ }
   return !!player.invisibleSpectator;
+}
+
+/**
+ * Put a player behind an alias from the moment they arrive.
+ *
+ * Called on EVERY join path for the same reason applySpectatorInvisibility is:
+ * a disguise that works on three of four routes into a room is not a disguise.
+ *
+ * The seed is the player's row id plus the ROOM id, not the game start, because
+ * incognito begins before there is a game. Same player, same room, same alias
+ * all evening; a different room and they are somebody else.
+ *
+ * Returns whether the player is masked, so callers can phrase the arrival
+ * announcement with the alias rather than the real name.
+ */
+async function applyIncognito(
+  player: Player, profileId: string | null, room: Room, wanted: boolean | undefined,
+): Promise<boolean> {
+  if (!wanted) return false;
+  // Checked here rather than trusted from the payload: the flag arrives from
+  // the client, and the whole perk is worthless if a free account can send it.
+  try { if (!(await limitsFor(profileId)).incognito) return false; } catch { return false; }
+  player.incognito = true;
+  player.anonAlias = aliasFor(`${player.id}:${room.id}`);
+  return true;
 }
 
 function reportRateOk(reporterId: string, targetId: string, reason: string): { ok: boolean; error?: string } {
@@ -1203,6 +1239,7 @@ const CreateRoomSchema = z.object({
   roomName: z.string().max(30).optional().default(''),
   settings: z.record(z.unknown()).optional(),
   clanRoom: z.boolean().optional().default(false),
+  incognito: z.boolean().optional().default(false),
 });
 
 const JoinRoomSchema = z.object({
@@ -1211,6 +1248,7 @@ const JoinRoomSchema = z.object({
   isSpectator: z.boolean().optional().default(false),
   joinMode: z.enum(['player', 'spectator', 'next_round']).optional(),
   password: z.string().max(64).optional().default(''),
+  incognito: z.boolean().optional().default(false),
 });
 
 const ChatSchema = z.object({
@@ -2270,6 +2308,7 @@ export function attachSocketHandlers(io: AppServer): void {
 
         const hostInRoom = [...room.players.values()][0];
         if (hostInRoom && playerProfile?.avatarUrl) hostInRoom.avatarUrl = playerProfile.avatarUrl;
+        if (hostInRoom) await applyIncognito(hostInRoom, profileId, room, parsed.incognito);
 
         // VIP "Room Spotlight" perk: if the host has it active, stamp the room so
         // it floats to the top of the public list until the perk expires.
@@ -2347,6 +2386,7 @@ export function attachSocketHandlers(io: AppServer): void {
               player.isModerator = playerProfile.isModerator;
               player.moderatorLevel = playerProfile.moderatorLevel;
             }
+            await applyIncognito(player, profileId, room, parsed.incognito);
             socket.join(room.id);
             socket.join(`spec:${room.id}`);
             socket.data.playerId = player.id;
@@ -2359,10 +2399,10 @@ export function attachSocketHandlers(io: AppServer): void {
               // cannot hold a public seat in the queue and be hidden — so this
               // announcement is always correct here.
               const position = enqueueForNextRound(room, player.id);
-              broadcastSystemMsg(io, room, `${player.name} joined the queue for next round (#${position}).`);
+              broadcastSystemMsg(io, room, `${shown(player)} joined the queue for next round (#${position}).`);
               broadcastQueueUpdated(io, room);
             } catch {
-              if (!hidden) broadcastSystemMsg(io, room, `${player.name} joined as spectator.`);
+              if (!hidden) broadcastSystemMsg(io, room, `${shown(player)} joined as spectator.`);
             }
 
 
@@ -2380,13 +2420,14 @@ export function attachSocketHandlers(io: AppServer): void {
             // Invisibility perk (default "always"): watch without appearing in
             // anyone's list. Resolved here from the profile's saved preference.
             await applySpectatorInvisibility(player, profileId);
+            await applyIncognito(player, profileId, room, parsed.incognito);
             socket.join(room.id);
             socket.join(`spec:${room.id}`);
             socket.data.playerId = player.id;
             socket.data.roomId = room.id;
             // An invisible spectator's arrival is not announced — the system
             // message would give them away.
-            if (!player.invisibleSpectator) broadcastSystemMsg(io, room, `${player.name} joined as spectator.`);
+            if (!player.invisibleSpectator) broadcastSystemMsg(io, room, `${shown(player)} joined as spectator.`);
             broadcastRoom(io, room);
             cb(ok(toPublicRoom(room, player.id)));
             return;
@@ -2428,6 +2469,7 @@ export function attachSocketHandlers(io: AppServer): void {
         const username = playerProfile?.username ?? parsed.name;
         const player = addPlayer(room, socket.id, username, profileId);
         if (playerProfile?.avatarUrl) player.avatarUrl = playerProfile.avatarUrl;
+        await applyIncognito(player, profileId, room, parsed.incognito);
         if ((parsed.isSpectator || parsed.joinMode === 'spectator') && !player.isSpectator) {
           // Normalize a lobby spectator: no seat number, not "alive" — otherwise
           // the seat stays occupied and blocks the next joining player.
@@ -2455,7 +2497,7 @@ export function attachSocketHandlers(io: AppServer): void {
         if (grace && player.isHost && (profileId === grace.profileId || (!profileId && player.name === grace.hostName))) {
           clearTimeout(grace.timer);
           hostGraceTimers.delete(room.id);
-          broadcastSystemMsg(io, room, `${player.name} (host) reconnected.`);
+          broadcastSystemMsg(io, room, `${shown(player)} (host) reconnected.`);
         } else if (isRejoin) {
           // Silent reconnect — avoid "X joined" spam on refresh.
           // Re-push the phase voice rules: force-mute/unmute events sent while
@@ -2466,7 +2508,7 @@ export function attachSocketHandlers(io: AppServer): void {
           cb(ok(toPublicRoom(room, player.id)));
           return;
         } else if (!lobbyHidden) {
-          broadcastSystemMsg(io, room, `${player.name} joined the room.`);
+          broadcastSystemMsg(io, room, `${shown(player)} joined the room.`);
           // Entrance perk: announce the arrival with the player's chosen banner.
           // Only on a real join — a reconnect is handled by the isRejoin branch
           // above, so refreshing the page can't replay your own fanfare.
@@ -2665,6 +2707,28 @@ export function attachSocketHandlers(io: AppServer): void {
       } catch (e: any) { cb(err(e.message)); }
     });
 
+    // ── Incognito (verified only) ─────────────────────────────────────
+    // Only in the lobby. Flipping identity mid-game would be a mechanic — mask
+    // yourself the round you are caught, unmask to prove you were never the one
+    // in seat four — and none of that is a mechanic this game has.
+    socket.on('room:set_incognito' as any, async ({ on }: { on: boolean }, cb: any) => {
+      try {
+        const room = getRoomFromSocket(socket);
+        const player = getPlayerOrError(socket, room);
+        if (room.phase !== 'lobby') throw new Error('შენიღბვის შეცვლა მხოლოდ ლობიშია შესაძლებელი.');
+        if (on) {
+          if (!(await limitsFor(socket.data.profileId)).incognito) throw new Error('ინკოგნიტო ვერიფიცირებულებისთვისაა.');
+          player.incognito = true;
+          player.anonAlias = aliasFor(`${player.id}:${room.id}`);
+        } else {
+          player.incognito = false;
+          player.anonAlias = null;
+        }
+        broadcastRoom(io, room);
+        cb(ok({ on: !!player.incognito, alias: player.anonAlias ?? null }));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
     // ── Start Game ──────────────────────────────────────────────────
     socket.on('game:start', async (cb) => {
       try {
@@ -2681,6 +2745,10 @@ export function attachSocketHandlers(io: AppServer): void {
         // this game. Seed = player id + game start, so the alias is consistent
         // all game but leaks nothing. Resolved before any state is broadcast.
         for (const player of room.players.values()) {
+          // An incognito player is already masked and STAYS masked — clearing
+          // the alias here would unmask them the instant the game began, which
+          // is the one moment everyone is looking at the list.
+          if (player.incognito) continue;
           player.anonAlias = null;
           if (player.isSpectator || !player.role || !player.profileId) continue;
           try {
@@ -2732,7 +2800,7 @@ export function attachSocketHandlers(io: AppServer): void {
         if (player.isQueuedNextRound) throw new Error('Already in queue.');
 
         const position = enqueueForNextRound(room, player.id);
-        broadcastSystemMsg(io, room, `${player.name} joined the queue for next round (#${position}).`);
+        broadcastSystemMsg(io, room, `${shown(player)} joined the queue for next round (#${position}).`);
         broadcastQueueUpdated(io, room);
         broadcastRoom(io, room);
         cb(ok({ position }));
@@ -2747,7 +2815,7 @@ export function attachSocketHandlers(io: AppServer): void {
         if (!player.isQueuedNextRound) throw new Error('You are not in the queue.');
 
         dequeueFromNextRound(room, player.id);
-        broadcastSystemMsg(io, room, `${player.name} left the next-round queue.`);
+        broadcastSystemMsg(io, room, `${shown(player)} left the next-round queue.`);
         broadcastQueueUpdated(io, room);
         broadcastRoom(io, room);
         cb(ok(null));
@@ -2766,7 +2834,7 @@ export function attachSocketHandlers(io: AppServer): void {
         const hidden = await applySpectatorInvisibility(player, socket.data.profileId ?? null);
         // "X switched to spectators" would announce exactly the moment they
         // vanish from the list, which is worse than not hiding them at all.
-        if (!hidden) broadcastSystemMsg(io, room, `${player.name} switched to spectators.`);
+        if (!hidden) broadcastSystemMsg(io, room, `${shown(player)} switched to spectators.`);
         broadcastRoom(io, room);
         cb?.(ok(null));
       } catch (e: any) { cb?.(err(e.message)); }
@@ -2784,7 +2852,7 @@ export function attachSocketHandlers(io: AppServer): void {
         if (room.phase !== 'lobby' && room.phase !== 'game_over') {
           if (player.isQueuedNextRound) throw new Error('Already in the next-round queue.');
           const position = enqueueForNextRound(room, player.id);
-          broadcastSystemMsg(io, room, `${player.name} joined the queue for next round (#${position}).`);
+          broadcastSystemMsg(io, room, `${shown(player)} joined the queue for next round (#${position}).`);
           broadcastQueueUpdated(io, room);
           broadcastRoom(io, room);
           cb?.(ok({ queued: true, position }));
@@ -2793,7 +2861,7 @@ export function attachSocketHandlers(io: AppServer): void {
 
         becomePlayer(room, player.id);
         socket.leave(`spec:${room.id}`);
-        broadcastSystemMsg(io, room, `${player.name} joined the game (seat ${player.seat}).`);
+        broadcastSystemMsg(io, room, `${shown(player)} joined the game (seat ${player.seat}).`);
         broadcastRoom(io, room);
         cb?.(ok({ queued: false, seat: player.seat }));
       } catch (e: any) { cb?.(err(e.message)); }
@@ -2954,7 +3022,7 @@ export function attachSocketHandlers(io: AppServer): void {
             throw new Error('წამყვანის ადგილი უკვე დაკავებულია.');
           }
           room.donModeratorId = player.id;
-          broadcastSystemMsg(io, room, `♛ ${player.name} გახდა თამაშის წამყვანი.`);
+          broadcastSystemMsg(io, room, `♛ ${shown(player)} გახდა თამაშის წამყვანი.`);
         } else {
           // The moderator themselves or the host can vacate the seat.
           if (room.donModeratorId !== player.id && !player.isHost) {
@@ -9647,7 +9715,7 @@ function handlePlayerLeave(io: AppServer, socket: AppSocket, roomId: string, pla
         return;
       }
 
-      broadcastSystemMsg(io, room, `${player.name} left the room.`);
+      broadcastSystemMsg(io, room, `${shown(player)} left the room.`);
       broadcastRoom(io, room);
       promoteFromQueue(io, room);
     } else {
@@ -9663,7 +9731,7 @@ function handlePlayerLeave(io: AppServer, socket: AppSocket, roomId: string, pla
         startHostGrace(io, room, player.name, profileId);
         spectateQueues.delete(roomId);
       } else {
-        broadcastSystemMsg(io, room, `${player.name} disconnected.`);
+        broadcastSystemMsg(io, room, `${shown(player)} disconnected.`);
         broadcastRoom(io, room);
       }
 
@@ -9721,14 +9789,14 @@ function handlePlayerLeave(io: AppServer, socket: AppSocket, roomId: string, pla
         spectateQueues.delete(roomId);
         return;
       }
-      broadcastSystemMsg(io, room, `${player.name} left.`);
+      broadcastSystemMsg(io, room, `${shown(player)} left.`);
       broadcastRoom(io, room);
       promoteFromQueue(io, room);
     } else {
       // Mid-game disconnect or non-game_over explicit leave — keep slot for reconnect.
       player.isConnected = false;
       player.socketId = '';
-      broadcastSystemMsg(io, room, `${player.name} disconnected.`);
+      broadcastSystemMsg(io, room, `${shown(player)} disconnected.`);
       broadcastRoom(io, room);
       promoteFromQueue(io, room);
     }

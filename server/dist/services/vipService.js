@@ -11,6 +11,8 @@ const FREE = {
     profileVisitors: false,
     vipVoices: false,
     animatedName: false,
+    incognito: false,
+    liveDisguise: false,
 };
 const VIP = {
     postChars: 6000,
@@ -25,6 +27,8 @@ const VIP = {
     profileVisitors: true,
     vipVoices: true,
     animatedName: true,
+    incognito: true,
+    liveDisguise: true,
 };
 export const LIMITS = { free: FREE, vip: VIP, owner: VIP };
 // ── Who is on which tier ─────────────────────────────────────────────────────
@@ -97,7 +101,7 @@ export function perkList() {
     return [
         { icon: '✨', title: 'ანიმირებული სახელი',
             free: 'ჩვეულებრივი', vip: 'ბზინავს ყველგან' },
-        { icon: '👁', title: 'ვინ დაათვალიერა პროფილი',
+        { icon: '👁', title: 'პროფილის ნახვები',
             free: '—', vip: 'სრული სია' },
         { icon: '🎙', title: 'ხმოვანი შეტყობინება',
             free: `${FREE.voiceSeconds} წამი`, vip: `${VIP.voiceSeconds} წამი` },
@@ -113,6 +117,10 @@ export function perkList() {
             free: 'სტანდარტული', vip: `+${VIP.speechBonusSeconds} წამი` },
         { icon: '⚡', title: 'რიგი შემდეგ რაუნდში',
             free: 'ჩვეულებრივი', vip: 'პრიორიტეტული' },
+        { icon: '🕶', title: 'ინკოგნიტო მაფიაში',
+            free: '—', vip: 'სახელი იმალება' },
+        { icon: '🎤', title: 'ხმის შენიღბვა თამაშში',
+            free: '—', vip: 'სხვისი ხმით' },
         { icon: '💠', title: 'ვერიფიკაციის ნიშანი',
             free: '—', vip: 'პროფილზე და ჩატში' },
     ];

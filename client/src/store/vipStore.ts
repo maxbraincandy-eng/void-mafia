@@ -28,6 +28,8 @@ export interface VipLimits {
   profileVisitors: boolean;
   vipVoices: boolean;
   animatedName: boolean;
+  incognito: boolean;
+  liveDisguise: boolean;
 }
 
 export interface Perk { icon: string; title: string; free: string; vip: string }
@@ -43,6 +45,8 @@ export const FREE_LIMITS: VipLimits = {
   profileVisitors: false,
   vipVoices: false,
   animatedName: false,
+  incognito: false,
+  liveDisguise: false,
 };
 
 interface VipState {

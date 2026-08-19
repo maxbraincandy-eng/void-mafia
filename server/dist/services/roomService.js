@@ -489,7 +489,12 @@ export function toPublicRoom(room, viewerPlayerId) {
         // Anonymous perk: replace name/avatar for everyone but the player themselves,
         // while the game is live and the viewer isn't a mod. Roles already unlock at
         // game over via isGameOver, and identity unmasks at the same moment.
-        const anon = !!p.anonAlias && p.id !== viewerPlayerId && !isGameOver && !viewerSeesThroughAnon;
+        //
+        // INCOGNITO does not unmask at game over. The perk above is a round-long
+        // costume; incognito is "nobody in this room knows who I am", and lifting it
+        // on the results screen would answer that question for everyone watching.
+        const anon = !!p.anonAlias && p.id !== viewerPlayerId && !viewerSeesThroughAnon
+            && (p.incognito || !isGameOver);
         return {
             id: p.id,
             socketId: p.socketId,
@@ -517,9 +522,17 @@ export function toPublicRoom(room, viewerPlayerId) {
             hasVoted: room.phase === 'voting' ? !!p.voteTarget : false,
             hasActed: p.id === viewerPlayerId ? p.hasActedThisPhase : false,
             seat: p.seat,
-            profileId: p.profileId,
-            isModerator: p.isModerator,
-            moderatorLevel: p.moderatorLevel,
+            // The disguise was leaking straight through this field. Name and avatar were
+            // replaced, but the real profile id went out untouched — and the client
+            // resolves the verification badge, the equipped name colour and the whole
+            // profile popup FROM the profile id. An alias with your own blue badge and
+            // your own purple name beside it is not a disguise, it is a label.
+            // Every client site guards on this being truthy, so null degrades quietly.
+            profileId: anon ? null : p.profileId,
+            // Same reasoning as profileId: a moderator shield over an alias narrows the
+            // room down to a handful of people, and often to one.
+            isModerator: anon ? false : p.isModerator,
+            moderatorLevel: anon ? null : p.moderatorLevel,
             isSpectator: p.isSpectator,
             isQueuedNextRound: p.isQueuedNextRound,
             queuePosition: p.queuePosition,
@@ -531,6 +544,8 @@ export function toPublicRoom(room, viewerPlayerId) {
             // show the indicator + toggle. Never leaked to others (they don't get this
             // row at all — see isHiddenFrom).
             ...(p.id === viewerPlayerId && p.invisibleSpectator ? { invisibleSpectator: true } : {}),
+            // Self-only: what the room is calling you. Never on anyone else's row.
+            ...(p.id === viewerPlayerId && p.incognito ? { incognito: true, myAlias: p.anonAlias ?? null } : {}),
         };
     };
     // Invisibility perk: an invisible spectator is dropped from the list entirely

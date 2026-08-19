@@ -18,6 +18,7 @@ import {
 } from 'livekit-client';
 import { tNow } from '@/store/langStore';
 import { applyVoiceMask, resetVoiceMask, type VoiceMaskPreset } from '@/lib/voiceMask';
+import type { Disguise } from '@/lib/voiceDisguise';
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL ?? '';
 
@@ -173,8 +174,8 @@ function wireRoom(r: Room) {
     // track appears at several different moments — initial join, the iOS
     // gesture retry, and every unmute that republishes — and the mask has to
     // survive all of them.
-    if (pub?.kind === Track.Kind.Audio && desiredMask) {
-      void applyVoiceMask(r, desiredMask);
+    if (pub?.kind === Track.Kind.Audio && desired()) {
+      void applyVoiceMask(r, desired());
     }
   });
   r.on(RoomEvent.LocalTrackUnpublished, (pub: any) => {
@@ -182,19 +183,35 @@ function wireRoom(r: Room) {
   });
 }
 
-// ── Voice Mask perk ────────────────────────────────────────────────────
+// ── Voice Mask / Disguise ──────────────────────────────────────────────
 // The wish is kept here rather than in the component tree: the mask must be
 // re-applied by LocalTrackPublished long after whatever UI set it has unmounted.
-let desiredMask: VoiceMaskPreset | null = null;
+//
+// TWO wishes, not one. The coin-shop pitch mask is a cosmetic; the verified
+// disguise is the thing standing between a player and being recognised. If they
+// shared a slot, the perk push that runs on every reconnect would quietly strip
+// a disguise mid-game — so the disguise simply wins while it is on, and the
+// perk comes back by itself the moment it is switched off.
+let perkMask: VoiceMaskPreset | null = null;
+let disguiseMask: Disguise | null = null;
+function desired(): VoiceMaskPreset | null { return disguiseMask ?? perkMask; }
 
 /** Set (or clear) the pitch mask on the local mic. Safe before the mic exists. */
 export async function setLiveKitVoiceMask(preset: VoiceMaskPreset | null): Promise<void> {
-  desiredMask = preset;
-  await applyVoiceMask(room, preset);
+  perkMask = preset;
+  await applyVoiceMask(room, desired());
 }
 
+/** Set (or clear) the verified voice disguise. Overrides the perk while on. */
+export async function setLiveKitDisguise(preset: Disguise | null): Promise<void> {
+  disguiseMask = preset;
+  await applyVoiceMask(room, desired());
+}
+
+export function getLiveKitDisguise(): Disguise | null { return disguiseMask; }
+
 /** The preset currently wished for — used to re-apply after a reconnect. */
-export function getLiveKitVoiceMask(): VoiceMaskPreset | null { return desiredMask; }
+export function getLiveKitVoiceMask(): VoiceMaskPreset | null { return desired(); }
 
 /** Unlock remote audio playback. MUST be called from a user gesture (tap). */
 export async function startLiveKitAudio(): Promise<void> {

@@ -26,6 +26,8 @@ import { LiveKitVoiceBarView } from '@/components/game/LiveKitVoiceBar';
 import { useGameSounds } from '@/hooks/useSoundFX';
 import { PlayerName } from '@/components/ui/PlayerName';
 import { LobbyItemsBar } from '@/components/game/LobbyItemsBar';
+import { IncognitoPanel } from '@/components/game/IncognitoPanel';
+import { useIncognitoStore } from '@/store/incognitoStore';
 import { RoomFxLayer } from '@/components/game/RoomFxLayer';
 import { roomSkinStyle } from '@/constants/perks';
 
@@ -112,6 +114,12 @@ export function LobbyPage() {
   const autoJoined = useRef(false);
 
   const amSpectator = myPlayer?.isSpectator ?? false;
+
+  // The server is the authority on whether we are masked — it refuses the flag
+  // from a free account, and it re-derives the alias on every reconnect. Mirror
+  // it rather than trusting whatever the toggle last did.
+  const syncIncognito = useIncognitoStore(s => s.syncFromRoom);
+  useEffect(() => { syncIncognito(myPlayer); }, [myPlayer?.incognito, myPlayer?.myAlias, syncIncognito]);
 
   // LiveKit voice in the lobby: the room maps to a LiveKit room of the same id.
   // When enabled it REPLACES the legacy mesh here (mesh auto-join and controls
@@ -375,6 +383,12 @@ export function LobbyPage() {
             anonymous mask actually take effect, so it's where you should be
             able to buy them and flip them on. */}
         <LobbyItemsBar isSpectator={amSpectator} liveInvisible={!!myPlayer?.invisibleSpectator} isHost={amHost} />
+
+        {/* ── Incognito (verified) ─────────────────────────────── */}
+        {/* Beside the perk strip rather than inside it: the perks are bought
+            with coins and this one comes with the badge, and putting them in
+            one row would imply the wrong thing about both. */}
+        <div className="flex flex-col items-start"><IncognitoPanel /></div>
 
         {/* ── Main grid ────────────────────────────────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

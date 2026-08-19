@@ -3,13 +3,18 @@ export function createPlayerMessage(sender, text, channel, isMod = false, extra)
     return {
         id: generateMsgId(),
         senderId: sender.id,
-        senderName: sender.name,
+        // The alias, when the sender has one. The player list was masked and the
+        // chat was not, so a masked player's very first message named them. The
+        // author sees their own alias here too — deliberately: knowing exactly what
+        // the room sees is what stops you slipping up.
+        senderName: sender.anonAlias ?? sender.name,
         text: text.trim().slice(0, extra?.type === 'voice' ? 2000000 : 400),
         timestamp: Date.now(),
         channel,
         isSystem: false,
         seat: sender.seat,
-        isMod,
+        // A moderator shield beside an alias narrows the room to a few people.
+        isMod: sender.anonAlias ? false : isMod,
         type: extra?.type ?? 'text',
         audioDuration: extra?.audioDuration,
     };

@@ -256,6 +256,11 @@ export interface Player {
     /** Anonymous perk: alias shown to others in place of name/avatar until the
      *  game is over. null/undefined = show the real identity. */
     anonAlias?: string | null;
+    /** Incognito (verified only): the alias is on from the MOMENT OF JOINING and
+     *  stays on past the end of the game, unlike the anonymous perk which lifts
+     *  at game over. Sitting down under your own name and only then disappearing
+     *  tells the table exactly who the masked player is. */
+    incognito?: boolean;
 }
 export interface NightAction {
     actorId: string;
@@ -491,6 +496,11 @@ export interface PlayerPublic {
     /** Self-only: the viewer is this invisible spectator. Others never receive
      *  this row at all. Drives the "you are invisible" indicator + toggle. */
     invisibleSpectator?: boolean;
+    /** Self-only: you are incognito, and this is the alias the room sees. Sent
+     *  only on your own row — it is the one thing about the mask you are allowed
+     *  to know, and everybody else learning it would defeat the point. */
+    incognito?: boolean;
+    myAlias?: string | null;
 }
 export interface RoomPublic {
     id: string;

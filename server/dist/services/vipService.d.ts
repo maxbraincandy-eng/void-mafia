@@ -45,6 +45,10 @@ export interface Limits {
     vipVoices: boolean;
     /** Name renders with the animated gradient. */
     animatedName: boolean;
+    /** May enter a mafia room under an alias, with their identity withheld. */
+    incognito: boolean;
+    /** May publish their microphone through a live voice disguise. */
+    liveDisguise: boolean;
 }
 export declare const LIMITS: Record<Tier, Limits>;
 /** Refresh the synchronous snapshot. Called at boot and on a timer. */

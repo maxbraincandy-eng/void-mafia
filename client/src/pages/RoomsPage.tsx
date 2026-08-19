@@ -17,6 +17,9 @@ import { VoidStatsIcon } from '@/components/ui/VoidStatsIcon';
 import { haptic } from '@/lib/haptics';
 import { useSxvaMafiaStore } from '@/store/sxvaMafiaStore';
 import { emitWithAck } from '@/lib/socket';
+import { useIncognitoStore } from '@/store/incognitoStore';
+import { useIamVip } from '@/store/vipStore';
+import { VipSheet } from '@/components/ui/VipSheet';
 import type { Res } from '@/types/index';
 
 function SeasonBanner() {
@@ -242,6 +245,45 @@ function FamilyPicker({ value, onChange, classic, classicSub, host, hostSub }: {
         );
       })}
     </div>
+  );
+}
+
+
+/**
+ * "Enter with my name hidden" — verified only.
+ *
+ * A preference rather than a per-form field: the same wish is sent by every
+ * route into a room, so ticking it here also covers joining from a friend's
+ * card or a code someone pasted. Shown to free accounts too, greyed, because a
+ * perk nobody knows exists sells nothing.
+ */
+function IncognitoJoinToggle() {
+  const vip = useIamVip();
+  const wantHidden = useIncognitoStore(s => s.wantHidden);
+  const setWantHidden = useIncognitoStore(s => s.setWantHidden);
+  const [pitch, setPitch] = useState(false);
+  const on = vip && wantHidden;
+
+  return (
+    <>
+      <label className="flex items-center gap-3 cursor-pointer select-none py-1">
+        <button
+          type="button"
+          onClick={() => (vip ? setWantHidden(!wantHidden) : setPitch(true))}
+          className="w-9 h-5 rounded-full flex items-center relative transition-colors shrink-0"
+          style={{ background: on ? 'rgba(167,139,250,0.5)' : 'rgba(255,255,255,0.07)' }}
+        >
+          <div
+            className="absolute w-3.5 h-3.5 rounded-full transition-transform"
+            style={{ background: 'rgba(255,255,255,0.8)', transform: on ? 'translateX(16px)' : 'translateX(2px)' }}
+          />
+        </button>
+        <span className="text-xs font-mono" style={{ color: on ? '#c4b5fd' : 'rgba(255,255,255,0.4)' }}>
+          {vip ? '🕶 შევიდე სახელის დამალვით' : '🔒 სახელის დამალვა — ვერიფიცირებულებს'}
+        </span>
+      </label>
+      <VipSheet open={pitch} onClose={() => setPitch(false)} />
+    </>
   );
 }
 
@@ -689,6 +731,7 @@ export function RoomsPage({ onOpenClans, onOpenLeaderboard }: { onOpenClans?: ()
               </div>
 
               <form onSubmit={handleCreate}>
+                <div className="mb-3"><IncognitoJoinToggle /></div>
                 <Button fullWidth variant="primary" loading={isLoading}>
                   {t.rooms.createRoom}
                 </Button>
@@ -750,6 +793,8 @@ export function RoomsPage({ onOpenClans, onOpenLeaderboard }: { onOpenClans?: ()
                   </button>
                   <span className="text-xs font-mono text-white/40">Watch as spectator</span>
                 </label>
+
+                <IncognitoJoinToggle />
 
                 <Button fullWidth variant="neon-cyan" loading={isLoading} disabled={code.length < 6}>
                   {t.rooms.joinRoom}

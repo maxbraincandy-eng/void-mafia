@@ -23,18 +23,29 @@
  * React rendering on the main thread.
  */
 import type { Room } from 'livekit-client';
+import { buildDisguise, DISGUISES, type Disguise, type DisguiseGraph } from './voiceDisguise';
 
-export type VoiceMaskPreset = 'deep' | 'high' | 'ghost';
+/**
+ * The three pitch masks are the coin-shop perk. The four DISGUISES are the
+ * verified one, and they are a different thing entirely — a pitch shift makes
+ * you sound higher, a vocoder makes you sound like somebody else. See
+ * lib/voiceDisguise for why that distinction is physical rather than a matter
+ * of degree.
+ */
+export type VoiceMaskPreset = 'deep' | 'high' | 'ghost' | Disguise;
 
-/** Pitch ratios. <1 lowers, >1 raises. */
-const RATIO: Record<VoiceMaskPreset, number> = {
+const DISGUISE_SET = new Set<string>(DISGUISES);
+export function isDisguise(p: VoiceMaskPreset): p is Disguise { return DISGUISE_SET.has(p); }
+
+/** Pitch ratios. <1 lowers, >1 raises. Disguises do not use these. */
+const RATIO: Record<'deep' | 'high' | 'ghost', number> = {
   deep: 0.72,    // noticeably lower, still intelligible
   high: 1.42,    // clearly a different person, not a chipmunk
   ghost: 0.86,   // small shift + detune wobble; uncanny rather than comic
 };
 /** Ghost adds a slow detune wobble on top of the shift. */
-const WOBBLE_HZ: Record<VoiceMaskPreset, number> = { deep: 0, high: 0, ghost: 0.9 };
-const WOBBLE_DEPTH: Record<VoiceMaskPreset, number> = { deep: 0, high: 0, ghost: 0.055 };
+const WOBBLE_HZ: Record<'deep' | 'high' | 'ghost', number> = { deep: 0, high: 0, ghost: 0.9 };
+const WOBBLE_DEPTH: Record<'deep' | 'high' | 'ghost', number> = { deep: 0, high: 0, ghost: 0.055 };
 
 // The worklet source is inlined and loaded from a blob URL: the app is served as
 // a hashed bundle, so there is no stable public path to addModule() from.
@@ -163,33 +174,54 @@ export class VoiceMaskProcessor {
   private node: AudioWorkletNode | null = null;
   private source: MediaStreamAudioSourceNode | null = null;
   private dest: MediaStreamAudioDestinationNode | null = null;
+  private disguise: DisguiseGraph | null = null;
   private preset: VoiceMaskPreset;
 
   constructor(preset: VoiceMaskPreset) { this.preset = preset; }
 
   async init(opts: { track: MediaStreamTrack; audioContext: AudioContext }): Promise<void> {
     this.ctx = opts.audioContext;
-    await ensurePitchWorklet(this.ctx);
-
     this.source = this.ctx.createMediaStreamSource(new MediaStream([opts.track]));
-    this.node = new AudioWorkletNode(this.ctx, 'vm-pitch-shift', {
-      numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1],
-    });
-    this.apply(this.preset);
-
     this.dest = this.ctx.createMediaStreamDestination();
-    this.source.connect(this.node).connect(this.dest);
+
+    if (isDisguise(this.preset)) {
+      // No worklet at all on this path: the vocoder is native nodes end to end.
+      this.disguise = buildDisguise(this.ctx, this.source, this.preset);
+      this.disguise.output.connect(this.dest);
+    } else {
+      await ensurePitchWorklet(this.ctx);
+      this.node = new AudioWorkletNode(this.ctx, 'vm-pitch-shift', {
+        numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1],
+      });
+      this.apply(this.preset);
+      this.source.connect(this.node).connect(this.dest);
+    }
+
     this.processedTrack = this.dest.stream.getAudioTracks()[0];
   }
 
-  /** Change preset without tearing the graph down (no audible gap). */
-  apply(preset: VoiceMaskPreset): void {
+  /**
+   * Change preset without tearing the graph down (no audible gap).
+   *
+   * Returns false when the change crosses between a pitch mask and a disguise —
+   * those are different graphs, so the caller has to rebuild. Retuning WITHIN
+   * either kind is free.
+   */
+  apply(preset: VoiceMaskPreset): boolean {
+    const wasDisguise = isDisguise(this.preset);
+    const isNowDisguise = isDisguise(preset);
+    if (wasDisguise !== isNowDisguise) return false;
     this.preset = preset;
+
+    if (isNowDisguise) { this.disguise?.retune(preset as Disguise); return true; }
+
     const p = this.node?.parameters;
-    if (!p) return;
-    p.get('ratio')!.value = RATIO[preset];
-    p.get('wobbleHz')!.value = WOBBLE_HZ[preset];
-    p.get('wobbleDepth')!.value = WOBBLE_DEPTH[preset];
+    if (!p) return true;
+    const k = preset as 'deep' | 'high' | 'ghost';
+    p.get('ratio')!.value = RATIO[k];
+    p.get('wobbleHz')!.value = WOBBLE_HZ[k];
+    p.get('wobbleDepth')!.value = WOBBLE_DEPTH[k];
+    return true;
   }
 
   async restart(opts: { track: MediaStreamTrack; audioContext: AudioContext }): Promise<void> {
@@ -198,9 +230,13 @@ export class VoiceMaskProcessor {
   }
 
   async destroy(): Promise<void> {
+    // The oscillators keep running until stopped, and a leaked one is a leaked
+    // audio thread for the life of the tab.
+    try { this.disguise?.stop(); } catch { /* already stopped */ }
+    try { this.disguise?.output.disconnect(); } catch { /* already gone */ }
     try { this.source?.disconnect(); } catch { /* already gone */ }
     try { this.node?.disconnect(); } catch { /* already gone */ }
-    this.source = null; this.node = null; this.dest = null;
+    this.source = null; this.node = null; this.dest = null; this.disguise = null;
     this.processedTrack = undefined;
   }
 }
@@ -229,8 +265,14 @@ export async function applyVoiceMask(room: Room | null, preset: VoiceMaskPreset 
       active = null;
       return;
     }
-    // Already masked → just retune, which avoids a republish and its gap.
-    if (active) { active.apply(preset); return; }
+    // Already masked → just retune, which avoids a republish and its gap. When
+    // the change crosses between a pitch mask and a vocoder the graphs differ,
+    // so apply() says so and the processor is replaced instead.
+    if (active) {
+      if (active.apply(preset)) return;
+      if (typeof track.stopProcessor === 'function') await track.stopProcessor();
+      active = null;
+    }
 
     const proc = new VoiceMaskProcessor(preset);
     await track.setProcessor(proc);

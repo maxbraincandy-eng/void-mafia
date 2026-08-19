@@ -198,6 +198,10 @@ export interface PlayerPublic {
   isAnon?: boolean;
   /** Self-only: you are this invisible spectator (Invisibility perk). */
   invisibleSpectator?: boolean;
+  /** Self-only: you are incognito, and this is the alias the room sees. The
+   *  server sends these on your own row and nobody else's. */
+  incognito?: boolean;
+  myAlias?: string | null;
 }
 
 export interface DynamicEventAllowed {

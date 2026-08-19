@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { wantsHiddenName } from '@/store/incognitoStore';
 import { tNow } from '@/store/langStore';
 import {
   RoomPublic, PlayerPublic, PlayerProfilePublic, Role, ChatMessage, Phase,
@@ -175,6 +176,10 @@ export const useGameStore = create<GameStore>((set, get) => {
       code: saved.code,
       name: saved.playerName,
       isSpectator: saved.isSpectator,
+      // A restored session can land as a FRESH join if the server dropped the
+      // row while we were away, and arriving unmasked would be the one moment
+      // the whole disguise was for.
+      incognito: wantsHiddenName(),
     }).then(res => {
       if (res.ok) {
         const room = res.data;
@@ -204,6 +209,7 @@ export const useGameStore = create<GameStore>((set, get) => {
           code: room.code,
           name: player.name,
           isSpectator: player.isSpectator,
+          incognito: wantsHiddenName(),
           joinMode: player.isQueuedNextRound ? 'next_round' : (player.isSpectator ? 'spectator' : undefined),
         }).then(res => {
           if (res.ok) {
@@ -562,7 +568,10 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     createRoom: withLoading(async (name: string, settings?: Partial<GameSettings>, clanRoom = false, roomName?: string) => {
-      const room = await emit<RoomPublic>('room:create', { name, roomName, settings, clanRoom });
+      // Read here rather than passed in by each caller: there are six ways into
+      // a room (list, code, friend card, landing page, invite, rejoin) and a
+      // disguise that works on five of them is not a disguise.
+      const room = await emit<RoomPublic>('room:create', { name, roomName, settings, clanRoom, incognito: wantsHiddenName() });
       const playerId = room.players.find(p => p.isHost)?.id ?? null;
       set({ room, myPlayerId: playerId });
       if (playerId) saveSession(room, playerId);
@@ -574,7 +583,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         // When joining as spectator without an explicit joinMode, tell the server
         // "spectator" so it doesn't reject in-progress games with GAME_ALREADY_STARTED_CHOOSE_MODE
         const effectiveJoinMode = joinMode ?? (isSpectator ? 'spectator' : undefined);
-        const room = await emit<RoomPublic>('room:join', { code, name, isSpectator, password, ...(effectiveJoinMode ? { joinMode: effectiveJoinMode } : {}) });
+        const room = await emit<RoomPublic>('room:join', { code, name, isSpectator, password, incognito: wantsHiddenName(), ...(effectiveJoinMode ? { joinMode: effectiveJoinMode } : {}) });
         const myPlayer = room.players.find(p => p.socketId === socket.id)
           ?? room.nextRoundQueue?.find(p => p.socketId === socket.id)
           ?? room.players.find(p => p.name === name)

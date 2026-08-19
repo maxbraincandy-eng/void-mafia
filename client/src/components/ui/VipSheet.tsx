@@ -64,7 +64,7 @@ export function VipSheet({ open, onClose }: { open: boolean; onClose: () => void
             >
               <div
                 className="grid items-center px-3 py-2"
-                style={{ gridTemplateColumns: '1fr 74px 84px', background: 'rgba(255,255,255,0.03)' }}
+                style={{ gridTemplateColumns: 'minmax(0,1fr) 78px 98px', background: 'rgba(255,255,255,0.03)' }}
               >
                 <span className="font-mono text-white/30" style={{ fontSize: 10 }} />
                 <span className="font-mono text-white/30 text-center" style={{ fontSize: 10 }}>უფასო</span>
@@ -82,17 +82,17 @@ export function VipSheet({ open, onClose }: { open: boolean; onClose: () => void
                   key={p.title}
                   className="grid items-center px-3 py-2.5"
                   style={{
-                    gridTemplateColumns: '1fr 74px 84px',
+                    gridTemplateColumns: 'minmax(0,1fr) 78px 98px',
                     borderTop: i === 0 ? 'none' : '1px solid rgba(255,255,255,0.05)',
                   }}
                 >
                   <span className="font-display text-white/85 min-w-0 pr-2" style={{ fontSize: 12.5, lineHeight: 1.25 }}>
                     <span style={{ marginRight: 6 }}>{p.icon}</span>{p.title}
                   </span>
-                  <span className="font-mono text-white/32 text-center" style={{ fontSize: 10.5, lineHeight: 1.25 }}>{p.free}</span>
+                  <span className="font-mono text-white/32 text-center" style={{ fontSize: 9.5, lineHeight: 1.35, overflowWrap: 'normal', wordBreak: 'normal', hyphens: 'none' }}>{p.free}</span>
                   <span
                     className="font-mono text-center rounded-lg py-1"
-                    style={{ fontSize: 10.5, lineHeight: 1.25, color: '#c4b5fd', background: 'rgba(167,139,250,0.1)' }}
+                    style={{ fontSize: 9.5, lineHeight: 1.35, color: '#c4b5fd', background: 'rgba(167,139,250,0.1)', overflowWrap: 'normal', wordBreak: 'normal', hyphens: 'none', paddingLeft: 3, paddingRight: 3 }}
                   >{p.vip}</span>
                 </div>
               ))}
