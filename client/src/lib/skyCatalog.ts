@@ -145,7 +145,7 @@ export const CONSTELLATIONS: Constellation[] = [
   },
   {
     name: 'ჯვარი',
-    lines: [['acrux', 'gacrux'], ['mimosa', 'acrux'], ['mimosa', 'gacrux']],
+    lines: [['acrux', 'gacrux'], ['mimosa', 'delcru']],
   },
   {
     name: 'ტყუპები',
@@ -166,11 +166,62 @@ export const CONSTELLATIONS: Constellation[] = [
   },
   {
     name: 'დიდი ძაღლი',
-    lines: [['sirius', 'mirzam'], ['sirius', 'adhara']],
+    lines: [['sirius', 'mirzam'], ['sirius', 'adhara'], ['adhara', 'wezen'], ['wezen', 'aludra']],
   },
   {
     name: 'მორიელი',
-    lines: [['antares', 'sabik'], ['antares', 'shaula']],
+    lines: [
+      ['graffias', 'dschubba'], ['dschubba', 'antares'], ['antares', 'sargas'],
+      ['sargas', 'lesath'], ['lesath', 'shaula'],
+    ],
+  },
+  {
+    name: 'ლირა',
+    lines: [['vega', 'sheliak'], ['sheliak', 'sulafat'], ['sulafat', 'vega']],
+  },
+  {
+    name: 'არწივი',
+    lines: [['tarazed', 'altair'], ['altair', 'alshain']],
+  },
+  {
+    name: 'მემცხვარე',
+    lines: [['arcturus', 'izar'], ['izar', 'seginus'], ['seginus', 'nekkar'], ['arcturus', 'muphrid']],
+  },
+  {
+    name: 'ქალწული',
+    lines: [['spica', 'porrima'], ['porrima', 'vindemiatrix']],
+  },
+  {
+    name: 'მეეტლე',
+    lines: [['capella', 'menkalinan'], ['menkalinan', 'elnath'], ['elnath', 'capella']],
+  },
+  {
+    name: 'პერსევსი',
+    lines: [['mirfak', 'algol'], ['mirfak', 'almach']],
+  },
+  {
+    name: 'მშვილდოსანი',
+    lines: [
+      ['alnasl', 'kausmedia'], ['kausmedia', 'kausaus'], ['kausmedia', 'kausbor'],
+      ['kausbor', 'phisgr'], ['phisgr', 'nunki'], ['nunki', 'ascella'],
+      ['ascella', 'kausaus'], ['ascella', 'kausmedia'],
+    ],
+  },
+  {
+    name: 'დრაკონი',
+    lines: [['eltanin', 'rastaban']],
+  },
+  {
+    name: 'სასწორი',
+    lines: [['zubenelg', 'zubenesch']],
+  },
+  {
+    name: 'კენტავრი',
+    lines: [['rigilkent', 'hadar'], ['hadar', 'menkent']],
+  },
+  {
+    name: 'იალქანი',
+    lines: [['naos', 'regor'], ['regor', 'suhail'], ['suhail', 'aspidiske']],
   },
   {
     name: 'პატარა დათვი',
@@ -184,13 +235,71 @@ export const CONSTELLATIONS: Constellation[] = [
  * they are resolved here — so a typo in a line is a missing line, never a
  * silently mis-drawn one.
  */
+
+/**
+ * A second helping: the stars that carry the figures added later.
+ *
+ * Same J2000 convention as above. These are all naked-eye stars with
+ * well-established positions; nothing here is fainter than magnitude 3.9,
+ * because a star nobody can see is a line drawn to nowhere.
+ */
+export const FIGURE_STARS: Star[] = [
+  // Lyra
+  { k: 'sheliak',    name: 'Sheliak',        ra: h(18, 50.1), dec: d(33, 22),   mag: 3.45, bv: 0.00 },
+  { k: 'sulafat',    name: 'Sulafat',        ra: h(18, 58.9), dec: d(32, 41),   mag: 3.24, bv: -0.05 },
+  // Aquila
+  { k: 'tarazed',    name: 'Tarazed',        ra: h(19, 46.3), dec: d(10, 37),   mag: 2.72, bv: 1.52 },
+  { k: 'alshain',    name: 'Alshain',        ra: h(19, 55.3), dec: d(6, 25),    mag: 3.71, bv: 0.86 },
+  // Boötes
+  { k: 'izar',       name: 'Izar',           ra: h(14, 45.0), dec: d(27, 4),    mag: 2.37, bv: 0.97 },
+  { k: 'seginus',    name: 'Seginus',        ra: h(14, 32.1), dec: d(38, 19),   mag: 3.03, bv: 0.19 },
+  { k: 'nekkar',     name: 'Nekkar',         ra: h(15, 1.9),  dec: d(40, 23),   mag: 3.49, bv: 0.97 },
+  { k: 'muphrid',    name: 'Muphrid',        ra: h(13, 54.7), dec: d(18, 24),   mag: 2.68, bv: 0.58 },
+  // Virgo
+  { k: 'porrima',    name: 'Porrima',        ra: h(12, 41.7), dec: d(-1, 27),   mag: 2.74, bv: 0.36 },
+  { k: 'vindemiatrix', name: 'Vindemiatrix', ra: h(13, 2.2),  dec: d(10, 58),   mag: 2.83, bv: 0.94 },
+  // Auriga
+  { k: 'menkalinan', name: 'Menkalinan',     ra: h(5, 59.5),  dec: d(44, 57),   mag: 1.90, bv: 0.08 },
+  // Sagittarius — the Teapot
+  { k: 'alnasl',     name: 'Alnasl',         ra: h(18, 5.8),  dec: d(-30, 25),  mag: 2.98, bv: 1.00 },
+  { k: 'kausmedia',  name: 'Kaus Media',     ra: h(18, 21.0), dec: d(-29, 50),  mag: 2.70, bv: 1.38 },
+  { k: 'kausbor',    name: 'Kaus Borealis',  ra: h(18, 28.0), dec: d(-25, 25),  mag: 2.81, bv: 1.04 },
+  { k: 'phisgr',     name: 'Phi Sagittarii', ra: h(18, 45.7), dec: d(-26, 59),  mag: 3.17, bv: -0.11 },
+  { k: 'ascella',    name: 'Ascella',        ra: h(19, 2.6),  dec: d(-29, 53),  mag: 2.60, bv: 0.08 },
+  // Scorpius
+  { k: 'graffias',   name: 'Graffias',       ra: h(16, 5.4),  dec: d(-19, 48),  mag: 2.56, bv: -0.07 },
+  { k: 'dschubba',   name: 'Dschubba',       ra: h(16, 0.3),  dec: d(-22, 37),  mag: 2.29, bv: -0.12 },
+  { k: 'sargas',     name: 'Sargas',         ra: h(17, 37.3), dec: d(-43, 0),   mag: 1.87, bv: 0.40 },
+  { k: 'lesath',     name: 'Lesath',         ra: h(17, 30.8), dec: d(-37, 18),  mag: 2.69, bv: -0.22 },
+  // Draco
+  { k: 'eltanin',    name: 'Eltanin',        ra: h(17, 56.6), dec: d(51, 29),   mag: 2.23, bv: 1.52 },
+  { k: 'rastaban',   name: 'Rastaban',       ra: h(17, 30.4), dec: d(52, 18),   mag: 2.79, bv: 0.95 },
+  // Cepheus
+  { k: 'alderamin',  name: 'Alderamin',      ra: h(21, 18.6), dec: d(62, 35),   mag: 2.45, bv: 0.22 },
+  // Libra
+  { k: 'zubenelg',   name: 'Zubenelgenubi',  ra: h(14, 50.9), dec: d(-16, 2),   mag: 2.75, bv: 0.15 },
+  { k: 'zubenesch',  name: 'Zubeneschamali', ra: h(15, 17.0), dec: d(-9, 23),   mag: 2.61, bv: -0.07 },
+  // Canis Major's tail
+  { k: 'wezen',      name: 'Wezen',          ra: h(7, 8.4),   dec: d(-26, 24),  mag: 1.83, bv: 0.67 },
+  { k: 'aludra',     name: 'Aludra',         ra: h(7, 24.1),  dec: d(-29, 18),  mag: 2.45, bv: -0.08 },
+  // Vela / Puppis / Carina — the old ship
+  { k: 'naos',       name: 'Naos',           ra: h(8, 3.6),   dec: d(-40, 0),   mag: 2.21, bv: -0.27 },
+  { k: 'regor',      name: 'Regor',          ra: h(8, 9.5),   dec: d(-47, 20),  mag: 1.78, bv: -0.15 },
+  { k: 'suhail',     name: 'Suhail',         ra: h(9, 8.0),   dec: d(-43, 26),  mag: 2.21, bv: 1.67 },
+  { k: 'aspidiske',  name: 'Aspidiske',      ra: h(9, 17.1),  dec: d(-59, 16),  mag: 2.21, bv: 0.18 },
+  // Crux, the fourth arm
+  { k: 'delcru',     name: 'Delta Crucis',   ra: h(12, 15.1), dec: d(-58, 45),  mag: 2.79, bv: -0.19 },
+  // Serpens
+  { k: 'unukalhai',  name: 'Unukalhai',      ra: h(15, 44.3), dec: d(6, 25),    mag: 2.63, bv: 1.17 },
+];
+
 export const EXTRA_STARS: Star[] = [
   { k: 'mintaka_alias', name: 'Mintaka', ra: h(5, 32.0), dec: d(0, -18), mag: 2.23, bv: -0.18 },
   { k: 'delphinus_alias', name: 'Eta Cygni', ra: h(19, 56.3), dec: d(35, 5), mag: 3.89, bv: 1.02 },
 ];
 
 /** Every star the renderer should draw, figures included. */
-export const ALL_STARS: Star[] = [...STARS, ...EXTRA_STARS];
+export const ALL_STARS: Star[] = [...STARS, ...FIGURE_STARS, ...EXTRA_STARS];
 
 /** B−V to an approximate RGB, so hot stars look blue and cool ones orange. */
 export function starColour(bv: number): [number, number, number] {

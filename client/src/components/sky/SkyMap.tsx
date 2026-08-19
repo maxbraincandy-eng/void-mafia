@@ -7,6 +7,7 @@ import {
   saturnRingTilt, RADIUS_KM, type SkyBody, type PlanetId,
 } from '@/lib/astro';
 import { ALL_STARS, CONSTELLATIONS, STAR_BY_KEY, starColour, type Star } from '@/lib/skyCatalog';
+import { milkyWayGrains } from '@/lib/milkyWay';
 import { surfaceTexture, ringTexture, glowSprite, MOONS } from './planetArt';
 
 /**
@@ -58,9 +59,19 @@ interface Picked {
   altAz: { alt: number; az: number };
 }
 
-export default function SkyMap({ onClose }: { onClose: () => void }) {
+export default function SkyMap({ onClose: closeRequested }: { onClose: () => void }) {
   const mountRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  /**
+   * The camera stream, held HERE and not read back off the <video> element.
+   *
+   * The old cleanup did `videoRef.current?.srcObject` — and React detaches refs
+   * during the commit that removes the node, while a passive effect's cleanup
+   * runs in the pass AFTER that. So the ref was always null by then, the tracks
+   * were never stopped, and the camera stayed live until the whole app was
+   * killed. A recording indicator nobody can turn off is not a small bug.
+   */
+  const streamRef = useRef<MediaStream | null>(null);
   const [perm, setPerm] = useState<Perm>('idle');
   const [camOn, setCamOn] = useState(false);
   // Passthrough is a help outdoors at night and a hindrance anywhere bright,
@@ -99,10 +110,15 @@ export default function SkyMap({ onClose }: { onClose: () => void }) {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: 'environment' } }, audio: false,
       });
+      streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play().catch(() => {});
         setCamOn(true);
+      } else {
+        // Unmounted while the permission prompt was open.
+        stream.getTracks().forEach(t => t.stop());
+        streamRef.current = null;
       }
     } catch {
       // No camera, or refused: the sky still works against black, which is
@@ -178,9 +194,29 @@ export default function SkyMap({ onClose }: { onClose: () => void }) {
 
     const dot = new THREE.CanvasTexture(glowSprite());
 
-    // Stars, as one point cloud.
+    /*
+     * Stars.
+     *
+     * A PointsMaterial draws every point at ONE size — the per-star `size`
+     * attribute the old code built was never read, so Sirius and a magnitude-3
+     * filler star came out identically. On a real sky the brightest stars are
+     * the whole structure; without that difference the view is a spray of
+     * identical dots, which is the single thing that made this read as a
+     * prototype. A small shader gives each star its own size, its own colour,
+     * and two things a flat sprite cannot do:
+     *
+     *   EXTINCTION — air absorbs starlight, and near the horizon you are
+     *   looking through far more of it. At 10° altitude a star is about a
+     *   magnitude fainter than overhead, and redder. This is why the overlay
+     *   used to look pasted on: real stars fade into the murk above a roofline
+     *   and these did not.
+     *
+     *   SCINTILLATION — twinkling is the same air, and it is much stronger low
+     *   down. It is also the cue that separates a star from a satellite or a
+     *   dead pixel, and the eye reads it instantly.
+     */
     const starGeo = new THREE.BufferGeometry();
-    const pos: number[] = [], col: number[] = [], siz: number[] = [];
+    const pos: number[] = [], col: number[] = [], siz: number[] = [], twk: number[] = [];
     const starDirs: { star: Star; v: THREE.Vector3 }[] = [];
     for (const s of ALL_STARS) {
       const v = new THREE.Vector3();
@@ -188,18 +224,103 @@ export default function SkyMap({ onClose }: { onClose: () => void }) {
       pos.push(0, 0, 0);
       const [r, g, b] = starColour(s.bv);
       col.push(r, g, b);
-      siz.push(Math.max(1.2, 7.5 - s.mag * 1.5));
+      // Brightness is logarithmic — each magnitude is ×2.512 in flux — so the
+      // drawn radius follows the same law rather than a straight line.
+      siz.push(2.0 + 16 * Math.pow(2.512, -0.28 * (s.mag + 1.5)));
+      twk.push(Math.random() * 6.283);
     }
     starGeo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     starGeo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
     starGeo.setAttribute('size', new THREE.Float32BufferAttribute(siz, 1));
-    const starMat = new THREE.PointsMaterial({
-      size: 6, map: dot, vertexColors: true, transparent: true,
-      depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: false,
+    starGeo.setAttribute('phase', new THREE.Float32BufferAttribute(twk, 1));
+
+    const POINT_VERT = `
+      attribute float size;
+      attribute float phase;
+      varying vec3 vColor;
+      uniform float scale;
+      uniform float time;
+      uniform float twinkle;
+      uniform float dpr;
+      void main() {
+        vColor = color;
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        // Altitude of this point, for extinction. y is up in the horizon frame.
+        float alt = normalize(position).y;
+        float air = clamp(alt, 0.02, 1.0);
+        // Airmass ≈ 1/sin(alt); the exponent is the usual ~0.28 mag per airmass
+        // in the visual band, converted to a flux multiplier.
+        float ext = pow(0.77, (1.0 / air) - 1.0);
+        float tw = 1.0 + twinkle * (1.0 - air) * 0.55 * sin(time * 7.3 + phase);
+        vColor *= ext * tw;
+        // gl_PointSize is in FRAMEBUFFER pixels. On a phone the framebuffer is
+        // two or three times the CSS size, so without this every star drew at a
+        // third of its intended diameter — which is most of why the sky looked
+        // thin and unfinished.
+        gl_PointSize = size * scale * dpr * sqrt(max(ext, 0.05));
+        gl_Position = projectionMatrix * mv;
+      }`;
+    const POINT_FRAG = `
+      uniform sampler2D map;
+      varying vec3 vColor;
+      void main() {
+        vec4 t = texture2D(map, gl_PointCoord);
+        gl_FragColor = vec4(vColor, 1.0) * t;
+      }`;
+
+    const dpr = renderer.getPixelRatio();
+    const starUniforms = {
+      map: { value: dot }, scale: { value: 1 }, time: { value: 0 }, twinkle: { value: 1 },
+      dpr: { value: dpr },
+    };
+    const starMat = new THREE.ShaderMaterial({
+      uniforms: starUniforms, vertexShader: POINT_VERT, fragmentShader: POINT_FRAG,
+      transparent: true, depthWrite: false, depthTest: false,
+      blending: THREE.AdditiveBlending, vertexColors: true,
     });
     const starPoints = new THREE.Points(starGeo, starMat);
     starPoints.frustumCulled = false;
+    starPoints.renderOrder = 3;
     scene.add(starPoints);
+
+    /*
+     * The Milky Way — the same shader, dimmer and finer.
+     *
+     * Thousands of grains of unresolved starlight along the galactic plane. It
+     * is computed, not painted: see lib/milkyWay. Drawn UNDER everything else
+     * so a bright star sits on top of it rather than being lost in it.
+     */
+    const grains = milkyWayGrains(3400);
+    const mwGeo = new THREE.BufferGeometry();
+    const mwPos: number[] = [], mwCol: number[] = [], mwSiz: number[] = [], mwPh: number[] = [];
+    const mwDirs: THREE.Vector3[] = [];
+    for (const g of grains) {
+      mwDirs.push(new THREE.Vector3());
+      mwPos.push(0, 0, 0);
+      // Faintly warm, the way the integrated light of an old stellar
+      // population actually is — not the blue-white of a hot foreground star.
+      const b = g.bright * 0.78;
+      mwCol.push(b * 1.0, b * 0.94, b * 0.86);
+      mwSiz.push(1.8 + g.bright * 3.0);
+      mwPh.push(Math.random() * 6.283);
+    }
+    mwGeo.setAttribute('position', new THREE.Float32BufferAttribute(mwPos, 3));
+    mwGeo.setAttribute('color', new THREE.Float32BufferAttribute(mwCol, 3));
+    mwGeo.setAttribute('size', new THREE.Float32BufferAttribute(mwSiz, 1));
+    mwGeo.setAttribute('phase', new THREE.Float32BufferAttribute(mwPh, 1));
+    const mwUniforms = {
+      map: { value: dot }, scale: { value: 1 }, time: { value: 0 }, twinkle: { value: 0 },
+      dpr: { value: dpr },
+    };
+    const mwMat = new THREE.ShaderMaterial({
+      uniforms: mwUniforms, vertexShader: POINT_VERT, fragmentShader: POINT_FRAG,
+      transparent: true, depthWrite: false, depthTest: false,
+      blending: THREE.AdditiveBlending, vertexColors: true,
+    });
+    const mwPoints = new THREE.Points(mwGeo, mwMat);
+    mwPoints.frustumCulled = false;
+    mwPoints.renderOrder = 1;
+    scene.add(mwPoints);
 
     // Constellation figures.
     const lineGeo = new THREE.BufferGeometry();
@@ -209,6 +330,7 @@ export default function SkyMap({ onClose }: { onClose: () => void }) {
       color: 0x6f8fd0, transparent: true, opacity: 0.30, depthWrite: false,
     }));
     lines.frustumCulled = false;
+    lines.renderOrder = 2;
     scene.add(lines);
 
     // Planets, Sun and Moon: a sprite each, sized by brightness.
@@ -218,9 +340,47 @@ export default function SkyMap({ onClose }: { onClose: () => void }) {
         map: dot, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
       }));
       sp.frustumCulled = false;
+      sp.renderOrder = 4;          // above the stars and the band
       marks[id] = sp;
       scene.add(sp);
     }
+
+    /*
+     * Horizon glow — the thing that makes the overlay belong to the picture.
+     *
+     * Look at any real photograph of a night sky: the bottom of the frame is
+     * not black. There is airglow, scattered city light, and the sheer depth of
+     * atmosphere you are looking through sideways, and it produces a warm band
+     * that fades upward over twenty degrees or so. Drawing stars on straight
+     * black over a camera feed is exactly what makes an AR overlay look stuck
+     * on top of the world instead of in it, because the one gradient every
+     * viewer has seen a thousand times is missing.
+     *
+     * A cylinder from just under the horizon to about 24° up, additively
+     * blended so it lightens the camera image rather than covering it.
+     */
+    const hazeCanvas = document.createElement('canvas');
+    hazeCanvas.width = 4; hazeCanvas.height = 128;
+    {
+      const g = hazeCanvas.getContext('2d')!;
+      const grad = g.createLinearGradient(0, 128, 0, 0);
+      grad.addColorStop(0.00, 'rgba(92,74,54,0.55)');   // sodium-lit murk
+      grad.addColorStop(0.18, 'rgba(70,66,72,0.34)');
+      grad.addColorStop(0.48, 'rgba(44,52,78,0.16)');   // turning to sky
+      grad.addColorStop(1.00, 'rgba(30,40,70,0.00)');
+      g.fillStyle = grad; g.fillRect(0, 0, 4, 128);
+    }
+    const hazeTex = new THREE.CanvasTexture(hazeCanvas);
+    hazeTex.colorSpace = THREE.SRGBColorSpace;
+    const hazeGeo = new THREE.CylinderGeometry(100, 100, 44, 64, 1, true);
+    const haze = new THREE.Mesh(hazeGeo, new THREE.MeshBasicMaterial({
+      map: hazeTex, transparent: true, opacity: 0.85, depthWrite: false, depthTest: false,
+      side: THREE.BackSide, blending: THREE.AdditiveBlending,
+    }));
+    haze.position.y = 14;             // base a little below the horizon line
+    haze.renderOrder = 0;             // under the Milky Way and the stars
+    haze.frustumCulled = false;
+    scene.add(haze);
 
     // A horizon ring, so "below the horizon" is visibly a place.
     const horizonGeo = new THREE.BufferGeometry();
@@ -295,6 +455,44 @@ export default function SkyMap({ onClose }: { onClose: () => void }) {
       setPicked(best);
     };
 
+    /*
+     * One rotation for the whole sky.
+     *
+     * Each star goes through equatorialToHorizon individually — 79 of those is
+     * nothing. Three thousand four hundred grains is a different question, and
+     * they all undergo the SAME rotation, so it is computed once by sending the
+     * three equatorial basis vectors through the identical pipeline and reading
+     * off the columns. Precession and the hour angle are both rotations, so the
+     * composite is one too and this is exact, not an approximation.
+     */
+    const eqBasis = [
+      { ra: 0, dec: 0 },      // x̂
+      { ra: 6, dec: 0 },      // ŷ
+      { ra: 0, dec: 90 },     // ẑ
+    ];
+    const skyRot = new THREE.Matrix3();
+    function updateSkyRotation(jd: number) {
+      const c = eqBasis.map(({ ra, dec }) => {
+        const h = equatorialToHorizon({ ra, dec, dist: 1 }, jd, place.lat, place.lon);
+        const v = horizonToVector(h);
+        return new THREE.Vector3(v.x, v.y, v.z);
+      });
+      skyRot.set(
+        c[0].x, c[1].x, c[2].x,
+        c[0].y, c[1].y, c[2].y,
+        c[0].z, c[1].z, c[2].z,
+      );
+    }
+    // Grain directions as J2000 equatorial unit vectors, placed once.
+    const grainEq = grains.map(g => {
+      const raR = g.ra * 15 * Math.PI / 180, decR = g.dec * Math.PI / 180;
+      return new THREE.Vector3(
+        Math.cos(decR) * Math.cos(raR),
+        Math.cos(decR) * Math.sin(raR),
+        Math.sin(decR),
+      );
+    });
+
     // ── Frame ──
     let raf = 0;
     let lastCompute = 0;
@@ -310,6 +508,15 @@ export default function SkyMap({ onClose }: { onClose: () => void }) {
         const now = new Date();
         const jd = julianDate(now);
         bodiesRef.current = computeBodies(now, place.lat, place.lon);
+
+        updateSkyRotation(jd);
+        const mp = mwGeo.getAttribute('position') as THREE.BufferAttribute;
+        for (let i = 0; i < grainEq.length; i++) {
+          tmp.copy(grainEq[i]).applyMatrix3(skyRot);
+          mp.setXYZ(i, tmp.x * 100, tmp.y * 100, tmp.z * 100);
+          mwDirs[i].copy(tmp);
+        }
+        mp.needsUpdate = true;
 
         const p = starGeo.getAttribute('position') as THREE.BufferAttribute;
         starDirs.forEach(({ star, v }, i) => {
@@ -336,9 +543,18 @@ export default function SkyMap({ onClose }: { onClose: () => void }) {
           sp.position.set(w.x * 100, w.y * 100, w.z * 100);
           const visible = b.horizon.alt > -2;
           sp.visible = visible;
-          // Brightness → drawn size, on the same rough scale as the stars.
-          const s = b.id === 'sun' ? 9 : b.id === 'moon' ? 8 : Math.max(2.2, 6.5 - b.mag * 1.1);
-          sp.scale.setScalar(s * 0.55);
+          /*
+           * Size from brightness, on the SAME logarithmic law as the stars.
+           *
+           * The old linear formula gave Venus at magnitude −4 about the same
+           * mark as Jupiter at −2, when Venus is six times the brightness. A
+           * planet that outshines every star in the sky has to look like it
+           * does, or the one object a beginner can actually identify is the
+           * one the map understates.
+           */
+          const px = b.id === 'sun' ? 46 : b.id === 'moon' ? 40
+            : Math.min(40, 2.0 + 16 * Math.pow(2.512, -0.28 * (b.mag + 1.5)));
+          sp.scale.setScalar(px * 0.16);
           const m = sp.material as THREE.SpriteMaterial;
           m.color.set(
             b.id === 'mars' ? 0xff9a6a : b.id === 'sun' ? 0xfff0a0 :
@@ -356,7 +572,14 @@ export default function SkyMap({ onClose }: { onClose: () => void }) {
       }
       // Points do not scale with FOV on their own; zooming in should make the
       // sky feel magnified, not just cropped.
-      starMat.size = 6 * Math.max(1, Math.min(4, 65 / fovRef.current) ** 0.6);
+      const zoomScale = Math.max(1, Math.min(4, 65 / fovRef.current) ** 0.6);
+      starUniforms.scale.value = zoomScale;
+      starUniforms.time.value = t * 0.001;
+      // The band is unresolved light, so it gains grain rather than size when
+      // magnified — and it never twinkles, because no single point of it is a
+      // point source.
+      mwUniforms.scale.value = Math.max(1, zoomScale * 0.55);
+      mwUniforms.time.value = t * 0.001;
 
       renderer.render(scene, camera);
       void tmp;
@@ -375,19 +598,43 @@ export default function SkyMap({ onClose }: { onClose: () => void }) {
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', onResize);
       renderer.dispose();
-      starGeo.dispose(); lineGeo.dispose(); horizonGeo.dispose();
+      starGeo.dispose(); lineGeo.dispose(); horizonGeo.dispose(); mwGeo.dispose();
+      hazeGeo.dispose(); hazeTex.dispose();
+      starMat.dispose(); mwMat.dispose();
       dot.dispose();
       mount.removeChild(renderer.domElement);
     };
   }, [place.lat, place.lon]);
 
-  // Stop the camera when the panel closes — a live camera nobody is looking at
-  // is both a battery drain and a light people notice.
-  useEffect(() => () => {
-    const v = videoRef.current;
-    const s = v?.srcObject as MediaStream | null;
-    s?.getTracks().forEach(t => t.stop());
+  /** Leave, and let go of the camera on the way out rather than after it. */
+  const onClose = useCallback(() => { stopCameraRef.current?.(); closeRequested(); }, [closeRequested]);
+  const stopCameraRef = useRef<(() => void) | null>(null);
+
+  /** Release the camera. Safe to call twice. */
+  const stopCamera = useCallback(() => {
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+    setCamOn(false);
   }, []);
+
+  stopCameraRef.current = stopCamera;
+
+  // Stop the camera when the panel closes — a live camera nobody is looking at
+  // is a battery drain, and on iOS a recording dot the person cannot explain.
+  useEffect(() => stopCamera, [stopCamera]);
+
+  // …and while the app is in the background. Leaving the sensor running behind
+  // another app is the version of this bug people actually notice.
+  useEffect(() => {
+    const onHidden = () => { if (document.hidden) stopCamera(); };
+    document.addEventListener('visibilitychange', onHidden);
+    window.addEventListener('pagehide', stopCamera);
+    return () => {
+      document.removeEventListener('visibilitychange', onHidden);
+      window.removeEventListener('pagehide', stopCamera);
+    };
+  }, [stopCamera]);
 
   // ── Gestures: pinch to zoom, drag to look around in manual mode ───────────
   const gesture = useRef<{ dist: number; fov: number; x: number; y: number } | null>(null);
