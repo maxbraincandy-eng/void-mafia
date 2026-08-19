@@ -31,17 +31,28 @@ export function FeedTabV2({ onOpenProfile, onOpenMyProfile }: { onOpenProfile: (
     { id: 'following', label: t.community.feedCategories.following },
   ];
 
+  // Which load is the current one. Switching categories quickly starts several,
+  // and only the newest may touch the spinner or the error — an older one
+  // finishing afterwards used to clear the spinner while its own results were
+  // being discarded, leaving an empty list that reads as "no posts".
+  const loadTokenRef = useRef(0);
+
   const doLoad = useCallback(async () => {
+    const token = ++loadTokenRef.current;
     const hasCache = cachedLenRef.current > 0;
     if (!hasCache) setLoading(true);
     setLoadError(null);
     try {
       await fetchFeedV2(true);
     } catch (e: any) {
-      // If we have cached posts, silently swallow the error — stale data > broken UI
-      if (!hasCache) setLoadError(e.message ?? 'Failed to load.');
+      // With posts already on screen, stale data beats a broken page. With
+      // NOTHING on screen the error has to be said, or the empty state claims
+      // there is nothing to show when the truth is that the load failed.
+      if (token === loadTokenRef.current && cachedLenRef.current === 0) {
+        setLoadError(e.message ?? 'Failed to load.');
+      }
     } finally {
-      setLoading(false);
+      if (token === loadTokenRef.current) setLoading(false);
     }
   }, [fetchFeedV2, feedCategory, activeHashtag]);
 

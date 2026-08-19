@@ -401,6 +401,13 @@ export const useCommunityStore = create<CommunityStore>((set, get) => {
     setFeedCategory: (cat) => set({ feedCategory: cat, feedV2Posts: [], feedV2HasMore: true }),
     fetchFeedV2: async (refresh = false) => {
       const { feedV2Posts, feedCategory, activeHashtag } = get();
+      // What this request is FOR. Tapping between categories leaves two of
+      // these in flight, and they do not come back in the order they were sent:
+      // the slower one lands last and fills the tab you are looking at with the
+      // other tab's posts — or with nothing, if that tab is empty, which reads
+      // as "no posts" on a tab that has plenty. Checked again before applying.
+      const askedCategory = feedCategory;
+      const askedHashtag = activeHashtag;
       // Cursor = the OLDEST loaded NON-PINNED post's timestamp. Pinned posts
       // float to the top of every page (ORDER BY is_pinned DESC) so their old
       // timestamps must NOT anchor the cursor (that would skip everything newer
@@ -412,6 +419,7 @@ export const useCommunityStore = create<CommunityStore>((set, get) => {
         : Math.min(...nonPinned.map(p => p.createdAt));
       const posts = unwrap(await emitWithAck<any, Res<CommunityPostV2[]>>('community:feed_v2', { before, category: feedCategory, hashtag: activeHashtag }));
       set(s => {
+        if (s.feedCategory !== askedCategory || s.activeHashtag !== askedHashtag) return {};
         if (refresh) return { feedV2Posts: posts, feedV2HasMore: posts.length >= 20 };
         // Dedupe against what we already have; stop paging once nothing new comes
         // back so infinite scroll terminates cleanly instead of looping.
@@ -425,7 +433,12 @@ export const useCommunityStore = create<CommunityStore>((set, get) => {
     },
     createPostV2: async (data) => {
       const post = unwrap(await emitWithAck<any, Res<CommunityPostV2>>('community:post_create_v2', data));
-      set(s => ({ feedV2Posts: [post, ...s.feedV2Posts] }));
+      // The server broadcasts `community:post_new` to EVERYONE, the author
+      // included, so by the time this ack resolves the post is usually already
+      // in the list — prepending it unconditionally showed every new post
+      // twice until the next refresh. Replace-then-prepend rather than skip:
+      // this copy is the authoritative one, and it must end up at the top.
+      set(s => ({ feedV2Posts: [post, ...s.feedV2Posts.filter(p => p.id !== post.id)] }));
     },
     votePoll: async (postId, optionId) => {
       const results = unwrap(await emitWithAck<any, Res<PollResult[]>>('community:poll_vote', { postId, optionId }));
