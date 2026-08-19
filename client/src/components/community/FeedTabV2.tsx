@@ -37,6 +37,18 @@ export function FeedTabV2({ onOpenProfile, onOpenMyProfile }: { onOpenProfile: (
   // being discarded, leaving an empty list that reads as "no posts".
   const loadTokenRef = useRef(0);
 
+  /**
+   * A category chip.
+   *
+   * Tapping the one you are already on reloads the feed rather than doing
+   * nothing — it is the obvious gesture for "give me the newest", and it used
+   * to blank the page instead.
+   */
+  const pickCategory = useCallback((cat: FeedCategory) => {
+    if (feedCategory === cat) void doLoadRef.current?.();
+    else setFeedCategory(cat);
+  }, [feedCategory, setFeedCategory]);
+
   const doLoad = useCallback(async () => {
     const token = ++loadTokenRef.current;
     const hasCache = cachedLenRef.current > 0;
@@ -56,9 +68,32 @@ export function FeedTabV2({ onOpenProfile, onOpenMyProfile }: { onOpenProfile: (
     }
   }, [fetchFeedV2, feedCategory, activeHashtag]);
 
+  // `pickCategory` needs the newest doLoad without listing it as a dependency,
+  // which would rebuild the callback on every load.
+  const doLoadRef = useRef<null | (() => Promise<void>)>(null);
+  doLoadRef.current = doLoad;
+
   useEffect(() => {
     doLoad();
   }, [doLoad]);
+
+  /*
+   * Last resort: an empty feed that nobody is loading is always wrong.
+   *
+   * Two separate bugs have now left the list empty with nothing on its way —
+   * a stale response discarded after clearing, and a no-op category change that
+   * wiped it. Both are fixed at the source, but the failure they produce is the
+   * worst kind: a page that says "there is nothing here" when there is plenty,
+   * and stays that way until it is remounted. This notices and reloads.
+   */
+  useEffect(() => {
+    if (feedV2Posts.length === 0 && !loading && !loadError) {
+      const t = setTimeout(() => {
+        if (useCommunityStore.getState().feedV2Posts.length === 0) doLoadRef.current?.();
+      }, 400);
+      return () => clearTimeout(t);
+    }
+  }, [feedV2Posts.length, loading, loadError]);
 
   // Auto-reload after auth restores (fires after every reconnect + auth success)
   useEffect(() => {
@@ -172,7 +207,7 @@ export function FeedTabV2({ onOpenProfile, onOpenMyProfile }: { onOpenProfile: (
       <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none">
         {/* ყველა */}
         <button
-          onClick={() => setFeedCategory('all')}
+          onClick={() => pickCategory('all')}
           className="px-3 py-1.5 rounded-full font-mono text-[12px] uppercase tracking-wider whitespace-nowrap transition-all flex-shrink-0 active:scale-95"
           style={{
             background: feedCategory === 'all' ? 'linear-gradient(135deg, rgba(155,0,255,0.28), rgba(0,245,255,0.16))' : 'rgba(255,255,255,0.03)',
@@ -205,7 +240,7 @@ export function FeedTabV2({ onOpenProfile, onOpenMyProfile }: { onOpenProfile: (
 
         {/* გამოწერილი */}
         <button
-          onClick={() => setFeedCategory('following')}
+          onClick={() => pickCategory('following')}
           className="px-3 py-1.5 rounded-full font-mono text-[12px] uppercase tracking-wider whitespace-nowrap transition-all flex-shrink-0 active:scale-95"
           style={{
             background: feedCategory === 'following' ? 'linear-gradient(135deg, rgba(155,0,255,0.28), rgba(0,245,255,0.16))' : 'rgba(255,255,255,0.03)',

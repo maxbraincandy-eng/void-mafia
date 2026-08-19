@@ -398,7 +398,15 @@ export const useCommunityStore = create<CommunityStore>((set, get) => {
       unwrap(await emitWithAck<any, Res<null>>('community:unban', { targetProfileId }));
     },
 
-    setFeedCategory: (cat) => set({ feedCategory: cat, feedV2Posts: [], feedV2HasMore: true }),
+    // Clearing the list is how a category switch tells the feed to start over.
+    // Doing it when NOTHING changed emptied the feed and then nothing refilled
+    // it: the load effect keys off feedCategory, which had not moved, so it
+    // never re-ran. Tapping the chip you were already on wiped the page until
+    // you navigated away and back. A no-op change stays a no-op.
+    setFeedCategory: (cat) => {
+      if (get().feedCategory === cat) return;
+      set({ feedCategory: cat, feedV2Posts: [], feedV2HasMore: true });
+    },
     fetchFeedV2: async (refresh = false) => {
       const { feedV2Posts, feedCategory, activeHashtag } = get();
       // What this request is FOR. Tapping between categories leaves two of
@@ -458,7 +466,10 @@ export const useCommunityStore = create<CommunityStore>((set, get) => {
       const posts = unwrap(await emitWithAck<any, Res<CommunityPostV2[]>>('community:post_saves', {}));
       set({ savedPosts: posts });
     },
-    setActiveHashtag: (tag) => set({ activeHashtag: tag, feedV2Posts: [], feedV2HasMore: true }),
+    setActiveHashtag: (tag) => {
+      if (get().activeHashtag === tag) return;      // same reasoning as above
+      set({ activeHashtag: tag, feedV2Posts: [], feedV2HasMore: true });
+    },
     fetchOnlineMembers: async () => {
       try {
         const data = unwrap(await emitWithAck<undefined, Res<{ members: Array<{ playerId: string; username: string; avatar: string; avatarUrl: string | null }>; count: number }>>('community:online_members'));

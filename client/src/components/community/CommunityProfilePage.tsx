@@ -15,6 +15,7 @@ import { ProfileVisitors } from '@/components/community/ProfileVisitors';
 import { useMyLimits } from '@/store/vipStore';
 import { YouTubeEmbed, extractYouTubeId } from '@/components/community/YouTubeEmbed';
 import { PollDisplay } from '@/components/community/PollDisplay';
+import { ImageStack } from '@/components/community/ImageStack';
 import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
 import { useVerifiedTier } from '@/store/verifiedStore';
 
@@ -93,7 +94,8 @@ function PostLightbox({
           background: '#0d0a1a',
           border: '1px solid rgba(155,0,255,0.2)',
           borderBottom: 'none',
-          maxHeight: '94dvh',
+          maxHeight: '96dvh',
+          minHeight: '70dvh',
         }}
         onClick={e => e.stopPropagation()}
       >
@@ -118,9 +120,13 @@ function PostLightbox({
           ) : mediaUrl ? (
             <div className="w-full flex-shrink-0" style={{ background: '#000' }}>
               {isVideo ? (
-                <video src={mediaUrl} controls className="w-full max-h-80 object-contain" />
+                <video src={mediaUrl} controls className="w-full object-contain" style={{ maxHeight: '72dvh' }} />
               ) : (
-                <img src={mediaUrl} alt="" className="w-full object-contain" style={{ maxHeight: '55vw', minHeight: 160 }} />
+                /* The whole stack, at the size a photo deserves. It used to be
+                   the first image only, capped at 55vw — on a phone that is a
+                   letterbox a third of the screen tall, and the rest of the
+                   images simply were not there. */
+                <ImageStack post={post} maxHeight="72dvh" />
               )}
             </div>
           ) : null}
@@ -969,6 +975,14 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
                               style={{ background: ytId ? 'rgba(255,0,0,0.85)' : 'rgba(0,0,0,0.55)', width: 20, height: 20 }}>
                               <svg width="9" height="9" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>
                             </div>
+                          )}
+                          {/* A cell showing one photo out of several has to say
+                              so, or the others look like they were lost. */}
+                          {(p.imageUrls?.length ?? 0) > 1 && (
+                            <span className="absolute top-1.5 right-1.5 flex items-center justify-center rounded"
+                              style={{ background: 'rgba(0,0,0,0.55)', color: '#fff', fontSize: 9.5, padding: '1px 4px', fontFamily: 'monospace' }}>
+                              ⧉ {p.imageUrls!.length}
+                            </span>
                           )}
                         </button>
                       );
