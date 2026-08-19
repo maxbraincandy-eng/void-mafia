@@ -7,6 +7,7 @@ import { useSpyfallStore } from '@/store/spyfallStore';
 import { useSpyfallVoice } from '@/hooks/useSpyfallVoice';
 import { useLiveKitGate, useLivekitRoomVoice } from '@/hooks/useLivekitVoice';
 import { LiveKitVoiceBarView } from '@/components/game/LiveKitVoiceBar';
+import { VoiceDisguiseButton } from '@/components/game/VoiceDisguiseButton';
 import type { SpyfallPublicPlayer, SpyfallReveal } from '@/types/spyfall';
 
 /**
@@ -186,7 +187,11 @@ export function SpyfallGame() {
 
       {/* Voice bar — LiveKit when enabled, mesh PTT fallback otherwise */}
       {livekitEnabled && match.status !== 'finished' && (
-        <div className="px-3 pt-2 flex-shrink-0"><LiveKitVoiceBarView voice={lkVoice} /></div>
+        <div className="px-3 pt-2 flex-shrink-0 flex flex-col gap-2">
+          <LiveKitVoiceBarView voice={lkVoice} />
+          {/* The spy has the most to gain from not sounding like themselves. */}
+          <div className="flex flex-col items-start"><VoiceDisguiseButton /></div>
+        </div>
       )}
       {!livekitEnabled && livekitResolved && match.status !== 'finished' && (
         <div className="px-4 pt-2 flex items-center gap-3 flex-shrink-0">

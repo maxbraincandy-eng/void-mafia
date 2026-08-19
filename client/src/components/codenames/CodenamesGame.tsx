@@ -4,6 +4,9 @@ import { SFX } from '@/lib/audioEngine';
 import { haptic } from '@/lib/haptics';
 import { useAuthStore } from '@/store/authStore';
 import { useCodenamesStore } from '@/store/codenamesStore';
+import { useLiveKitGate, useLivekitRoomVoice } from '@/hooks/useLivekitVoice';
+import { LiveKitVoiceBarView } from '@/components/game/LiveKitVoiceBar';
+import { VoiceDisguiseButton } from '@/components/game/VoiceDisguiseButton';
 import type { CnColor } from '@/types/codenames';
 
 /**
@@ -34,6 +37,25 @@ export function CodenamesGame() {
   const [clueNum, setClueNum] = useState(2);
   const [confirmLeave, setConfirmLeave] = useState(false);
 
+  /*
+   * Voice, the same as Lies and spyfall.
+   *
+   * Codenames is a game about a one-word clue and then an argument — the
+   * spymaster says "ცა 2" and the team spends a minute working out which two,
+   * out loud. Typing that is a different game.
+   *
+   * Declared BEFORE the `!match` early return: hooks have to run in the same
+   * order on every render, and putting them after it would change that the
+   * moment the match ends.
+   */
+  const { enabled: livekitEnabled } = useLiveKitGate();
+  const lkVoice = useLivekitRoomVoice({
+    roomId: match?.id ? `codenames_${match.id}` : null,
+    identity: profile?.id ?? null,
+    active: livekitEnabled && !!match?.id && match?.status !== 'finished',
+    listenOnly: false,
+  });
+
   if (!match) return null;
   const myId = match.myUserId;
   const isHost = match.hostId === myId;
@@ -57,6 +79,14 @@ export function CodenamesGame() {
         <span className="text-[14px] font-display font-bold tracking-wide text-white">🕵️ Codenames</span>
         <button onClick={() => match.status === 'play' ? setConfirmLeave(true) : leaveMatch()} className="w-8 h-8 rounded-full flex items-center justify-center text-white/60" style={{ border: '1px solid rgba(255,255,255,0.15)' }}>✕</button>
       </div>
+
+      {/* Voice — the bar, and the verified voice changer beside it. */}
+      {livekitEnabled && match.status !== 'finished' && (
+        <div className="px-3 pt-2 flex-shrink-0 flex flex-col gap-2">
+          <LiveKitVoiceBarView voice={lkVoice} />
+          <div className="flex flex-col items-start"><VoiceDisguiseButton /></div>
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto p-3">
         <div className="max-w-lg mx-auto">
