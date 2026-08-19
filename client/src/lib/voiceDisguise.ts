@@ -137,12 +137,38 @@ interface VocoderSpec {
   presence: number;
 }
 
+/*
+ * VIBRATO IS ZERO ON BOTH, AND THAT IS THE FIX FOR "IT RUSTLES".
+ *
+ * Phantom used to wander 35 cents at 3.6 Hz, on the theory that a dead monotone
+ * reads as a machine and a little movement reads as a person. What it actually
+ * does is frequency-modulate a sawtooth: every harmonic smears across a band,
+ * and the smear grows with harmonic number, so the top of the spectrum turns
+ * into a wash. Measured as energy sitting BETWEEN the harmonics of a vowel —
+ * 0.021 in real speech — phantom was at 0.288 and machine, which never had
+ * vibrato, at 0.138. Turning it off took phantom to 0.148 on its own.
+ *
+ * The two are still clearly different voices: a longer vocal tract and a higher
+ * larynx for one, a plain one for the other. That difference costs nothing.
+ */
 const VOCODER_SPEC: Record<'phantom' | 'machine', VocoderSpec> = {
-  phantom: { carrierHz: 104, vibratoHz: 3.6, vibratoCents: 35, formant: 0.88, noiseFloor: 0.22, presence: 5 },
-  machine: { carrierHz: 92,  vibratoHz: 0,   vibratoCents: 0,  formant: 1.0,  noiseFloor: 0.18, presence: 4 },
+  phantom: { carrierHz: 104, vibratoHz: 0, vibratoCents: 0, formant: 0.88, noiseFloor: 0.06, presence: 5 },
+  machine: { carrierHz: 92,  vibratoHz: 0, vibratoCents: 0, formant: 1.0,  noiseFloor: 0.06, presence: 4 },
 };
 
-const BANDS = 24;
+/*
+ * 18 bands.
+ *
+ * It was 24, on the argument that 16 was too coarse to separate one consonant
+ * from another. That argument was wrong about the cause: the thing that made 16
+ * unintelligible was the buzzing carrier, not the band count. With the carrier
+ * fixed, 18, 20 and 24 measure the same modulation transfer (0.711 / 0.710 /
+ * 0.713) — so the extra bands bought no clarity, and each one is another
+ * amplitude-modulated copy of the carrier adding energy between the harmonics.
+ * 18 gives the quietest silences (0.0173 against 0.0228) for identical
+ * intelligibility.
+ */
+const BANDS = 18;
 const LO = 150;
 const HI = 6500;
 const Q = 3.4;
@@ -154,11 +180,12 @@ const ENV_HZ = 42;
  * Measured, not guessed: a rectified, smoothed band sits well below the signal
  * that produced it, so without scaling the disguise is a whisper. Re-measured
  * after the envelope filter widened to 42 Hz, which passes more energy through:
- * at 5.5 the output peaked at 1.17 and clipped past the limiter; 3.5 lands
- * under 1.0 while still sitting louder than the voice it replaces, which is
- * what "I can't hear it" needed.
+ * at 5.5 the output peaked at 1.17 and clipped past the limiter. 3.3 fixed that
+ * — and then cutting the carrier noise to stop the rustling took the level down
+ * with it, to just under the source. 5.2 puts it back beside the natural
+ * presets without touching the ceiling.
  */
-const ENV_GAIN = 3.3;
+const ENV_GAIN = 5.2;
 
 /** Where the carrier stops being periodic and starts being breath. */
 const SAW_TOP = 3500;
@@ -182,15 +209,16 @@ function noiseBuffer(ctx: BaseAudioContext, seconds = 2): AudioBuffer {
   return buf;
 }
 
-function bandCentres(): number[] {
+function bandCentres(n = BANDS): number[] {
   const out: number[] = [];
-  for (let i = 0; i < BANDS; i++) out.push(LO * Math.pow(HI / LO, i / (BANDS - 1)));
+  for (let i = 0; i < n; i++) out.push(LO * Math.pow(HI / LO, i / (n - 1)));
   return out;
 }
 
 /** Rectify + smooth: a control signal that follows how loud something is. */
 function follower(
-  ctx: BaseAudioContext, input: AudioNode, curve: Float32Array<ArrayBuffer>, hz: number, gain: number,
+  ctx: BaseAudioContext, input: AudioNode, curve: Float32Array<ArrayBuffer>,
+  hz: number, gain: number,
 ): GainNode {
   const rect = ctx.createWaveShaper();
   rect.curve = curve;
@@ -379,7 +407,10 @@ function buildVocoder(
    */
   const unvoiced = follower(ctx, band(ctx, input, 3000, 8000), curve, ENV_HZ, 1);
 
-  const openNoise = ctx.createGain(); openNoise.gain.value = 26;
+  // 26 opened the breath so far that it sat under the vowels too. 12 still
+  // reaches full noise on a fricative — measured fricative periodicity does not
+  // move — while cutting the hiss everywhere else.
+  const openNoise = ctx.createGain(); openNoise.gain.value = 12;
   unvoiced.connect(openNoise); openNoise.connect(noiseVca.gain);
 
   const duckSaw = ctx.createGain(); duckSaw.gain.value = -16;

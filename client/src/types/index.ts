@@ -1067,6 +1067,9 @@ export interface PollOption { id: string; text: string; }
 export interface PollResult { option: PollOption; count: number; percent: number; }
 
 export interface CommunityPostV2 extends CommunityPost {
+  /** Every image on the post, in order. `imageUrl` is imageUrls[0]. Older
+   *  posts report a one-element array, so callers never branch on age. */
+  imageUrls?: string[];
   postType: PostType;
   gifUrl: string | null;
   videoUrl: string | null;

@@ -503,7 +503,7 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
   const [loading, setLoading]         = useState(true);
   const [postsLoading, setPostsLoading] = useState(true);
   const [followBusy, setFollowBusy]   = useState(false);
-  const [tab, setTab]                 = useState<'photos' | 'posts' | 'saved'>('photos');
+  const [tab, setTab]                 = useState<'photos' | 'videos' | 'posts' | 'saved'>('photos');
   const [saved, setSaved]             = useState<CommunityPostV2[] | null>(null);
   const [lightboxPost, setLightboxPost] = useState<CommunityPostV2 | null>(null);
   const [followSheet, setFollowSheet] = useState<'followers' | 'following' | null>(null);
@@ -573,7 +573,13 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
     } finally { setFollowBusy(false); }
   };
 
-  const mediaPosts = posts.filter(p => p.imageUrl || p.gifUrl || p.videoUrl);
+  // Photos and videos are separate shelves now, so a video no longer sits in
+  // the middle of a photo grid pretending to be one.
+  // Summed from the posts already loaded — no extra request, and it is exactly
+  // the number a visitor is trying to estimate by scrolling.
+  const likesReceived = posts.reduce((n, p) => n + (p.likesCount ?? 0), 0);
+  const videoPosts = posts.filter(p => p.videoUrl);
+  const mediaPosts = posts.filter(p => (p.imageUrl || p.gifUrl) && !p.videoUrl);
   const textPosts  = posts.filter(p => !p.imageUrl && !p.gifUrl && !p.videoUrl);
   const isMrMax    = profile?.badges?.includes('owner');
   // Verification is resolved from the owner list, not from the local badge
@@ -813,6 +819,25 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
             <p className="font-mono text-white/30 mb-3 px-1" style={{ fontSize: 11 }}>[{profile.clanTag}] {profile.clanName}</p>
           )}
 
+          {/* Meta line — three facts the server was already sending and the page
+              never showed. "Since when" is the first thing anyone checks about a
+              stranger, and likes received is the only number here that is earned
+              rather than chosen. */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-3 px-1">
+            <span className="font-mono text-white/30" style={{ fontSize: 11 }}>
+              📅 {new Date(profile.joinedAt).toLocaleDateString('ka-GE', { year: 'numeric', month: 'long' })}-დან
+            </span>
+            {likesReceived > 0 && (
+              <span className="font-mono text-white/30" style={{ fontSize: 11 }}>❤️ {likesReceived} მოწონება</span>
+            )}
+            {profile.friendsCount > 0 && (
+              <span className="font-mono text-white/30" style={{ fontSize: 11 }}>🤝 {profile.friendsCount} მეგობარი</span>
+            )}
+            {profile.reputation > 0 && (
+              <span className="font-mono" style={{ fontSize: 11, color: '#c084fc' }}>⭐ {profile.reputation}</span>
+            )}
+          </div>
+
           {/* Stats */}
           <div
             className="flex items-stretch rounded-2xl overflow-hidden mb-3"
@@ -879,7 +904,8 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
           >
             {([
               { id: 'photos' as const, label: t.community.profile.photos, icon: '▦', count: mediaPosts.length },
-              { id: 'posts'  as const, label: t.community.profile.posts,                 icon: '≡', count: textPosts.length },
+              { id: 'videos' as const, label: 'ვიდეო',                     icon: '▶', count: videoPosts.length },
+              { id: 'posts'  as const, label: t.community.profile.posts,   icon: '≡', count: textPosts.length },
               ...(isSelf ? [{ id: 'saved' as const, label: t.commA.saved, icon: '🔖', count: saved?.length ?? 0 }] : []),
             ]).map(tb => (
               <button
@@ -944,6 +970,37 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
                               <svg width="9" height="9" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>
                             </div>
                           )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </motion.div>
+            ) : tab === 'videos' ? (
+              <motion.div key="videos" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+                {videoPosts.length === 0 ? (
+                  <p className="font-mono text-white/25 text-center py-12" style={{ fontSize: 13 }}>ვიდეო ჯერ არ არის</p>
+                ) : (
+                  <div className="grid grid-cols-3 lg:grid-cols-5" style={{ gap: 2 }}>
+                    {videoPosts.map(p => {
+                      const ytId  = p.videoUrl ? extractYouTubeId(p.videoUrl) : null;
+                      const thumb = ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : (p.imageUrl ?? p.videoUrl!);
+                      return (
+                        <button
+                          key={p.id}
+                          onClick={() => setLightboxPost(p)}
+                          className="relative overflow-hidden transition-opacity active:opacity-70"
+                          style={{ background: '#0d0a1a', aspectRatio: '1 / 1' }}
+                        >
+                          {ytId || p.imageUrl
+                            ? <img src={thumb} alt="" className="w-full h-full object-cover" />
+                            : <video src={thumb} className="w-full h-full object-cover" muted preload="metadata" />}
+                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                            <span className="rounded-full flex items-center justify-center"
+                              style={{ background: 'rgba(0,0,0,0.45)', width: 30, height: 30 }}>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>
+                            </span>
+                          </div>
                         </button>
                       );
                     })}

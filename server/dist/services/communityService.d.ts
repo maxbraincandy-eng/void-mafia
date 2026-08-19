@@ -111,6 +111,7 @@ export declare function createPostV2(authorId: string, data: {
     postType: PostType;
     content: string;
     imageUrl?: string | null;
+    imageUrls?: string[] | null;
     gifUrl?: string | null;
     videoUrl?: string | null;
     audioUrl?: string | null;

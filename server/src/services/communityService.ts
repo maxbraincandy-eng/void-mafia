@@ -829,6 +829,7 @@ async function buildPostV2(row: any, viewerId: string): Promise<CommunityPostV2>
     authorLevel: isAnon ? 1 : Number(row.author_level ?? 1),
     content: row.content ?? '',
     imageUrl: row.image_url ?? null,
+    imageUrls: parseImageUrls(row.image_urls, row.image_url),
     likesCount: Number(row.likes_count ?? 0),
     commentsCount: Number(row.comments_count ?? 0),
     likedByMe: likedRow.length > 0,
@@ -858,11 +859,30 @@ async function buildPostV2(row: any, viewerId: string): Promise<CommunityPostV2>
   };
 }
 
+
+/**
+ * The images on a post.
+ *
+ * Older rows have only `image_url`, so a post from before multi-image support
+ * still reports a one-element array rather than an empty one — every caller can
+ * then read `imageUrls` and never branch on the post's age.
+ */
+function parseImageUrls(raw: unknown, single: string | null): string[] {
+  if (typeof raw === 'string' && raw) {
+    try {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) return arr.filter(x => typeof x === 'string' && x);
+    } catch { /* fall through to the single column */ }
+  }
+  return single ? [single] : [];
+}
+
 // Create post V2
 export async function createPostV2(authorId: string, data: {
   postType: PostType;
   content: string;
   imageUrl?: string | null;
+  imageUrls?: string[] | null;
   gifUrl?: string | null;
   videoUrl?: string | null;
   audioUrl?: string | null;
@@ -874,7 +894,27 @@ export async function createPostV2(authorId: string, data: {
   isAnonymous?: boolean;
 }): Promise<CommunityPostV2> {
   const limits = await limitsFor(authorId);
-  if (data.imageUrl && data.imageUrl.length > 680_000) throw new Error('Image too large — please use a smaller image.');
+
+  /*
+   * Up to six images, and a ceiling on the total.
+   *
+   * Each one is a base64 data URL living in a Postgres row, so six of them is
+   * six times the storage of one — the per-image cap alone would let a single
+   * post carry 4 MB. The total is what actually protects the table.
+   */
+  const MAX_IMAGES = 6;
+  const MAX_IMAGE_BYTES = 680_000;
+  const MAX_TOTAL_IMAGE_BYTES = 2_600_000;
+  const images: string[] = (data.imageUrls ?? (data.imageUrl ? [data.imageUrl] : []))
+    .filter((u: unknown): u is string => typeof u === 'string' && !!u)
+    .slice(0, MAX_IMAGES);
+  if (images.some(u => u.length > MAX_IMAGE_BYTES)) {
+    throw new Error('სურათი ძალიან დიდია — აირჩიე უფრო პატარა.');
+  }
+  if (images.reduce((n: number, u: string) => n + u.length, 0) > MAX_TOTAL_IMAGE_BYTES) {
+    throw new Error('სურათები ერთად ძალიან დიდია — ამოიღე რამდენიმე.');
+  }
+  data.imageUrl = images[0] ?? null;
   // A VIP records three times as long, so the ceiling moves with them. Never
   // below the 9 MB everyone already had.
   const audioCap = Math.max(9_000_000, limits.voiceBytes);
@@ -900,8 +940,8 @@ export async function createPostV2(authorId: string, data: {
   const isAnonymous = Boolean(data.isAnonymous);
 
   await sql`
-    INSERT INTO community_posts (id, author_id, content, image_url, post_type, gif_url, video_url, audio_url, audio_fx, rec_title, rec_category, hashtags, visibility, likes_count, comments_count, saves_count, is_pinned, is_featured, hidden, is_anonymous, created_at)
-    VALUES (${id}, ${authorId}, ${data.content}, ${data.imageUrl ?? null}, ${data.postType}, ${data.gifUrl ?? null}, ${data.videoUrl ?? null}, ${data.audioUrl ?? null}, ${data.audioFx ?? null}, ${data.recTitle ?? null}, ${data.recCategory ?? null}, ${hashtagsJson}, ${visibility}, 0, 0, 0, false, false, false, ${isAnonymous}, ${now})
+    INSERT INTO community_posts (id, author_id, content, image_url, image_urls, post_type, gif_url, video_url, audio_url, audio_fx, rec_title, rec_category, hashtags, visibility, likes_count, comments_count, saves_count, is_pinned, is_featured, hidden, is_anonymous, created_at)
+    VALUES (${id}, ${authorId}, ${data.content}, ${data.imageUrl ?? null}, ${images.length > 1 ? JSON.stringify(images) : null}, ${data.postType}, ${data.gifUrl ?? null}, ${data.videoUrl ?? null}, ${data.audioUrl ?? null}, ${data.audioFx ?? null}, ${data.recTitle ?? null}, ${data.recCategory ?? null}, ${hashtagsJson}, ${visibility}, 0, 0, 0, false, false, false, ${isAnonymous}, ${now})
   `;
 
   if (data.postType === 'poll' && data.poll) {

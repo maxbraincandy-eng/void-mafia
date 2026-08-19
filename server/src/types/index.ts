@@ -1320,6 +1320,7 @@ export interface ClientToServerEvents {
     postType: PostType;
     content: string;
     imageUrl?: string | null;
+    imageUrls?: string[] | null;
     gifUrl?: string | null;
     videoUrl?: string | null;
     recTitle?: string | null;
@@ -1647,6 +1648,8 @@ export interface PollResult { option: PollOption; count: number; percent: number
 
 export interface CommunityPostV2 extends CommunityPost {
   authorLevel: number;
+  /** Every image on the post, in order. `imageUrl` is imageUrls[0]. */
+  imageUrls: string[];
   postType: PostType;
   gifUrl: string | null;
   videoUrl: string | null;

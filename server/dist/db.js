@@ -1127,6 +1127,11 @@ export async function initializeDatabase() {
   `;
     await sql `ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS post_type TEXT NOT NULL DEFAULT 'text'`;
     await sql `ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS edited_at BIGINT`;
+    // Several images on one post, as a JSON array. `image_url` stays and holds
+    // the FIRST of them: every existing render path, notification and profile
+    // grid reads that column, and a migration that emptied it would blank the
+    // thumbnail on every post already in the table.
+    await sql `ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS image_urls TEXT`;
     await sql `ALTER TABLE community_post_comments ADD COLUMN IF NOT EXISTS parent_id TEXT`;
     await sql `ALTER TABLE community_post_comments ADD COLUMN IF NOT EXISTS gif_url TEXT`;
     await sql `ALTER TABLE community_post_comments ADD COLUMN IF NOT EXISTS likes_count INTEGER DEFAULT 0`;

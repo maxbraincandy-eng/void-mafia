@@ -118,6 +118,9 @@ function ImagePicker({
   );
 }
 
+/** Matches the server's ceiling in communityService.createPostV2. */
+const MAX_IMAGES = 6;
+
 export function PostComposerV2({ onClose }: { onClose: () => void }) {
   const t = useT();
   const profile = useAuthStore(s => s.profile);
@@ -126,7 +129,8 @@ export function PostComposerV2({ onClose }: { onClose: () => void }) {
 
   const [postType, setPostType] = useState<PostType>('text');
   const [content, setContent] = useState('');
-  const [imageUrl, setImageUrl] = useState('');
+  const [images, setImages] = useState<string[]>([]);
+  const [imageUrl, setImageUrl] = useState('');   // the URL-paste fallback
   const [gifUrl, setGifUrl] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
   const [audioUrl, setAudioUrl] = useState('');
@@ -142,61 +146,69 @@ export function PostComposerV2({ onClose }: { onClose: () => void }) {
   const [compressing, setCompressing] = useState(false);
   const [imgError, setImgError] = useState('');
 
+  const multiFileRef = useRef<HTMLInputElement>(null);
   const [showGif, setShowGif] = useState(false);
   const [showMeme, setShowMeme] = useState(false);
   const [showVoice, setShowVoice] = useState(false);
 
+  /*
+   * Six kinds of post.
+   *
+   * The four recommendation types and the philosophy thought were removed:
+   * eleven chips is a decision the composer was making on the poster's behalf
+   * before they had written anything, and a recommendation is a text post with
+   * extra required fields. Posts already made under those types still render —
+   * the type is only consulted here, when something new is being written.
+   */
   const TYPES: { id: PostType; label: string }[] = [
-    { id: 'text',        label: t.community.composer.text },
-    { id: 'image',       label: t.community.composer.image },
-    { id: 'gif',         label: t.community.composer.gif },
-    { id: 'voice',       label: 'Voice' },
-    { id: 'video',       label: t.community.composer.video },
-    { id: 'poll',        label: t.community.composer.poll },
-    { id: 'movie_rec',   label: t.community.composer.movieRec },
-    { id: 'series_rec',  label: t.community.composer.seriesRec },
-    { id: 'book_rec',    label: t.community.composer.bookRec },
-    { id: 'music_rec',   label: t.community.composer.musicRec },
-    { id: 'philosophy',  label: t.community.composer.philosophyThought },
+    { id: 'text',   label: t.community.composer.text },
+    { id: 'image',  label: t.community.composer.image },
+    { id: 'gif',    label: t.community.composer.gif },
+    { id: 'voice',  label: 'Voice' },
+    { id: 'video',  label: t.community.composer.video },
+    { id: 'poll',   label: t.community.composer.poll },
   ];
 
-  const recCategoryMap: Partial<Record<PostType, string>> = {
-    movie_rec: 'movie', series_rec: 'series', book_rec: 'book', music_rec: 'music',
-  };
-
-  async function handleFileSelect(file: File) {
+  async function handleFiles(files: File[]) {
     setImgError('');
-    if (!file.type.startsWith('image/')) { setImgError('Please select an image file.'); return; }
-    if (file.size > 20 * 1024 * 1024) { setImgError('Image must be under 20MB.'); return; }
+    const room = MAX_IMAGES - images.length;
+    if (room <= 0) { setImgError(`მაქსიმუმ ${MAX_IMAGES} სურათი.`); return; }
+    const picked = files.filter(f => f.type.startsWith('image/')).slice(0, room);
+    if (!picked.length) { setImgError('აირჩიე სურათი.'); return; }
+    if (picked.some(f => f.size > 20 * 1024 * 1024)) { setImgError('სურათი 20MB-ზე ნაკლები უნდა იყოს.'); return; }
+
     setCompressing(true);
     try {
-      const compressed = await compressImage(file);
-      setImageUrl(compressed);
+      // A stack of six is six times the storage of one, so each frame in a
+      // stack is compressed harder than a single image would be. The server
+      // enforces the same ceiling; this is what keeps the upload from being
+      // refused after the person has already waited for it.
+      const many = images.length + picked.length > 1;
+      const out: string[] = [];
+      for (const f of picked) {
+        out.push(many ? await compressImage(f, 1080, 0.6) : await compressImage(f));
+      }
+      setImages(prev => [...prev, ...out].slice(0, MAX_IMAGES));
     } catch {
-      setImgError('Could not compress image, try another file.');
+      setImgError('სურათი ვერ დამუშავდა, სცადე სხვა.');
     } finally {
       setCompressing(false);
     }
   }
 
   async function handlePost() {
-    const isRec = ['movie_rec', 'series_rec', 'book_rec', 'music_rec'].includes(postType);
-    if (posting) return;
-    if (postType === 'poll' && (!pollQuestion.trim() || pollOptions.filter(o => o.trim()).length < 2)) return;
-    if (postType === 'voice' && !audioUrl) return;
-    if (!['poll', 'voice'].includes(postType) && !content.trim()) return;
+    if (posting || !canPost) return;
     setPosting(true);
     try {
       const data: any = {
         postType,
         content: content.trim(),
-        imageUrl: isRec ? (recImageUrl.trim() || null) : (imageUrl.trim() || null),
+        imageUrl: pickedImages[0] ?? null,
+        imageUrls: pickedImages,
         gifUrl: gifUrl.trim() || null,
         videoUrl: videoUrl.trim() || null,
         audioUrl: audioUrl || null,
         audioFx,
-        recTitle: recTitle.trim() || null,
-        recCategory: recCategoryMap[postType] ?? null,
         visibility,
         isAnonymous,
       };
@@ -214,13 +226,23 @@ export function PostComposerV2({ onClose }: { onClose: () => void }) {
     }
   }
 
-  const canPost = postType === 'poll'
-    ? pollQuestion.trim() && pollOptions.filter(o => o.trim()).length >= 2
-    : postType === 'voice'
-    ? !!audioUrl
-    : content.trim();
-
-  const imagePreview = imageUrl.startsWith('data:') ? imageUrl : null;
+  /*
+   * What makes a post postable.
+   *
+   * Every type except poll and voice used to require text, so an image with no
+   * caption simply would not send — the button stayed dead and said nothing
+   * about why. A picture IS the post; the caption is optional on every medium
+   * that carries its own content.
+   */
+  const pickedImages = images.length ? images : (imageUrl.trim() ? [imageUrl.trim()] : []);
+  const canPost = Boolean(
+    postType === 'poll'  ? pollQuestion.trim() && pollOptions.filter(o => o.trim()).length >= 2
+    : postType === 'voice' ? audioUrl
+    : postType === 'image' ? pickedImages.length
+    : postType === 'gif'   ? gifUrl.trim()
+    : postType === 'video' ? videoUrl.trim()
+    : content.trim(),
+  );
 
   return (
     <>
@@ -268,15 +290,73 @@ export function PostComposerV2({ onClose }: { onClose: () => void }) {
         <div className="space-y-2 mb-4">
           {postType === 'image' && (
             <>
-              <ImagePicker
-                preview={imagePreview}
-                onFile={handleFileSelect}
-                onUrl={() => {}}
-                urlValue={imageUrl.startsWith('data:') ? '' : imageUrl}
-                setUrlValue={setImageUrl}
-                compressing={compressing}
-                onMeme={() => setShowMeme(true)}
+              {/* A stack, the way Threads and Instagram do it: thumbnails in
+                  order, each removable, and the first one is the cover. */}
+              {images.length > 0 && (
+                <div className="flex gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+                  {images.map((src, i) => (
+                    <div key={i} className="relative flex-shrink-0 rounded-xl overflow-hidden"
+                      style={{ width: 86, height: 86, border: '1px solid rgba(255,255,255,0.12)' }}>
+                      <img src={src} alt="" className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setImages(prev => prev.filter((_, k) => k !== i))}
+                        className="absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center font-mono"
+                        style={{ background: 'rgba(0,0,0,0.66)', color: '#fff', fontSize: 10 }}
+                      >✕</button>
+                      {i === 0 && images.length > 1 && (
+                        <span className="absolute bottom-1 left-1 px-1 rounded font-mono"
+                          style={{ background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: 8.5 }}>ყდა</span>
+                      )}
+                    </div>
+                  ))}
+                  {images.length < MAX_IMAGES && (
+                    <button
+                      type="button"
+                      onClick={() => multiFileRef.current?.click()}
+                      disabled={compressing}
+                      className="flex-shrink-0 rounded-xl flex flex-col items-center justify-center font-mono disabled:opacity-50"
+                      style={{ width: 86, height: 86, border: '1px dashed rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.45)', fontSize: 20 }}
+                    >
+                      {compressing ? '…' : '+'}
+                      <span style={{ fontSize: 9 }}>{images.length}/{MAX_IMAGES}</span>
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {images.length === 0 && (
+                <ImagePicker
+                  preview={null}
+                  onFile={f => void handleFiles([f])}
+                  onUrl={() => {}}
+                  urlValue={imageUrl.startsWith('data:') ? '' : imageUrl}
+                  setUrlValue={setImageUrl}
+                  compressing={compressing}
+                  onMeme={() => setShowMeme(true)}
+                />
+              )}
+
+              <input
+                ref={multiFileRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={e => {
+                  const files = Array.from(e.target.files ?? []);
+                  e.target.value = '';
+                  if (files.length) void handleFiles(files);
+                }}
               />
+              {images.length === 0 && (
+                <button
+                  type="button"
+                  onClick={() => multiFileRef.current?.click()}
+                  className="w-full py-2 rounded-xl font-mono transition-all active:scale-[0.99]"
+                  style={{ fontSize: 11.5, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)' }}
+                >🖼 რამდენიმე სურათი ერთად</button>
+              )}
               {imgError && <p className="font-mono text-[12px] text-red-400">{imgError}</p>}
             </>
           )}
@@ -414,7 +494,7 @@ export function PostComposerV2({ onClose }: { onClose: () => void }) {
         <MemeBuilder
           onClose={() => setShowMeme(false)}
           onPost={(imageData, caption) => {
-            setImageUrl(imageData);
+            setImages(prev => [...prev, imageData].slice(0, MAX_IMAGES));
             if (caption) setContent(prev => prev || caption);
             setShowMeme(false);
           }}
