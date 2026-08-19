@@ -5,6 +5,9 @@ import { SFX } from '@/lib/audioEngine';
 import { haptic } from '@/lib/haptics';
 import { useAuthStore } from '@/store/authStore';
 import { useLiesStore } from '@/store/liesStore';
+import { useLiveKitGate, useLivekitRoomVoice } from '@/hooks/useLivekitVoice';
+import { LiveKitVoiceBarView } from '@/components/game/LiveKitVoiceBar';
+import { VoiceDisguiseButton } from '@/components/game/VoiceDisguiseButton';
 
 /**
  * ტყუილების ოსტატი (Master of Lies) — social bluffing overlay. The game shows a
@@ -33,6 +36,22 @@ export function LiesGame() {
   const prevRound = useRef<number>(0);
 
   useEffect(() => { const iv = setInterval(() => setNow(Date.now()), 500); return () => clearInterval(iv); }, []);
+
+  /*
+   * Voice, on the same footing as mafia and spyfall.
+   *
+   * A bluffing game is played by talking: the whole skill is selling a lie out
+   * loud and hearing the hesitation in somebody else's answer, and reading that
+   * off typed text is a different, much duller game. One LiveKit room per
+   * match, joined for as long as the match is live.
+   */
+  const { enabled: livekitEnabled } = useLiveKitGate();
+  const lkVoice = useLivekitRoomVoice({
+    roomId: match?.id ? `lies_${match.id}` : null,
+    identity: profile?.id ?? null,
+    active: livekitEnabled && !!match?.id && match?.status !== 'finished',
+    listenOnly: false,
+  });
 
   // SFX + per-phase resets on transitions
   useEffect(() => {
@@ -92,6 +111,14 @@ export function LiesGame() {
           </div>
         </div>
       </div>
+
+      {/* Voice — the bar, and the verified voice changer beside it. */}
+      {livekitEnabled && match.status !== 'finished' && (
+        <div className="px-3 pt-2 flex-shrink-0 flex flex-col gap-2">
+          <LiveKitVoiceBarView voice={lkVoice} />
+          <div className="flex flex-col items-start"><VoiceDisguiseButton /></div>
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4">
         <div className="max-w-xl mx-auto">
