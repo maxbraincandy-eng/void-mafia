@@ -124,13 +124,19 @@ import { buildIceConfig } from './lib/iceConfig.js';
 // ── Rate limiting ─────────────────────────────────────────────────────
 const rateLimits = new Map();
 /** The voice effects a client may claim. Anything else is stored as none. */
+/**
+ * The voice profiles a client may claim on a recording.
+ *
+ * These are the SAME profiles the live disguise uses (client voiceDisguise.ts).
+ * The thirteen effects that used to be here were retired for quality — they are
+ * not accepted on new recordings, and old messages keep whatever name they were
+ * saved with, since this list only ever gates what is being written now.
+ */
 const VOICE_FX_NAMES = new Set([
-    'deep', 'high', 'ghost', 'robot', 'radio', 'giant', 'echo', 'detective', 'anonymous',
-    // Verified only — see VIP_VOICE_FX_NAMES below.
-    'demon', 'alien', 'stadium', 'hologram',
+    'baritone', 'tenor', 'alto', 'soprano', 'phantom', 'machine',
 ]);
 /** The subset a badge unlocks. A free account claiming one is stored as none. */
-const VIP_VOICE_FX_NAMES = new Set(['demon', 'alien', 'stadium', 'hologram']);
+const VIP_VOICE_FX_NAMES = new Set(['alto', 'soprano', 'phantom', 'machine']);
 function rateOk(socketId, limit = 15) {
     const now = Date.now();
     const r = rateLimits.get(socketId);

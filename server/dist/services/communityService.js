@@ -822,8 +822,10 @@ export async function createPostV2(authorId, data) {
         throw new Error('Audio too large.');
     // The badge on a post must mean something, so only a known effect name is
     // kept — a modified client cannot label a post with arbitrary text.
-    const KNOWN_FX = ['deep', 'high', 'ghost', 'robot', 'radio', 'giant', 'echo', 'detective', 'anonymous'];
-    const VIP_FX = ['demon', 'alien', 'stadium', 'hologram'];
+    // Same list as the socket layer's VOICE_FX_NAMES, and the same list the
+    // client offers — the retired effects are no longer accepted on new posts.
+    const KNOWN_FX = ['baritone', 'tenor'];
+    const VIP_FX = ['alto', 'soprano', 'phantom', 'machine'];
     const claimedFx = String(data.audioFx ?? '');
     const fxAllowed = KNOWN_FX.includes(claimedFx)
         || (VIP_FX.includes(claimedFx) && limits.vipVoices);
