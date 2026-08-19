@@ -209,3 +209,83 @@ export const MOONS: Record<string, MoonDef[]> = {
     { name: 'Oberon',  radiusKm: 761, orbitKm: 583500, periodDays: 13.46, tint: '#a9b3b5' },
   ],
 };
+
+/**
+ * A body drawn with its actual phase — a half moon is half, a crescent is a
+ * crescent, and the horns point the right way.
+ *
+ * WHY THE TERMINATOR IS AN ELLIPSE AND NOT A LINE
+ * ───────────────────────────────────────────────
+ * The line dividing day from night on a sphere is a great circle, and a great
+ * circle seen at an angle projects to an ELLIPSE. Its semi-width across the
+ * disc is R·cos(phase angle), and since the lit fraction k satisfies
+ * cos(phase) = 2k − 1, that width is simply R·(2k − 1):
+ *
+ *   k = 1    → +R  the terminator sits on the far limb, nothing is dark
+ *   k = 0.5  →  0  a straight line through the centre, exactly half lit
+ *   k = 0.25 → −R/2 it bulges PAST centre into the lit side: a crescent
+ *
+ * Drawing it as a straight line — which is what a naive "clip half the circle"
+ * does — gets the half moon right and every other night of the month wrong.
+ * A three-day crescent would come out as a wedge instead of a bow, and that is
+ * the shape people actually recognise.
+ *
+ * The disc is drawn with the bright limb toward +x. Which way that points on
+ * screen is the caller's business: it changes with where the Sun is and how the
+ * phone is held, so SkyMap rotates the sprite rather than baking an angle in.
+ */
+export function phaseDisc(id: string, illum: number, size = 256): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const g = c.getContext('2d')!;
+  const R = size * 0.42;
+  const cx = size / 2, cy = size / 2;
+
+  // The lit body first, in full.
+  const surf = surfaceTexture(id, 256);
+  g.save();
+  g.beginPath();
+  g.arc(cx, cy, R, 0, Math.PI * 2);
+  g.clip();
+  g.drawImage(surf, cx - R, cy - R, R * 2, R * 2);
+  g.restore();
+
+  const k = Math.max(0, Math.min(1, illum));
+
+  // Limb darkening: a sphere lit from one side is brightest where the light
+  // strikes squarely, and falls off toward the terminator. Without it the disc
+  // reads as a flat sticker no matter how correct its outline is.
+  const shade = g.createRadialGradient(cx + R * 0.32, cy - R * 0.22, R * 0.1, cx, cy, R * 1.05);
+  shade.addColorStop(0, 'rgba(255,255,255,0.10)');
+  shade.addColorStop(0.62, 'rgba(0,0,0,0)');
+  shade.addColorStop(1, 'rgba(0,0,0,0.42)');
+  g.globalCompositeOperation = 'source-atop';
+  g.fillStyle = shade;
+  g.fillRect(0, 0, size, size);
+  g.globalCompositeOperation = 'source-over';
+
+  if (k < 0.998) {
+    const t = R * (2 * k - 1);          // signed half-width of the terminator
+    g.save();
+    g.beginPath();
+    // Down the terminator, from the top of the disc to the bottom…
+    const N = 64;
+    g.moveTo(cx, cy - R);
+    for (let i = 1; i <= N; i++) {
+      const u = (i / N) * Math.PI;
+      g.lineTo(cx - t * Math.sin(u), cy - R * Math.cos(u));
+    }
+    // …then back around the dark limb, which is the far side from the Sun.
+    g.arc(cx, cy, R, Math.PI / 2, (3 * Math.PI) / 2, false);
+    g.closePath();
+    // Not pure black: the unlit Moon is faintly visible as earthshine, and the
+    // edge of the terminator is soft rather than a cut.
+    g.globalCompositeOperation = 'source-atop';
+    g.fillStyle = 'rgba(4,5,10,0.94)';
+    g.fill();
+    g.restore();
+    g.globalCompositeOperation = 'source-over';
+  }
+
+  return c;
+}

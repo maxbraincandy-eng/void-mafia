@@ -8,7 +8,7 @@ import {
 } from '@/lib/astro';
 import { ALL_STARS, CONSTELLATIONS, STAR_BY_KEY, starColour, type Star } from '@/lib/skyCatalog';
 import { milkyWayGrains } from '@/lib/milkyWay';
-import { surfaceTexture, ringTexture, glowSprite, MOONS } from './planetArt';
+import { surfaceTexture, ringTexture, glowSprite, phaseDisc, MOONS } from './planetArt';
 
 /**
  * ცის რუკა — point the phone at the sky and it tells you what is there.
@@ -333,9 +333,10 @@ export default function SkyMap({ onClose: closeRequested }: { onClose: () => voi
     lines.renderOrder = 2;
     scene.add(lines);
 
-    // Planets, Sun and Moon: a sprite each, sized by brightness.
+    // Planets, Sun and Moon: a glow each, sized by brightness.
+    const BODY_IDS = ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune'];
     const marks: Record<string, THREE.Sprite> = {};
-    for (const id of ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune']) {
+    for (const id of BODY_IDS) {
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({
         map: dot, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
       }));
@@ -344,6 +345,40 @@ export default function SkyMap({ onClose: closeRequested }: { onClose: () => voi
       marks[id] = sp;
       scene.add(sp);
     }
+
+    /*
+     * …and a real disc behind the glow, drawn with the body's actual phase.
+     *
+     * The disc is placed at its TRUE angular size — the Moon subtends about
+     * half a degree, which is roughly seven pixels at the default field of
+     * view, and it grows as you zoom exactly as the real one would through
+     * binoculars. Nothing here is inflated to look impressive: a half moon
+     * that is drawn full, or a Moon drawn the size of a coin, is the kind of
+     * detail that makes the rest of the map untrustworthy.
+     *
+     * Which way the horns point is not baked into the picture. The bright limb
+     * faces the Sun, and where the Sun is relative to the Moon ON SCREEN
+     * depends on both their positions and how the phone is held, so the sprite
+     * is rotated every frame from the geometry.
+     */
+    const discs: Record<string, { sprite: THREE.Sprite; tex: THREE.CanvasTexture; illum: number }> = {};
+    for (const id of BODY_IDS) {
+      if (id === 'sun') continue;                 // no phase, and never look at it
+      const tex = new THREE.CanvasTexture(phaseDisc(id, 1, 128));
+      tex.colorSpace = THREE.SRGBColorSpace;
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: tex, transparent: true, depthWrite: false, depthTest: false,
+      }));
+      sp.frustumCulled = false;
+      sp.renderOrder = 5;                          // in front of its own glow
+      scene.add(sp);
+      discs[id] = { sprite: sp, tex, illum: 1 };
+    }
+
+    const camRight = new THREE.Vector3();
+    const camUp = new THREE.Vector3();
+    const toSun = new THREE.Vector3();
+    const bodyDir = new THREE.Vector3();
 
     /*
      * Horizon glow — the thing that makes the overlay belong to the picture.
@@ -537,6 +572,7 @@ export default function SkyMap({ onClose: closeRequested }: { onClose: () => voi
         });
         lp.needsUpdate = true;
 
+        let repainted = false;
         for (const b of bodiesRef.current) {
           const sp = marks[b.id];
           const w = horizonToVector(b.horizon);
@@ -555,6 +591,31 @@ export default function SkyMap({ onClose: closeRequested }: { onClose: () => voi
           const px = b.id === 'sun' ? 46 : b.id === 'moon' ? 40
             : Math.min(40, 2.0 + 16 * Math.pow(2.512, -0.28 * (b.mag + 1.5)));
           sp.scale.setScalar(px * 0.16);
+
+          const disc = discs[b.id];
+          if (disc) {
+            disc.sprite.position.copy(sp.position);
+            disc.sprite.visible = visible;
+            // b.size is the apparent diameter in arcseconds. At a sphere of
+            // radius 100 the world scale that subtends the same angle is
+            // 100 × θ, with θ in radians — so the disc is exactly as big on
+            // screen as the real one is in the sky.
+            const theta = (b.size / 3600) * Math.PI / 180;
+            disc.sprite.scale.setScalar(Math.max(0.55, 100 * theta));
+            // Redraw only when the phase has actually moved. The Moon changes
+            // about 1.7% of a lunation an hour; this repaints a handful of
+            // times a night rather than twice a second.
+            // …and only one repaint per tick. Every disc starts drawn full, so
+            // the first update would otherwise redraw all eight at once —
+            // eight canvas surfaces in one frame, which is a visible hitch the
+            // moment the sky opens.
+            if (!repainted && Math.abs(b.illum - disc.illum) > 0.004) {
+              repainted = true;
+              disc.illum = b.illum;
+              disc.tex.image = phaseDisc(b.id, b.illum, 128);
+              disc.tex.needsUpdate = true;
+            }
+          }
           const m = sp.material as THREE.SpriteMaterial;
           m.color.set(
             b.id === 'mars' ? 0xff9a6a : b.id === 'sun' ? 0xfff0a0 :
@@ -565,6 +626,38 @@ export default function SkyMap({ onClose: closeRequested }: { onClose: () => voi
       }
 
       if (manualRef.current.on) aimManually(); else aimFromDevice();
+
+      /*
+       * Point every lit limb at the Sun.
+       *
+       * The direction from a body toward the Sun, projected onto the sky at
+       * that body, is the tangential part of the Sun's direction. Turning that
+       * into a rotation for a camera-facing sprite is a dot product against the
+       * camera's own right and up axes — which is why this belongs in the frame
+       * loop and not in the twice-a-second update: it changes when the PHONE
+       * moves, not when the sky does.
+       */
+      const sun = bodiesRef.current.find(b => b.id === 'sun');
+      if (sun) {
+        camera.updateMatrixWorld();
+        camRight.setFromMatrixColumn(camera.matrixWorld, 0);
+        camUp.setFromMatrixColumn(camera.matrixWorld, 1);
+        const sv = horizonToVector(sun.horizon);
+        for (const b of bodiesRef.current) {
+          const disc = discs[b.id];
+          if (!disc || !disc.sprite.visible) continue;
+          const bv = horizonToVector(b.horizon);
+          bodyDir.set(bv.x, bv.y, bv.z).normalize();
+          toSun.set(sv.x, sv.y, sv.z).normalize();
+          // Remove the part along the body's own direction: what is left is the
+          // way the Sun lies ON the sky as seen from that body.
+          toSun.addScaledVector(bodyDir, -toSun.dot(bodyDir));
+          if (toSun.lengthSq() < 1e-9) continue;
+          toSun.normalize();
+          (disc.sprite.material as THREE.SpriteMaterial).rotation =
+            Math.atan2(toSun.dot(camUp), toSun.dot(camRight));
+        }
+      }
 
       if (camera.fov !== fovRef.current) {
         camera.fov = fovRef.current;
@@ -600,6 +693,7 @@ export default function SkyMap({ onClose: closeRequested }: { onClose: () => voi
       renderer.dispose();
       starGeo.dispose(); lineGeo.dispose(); horizonGeo.dispose(); mwGeo.dispose();
       hazeGeo.dispose(); hazeTex.dispose();
+      for (const d of Object.values(discs)) d.tex.dispose();
       starMat.dispose(); mwMat.dispose();
       dot.dispose();
       mount.removeChild(renderer.domElement);
