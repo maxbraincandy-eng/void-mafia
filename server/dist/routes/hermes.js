@@ -144,8 +144,11 @@ export function createHermesRouter() {
             res.status(400).json({ ok: false, error: 'Message is required.' });
             return;
         }
-        if (message.length > 2000) {
-            res.status(400).json({ ok: false, error: 'Message too long (max 2000 chars).' });
+        // 2000 characters is about a page and a half of Georgian, and people were
+        // hitting it pasting a game log in to ask about it. The cap exists to stop
+        // an abusive payload, not to shape a question.
+        if (message.length > 12000) {
+            res.status(400).json({ ok: false, error: 'Message too long (max 12000 chars).' });
             return;
         }
         const safeMode = VALID_MODES.has(mode) ? mode : 'general';
@@ -171,15 +174,18 @@ export function createHermesRouter() {
         }
         try {
             const conversationId = await getOrCreateConversation(uid, safeMode);
-            const history = await getRecentMessages(conversationId, 20);
+            // How much of the conversation Hermes still remembers. Twenty turns is
+            // roughly ten exchanges — long enough to feel like a chat and short
+            // enough to forget what you asked at the start of one.
+            const history = await getRecentMessages(conversationId, 80);
             const systemPrompt = buildHermesSystemPrompt(safeMode, context ?? undefined);
             const aiMessages = [
                 ...history.map(m => ({ role: m.role, content: m.content })),
                 { role: 'user', content: message.trim() },
             ];
-            // 1200 is enough for a full Georgian answer while keeping the daily
-            // token budget reasonable (Groq bills the requested max_tokens).
-            const aiResponse = await provider.chat(aiMessages, systemPrompt, 1200);
+            // Georgian runs to more tokens per word than English, so 1200 was
+            // cutting long answers off mid-sentence.
+            const aiResponse = await provider.chat(aiMessages, systemPrompt, 4096);
             // Persist both turns
             await saveMessage(conversationId, 'user', message.trim());
             await saveMessage(conversationId, 'assistant', aiResponse.text);

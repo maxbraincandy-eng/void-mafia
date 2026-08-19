@@ -49,15 +49,19 @@ const MARS_REASON: Record<string, string> = {
 type Tab = 'dashboard' | 'rooms' | 'reports' | 'mars' | 'appeals' | 'verify' | 'players' | 'broadcast' | 'logs' | 'stealth' | 'terminal';
 type ActionType = 'ban' | 'mute' | 'warn' | 'kick' | 'unban' | 'unmute' | 'terminate' | 'close_room' | 'freeze' | 'unfreeze' | 'rename' | 'system_msg' | 'force_phase';
 
+// Ordered by how often a moderator actually reaches for them, which is not the
+// order they happened to be built in. The first five are the daily work; what
+// follows is occasional, and the last three are owner tools nobody opens twice
+// a week.
 const TABS: { id: Tab; label: string; minRank: number }[] = [
   { id: 'dashboard', label: 'Dashboard', minRank: 0 },
+  { id: 'players',   label: 'Players',   minRank: 0 },
+  { id: 'verify',    label: 'Verify',    minRank: 3 },  // owner only
   { id: 'rooms',     label: 'Rooms',     minRank: 0 },
   { id: 'reports',   label: 'Reports',   minRank: 0 },
-  { id: 'mars',      label: 'M.A.R.S.',  minRank: 0 },
-  { id: 'appeals',   label: 'Appeals',   minRank: 0 },
-  { id: 'verify',    label: 'Verify',    minRank: 3 },  // owner only
-  { id: 'players',   label: 'Players',   minRank: 0 },
   { id: 'broadcast', label: 'Broadcast', minRank: 1 },  // senior_mod+
+  { id: 'appeals',   label: 'Appeals',   minRank: 0 },
+  { id: 'mars',      label: 'M.A.R.S.',  minRank: 0 },
   { id: 'logs',      label: 'Logs',      minRank: 2 },  // admin+
   { id: 'stealth',   label: 'Stealth',   minRank: 3 },  // owner only
   { id: 'terminal',  label: 'Terminal',  minRank: 3 },  // owner only
