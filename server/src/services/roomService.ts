@@ -582,6 +582,13 @@ export function toPublicRoom(room: Room, viewerPlayerId: string): RoomPublic {
     foulCount: p.foulCount ?? 0,
     ...(p.isBot ? { isBot: true } : {}),
     ...(anon ? { isAnon: true } : {}),
+    // A moderator sees the real identity, and until now saw NO sign that the
+    // player was masked to everyone else — so the feature looked broken to the
+    // only people who could not use it. Two accounts that are both moderators
+    // can never see it work, which is exactly how it was reported.
+    ...(!anon && p.anonAlias && p.id !== viewerPlayerId && viewerSeesThroughAnon
+      ? { maskedToOthers: true, aliasShown: p.anonAlias }
+      : {}),
     // Self-only: tell the invisible spectator they ARE invisible so the UI can
     // show the indicator + toggle. Never leaked to others (they don't get this
     // row at all — see isHiddenFrom).
@@ -684,7 +691,10 @@ export function toRoomListItem(room: Room): RoomListItem {
     playerCount: [...room.players.values()].filter(p => !(p.invisibleSpectator && p.isSpectator)).length,
     phase: room.phase,
     createdAt: room.createdAt,
-    hostName: host?.name ?? 'Unknown',
+    // The browser is the most public surface there is, so a masked host is
+    // masked here too — otherwise the room list answers the question the room
+    // itself refuses to.
+    hostName: (host?.anonAlias ?? host?.name) ?? 'Unknown',
     isPrivate: room.settings.isPrivate ?? false,
     spotlight: room.spotlightUntil != null && room.spotlightUntil > Date.now(),
   };

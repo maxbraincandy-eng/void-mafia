@@ -202,6 +202,11 @@ export interface PlayerPublic {
    *  server sends these on your own row and nobody else's. */
   incognito?: boolean;
   myAlias?: string | null;
+  /** Moderator-only: this player is masked to everyone else, and this is the
+   *  alias they wear. Lets a moderator tell "not masked" from "masked, and I
+   *  am the exception". */
+  maskedToOthers?: boolean;
+  aliasShown?: string | null;
 }
 
 export interface DynamicEventAllowed {

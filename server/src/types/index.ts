@@ -616,6 +616,11 @@ export interface PlayerPublic {
    *  to know, and everybody else learning it would defeat the point. */
   incognito?: boolean;
   myAlias?: string | null;
+  /** Moderator-only: this player is masked to everyone else, and this is the
+   *  alias they are wearing. Sent so a moderator can tell the difference
+   *  between "not masked" and "masked, and I am the exception". */
+  maskedToOthers?: boolean;
+  aliasShown?: string | null;
 }
 
 export interface RoomPublic {

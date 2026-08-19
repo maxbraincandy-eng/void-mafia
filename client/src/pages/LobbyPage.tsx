@@ -520,6 +520,17 @@ export function LobbyPage() {
                               {player.name}
                             </span>
                           )}
+                          {/* You are a moderator, so you are seeing a name the
+                              rest of the table cannot. Without this the feature
+                              looks broken to exactly the people who cannot use
+                              it — which is how it was reported. */}
+                          {player.maskedToOthers && (
+                            <span className="text-[12px] font-mono rounded px-1 py-px"
+                              style={{ color: '#c4b5fd', border: '1px solid rgba(167,139,250,0.28)' }}
+                              title="მოდერატორის ხედი — სხვები ხედავენ ფსევდონიმს">
+                              🕶 {player.aliasShown}
+                            </span>
+                          )}
                           {player.isModerator && (
                             <span className="text-[12px] font-mono text-neon-green/50 border border-neon-green/15 rounded px-1 py-px">
                               mod
