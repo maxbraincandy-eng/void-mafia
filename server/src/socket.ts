@@ -1298,6 +1298,7 @@ const INVITABLE_GAMES: Record<string, { name: string; emoji: string }> = {
   codenames: { name: 'Codenames',             emoji: '🔤' },
   alias:     { name: 'ალიასი',                emoji: '🗣' },
   draw:      { name: 'დახაზე & გამოიცანი',    emoji: '🎨' },
+  sxvamafia: { name: 'მაფია ჰოსტით',          emoji: '🎬' },
 };
 
 /**
@@ -1310,11 +1311,14 @@ const _invitesSent = new Map<string, number[]>();     // inviter → recent time
 const _invitePairs = new Map<string, number>();       // inviter→target → last sent
 const INVITE_BURST = 20;          // per minute, enough for the biggest lobby
 const INVITE_PAIR_COOLDOWN = 45_000;
-function assertInviteAllowance(fromId: string, toId: string): void {
+function assertInviteAllowance(fromId: string, toId: string, context: string): void {
   const now = Date.now();
   const recent = (_invitesSent.get(fromId) ?? []).filter(t => now - t < 60_000);
   if (recent.length >= INVITE_BURST) throw new Error('ძალიან ბევრი მოწვევა — დაიცადე წუთი.');
-  const pair = `${fromId}>${toId}`;
+  // Keyed by what is being invited TO, so re-sending the same invite is the
+  // thing that waits, while "actually, come to this other game instead" is not
+  // punished. The per-minute cap still bounds anyone cycling through games.
+  const pair = `${fromId}>${toId}>${context}`;
   if (now - (_invitePairs.get(pair) ?? 0) < INVITE_PAIR_COOLDOWN) throw new Error('უკვე მიიწვიე — ცოტა მოითმინე.');
   recent.push(now);
   _invitesSent.set(fromId, recent);
@@ -4405,7 +4409,13 @@ export function attachSocketHandlers(io: AppServer): void {
         if (!room) throw new Error('Not in a room.');
         const me = getPlayerByProfile(room, profileId);
         if (!me) throw new Error('Not in a room.');
-        const friendSock = findSocketByProfile(io as any, friendProfileId);
+        const targetId = String(friendProfileId);
+        if (targetId === profileId) throw new Error('Cannot invite yourself.');
+        // Anyone can be invited now, friend or stranger — so the same rule that
+        // keeps the party-game invites from becoming a spam cannon applies here.
+        assertInviteAllowance(profileId, targetId, `room:${room.code}`);
+
+        const friendSock = findSocketByProfile(io as any, targetId);
         if (friendSock) {
           const playerCount = [...room.players.values()].filter(p => !p.isSpectator).length;
           friendSock.emit('room:invite_received', {
@@ -4415,8 +4425,16 @@ export function attachSocketHandlers(io: AppServer): void {
             playerCount,
             maxPlayers: room.settings.minPlayers,
           });
+          cb(ok({ delivered: 'live' }));
+          return;
         }
-        cb(ok(null));
+        // Offline: it still leaves, as a notification they may read later.
+        await sendPushToUser(targetId, {
+          title: '🎮 მაფია',
+          body: `${me.name} გიწვევს — კოდი ${room.code}`,
+          tag: 'room-invite',
+        });
+        cb(ok({ delivered: 'push' }));
       } catch (e: any) { cb(err(e.message)); }
     });
 
@@ -5462,7 +5480,7 @@ export function attachSocketHandlers(io: AppServer): void {
         if (targetId === profileId) throw new Error('Cannot invite yourself.');
         // Invitable-by-anyone means invitable by a stranger, so the only thing
         // standing between a lobby and a spam cannon is this.
-        assertInviteAllowance(profileId, targetId);
+        assertInviteAllowance(profileId, targetId, game);
 
         const me = await getPlayer(profileId);
         const from = me?.username ?? 'Someone';

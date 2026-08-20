@@ -11,6 +11,7 @@ import {
   getLiveKitRemoteVideo, getLiveKitLocalVideo, getLiveKitSpeaking, setLiveKitCamera,
 } from '@/services/livekitVoice';
 import { XM_ROLE_META, type XmSafeSeat, type XmSafeState, type XmRole } from '@/types/sxvaMafia';
+import { GameInviteButton } from '@/components/social/GameInviteButton';
 
 /**
  * სხვა მაფია (Other Mafia) — a from-scratch, video-first "table mafia".
@@ -704,6 +705,10 @@ export function SxvaMafiaGame() {
                 <p className="text-center font-mono text-[12px] text-white/40 mt-3">
                   {isHost ? 'გააზიარე კოდი და დაელოდე მოთამაშეებს (მინ. 4). ჰოსტი მოთამაშე არ არის — ის მართავს თამაშს.' : 'დაელოდე, სანამ ჰოსტი დაიწყებს…'}
                 </p>
+
+                {/* Four players minimum plus a host, and a code only reaches
+                    whoever is already listening. */}
+                <div className="flex justify-center mt-3"><GameInviteButton game="sxvamafia" code={match.code} /></div>
 
                 {/* Role composition (host configurable, others read-only) */}
                 <div className="mt-4 max-w-sm mx-auto rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${RED}22` }}>

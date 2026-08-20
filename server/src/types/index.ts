@@ -1107,7 +1107,9 @@ export interface ClientToServerEvents {
   'player:profile':     (data: { profileId: string }, cb: Cb<PlayerProfilePublic>) => void;
   'player:achievements': (data: { profileId: string }, cb: Cb<AchievementEarned[]>) => void;
   'player:history':     (data: { profileId: string }, cb: Cb<GameHistoryEntry[]>) => void;
-  'room:invite':        (data: { friendProfileId: string }, cb: Cb<null>) => void;
+  // Any profile id, not only a friend's; `delivered` distinguishes an
+  // overlay now from a notification for later.
+  'room:invite':        (data: { friendProfileId: string }, cb: Cb<{ delivered: 'live' | 'push' }>) => void;
   'lobby:player_roles': (data: { profileIds: string[]; roomCode: string }, cb: Cb<Record<string, { role: string; team: string; won: boolean }>>) => void;
   'clan:list':          (cb: Cb<ClanPublic[]>) => void;
   'clan:get':           (data: { clanId: string }, cb: Cb<{ clan: ClanPublic; members: ClanMember[] }>) => void;

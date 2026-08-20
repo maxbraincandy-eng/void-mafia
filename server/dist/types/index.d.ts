@@ -1381,7 +1381,9 @@ export interface ClientToServerEvents {
     }, cb: Cb<GameHistoryEntry[]>) => void;
     'room:invite': (data: {
         friendProfileId: string;
-    }, cb: Cb<null>) => void;
+    }, cb: Cb<{
+        delivered: 'live' | 'push';
+    }>) => void;
     'lobby:player_roles': (data: {
         profileIds: string[];
         roomCode: string;

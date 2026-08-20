@@ -13,6 +13,7 @@ import { useSpyfallStore } from '@/store/spyfallStore';
 import { useCodenamesStore } from '@/store/codenamesStore';
 import { useAliasStore } from '@/store/aliasStore';
 import { useDrawStore } from '@/store/drawStore';
+import { useSxvaMafiaStore } from '@/store/sxvaMafiaStore';
 import { tNow } from '@/store/langStore';
 
 interface GameInvite { game: string; code: string; fromName: string; fromAvatar: string }
@@ -20,10 +21,11 @@ interface GameInvite { game: string; code: string; fromName: string; fromAvatar:
 const GAME_LABEL: Record<string, string> = {
   checkers: 'შაშკი', ludo: 'ლუდო', uno: 'UNO', joker: 'ჯოკერი', www: 'ვინ იქნება მილიონერი',
   lies: 'ტყუილების ოსტატი', spyfall: 'ჯაშუში', codenames: 'Codenames', alias: 'ალიასი', draw: 'დახაზე & გამოიცანი',
+  sxvamafia: 'მაფია ჰოსტით',
 };
 const GAME_EMOJI: Record<string, string> = {
   checkers: '⚪', ludo: '🎲', uno: '🎴', joker: '🃏', www: '❓',
-  lies: '🎭', spyfall: '🕵️', codenames: '🔤', alias: '🗣', draw: '🎨',
+  lies: '🎭', spyfall: '🕵️', codenames: '🔤', alias: '🗣', draw: '🎨', sxvamafia: '🎬',
 };
 
 /**
@@ -61,7 +63,8 @@ export function GameInviteOverlay() {
       game === 'spyfall' ? useSpyfallStore.getState().joinMatch :
       game === 'codenames' ? useCodenamesStore.getState().joinMatch :
       game === 'alias' ? useAliasStore.getState().joinMatch :
-      game === 'draw' ? useDrawStore.getState().joinMatch : null;
+      game === 'draw' ? useDrawStore.getState().joinMatch :
+      game === 'sxvamafia' ? useSxvaMafiaStore.getState().joinMatch : null;
     join?.(code, name)?.catch?.(() => {});
   };
 

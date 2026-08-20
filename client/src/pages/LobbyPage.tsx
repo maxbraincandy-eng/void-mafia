@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
@@ -29,6 +29,7 @@ import { LobbyItemsBar } from '@/components/game/LobbyItemsBar';
 import { IncognitoPanel } from '@/components/game/IncognitoPanel';
 import { useIncognitoStore } from '@/store/incognitoStore';
 import { RoomFxLayer } from '@/components/game/RoomFxLayer';
+import { InvitePeoplePicker, type InviteDelivery } from '@/components/social/InvitePeoplePicker';
 import { roomSkinStyle } from '@/constants/perks';
 
 const SURFACE = 'rounded-2xl border border-white/[0.06]';
@@ -104,10 +105,8 @@ export function LobbyPage() {
   const [unreadChat, setUnreadChat] = useState(0);
   const [playerRoles, setPlayerRoles] = useState<Record<string, { role: string; team: string; won: boolean }>>({});
   const [showInvite, setShowInvite] = useState(false);
-  const [friends, setFriends] = useState<Array<{ profileId: string; username: string; avatar: string; isOnline: boolean }>>([]);
   const [lobbyActionTarget, setLobbyActionTarget] = useState<PlayerPublic | null>(null);
   const [lobbyGiftTarget, setLobbyGiftTarget] = useState<{ profileId: string; name: string; avatar: string; avatarUrl: string | null } | null>(null);
-  const [sentInvites, setSentInvites] = useState<Set<string>>(new Set());
   const t = useT();
   const voice = useVoiceChat();
   useGameSounds();
@@ -174,13 +173,6 @@ export function LobbyPage() {
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profileIdsKey, room?.code]);
-
-  const loadFriends = useCallback(() => {
-    // Invite pool = friends + community follows (following + followers).
-    socket.emit('friend:invitable_list' as any, (res: any) => {
-      if (res?.data) setFriends(res.data);
-    });
-  }, []);
 
   if (!room) return null;
   // Host always first (#1), then everyone else in join order
@@ -411,9 +403,11 @@ export function LobbyPage() {
                   <span className="ml-2 text-white/50">{playerCount}</span>
                 </span>
                 <div className="flex items-center gap-3">
-                  {amHost && (
+                  {/* Any player, not only the host: whoever knows someone with
+                      a free evening is the one who can fill the room. */}
+                  {!myPlayer?.isSpectator && (
                     <button
-                      onClick={() => { loadFriends(); setShowInvite(true); }}
+                      onClick={() => setShowInvite(true)}
                       className="flex items-center gap-1 text-[11px] font-mono transition-colors text-yellow-400/55 hover:text-yellow-400/90"
                     >
                       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -1407,7 +1401,7 @@ export function LobbyPage() {
         document.body,
       )}
 
-      {/* Invite friends modal */}
+      {/* Invite modal — anyone, not only friends */}
       <AnimatePresence>
         {showInvite && (
           <motion.div
@@ -1428,41 +1422,21 @@ export function LobbyPage() {
               style={{ background: 'rgba(8,4,22,0.98)', border: '1px solid rgba(250,204,21,0.2)' }}
             >
               <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
-                <span className="text-sm font-display font-bold text-white/80">Invite Friends</span>
+                <span className="text-sm font-display font-bold text-white/80">მოწვევა</span>
                 <button onClick={() => setShowInvite(false)} className="text-white/30 hover:text-white/60 text-lg leading-none">✕</button>
               </div>
-              <div className="max-h-64 overflow-y-auto">
-                {friends.filter(f => f.isOnline).length === 0 ? (
-                  <p className="text-center text-[13px] font-mono text-white/25 py-8">No friends online</p>
-                ) : (
-                  friends.filter(f => f.isOnline).map(f => {
-                    const sent = sentInvites.has(f.profileId);
-                    return (
-                      <div key={f.profileId} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.03] transition-colors">
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-base shrink-0"
-                          style={{ background: 'linear-gradient(135deg, #7c3aed, #2563eb)' }}>
-                          {f.avatar || f.username[0]}
-                        </div>
-                        <span className="flex-1 text-sm font-medium text-white/80 truncate">{f.username}</span>
-                        <button
-                          disabled={sent}
-                          onClick={() => {
-                            socket.emit('room:invite' as any, { friendProfileId: f.profileId }, () => {});
-                            setSentInvites(s => new Set([...s, f.profileId]));
-                          }}
-                          className={clsx(
-                            'text-[12px] px-3 py-1 rounded-lg font-mono border transition-all',
-                            sent
-                              ? 'border-neon-green/25 text-neon-green/50 cursor-default'
-                              : 'border-yellow-400/30 text-yellow-400/70 hover:border-yellow-400/55 hover:text-yellow-400 hover:bg-yellow-400/[0.07]',
-                          )}
-                        >
-                          {sent ? '✓ Sent' : 'Invite'}
-                        </button>
-                      </div>
-                    );
-                  })
-                )}
+              {/* The same picker the party games use: everyone online, plus a
+                  search over every account. A mafia room needs seven people and
+                  a friends-only list is empty exactly when they are needed. */}
+              <div className="px-4 py-3 max-h-[60vh] flex flex-col">
+                <InvitePeoplePicker
+                  invite={p => new Promise<InviteDelivery>((resolve, reject) => {
+                    socket.emit('room:invite' as any, { friendProfileId: p.profileId }, (res: any) => {
+                      if (res?.ok) resolve(res.data?.delivered === 'push' ? 'push' : 'live');
+                      else reject(new Error(res?.error ?? 'ვერ გაიგზავნა'));
+                    });
+                  })}
+                />
               </div>
             </motion.div>
           </motion.div>
