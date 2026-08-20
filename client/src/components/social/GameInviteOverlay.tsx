@@ -8,12 +8,23 @@ import { useLudoStore } from '@/store/ludoStore';
 import { useUnoStore } from '@/store/unoStore';
 import { useJokerStore } from '@/store/jokerStore';
 import { useWWWStore } from '@/store/wwwStore';
+import { useLiesStore } from '@/store/liesStore';
+import { useSpyfallStore } from '@/store/spyfallStore';
+import { useCodenamesStore } from '@/store/codenamesStore';
+import { useAliasStore } from '@/store/aliasStore';
+import { useDrawStore } from '@/store/drawStore';
 import { tNow } from '@/store/langStore';
 
 interface GameInvite { game: string; code: string; fromName: string; fromAvatar: string }
 
-const GAME_LABEL: Record<string, string> = { checkers: 'Checkers', ludo: 'Ludo', uno: 'UNO', joker: 'Joker', www: 'Who Wants' };
-const GAME_EMOJI: Record<string, string> = { checkers: '⚪', ludo: '🎲', uno: '🎴', joker: '🃏', www: '❓' };
+const GAME_LABEL: Record<string, string> = {
+  checkers: 'შაშკი', ludo: 'ლუდო', uno: 'UNO', joker: 'ჯოკერი', www: 'ვინ იქნება მილიონერი',
+  lies: 'ტყუილების ოსტატი', spyfall: 'ჯაშუში', codenames: 'Codenames', alias: 'ალიასი', draw: 'დახაზე & გამოიცანი',
+};
+const GAME_EMOJI: Record<string, string> = {
+  checkers: '⚪', ludo: '🎲', uno: '🎴', joker: '🃏', www: '❓',
+  lies: '🎭', spyfall: '🕵️', codenames: '🔤', alias: '🗣', draw: '🎨',
+};
 
 /**
  * App-wide strict overlay for incoming game invites (Checkers/Ludo/UNO/…).
@@ -45,7 +56,12 @@ export function GameInviteOverlay() {
       game === 'ludo' ? useLudoStore.getState().joinMatch :
       game === 'uno' ? useUnoStore.getState().joinMatch :
       game === 'joker' ? useJokerStore.getState().joinMatch :
-      game === 'www' ? useWWWStore.getState().joinMatch : null;
+      game === 'www' ? useWWWStore.getState().joinMatch :
+      game === 'lies' ? useLiesStore.getState().joinMatch :
+      game === 'spyfall' ? useSpyfallStore.getState().joinMatch :
+      game === 'codenames' ? useCodenamesStore.getState().joinMatch :
+      game === 'alias' ? useAliasStore.getState().joinMatch :
+      game === 'draw' ? useDrawStore.getState().joinMatch : null;
     join?.(code, name)?.catch?.(() => {});
   };
 

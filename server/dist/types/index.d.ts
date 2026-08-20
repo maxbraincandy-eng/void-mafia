@@ -1587,7 +1587,9 @@ export interface ClientToServerEvents {
         targetProfileId: string;
         game: string;
         code: string;
-    }, cb: Cb<null>) => void;
+    }, cb: Cb<{
+        delivered: 'live' | 'push';
+    }>) => void;
     'friend:requests': (cb: Cb<FriendRequest[]>) => void;
     'friend:suggestions': (cb: Cb<{
         profileId: string;

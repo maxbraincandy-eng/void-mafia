@@ -8,6 +8,7 @@ import { useSpyfallVoice } from '@/hooks/useSpyfallVoice';
 import { useLiveKitGate, useLivekitRoomVoice } from '@/hooks/useLivekitVoice';
 import { LiveKitVoiceBarView } from '@/components/game/LiveKitVoiceBar';
 import { VoiceDisguiseButton } from '@/components/game/VoiceDisguiseButton';
+import { GameInviteButton } from '@/components/social/GameInviteButton';
 import type { SpyfallPublicPlayer, SpyfallReveal } from '@/types/spyfall';
 
 /**
@@ -221,6 +222,8 @@ export function SpyfallGame() {
               <p className="text-center font-mono text-[12px] text-white/40 mb-1">გაუზიარე კოდი მეგობრებს</p>
               <button onClick={() => { try { navigator.clipboard?.writeText(match.code); } catch { /* ignore */ } }}
                 className="font-mono font-bold text-3xl tracking-[0.3em] text-neon-cyan mb-4 mx-auto block">{match.code}</button>
+              {/* A code only reaches whoever is already listening. */}
+              <div className="flex justify-center mb-4"><GameInviteButton game="spyfall" code={match.code} /></div>
 
               <div className="rounded-xl p-3 mb-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
                 <p className="font-mono text-[11px] text-white/30 mb-2 text-center">მოთამაშეები · {match.players.length}/{match.maxPlayers}</p>

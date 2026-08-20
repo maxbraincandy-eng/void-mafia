@@ -7,6 +7,7 @@ import { useCodenamesStore } from '@/store/codenamesStore';
 import { useLiveKitGate, useLivekitRoomVoice } from '@/hooks/useLivekitVoice';
 import { LiveKitVoiceBarView } from '@/components/game/LiveKitVoiceBar';
 import { VoiceDisguiseButton } from '@/components/game/VoiceDisguiseButton';
+import { GameInviteButton } from '@/components/social/GameInviteButton';
 import type { CnColor } from '@/types/codenames';
 
 /**
@@ -97,6 +98,8 @@ export function CodenamesGame() {
               <p className="text-center text-4xl mb-2">🕵️</p>
               <button onClick={() => { try { navigator.clipboard?.writeText(match.code); } catch { /* ignore */ } }}
                 className="font-mono font-bold text-3xl tracking-[0.3em] text-neon-cyan mb-4 mx-auto block">{match.code}</button>
+              {/* A code only reaches whoever is already listening. */}
+              <div className="flex justify-center mb-4"><GameInviteButton game="codenames" code={match.code} /></div>
               <div className="flex gap-2 mb-3">
                 {[0, 1].map(t => (
                   <div key={t} className="flex-1 rounded-xl p-3" style={{ background: TEAM[t]!.bg, border: `1px solid ${TEAM[t]!.border}` }}>

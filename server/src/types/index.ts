@@ -1172,7 +1172,9 @@ export interface ClientToServerEvents {
   'friend:remove':         (data: { profileId: string }, cb: Cb<null>) => void;
   'friend:list':           (cb: Cb<Friend[]>) => void;
   'friend:invitable_list': (cb: Cb<Friend[]>) => void;
-  'game:invite': (data: { targetProfileId: string; game: string; code: string }, cb: Cb<null>) => void;
+  // `delivered` says whether it landed as an overlay or as a push notification —
+  // the difference between "they are about to join" and "they will see it later".
+  'game:invite': (data: { targetProfileId: string; game: string; code: string }, cb: Cb<{ delivered: 'live' | 'push' }>) => void;
   'friend:requests':       (cb: Cb<FriendRequest[]>) => void;
   'friend:suggestions':    (cb: Cb<{ profileId: string; username: string; avatar: string; avatarUrl: string | null; mutualCount: number }[]>) => void;
   // Pet

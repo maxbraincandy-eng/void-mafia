@@ -7,6 +7,7 @@ import { JokerCard } from './JokerCard';
 import type { Card, JokerPlayerPublic, Suit } from '@/types/joker';
 import { haptic } from '@/lib/haptics';
 import { tNow } from '@/store/langStore';
+import { GameInviteButton } from '@/components/social/GameInviteButton';
 
 const SUIT_SYMBOL: Record<Suit, string> = { S: '♠', H: '♥', D: '♦', C: '♣', J: '🃏' };
 
@@ -876,6 +877,8 @@ function WaitingRoom({ match, isCreator, onStart, isLoading }: {
         <span>{match.code}</span>
         <span className="text-xs opacity-60">{copied ? '✓' : '⎘'}</span>
       </button>
+      {/* A code only reaches whoever is already listening. */}
+      <GameInviteButton game="joker" code={match.code} />
       {isCreator && match.players.length === 4 && (
         <button onClick={onStart} disabled={isLoading}
           className="px-8 py-3 rounded-xl font-display font-bold text-sm uppercase tracking-wider transition-all active:scale-95 disabled:opacity-40"

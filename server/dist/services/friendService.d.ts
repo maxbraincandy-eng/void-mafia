@@ -31,6 +31,27 @@ export declare function getFriends(playerId: string): Promise<Friend[]>;
  * or who follows them in the community. Deduplicated, with online status.
  */
 export declare function getInvitablePeople(playerId: string): Promise<Friend[]>;
+/** Everyone online right now, invisible owners excluded. */
+export declare function getOnlineProfileIds(): string[];
+export interface InvitePerson extends Friend {
+    /** Already connected to this player — friend, follower, or followed. */
+    isKnown: boolean;
+}
+/**
+ * Who this player can invite to a match: ANYONE, not just their friends.
+ *
+ * A table needs three more people and the friends list is empty at that
+ * moment — so a picker that only shows friends is a picker that usually shows
+ * nobody. With no query it opens on the people you know plus everyone who is
+ * online right now (the only ones who can be pulled in immediately); typing a
+ * name searches every account, so someone met once in a room can be found by
+ * name without a friend request first.
+ *
+ * Sorted online-first because an invite to an online player is a game starting
+ * in ten seconds, while an invite to an offline one is a notification they may
+ * read tomorrow.
+ */
+export declare function getPeopleToInvite(playerId: string, q?: string, limit?: number): Promise<InvitePerson[]>;
 export declare function getFriendIds(playerId: string): Promise<string[]>;
 export declare function getFriendSuggestions(playerId: string, limit?: number): Promise<{
     profileId: string;

@@ -199,6 +199,83 @@ export async function getInvitablePeople(playerId: string): Promise<Friend[]> {
   }));
 }
 
+/** Everyone online right now, invisible owners excluded. */
+export function getOnlineProfileIds(): string[] {
+  return [...onlineProfiles].filter(id => !invisibleProfiles.has(id));
+}
+
+export interface InvitePerson extends Friend {
+  /** Already connected to this player — friend, follower, or followed. */
+  isKnown: boolean;
+}
+
+/**
+ * Who this player can invite to a match: ANYONE, not just their friends.
+ *
+ * A table needs three more people and the friends list is empty at that
+ * moment — so a picker that only shows friends is a picker that usually shows
+ * nobody. With no query it opens on the people you know plus everyone who is
+ * online right now (the only ones who can be pulled in immediately); typing a
+ * name searches every account, so someone met once in a room can be found by
+ * name without a friend request first.
+ *
+ * Sorted online-first because an invite to an online player is a game starting
+ * in ten seconds, while an invite to an offline one is a notification they may
+ * read tomorrow.
+ */
+export async function getPeopleToInvite(playerId: string, q = '', limit = 40): Promise<InvitePerson[]> {
+  const query = String(q ?? '').trim().slice(0, 24);
+
+  const knownRows = await sql`
+    SELECT CASE WHEN from_id = ${playerId} THEN to_id ELSE from_id END AS pid
+      FROM friendships WHERE (from_id = ${playerId} OR to_id = ${playerId}) AND status = 'accepted'
+    UNION SELECT following_id FROM follows WHERE follower_id = ${playerId}
+    UNION SELECT follower_id  FROM follows WHERE following_id = ${playerId}
+  ` as any[];
+  const known = new Set<string>(knownRows.map((r: any) => r.pid as string));
+
+  let rows: any[];
+  if (query) {
+    // Search everyone. The numeric id is matched exactly so "#412" finds one
+    // person rather than every name containing 412.
+    rows = await sql`
+      SELECT id, username, avatar, avatar_url, public_id, level
+        FROM players
+       WHERE id <> ${playerId}
+         AND (username ILIKE ${'%' + query + '%'} OR CAST(public_id AS TEXT) = ${query.replace(/^#/, '')})
+       ORDER BY LENGTH(username) ASC
+       LIMIT 80
+    ` as any[];
+  } else {
+    const ids = [...new Set([...known, ...getOnlineProfileIds()])].filter(id => id !== playerId);
+    if (ids.length === 0) return [];
+    rows = await sql`
+      SELECT id, username, avatar, avatar_url, public_id, level
+        FROM players WHERE id = ANY(${ids}) LIMIT 300
+    ` as any[];
+  }
+
+  const people: InvitePerson[] = rows.map((r: any) => ({
+    profileId: r.id,
+    username: r.username,
+    avatar: r.avatar,
+    avatarUrl: r.avatar_url ?? null,
+    publicId: r.public_id != null ? Number(r.public_id) : null,
+    level: Number(r.level ?? 1),
+    isOnline: isOnline(r.id),
+    status: 'accepted' as const,
+    playerStatus: getPlayerStatus(r.id),
+    presence: getPlayerPresence(r.id),
+    isKnown: known.has(r.id),
+  }));
+
+  people.sort((a, b) =>
+    Number(b.isOnline) - Number(a.isOnline) ||
+    Number(b.isKnown) - Number(a.isKnown) ||
+    a.username.localeCompare(b.username));
+  return people.slice(0, limit);
+}
+
 // Just the accepted-friend profile ids (lightweight — for notifications).
 export async function getFriendIds(playerId: string): Promise<string[]> {
   const rows = await sql`

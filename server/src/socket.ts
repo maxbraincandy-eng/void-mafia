@@ -59,7 +59,7 @@ import {
   removeFriend, getFriends, getInvitablePeople, getPendingRequests, getOnlineCount, getFriendshipStatus, isOnline, getSpectatingCount,
   setLoungePresence, clearLoungePresence, getFriendIds, getPlayerStatus,
   setInvisible, isInvisible, setGhost, isGhost, getPeakOnline, getOnlineCountRaw,
-  getFriendSuggestions,
+  getFriendSuggestions, getPeopleToInvite,
 } from './services/friendService.js';
 import {
   checkAndAwardChallenges, getDailyQuestsForPlayer,
@@ -1278,6 +1278,49 @@ const ReportSchema = z.object({
   ]),
   details: z.string().max(500).default(''),
 });
+
+// ── Game invites ──────────────────────────────────────────────────────
+/**
+ * The games an invite can carry someone into, and how they are announced.
+ *
+ * A match code is worthless without knowing which game it opens, and this is
+ * the one place that mapping lives — the client's overlay reads the same names
+ * back from the invite it receives.
+ */
+const INVITABLE_GAMES: Record<string, { name: string; emoji: string }> = {
+  checkers:  { name: 'შაშკი',                 emoji: '⚪' },
+  ludo:      { name: 'ლუდო',                  emoji: '🎲' },
+  uno:       { name: 'UNO',                   emoji: '🎴' },
+  joker:     { name: 'ჯოკერი',                emoji: '🃏' },
+  www:       { name: 'ვინ იქნება მილიონერი',  emoji: '❓' },
+  lies:      { name: 'ტყუილების ოსტატი',      emoji: '🎭' },
+  spyfall:   { name: 'ჯაშუში',                emoji: '🕵️' },
+  codenames: { name: 'Codenames',             emoji: '🔤' },
+  alias:     { name: 'ალიასი',                emoji: '🗣' },
+  draw:      { name: 'დახაზე & გამოიცანი',    emoji: '🎨' },
+};
+
+/**
+ * Invites now reach strangers, which is the point — a table short of players
+ * cannot wait for a friend request to be accepted. It also means anyone could
+ * aim a full-screen overlay at anyone, so the same invite cannot be repeated at
+ * one person, and no one can fan out faster than a person filling a lobby.
+ */
+const _invitesSent = new Map<string, number[]>();     // inviter → recent timestamps
+const _invitePairs = new Map<string, number>();       // inviter→target → last sent
+const INVITE_BURST = 20;          // per minute, enough for the biggest lobby
+const INVITE_PAIR_COOLDOWN = 45_000;
+function assertInviteAllowance(fromId: string, toId: string): void {
+  const now = Date.now();
+  const recent = (_invitesSent.get(fromId) ?? []).filter(t => now - t < 60_000);
+  if (recent.length >= INVITE_BURST) throw new Error('ძალიან ბევრი მოწვევა — დაიცადე წუთი.');
+  const pair = `${fromId}>${toId}`;
+  if (now - (_invitePairs.get(pair) ?? 0) < INVITE_PAIR_COOLDOWN) throw new Error('უკვე მიიწვიე — ცოტა მოითმინე.');
+  recent.push(now);
+  _invitesSent.set(fromId, recent);
+  _invitePairs.set(pair, now);
+  if (_invitePairs.size > 5000) for (const [k, t] of _invitePairs) if (now - t > INVITE_PAIR_COOLDOWN) _invitePairs.delete(k);
+}
 
 // ── Smart presence notifications ──────────────────────────────────────
 // Tell a player's friends when they start something worth joining (created a
@@ -5394,20 +5437,52 @@ export function attachSocketHandlers(io: AppServer): void {
       } catch (e: any) { cb(err(e.message)); }
     });
 
-    // ── Generic game invite (Checkers / Ludo / UNO / Joker / WWW) ──────────
+    /**
+     * Who can be invited to a match — anyone, not only friends.
+     *
+     * Empty query = the people you know plus everyone online right now; a
+     * query searches every account by name or #id. See getPeopleToInvite.
+     */
+    socket.on('invite:people' as any, async ({ q }: { q?: string }, cb: (r: any) => void) => {
+      try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
+        cb(ok(await getPeopleToInvite(profileId, String(q ?? ''))));
+      } catch (e: any) { cb(err(e.message)); }
+    });
+
+    // ── Generic game invite ───────────────────────────────────────────────
     socket.on('game:invite', async ({ targetProfileId, game, code }: { targetProfileId: string; game: string; code: string }, cb) => {
       try {
         const profileId = socket.data.profileId;
         if (!profileId) throw new Error('Not authenticated.');
-        if (!['checkers', 'ludo', 'uno', 'joker', 'www'].includes(game) || !code) throw new Error('Invalid invite.');
-        const targetSock = findSocketByProfile(io as any, String(targetProfileId));
-        if (!targetSock) throw new Error('მოთამაშე ოფლაინია.');
+        const label = INVITABLE_GAMES[game];
+        if (!label || !code) throw new Error('Invalid invite.');
+        const targetId = String(targetProfileId);
+        if (targetId === profileId) throw new Error('Cannot invite yourself.');
+        // Invitable-by-anyone means invitable by a stranger, so the only thing
+        // standing between a lobby and a spam cannon is this.
+        assertInviteAllowance(profileId, targetId);
+
         const me = await getPlayer(profileId);
-        targetSock.emit('game:invite_received', {
-          game, code: String(code).toUpperCase().slice(0, 12),
-          fromName: me?.username ?? 'Someone', fromAvatar: me?.avatar ?? '🎮',
+        const from = me?.username ?? 'Someone';
+        const clean = String(code).toUpperCase().slice(0, 12);
+        const targetSock = findSocketByProfile(io as any, targetId);
+        if (targetSock) {
+          targetSock.emit('game:invite_received', {
+            game, code: clean, fromName: from, fromAvatar: me?.avatar ?? '🎮',
+          });
+          cb(ok({ delivered: 'live' }));
+          return;
+        }
+        // Offline: the invite still leaves, as a notification. It may be read
+        // after the match is over — say so rather than pretending it arrived.
+        await sendPushToUser(targetId, {
+          title: `${label.emoji} ${label.name}`,
+          body: `${from} გიწვევს — კოდი ${clean}`,
+          tag: 'game-invite',
         });
-        cb(ok(null));
+        cb(ok({ delivered: 'push' }));
       } catch (e: any) { cb(err(e.message)); }
     });
 

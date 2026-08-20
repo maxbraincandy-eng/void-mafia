@@ -7,6 +7,7 @@ import { useAliasStore } from '@/store/aliasStore';
 import { useLiveKitGate, useLivekitRoomVoice } from '@/hooks/useLivekitVoice';
 import { LiveKitVoiceBarView } from '@/components/game/LiveKitVoiceBar';
 import { VoiceDisguiseButton } from '@/components/game/VoiceDisguiseButton';
+import { GameInviteButton } from '@/components/social/GameInviteButton';
 
 /**
  * ალიასი — team word game. Describer sees the word + ✓/skip; teammates guess
@@ -104,6 +105,8 @@ export function AliasGame() {
               <p className="text-center font-mono text-[12px] text-white/40 mb-1">გაუზიარე კოდი მეგობრებს</p>
               <button onClick={() => { try { navigator.clipboard?.writeText(match.code); } catch { /* ignore */ } }}
                 className="font-mono font-bold text-3xl tracking-[0.3em] text-neon-cyan mb-4 mx-auto block">{match.code}</button>
+              {/* A code only reaches whoever is already listening. */}
+              <div className="flex justify-center mb-4"><GameInviteButton game="alias" code={match.code} /></div>
 
               <div className="flex gap-2 mb-4">
                 {[0, 1].map(t => (

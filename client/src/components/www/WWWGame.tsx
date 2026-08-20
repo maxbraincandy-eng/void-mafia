@@ -6,6 +6,7 @@ import { useWWWVoice } from '@/hooks/useWWWVoice';
 import { useLiveKitGate, useLivekitRoomVoice } from '@/hooks/useLivekitVoice';
 import { LiveKitVoiceBarView } from '@/components/game/LiveKitVoiceBar';
 import { useT } from '@/store/langStore';
+import { GameInviteButton } from '@/components/social/GameInviteButton';
 import type { WWWMatchPublic, WWWTeam, WWWAnswer } from '@/types/www';
 
 const ACCENT = '#a855f7';
@@ -226,6 +227,9 @@ function WaitingScreen({
         <p className="font-display font-bold text-4xl tracking-normal" style={{ color: ACCENT }}>{match.code}</p>
         <p className="font-mono text-[12px] text-white/25 mt-2">{t.wwwGame.shareWithFriends}</p>
       </div>
+
+      {/* A code only reaches whoever is already listening. */}
+      <div className="flex justify-center"><GameInviteButton game="www" code={match.code} /></div>
 
       {/* Host / moderator */}
       <div className="rounded-2xl px-4 py-3 flex items-center gap-2.5" style={{ background: 'rgba(168,85,247,0.08)', border: `1px solid ${ACCENT}30` }}>

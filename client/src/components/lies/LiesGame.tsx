@@ -8,6 +8,7 @@ import { useLiesStore } from '@/store/liesStore';
 import { useLiveKitGate, useLivekitRoomVoice } from '@/hooks/useLivekitVoice';
 import { LiveKitVoiceBarView } from '@/components/game/LiveKitVoiceBar';
 import { VoiceDisguiseButton } from '@/components/game/VoiceDisguiseButton';
+import { GameInviteButton } from '@/components/social/GameInviteButton';
 
 /**
  * ტყუილების ოსტატი (Master of Lies) — social bluffing overlay. The game shows a
@@ -136,6 +137,12 @@ export function LiesGame() {
                     <span>🎯 ნამდვილის პოვნა: <b style={{ color: '#7fe0a0' }}>+1000</b></span>
                     <span>😈 ვინც შენს ტყუილს აირჩევს: <b style={{ color: ACCENT }}>+500</b></span>
                   </div>
+                </div>
+
+                {/* Three players minimum, and a code alone only reaches people
+                    already in the room with you. */}
+                <div className="flex justify-center mb-4">
+                  <GameInviteButton game="lies" code={match.code} />
                 </div>
 
                 <p className="font-mono text-[11px] uppercase tracking-widest text-white/35 mb-2">მოთამაშეები {match.players.length}/{match.maxPlayers}</p>
