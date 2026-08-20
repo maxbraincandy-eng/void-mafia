@@ -18,6 +18,7 @@ import {
 } from 'livekit-client';
 import { tNow } from '@/store/langStore';
 import { applyVoiceMask, resetVoiceMask, type VoiceMaskPreset } from '@/lib/voiceMask';
+import { prepareCapture, setCaptureLive } from '@/lib/voiceCapture';
 import type { Disguise } from '@/lib/voiceDisguise';
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL ?? '';
@@ -51,6 +52,9 @@ const INITIAL: LiveKitVoiceState = {
 
 // ── Module-level singleton ─────────────────────────────────────────────
 let room: Room | null = null;
+// Whether OUR microphone is currently open, so the audio session is not pulled
+// out from under it by a voice post being played somewhere else in the app.
+let micLive = false;
 let state: LiveKitVoiceState = { ...INITIAL };
 let currentRoomId: string | null = null;
 let joinSeq = 0; // guards against races between rapid join/leave
@@ -342,7 +346,12 @@ export async function joinLiveKitVoice(identity: string, roomId: string, opts: J
     // Alive players publish their mic on by default; dead players stay muted.
     if (alive) {
       try {
+        // Safari refuses capture outright while its audio session is in the
+        // 'playback' category — which is where playing any voice clip leaves it.
+        prepareCapture();
         await r.localParticipant.setMicrophoneEnabled(true);
+        setCaptureLive(true);
+        micLive = true;
         patch({ micEnabled: true });
       } catch (micErr: any) {
         // iOS blocks getUserMedia outside a user gesture. The ROOM connection
@@ -372,6 +381,12 @@ function friendlyLiveKitError(e: any): string {
   if (/NotReadable|in use/i.test(raw)) {
     return tNow().misc.micBusy;
   }
+  // Safari's session category. prepareCapture() clears this before every mic
+  // grab; if it still shows up, the page has an audio route it will not give
+  // back, and a reload is genuinely the fix.
+  if (/AudioSession/i.test(raw)) {
+    return 'ხმის სესია დაკავებულია — გადატვირთე გვერდი';
+  }
   // LiveKit publish-permission / "insufficient permissions" errors are NOT
   // user-actionable and self-heal (fresh token grants publish + reconnect
   // retry). Never show them — they only confuse. Log-only.
@@ -388,6 +403,7 @@ function armLiveKitMicGestureRetry(r: Room): void {
     document.removeEventListener('touchend', retry);
     document.removeEventListener('click', retry);
     if (room !== r || state.dead || state.forceMuted || state.micEnabled) return;
+    prepareCapture();
     r.localParticipant.setMicrophoneEnabled(true)
       .then(() => patch({ micEnabled: true, error: null }))
       .catch(() => { /* the 🎙 button remains as the manual path */ });
@@ -401,7 +417,9 @@ export async function setLiveKitMic(enabled: boolean): Promise<void> {
   if (!room) return;
   if ((state.dead || state.forceMuted) && enabled) return; // locked — cannot un-mute
   try {
+    if (enabled) prepareCapture();
     await room.localParticipant.setMicrophoneEnabled(enabled);
+    if (enabled !== micLive) { setCaptureLive(enabled); micLive = enabled; }
     patch({ micEnabled: enabled, error: null });
   } catch (e: any) {
     // "insufficient permissions" means this connection is holding a stale token
@@ -416,7 +434,7 @@ export async function setLiveKitMic(enabled: boolean): Promise<void> {
         await leaveLiveKitVoice();
         if (rid) await joinLiveKitVoice(id, rid, { alive: !wasDead });
         await new Promise(r => setTimeout(r, 250));
-        if (room) { await room.localParticipant.setMicrophoneEnabled(true); patch({ micEnabled: true, error: null }); }
+        if (room) { prepareCapture(); await room.localParticipant.setMicrophoneEnabled(true); patch({ micEnabled: true, error: null }); }
       } catch { patch({ micEnabled: false, error: friendlyLiveKitError(e) }); }
       finally { _micPermRetry = false; }
       return;
@@ -441,6 +459,7 @@ export async function setLiveKitForceMuted(muted: boolean, reason?: string | nul
   } else if (!state.dead) {
     // Turn comes around → go live automatically (matches the game's design).
     try {
+      prepareCapture();
       await room.localParticipant.setMicrophoneEnabled(true);
       patch({ micEnabled: true, error: null });
     } catch {
@@ -501,6 +520,7 @@ export async function setLiveKitDead(dead: boolean): Promise<void> {
 
 /** Leave the current room and clean up all remote audio elements. */
 export async function leaveLiveKitVoice(): Promise<void> {
+  if (micLive) { setCaptureLive(false); micLive = false; }
   joinSeq++; // cancel any in-flight join
   currentRoomId = null;
   const r = room;

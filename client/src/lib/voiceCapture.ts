@@ -76,6 +76,42 @@ function audioSession(): { type: string } | null {
 }
 
 /**
+ * Tell Safari we are about to use the microphone.
+ *
+ * THE FAILURE THIS EXISTS FOR
+ * ───────────────────────────
+ * Safari's audio session has a category, and `preparePlayback()` below sets it
+ * to 'playback' so a voice note comes out of the loudspeaker instead of the
+ * earpiece. That category is not merely a routing hint: while it is set,
+ * getUserMedia for audio is REFUSED outright, with
+ *
+ *     AudioSession category is not compatible with audio capture.
+ *
+ * So playing one voice post could leave the microphone unusable for the rest of
+ * the session — no game voice, no calls, no recording — and the error surfaced
+ * as an unexplained failure to turn the mic on. Every path that is about to
+ * capture calls this first; it does nothing where the API does not exist.
+ */
+export function prepareCapture(): void {
+  const s = audioSession();
+  if (!s) return;
+  try { s.type = 'play-and-record'; } catch { /* not settable here */ }
+}
+
+/**
+ * …and the same trap in reverse.
+ *
+ * A live microphone — a game's voice chat, a call — must not be dropped into
+ * the 'playback' category by somebody hitting play on a voice post in another
+ * tab of the app. While a capture is open, `preparePlayback()` below stands
+ * down; the routing is already right, because capture set it.
+ */
+let liveCaptures = 0;
+export function setCaptureLive(on: boolean): void {
+  liveCaptures = on ? liveCaptures + 1 : Math.max(0, liveCaptures - 1);
+}
+
+/**
  * Put audio output back on the loudspeaker.
  *
  * After the microphone has been used, iOS keeps the session in play-and-record
@@ -83,6 +119,7 @@ function audioSession(): { type: string } | null {
  * should call this first; it does nothing on platforms without the API.
  */
 export function preparePlayback(): void {
+  if (liveCaptures > 0) return;   // a microphone is open; leave the session alone
   const s = audioSession();
   if (!s) return;
   try { s.type = 'playback'; } catch { /* not settable here */ }
@@ -123,9 +160,9 @@ const LADDER: MediaStreamConstraints[] = [
 ];
 
 export async function startVoiceCapture(): Promise<VoiceCapture> {
-  // Tell iOS we are about to record, so it does not have to guess.
-  const session = audioSession();
-  if (session) { try { session.type = 'play-and-record'; } catch { /* ignore */ } }
+  // Tell Safari we are about to record — and unblock capture if a clip was
+  // played earlier in this session.
+  prepareCapture();
 
   let stream: MediaStream | null = null;
   let lastError: unknown = null;
@@ -163,6 +200,7 @@ export async function startVoiceCapture(): Promise<VoiceCapture> {
 
   const track = stream.getAudioTracks()[0];
   let stopped = false;
+  setCaptureLive(true);
 
   return {
     stream,
@@ -181,6 +219,7 @@ export async function startVoiceCapture(): Promise<VoiceCapture> {
     stop: () => {
       if (stopped) return;
       stopped = true;
+      setCaptureLive(false);
       stream.getTracks().forEach(t => t.stop());
       try { void meterCtx?.close(); } catch { /* already closed */ }
       // Hand the loudspeaker back before anything is played.

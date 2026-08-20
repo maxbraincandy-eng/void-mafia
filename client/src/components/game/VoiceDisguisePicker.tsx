@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useIncognitoStore } from '@/store/incognitoStore';
+import { prepareCapture } from '@/lib/voiceCapture';
 import {
   NATURAL, SYNTHETIC, DISGUISE_LABEL, DISGUISE_ICON, buildDisguise, type Disguise,
 } from '@/lib/voiceDisguise';
@@ -28,6 +29,7 @@ export function useVoicePreview() {
     if (state !== 'idle') return;
     let stream: MediaStream | null = null;
     try {
+      prepareCapture();   // Safari blocks capture while the session is 'playback'
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const chunks: Blob[] = [];
       const mr = new MediaRecorder(stream);

@@ -285,18 +285,18 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms }: { onOpenSpace?: () =>
     checkers: {
       accent: '#b06cff', onCreate: handleCkCreate, loading: ckLoading, joinCode: ckJoinCode, setJoinCode: setCkJoinCode,
       onJoin: handleCkJoin, codeMax: 7, codePh: 'CK-0000', list: ckList, error: ckError, clearError: ckClear,
-      renderRow: m => <CheckersRow key={m.id} match={m} onJoin={code => { recordRecent('checkers'); ckJoin(code, playerName); }} />,
+      renderRow: (m, done) => <CheckersRow key={m.id} match={m} onJoin={code => { recordRecent('checkers'); ckJoin(code, playerName); done(); }} />,
     },
     ludo: {
       accent: '#22c55e', onCreate: handleLdCreate, loading: ldLoading, joinCode: ldJoinCode, setJoinCode: setLdJoinCode,
       onJoin: handleLdJoin, codeMax: 7, codePh: 'LD-0000', list: ldList, error: ldError, clearError: ldClear,
-      renderRow: m => <LudoRow key={m.id} match={m} onJoin={code => { recordRecent('ludo'); ldJoin(code, playerName); }} />,
+      renderRow: (m, done) => <LudoRow key={m.id} match={m} onJoin={code => { recordRecent('ludo'); ldJoin(code, playerName); done(); }} />,
       extra: <NumPicker label="Max" accent="#22c55e" values={[2, 3, 4]} value={ldMaxPlayers} onChange={n => setLdMaxPlayers(n as 2 | 3 | 4)} />,
     },
     joker: {
       accent: '#fbbf24', onCreate: handleJkCreate, loading: jkLoading, joinCode: jkJoinCode, setJoinCode: setJkJoinCode,
       onJoin: handleJkJoin, codeMax: 7, codePh: 'JK-0000', list: jkList, error: jkError, clearError: jkClear,
-      renderRow: m => <JokerRow key={m.id} match={m} onJoin={code => { recordRecent('joker'); jkJoin(code, playerName); }} />,
+      renderRow: (m, done) => <JokerRow key={m.id} match={m} onJoin={code => { recordRecent('joker'); jkJoin(code, playerName); done(); }} />,
       extra: (
         <div className="flex flex-col gap-2">
           <div className="flex gap-2 flex-wrap">
@@ -323,43 +323,43 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms }: { onOpenSpace?: () =>
     uno: {
       accent: '#fb923c', onCreate: handleUnoCreate, loading: unoLoading, joinCode: unoJoinCode, setJoinCode: setUnoJoinCode,
       onJoin: handleUnoJoin, codeMax: 7, codePh: 'UN-0000', list: unoList, error: unoError, clearError: unoClear,
-      renderRow: m => <UnoRow key={m.id} match={m} onJoin={code => { recordRecent('uno'); unoJoin(code, playerName); }} onSpectate={code => unoSpectate(code)} />,
+      renderRow: (m, done) => <UnoRow key={m.id} match={m} onJoin={code => { recordRecent('uno'); unoJoin(code, playerName); done(); }} onSpectate={code => { unoSpectate(code); done(); }} />,
       extra: <NumPicker label={t.games.uno.maxPlayers} accent="#fb923c" values={[2, 3, 4, 6, 8, 10]} value={unoMaxPlayers} onChange={setUnoMaxPlayers} />,
     },
     www: {
       accent: '#c084fc', onCreate: handleWwCreate, loading: wwLoading, joinCode: wwJoinCode, setJoinCode: setWwJoinCode,
       onJoin: handleWwJoin, codeMax: 6, codePh: 'XXXXXX', list: wwList, error: wwError, clearError: wwClear,
-      renderRow: m => <WWWRow key={m.id} match={m} onJoin={code => { recordRecent('www'); wwJoin(code, playerName); }} />,
+      renderRow: (m, done) => <WWWRow key={m.id} match={m} onJoin={code => { recordRecent('www'); wwJoin(code, playerName); done(); }} />,
     },
     blackout: {
       accent: '#ffd34d', onCreate: handleBoCreate, loading: boLoading, joinCode: boJoinCode, setJoinCode: setBoJoinCode,
       onJoin: handleBoJoin, codeMax: 6, codePh: 'XXXXXX', list: boList, error: boError, clearError: boClear,
-      renderRow: m => <BlackoutRow key={m.id} match={m} onJoin={code => { recordRecent('blackout'); boJoin(code, playerName); }} />,
+      renderRow: (m, done) => <BlackoutRow key={m.id} match={m} onJoin={code => { recordRecent('blackout'); boJoin(code, playerName); done(); }} />,
     },
     spyfall: {
       accent: '#ff5d6c', onCreate: handleSpCreate, loading: spLoading, joinCode: spJoinCode, setJoinCode: setSpJoinCode,
       onJoin: handleSpJoin, codeMax: 6, codePh: 'XXXXXX', list: spList, error: spError, clearError: spClear,
-      renderRow: m => <SpyfallRow key={m.id} match={m} onJoin={code => { recordRecent('spyfall'); spJoin(code, playerName); }} />,
+      renderRow: (m, done) => <SpyfallRow key={m.id} match={m} onJoin={code => { recordRecent('spyfall'); spJoin(code, playerName); done(); }} />,
     },
     lies: {
       accent: '#a855f7', onCreate: handleLiCreate, loading: liLoading, joinCode: liJoinCode, setJoinCode: setLiJoinCode,
       onJoin: handleLiJoin, codeMax: 6, codePh: 'XXXXXX', list: liList, error: liError, clearError: liClear,
-      renderRow: m => <LiesRow key={m.id} match={m} onJoin={code => { recordRecent('lies'); liJoin(code, playerName); }} />,
+      renderRow: (m, done) => <LiesRow key={m.id} match={m} onJoin={code => { recordRecent('lies'); liJoin(code, playerName); done(); }} />,
     },
     alias: {
       accent: '#4d9fff', onCreate: handleAlCreate, loading: alLoading, joinCode: alJoinCode, setJoinCode: setAlJoinCode,
       onJoin: handleAlJoin, codeMax: 6, codePh: 'XXXXXX', list: alList, error: alError, clearError: alClear,
-      renderRow: m => <AliasRow key={m.id} match={m} onJoin={code => { recordRecent('alias'); alJoin(code, playerName); }} />,
+      renderRow: (m, done) => <AliasRow key={m.id} match={m} onJoin={code => { recordRecent('alias'); alJoin(code, playerName); done(); }} />,
     },
     draw: {
       accent: '#ff8c26', onCreate: handleDrCreate, loading: drLoading, joinCode: drJoinCode, setJoinCode: setDrJoinCode,
       onJoin: handleDrJoin, codeMax: 6, codePh: 'XXXXXX', list: drList, error: drError, clearError: drClear,
-      renderRow: m => <DrawRow key={m.id} match={m} onJoin={code => { recordRecent('draw'); drJoin(code, playerName); }} />,
+      renderRow: (m, done) => <DrawRow key={m.id} match={m} onJoin={code => { recordRecent('draw'); drJoin(code, playerName); done(); }} />,
     },
     codenames: {
       accent: '#c084fc', onCreate: handleCnCreate, loading: cnLoading, joinCode: cnJoinCode, setJoinCode: setCnJoinCode,
       onJoin: handleCnJoin, codeMax: 6, codePh: 'XXXXXX', list: cnList, error: cnError, clearError: cnClear,
-      renderRow: m => <CodenamesRow key={m.id} match={m} onJoin={code => { recordRecent('codenames'); cnJoin(code, playerName); }} />,
+      renderRow: (m, done) => <CodenamesRow key={m.id} match={m} onJoin={code => { recordRecent('codenames'); cnJoin(code, playerName); done(); }} />,
     },
   };
 
@@ -678,7 +678,8 @@ interface LauncherCfg {
   list: any[];
   error: any;
   clearError: () => void;
-  renderRow: (m: any) => JSX.Element;
+  /** `done` closes the launcher — a row that takes you into a game must call it. */
+  renderRow: (m: any, done: () => void) => JSX.Element;
   extra?: JSX.Element;
 }
 
@@ -707,7 +708,7 @@ function MatchLauncher({ cfg, onDone, onRecord }: { cfg: LauncherCfg; onDone: ()
       {cfg.list.length > 0 && (
         <div className="space-y-1 max-h-56 overflow-y-auto pt-1">
           <p className="font-mono text-[11px] uppercase tracking-widest text-white/25">ღია თამაშები</p>
-          {cfg.list.map(cfg.renderRow)}
+          {cfg.list.map((m: any) => cfg.renderRow(m, onDone))}
         </div>
       )}
     </div>

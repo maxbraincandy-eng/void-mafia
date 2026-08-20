@@ -11,6 +11,7 @@
  */
 
 import { getRTCConfig } from '@/lib/rtcConfig';
+import { prepareCapture } from '@/lib/voiceCapture';
 
 const isDev = import.meta.env.DEV;
 
@@ -266,6 +267,11 @@ export class WebRTCSession {
     }
 
     log('requesting media — audio:', wantAudio, 'video:', wantVideo);
+
+    // Safari refuses audio capture while its audio session is in the 'playback'
+    // category, which is where playing any voice clip leaves it. See
+    // lib/voiceCapture.prepareCapture.
+    if (wantAudio) prepareCapture();
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
