@@ -87,6 +87,8 @@ export interface JokerMatch {
     pulkaExacts: Record<string, Record<number, number>>;
     botPlayerIds: string[];
     chat: JokerChatMsg[];
+    /** Ended because somebody walked out, rather than by being played to the end. */
+    dissolved: boolean;
     createdAt: number;
     updatedAt: number;
 }
@@ -175,6 +177,9 @@ export declare function getOpenMatches(): JokerMatch[];
 export declare function getMatchForSocket(socketId: string): JokerMatch | undefined;
 /**
  * Mark the match as finished and schedule its deletion after 10 minutes.
+ *
+ * `dissolved` separates "the table broke up" from "the game was played out" —
+ * the end screen says a different thing for each.
  */
-export declare function finishMatch(match: JokerMatch): void;
+export declare function finishMatch(match: JokerMatch, dissolved?: boolean): void;
 //# sourceMappingURL=jokerService.d.ts.map

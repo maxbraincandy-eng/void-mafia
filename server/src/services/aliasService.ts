@@ -10,6 +10,18 @@
 import { randomBytes } from 'crypto';
 import { ALIAS_WORDS } from './aliasWords.js';
 
+/**
+ * A room is only open while somebody is still in it.
+ *
+ * Every listing used to go by status alone, so a lobby whose players had all
+ * closed the app went on being advertised until the three-hour sweep — and a
+ * player tapping it walked into an empty table. Presence is the honest test.
+ */
+function hasSomeoneIn(players: Array<{ connected: boolean }>): boolean {
+  return players.some(p => p.connected);
+}
+
+
 export type AliasStatus = 'waiting' | 'play' | 'finished';
 
 export interface AliasPlayer {
@@ -113,7 +125,7 @@ export function getMatch(id: string): AliasMatch | null { return matches.get(id)
 export function getMatchByCode(code: string): AliasMatch | null { for (const m of matches.values()) if (m.code === code && m.status !== 'finished') return m; return null; }
 export function getMatchForSocket(socketId: string): AliasMatch | null { for (const m of matches.values()) if (m.players.some(p => p.socketId === socketId)) return m; return null; }
 export function listMatches(): AliasListItem[] {
-  return [...matches.values()].filter(m => m.status === 'waiting').map(m => ({
+  return [...matches.values()].filter(m => m.status === 'waiting' && hasSomeoneIn(m.players)).map(m => ({
     id: m.id, code: m.code, hostName: m.players.find(p => p.userId === m.hostId)?.nickname ?? '?',
     playerCount: m.players.length, maxPlayers: m.maxPlayers, status: m.status,
   }));

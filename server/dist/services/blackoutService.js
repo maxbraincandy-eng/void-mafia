@@ -12,6 +12,16 @@
  * in-memory Maps, reconnect-aware join, 3h auto-GC.
  */
 import { randomBytes } from 'crypto';
+/**
+ * A room is only open while somebody is still in it.
+ *
+ * Every listing used to go by status alone, so a lobby whose players had all
+ * closed the app went on being advertised until the three-hour sweep — and a
+ * player tapping it walked into an empty table. Presence is the honest test.
+ */
+function hasSomeoneIn(players) {
+    return players.some(p => p.connected);
+}
 // ── World constants (client mirrors these for rendering/physics) ────────
 export const WORLD_W = 1600;
 export const WORLD_H = 1200;
@@ -96,7 +106,7 @@ export function getMatchForSocket(socketId) {
 }
 export function listMatches() {
     return [...matches.values()]
-        .filter(m => m.status === 'waiting')
+        .filter(m => m.status === 'waiting' && hasSomeoneIn(m.players))
         .map(m => ({
         id: m.id, code: m.code,
         hostName: m.players.find(p => p.userId === m.hostId)?.nickname ?? '?',
@@ -125,6 +135,14 @@ export function leaveMatch(matchId, userId) {
     if (!m)
         return null;
     playerMatch.delete(userId);
+    // The host leaving ends it for everyone — a room without its host is not a
+    // room, and it should stop appearing as one.
+    if (m.hostId === userId && m.status !== 'finished') {
+        m.status = 'finished';
+        for (const p of m.players)
+            playerMatch.delete(p.userId);
+        return m;
+    }
     if (m.status === 'waiting' || m.status === 'finished') {
         m.players = m.players.filter(p => p.userId !== userId);
         m.players.forEach((p, i) => { p.seat = i; });

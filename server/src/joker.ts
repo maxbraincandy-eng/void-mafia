@@ -73,6 +73,7 @@ function toPublic(match: JokerMatch) {
     scores: match.scores,
     roundHistory: match.roundHistory,
     chat: match.chat.slice(-80),
+    dissolved: match.dissolved,
     winnerPlayerId: match.status === 'finished'
       ? Object.entries(match.scores).sort(([, a], [, b]) => b - a)[0]?.[0] ?? null
       : null,
@@ -352,11 +353,19 @@ export function registerJokerHandlers(io: AppServer, socket: AppSocket): void {
       if (!match) return cb(err('Match not found.'));
       if (match.status === 'finished') return cb(err('This match has ended.'));
 
-      const existingPlayer = match.players.find(p => p.socketId === socket.id);
+      // By IDENTITY, not by socket. Matching only on the socket meant the same
+      // account arriving from a second tab — or after a reconnect — was seated
+      // twice under one name, and the extra row then sat in the lobby forever
+      // because leaving only ever removed the socket that asked.
+      const playerId = socket.data.profileId ?? socket.id;
+      const existingPlayer = match.players.find(p => p.id === playerId || p.socketId === socket.id);
       if (existingPlayer) {
+        existingPlayer.socketId = socket.id;
+        existingPlayer.isBot = false;
+        match.botPlayerIds = match.botPlayerIds.filter(id => id !== existingPlayer.id);
         socket.join(JOKER_ROOM(match.id));
-        const hand = match.hands[existingPlayer.id] ?? [];
-        socket.emit('joker:hand' as any, hand);
+        socket.emit('joker:hand' as any, match.hands[existingPlayer.id] ?? []);
+        broadcastState(io, match);
         return cb(ok(toPublic(match)));
       }
 
@@ -367,7 +376,6 @@ export function registerJokerHandlers(io: AppServer, socket: AppSocket): void {
 
       if (match.players.length < 4 && match.status === 'waiting') {
         const nextSeat = match.players.length;
-        const playerId = socket.data.profileId ?? socket.id;
 
         const joiner = socket.data.profileId ? await getPlayer(socket.data.profileId) : null;
         const newPlayer: JokerPlayer = {
@@ -709,14 +717,34 @@ function handleJokerLeave(io: AppServer, socketId: string, match: JokerMatch): v
     match.status === 'round_end'
   ) {
     clearTurnTimer(match.id);
-    finishMatch(match);
+    finishMatch(match, true);
     broadcastState(io, match);
     io.emit('joker:list_update' as any, getOpenMatches().map(toListItem));
   } else if (match.status === 'waiting' && player.seatIndex === 0) {
+    // The host closed the table. Say so BEFORE emptying the room — kicking
+    // everyone out first meant the last thing they were told was "waiting",
+    // and their screen sat in a lobby that no longer existed.
     clearTurnTimer(match.id);
-    const rk = JOKER_ROOM(match.id);
-    io.in(rk).socketsLeave(rk);
-    finishMatch(match);
+    finishMatch(match, true);
+    broadcastState(io, match);
+    io.in(JOKER_ROOM(match.id)).socketsLeave(JOKER_ROOM(match.id));
+    io.emit('joker:list_update' as any, getOpenMatches().map(toListItem));
+  } else if (match.status === 'waiting') {
+    // Anyone else simply gives up their seat. Doing nothing here is what left
+    // rooms advertising four players when three of them had gone.
+    match.players = match.players.filter(p => p.id !== player.id);
+    match.players.forEach((p, i) => { p.seatIndex = i; });
+    delete match.hands[player.id];
+    delete match.scores[player.id];
+    delete match.tricksTaken[player.id];
+    delete match.declarations[player.id];
+    delete match.pulkaExacts[player.id];
+    match.botPlayerIds = match.botPlayerIds.filter(id => id !== player.id);
+    if (match.players.length === 0) {
+      finishMatch(match);
+    } else {
+      broadcastState(io, match);
+    }
     io.emit('joker:list_update' as any, getOpenMatches().map(toListItem));
   }
 }

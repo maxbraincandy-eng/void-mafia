@@ -7,6 +7,18 @@
 import { randomBytes } from 'crypto';
 import { DRAW_WORDS } from './drawWords.js';
 
+/**
+ * A room is only open while somebody is still in it.
+ *
+ * Every listing used to go by status alone, so a lobby whose players had all
+ * closed the app went on being advertised until the three-hour sweep — and a
+ * player tapping it walked into an empty table. Presence is the honest test.
+ */
+function hasSomeoneIn(players: Array<{ connected: boolean }>): boolean {
+  return players.some(p => p.connected);
+}
+
+
 export type DrawStatus = 'waiting' | 'choosing' | 'drawing' | 'turnend' | 'finished';
 
 export interface DrawSeg { x0: number; y0: number; x1: number; y1: number; c: string; w: number }
@@ -85,7 +97,7 @@ export function getMatch(id: string): DrawMatch | null { return matches.get(id) 
 export function getMatchByCode(code: string): DrawMatch | null { for (const m of matches.values()) if (m.code === code && m.status !== 'finished') return m; return null; }
 export function getMatchForSocket(socketId: string): DrawMatch | null { for (const m of matches.values()) if (m.players.some(p => p.socketId === socketId)) return m; return null; }
 export function listMatches(): DrawListItem[] {
-  return [...matches.values()].filter(m => m.status === 'waiting').map(m => ({ id: m.id, code: m.code, hostName: m.players.find(p => p.userId === m.hostId)?.nickname ?? '?', playerCount: m.players.length, maxPlayers: m.maxPlayers, status: m.status }));
+  return [...matches.values()].filter(m => m.status === 'waiting' && hasSomeoneIn(m.players)).map(m => ({ id: m.id, code: m.code, hostName: m.players.find(p => p.userId === m.hostId)?.nickname ?? '?', playerCount: m.players.length, maxPlayers: m.maxPlayers, status: m.status }));
 }
 
 export function joinMatch(matchId: string, userId: string, socketId: string, nickname: string): { match: DrawMatch; isNew: boolean } | null {

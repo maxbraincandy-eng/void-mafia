@@ -1,4 +1,14 @@
 import { randomBytes } from 'crypto';
+/**
+ * A room is only open while somebody is still in it.
+ *
+ * Every listing used to go by status alone, so a lobby whose players had all
+ * closed the app went on being advertised until the three-hour sweep — and a
+ * player tapping it walked into an empty table. Presence is the honest test.
+ */
+function hasSomeoneIn(players) {
+    return players.some(p => p.connected);
+}
 // ── Deck creation ─────────────────────────────────────────────────────────────
 function createDeck() {
     const cards = [];
@@ -105,7 +115,7 @@ export function getMatchForSocket(socketId) {
 }
 export function listMatches() {
     return [...matches.values()]
-        .filter(m => m.status !== 'finished')
+        .filter(m => m.status !== 'finished' && hasSomeoneIn(m.players))
         .map(m => ({
         id: m.id,
         code: m.code,
@@ -162,6 +172,15 @@ export function leaveMatch(matchId, userId, socketId) {
     if (player) {
         player.connected = false;
         playerMatch.delete(userId);
+        // The host leaving ends the table. Handing the room to whoever happened to
+        // be second left lobbies standing that nobody meant to keep, and they went
+        // on being advertised as open long after everyone had gone.
+        if (m.hostId === userId) {
+            m.status = 'finished';
+            for (const p of m.players)
+                playerMatch.delete(p.userId);
+            return m;
+        }
         // If active game, mark as disconnected (don't remove from turn order)
         if (m.status === 'active' || m.status === 'color_choice') {
             // If it's their turn, auto-advance

@@ -13,6 +13,18 @@
  */
 import { randomBytes } from 'crypto';
 
+/**
+ * A room is only open while somebody is still in it.
+ *
+ * Every listing used to go by status alone, so a lobby whose players had all
+ * closed the app went on being advertised until the three-hour sweep — and a
+ * player tapping it walked into an empty table. Presence is the honest test.
+ */
+function hasSomeoneIn(players: Array<{ connected: boolean }>): boolean {
+  return players.some(p => p.connected);
+}
+
+
 export type BlackoutStatus = 'waiting' | 'play' | 'meeting' | 'finished';
 export type BlackoutRole = 'killer' | 'crew';
 export type BlackoutSpecialty = 'security' | 'hacker' | null;
@@ -228,7 +240,7 @@ export function getMatchForSocket(socketId: string): BlackoutMatch | null {
 
 export function listMatches(): BlackoutListItem[] {
   return [...matches.values()]
-    .filter(m => m.status === 'waiting')
+    .filter(m => m.status === 'waiting' && hasSomeoneIn(m.players))
     .map(m => ({
       id: m.id, code: m.code,
       hostName: m.players.find(p => p.userId === m.hostId)?.nickname ?? '?',
@@ -256,6 +268,13 @@ export function leaveMatch(matchId: string, userId: string): BlackoutMatch | nul
   const m = matches.get(matchId);
   if (!m) return null;
   playerMatch.delete(userId);
+  // The host leaving ends it for everyone — a room without its host is not a
+  // room, and it should stop appearing as one.
+  if (m.hostId === userId && m.status !== 'finished') {
+    m.status = 'finished';
+    for (const p of m.players) playerMatch.delete(p.userId);
+    return m;
+  }
   if (m.status === 'waiting' || m.status === 'finished') {
     m.players = m.players.filter(p => p.userId !== userId);
     m.players.forEach((p, i) => { p.seat = i; });

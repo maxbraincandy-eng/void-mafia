@@ -536,10 +536,14 @@ export function JokerGame() {
               <div className="mx-4 w-full max-w-xs rounded-2xl overflow-hidden"
                 style={{ background: 'rgba(20,10,40,0.98)', border: '1px solid rgba(155,0,255,0.4)' }}>
                 <div className="px-5 py-4 border-b" style={{ borderColor: 'rgba(155,0,255,0.2)' }}>
-                  <p className="font-mono text-[12px] uppercase tracking-widest text-white/30 text-center">{t.games.joker.finalScore}</p>
-                  {winner && (
-                    <p className="font-display text-xl font-bold text-center mt-1" style={{ color: '#00f5ff' }}>🏆 {winner.name}</p>
-                  )}
+                  <p className="font-mono text-[12px] uppercase tracking-widest text-white/30 text-center">
+                    {match.dissolved ? 'მაგიდა დაიხურა' : t.games.joker.finalScore}
+                  </p>
+                  {/* A table that broke up did not have a winner, and saying it
+                      did would be a lie about the game they just played. */}
+                  {match.dissolved
+                    ? <p className="font-display text-[15px] font-bold text-center mt-1" style={{ color: '#ff8a92' }}>🚪 ჰოსტმა დატოვა თამაში</p>
+                    : winner && <p className="font-display text-xl font-bold text-center mt-1" style={{ color: '#00f5ff' }}>🏆 {winner.name}</p>}
                 </div>
                 <FinalStandings match={match} myId={myId} />
                 <div className="px-4 pb-4 flex gap-2">

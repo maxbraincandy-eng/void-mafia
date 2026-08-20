@@ -18,6 +18,16 @@
  */
 import { randomBytes } from 'crypto';
 import { SPYFALL_LOCATIONS, SPYFALL_LOCATION_NAMES } from './spyfallLocations.js';
+/**
+ * A room is only open while somebody is still in it.
+ *
+ * Every listing used to go by status alone, so a lobby whose players had all
+ * closed the app went on being advertised until the three-hour sweep — and a
+ * player tapping it walked into an empty table. Presence is the honest test.
+ */
+function hasSomeoneIn(players) {
+    return players.some(p => p.connected);
+}
 /** How long jurors have to respond to a mid-round accusation before it lapses. */
 export const ACCUSE_SECONDS = 30;
 const matches = new Map();
@@ -56,7 +66,7 @@ export function getMatchForSocket(socketId) { for (const m of matches.values())
     if (m.players.some(p => p.socketId === socketId))
         return m; return null; }
 export function listMatches() {
-    return [...matches.values()].filter(m => m.status === 'waiting').map(m => ({
+    return [...matches.values()].filter(m => m.status === 'waiting' && hasSomeoneIn(m.players)).map(m => ({
         id: m.id, code: m.code, hostName: m.players.find(p => p.userId === m.hostId)?.nickname ?? '?',
         playerCount: m.players.length, maxPlayers: m.maxPlayers, status: m.status,
     }));

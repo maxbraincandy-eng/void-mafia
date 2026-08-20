@@ -89,6 +89,8 @@ export interface JokerMatchPublic {
   scores: Record<string, number>;
   roundHistory: JokerRoundResult[];
   chat: JokerChatMsg[];
+  /** Ended because someone walked out, not by being played to the end. */
+  dissolved: boolean;
   winnerPlayerId: string | null;
   // Injected client-side:
   myPlayerId: string | null;

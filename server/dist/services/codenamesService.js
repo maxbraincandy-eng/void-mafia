@@ -7,6 +7,16 @@
  */
 import { randomBytes } from 'crypto';
 import { CODENAMES_WORDS } from './codenamesWords.js';
+/**
+ * A room is only open while somebody is still in it.
+ *
+ * Every listing used to go by status alone, so a lobby whose players had all
+ * closed the app went on being advertised until the three-hour sweep — and a
+ * player tapping it walked into an empty table. Presence is the honest test.
+ */
+function hasSomeoneIn(players) {
+    return players.some(p => p.connected);
+}
 const matches = new Map();
 const playerMatch = new Map();
 const code6 = () => { const c = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; return Array.from({ length: 6 }, () => c[Math.floor(Math.random() * c.length)]).join(''); };
@@ -34,7 +44,7 @@ export function getMatchByCode(code) { for (const m of matches.values())
 export function getMatchForSocket(socketId) { for (const m of matches.values())
     if (m.players.some(p => p.socketId === socketId))
         return m; return null; }
-export function listMatches() { return [...matches.values()].filter(m => m.status === 'waiting').map(m => ({ id: m.id, code: m.code, hostName: m.players.find(p => p.userId === m.hostId)?.nickname ?? '?', playerCount: m.players.length, maxPlayers: m.maxPlayers, status: m.status })); }
+export function listMatches() { return [...matches.values()].filter(m => m.status === 'waiting' && hasSomeoneIn(m.players)).map(m => ({ id: m.id, code: m.code, hostName: m.players.find(p => p.userId === m.hostId)?.nickname ?? '?', playerCount: m.players.length, maxPlayers: m.maxPlayers, status: m.status })); }
 export function joinMatch(matchId, userId, socketId, nickname) {
     const m = matches.get(matchId);
     if (!m)

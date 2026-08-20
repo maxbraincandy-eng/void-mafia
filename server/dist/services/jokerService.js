@@ -366,6 +366,7 @@ export function createMatch(creator, settings) {
         pulkaExacts,
         botPlayerIds,
         chat: [],
+        dissolved: false,
         createdAt: now,
         updatedAt: now,
     };
@@ -400,9 +401,14 @@ export function getMatchForSocket(socketId) {
 }
 /**
  * Mark the match as finished and schedule its deletion after 10 minutes.
+ *
+ * `dissolved` separates "the table broke up" from "the game was played out" —
+ * the end screen says a different thing for each.
  */
-export function finishMatch(match) {
+export function finishMatch(match, dissolved = false) {
     match.status = 'finished';
+    if (dissolved)
+        match.dissolved = true;
     match.updatedAt = Date.now();
     setTimeout(() => {
         matchStore.delete(match.id);

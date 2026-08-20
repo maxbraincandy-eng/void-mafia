@@ -372,10 +372,12 @@ export function leaveMatch(matchId: string, userId: string): WWWMatch | null {
     }
   }
   userMatch.delete(userId);
+  // The host IS the game here — they read the questions. Passing the room to
+  // whoever was standing nearest left rooms open that nobody was running.
   if (userId === m.hostId) {
-    const next = Object.values(m.players).find(p => p.connected && p.userId !== userId);
-    if (!next) { matches.delete(matchId); return null; }
-    m.hostId = next.userId;
+    m.status = 'finished';
+    for (const p of Object.values(m.players)) userMatch.delete(p.userId);
+    return m;
   }
   return m;
 }

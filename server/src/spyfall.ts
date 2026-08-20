@@ -138,7 +138,11 @@ export function registerSpyfallHandlers(io: AppServer, socket: AppSocket): void 
       const matchId = String(data?.matchId);
       const cur = getMatch(matchId);
       const active = cur && cur.status !== 'waiting' && cur.status !== 'finished';
-      const m = active ? dissolveMatch(matchId, uid()) : leaveMatch(matchId, uid());
+      // The host walking out closes the table — in the lobby too. A room whose
+      // host has left is a room nobody can start, and it was still being
+      // advertised as open.
+      const close = active || cur?.hostId === uid();
+      const m = close ? dissolveMatch(matchId, uid()) : leaveMatch(matchId, uid());
       socket.leave(ROOM(matchId));
       if (m) broadcastState(io, matchId);
       syncTimers(io, matchId);

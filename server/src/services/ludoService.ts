@@ -499,6 +499,16 @@ export function doLeave(socketId: string): { match: LudoMatch | null; wasPlayer:
   }
 
   if (color && match.status === 'waiting') {
+    // Red made the room. Their leaving closes it rather than handing it to
+    // whoever wandered in — an unhosted lobby only sits in the list. Marked
+    // finished rather than deleted, so everyone still sitting in it is told.
+    if (color === 'red') {
+      match.players.red = null;
+      match.playerOrder = [];
+      match.status = 'finished';
+      match.winnerColor = null;
+      return { match, wasPlayer: true };
+    }
     match.players[color] = null;
     match.playerOrder = buildPlayerOrder(match.players);
     // If no players remain, delete the match entirely
