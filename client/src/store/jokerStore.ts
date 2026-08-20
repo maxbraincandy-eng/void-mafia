@@ -31,7 +31,8 @@ interface JokerStore {
   createMatch: (name: string, settings?: Partial<JokerSettings>) => Promise<void>;
   joinMatch: (code: string, name: string) => Promise<void>;
   startMatch: () => Promise<void>;
-  declare: (tricks: number) => Promise<void>;
+  /** The first speaker of a deal also names the ხიშტი (null = უხიშტოდ). */
+  declare: (tricks: number, trump?: import('@/types/joker').Suit | null) => Promise<void>;
   playCard: (card: Card, jokerTarget?: string) => Promise<void>;
   resign: () => Promise<void>;
   rematch: () => Promise<void>;
@@ -83,12 +84,12 @@ export const useJokerStore = create<JokerStore>((set, get) => ({
     } catch (e: any) { set({ isLoading: false, error: e.message }); }
   },
 
-  declare: async (tricks) => {
+  declare: async (tricks, trump) => {
     const { match } = get();
     if (!match) return;
     set({ error: null });
     try {
-      const res = await emitWithAck<any, any>('joker:declare', { matchId: match.id, tricks });
+      const res = await emitWithAck<any, any>('joker:declare', { matchId: match.id, tricks, trump });
       if (!res.ok) set({ error: res.error });
     } catch (e: any) { set({ error: e.message }); }
   },

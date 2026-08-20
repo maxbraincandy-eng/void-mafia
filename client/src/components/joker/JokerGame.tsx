@@ -8,6 +8,7 @@ import type { Card, JokerPlayerPublic, Suit } from '@/types/joker';
 import { haptic } from '@/lib/haptics';
 import { tNow } from '@/store/langStore';
 import { GameInviteButton } from '@/components/social/GameInviteButton';
+import { useSocialStore } from '@/store/socialStore';
 
 const SUIT_SYMBOL: Record<Suit, string> = { S: '♠', H: '♥', D: '♦', C: '♣', J: '🃏' };
 
@@ -37,6 +38,65 @@ function JokerStyles() {
 }
 
 function cardKey(c: Card) { return `${c.suit}${c.rank}`; }
+
+/**
+ * Hold the phone the way the table wants to be held.
+ *
+ * Two paths, because the platforms disagree. Android in fullscreen can be told
+ * to lock landscape and the page genuinely turns; iOS has no such API at all,
+ * so the surface is rotated with a transform instead and the phone is simply
+ * held sideways. Both end in the same place, and the moment the DEVICE reports
+ * landscape — by lock or by the player turning it — the fake rotation stops, so
+ * the two can never stack up into a sideways-upside-down mess.
+ */
+function useLandscapeToggle() {
+  const [want, setWant] = useState(false);
+  const [deviceLandscape, setDeviceLandscape] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(orientation: landscape)').matches,
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia('(orientation: landscape)');
+    const onChange = (e: MediaQueryListEvent) => setDeviceLandscape(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  // Never leave the phone locked after the table is gone.
+  useEffect(() => () => {
+    try { (screen.orientation as any)?.unlock?.(); } catch { /* not supported */ }
+  }, []);
+
+  const toggle = useCallback(() => {
+    setWant(w => {
+      const next = !w;
+      const so: any = (screen as any).orientation;
+      if (next) {
+        const el: any = document.documentElement;
+        const fs = el.requestFullscreen?.() ?? el.webkitRequestFullscreen?.();
+        Promise.resolve(fs).catch(() => {}).finally(() => {
+          try { so?.lock?.('landscape').catch(() => {}); } catch { /* iOS */ }
+        });
+      } else {
+        try { so?.unlock?.(); } catch { /* iOS */ }
+        if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+      }
+      return next;
+    });
+  }, []);
+
+  // Only fake it when the device itself is still portrait.
+  const rotate = want && !deviceLandscape;
+  const style: React.CSSProperties = rotate
+    ? {
+        position: 'fixed', top: 0, left: 0,
+        width: '100vh', height: '100vw',
+        transform: 'rotate(90deg) translateY(-100%)',
+        transformOrigin: 'top left',
+      }
+    : {};
+  return { want, rotate, style, toggle };
+}
 
 export function JokerGame() {
   const t = useT();
@@ -78,6 +138,8 @@ export function JokerGame() {
   const handlePttStop = useCallback(() => {
     if (jokerMatchId) voice.stopTalk(jokerMatchId);
   }, [jokerMatchId, voice.stopTalk]);
+
+  const orientation = useLandscapeToggle();
 
   if (!match) return null;
 
@@ -146,7 +208,7 @@ export function JokerGame() {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-[100] flex flex-col"
-      style={{ background: '#050310' }}
+      style={{ background: '#050310', ...orientation.style }}
     >
       <JokerStyles />
 
@@ -170,6 +232,16 @@ export function JokerGame() {
           </div>
         </div>
         <div className="flex items-center gap-1.5">
+          {/* Landscape: a card table is wider than it is tall. */}
+          <button onClick={() => { haptic('selection'); orientation.toggle(); }}
+            title="ეკრანის მიმართულება"
+            className="font-mono text-[15px] w-11 h-11 rounded border transition-colors flex items-center justify-center"
+            style={{
+              color: orientation.want ? '#fbbf24' : 'rgba(255,255,255,0.35)',
+              borderColor: orientation.want ? 'rgba(251,191,36,0.45)' : 'rgba(255,255,255,0.1)',
+            }}>
+            {orientation.want ? '📱' : '🔄'}
+          </button>
           <button onClick={() => setShowScoreboard(s => !s)}
             className="font-mono text-[12px] text-white/40 hover:text-white/70 px-3 py-2 rounded border border-white/10 hover:border-white/25 transition-colors min-h-[44px] flex items-center">
             {t.games.joker.score}
@@ -228,7 +300,13 @@ export function JokerGame() {
               {/* Declaration panel (my turn) */}
               <AnimatePresence>
                 {match.status === 'declaration' && isMyDeclTurn && myDeclaration === null && (
-                  <DeclarationPanel cardCount={cardCount} onDeclare={declareAction} />
+                  <DeclarationPanel
+                    cardCount={cardCount}
+                    forbidden={match.forbiddenBid ?? null}
+                    isTrumpChooser={mySeat === match.trumpChooserSeat}
+                    sumSoFar={match.bidTension?.sum ?? 0}
+                    onDeclare={declareAction}
+                  />
                 )}
               </AnimatePresence>
 
@@ -257,6 +335,7 @@ export function JokerGame() {
                     playableSet={playableSet}
                     isMyTurn={isMyPlayTurn}
                     selectedCard={selectedCard}
+                    trumpSuit={match.trumpSuit ?? null}
                     onCardClick={handleCardClick}
                   />
                   {myHand.length === 0 && match.status === 'playing' && (
@@ -363,22 +442,7 @@ export function JokerGame() {
                     <p className="font-display text-xl font-bold text-center mt-1" style={{ color: '#00f5ff' }}>🏆 {winner.name}</p>
                   )}
                 </div>
-                <div className="px-4 py-3 space-y-1">
-                  {[...match.players]
-                    .sort((a: JokerPlayerPublic, b: JokerPlayerPublic) => (match.scores[b.id] ?? 0) - (match.scores[a.id] ?? 0))
-                    .map((p: JokerPlayerPublic, i: number) => (
-                      <div key={p.id} className="flex items-center gap-3 py-1">
-                        <span className="font-mono text-xs text-white/30 w-4">{i + 1}.</span>
-                        <span className={`font-mono text-sm flex-1 ${p.id === myId ? 'text-white' : 'text-white/60'}`}>
-                          {p.name}{p.id === myId ? ' ✦' : ''}
-                        </span>
-                        <span className="font-mono text-sm font-bold"
-                          style={{ color: (match.scores[p.id] ?? 0) >= 0 ? '#00f5ff' : '#f87171' }}>
-                          {match.scores[p.id] ?? 0}
-                        </span>
-                      </div>
-                    ))}
-                </div>
+                <FinalStandings match={match} myId={myId} />
                 <div className="px-4 pb-4 flex gap-2">
                   {isPlayer && (
                     <button onClick={rematch} disabled={isLoading}
@@ -434,6 +498,39 @@ export function JokerGame() {
 
 // ── Sub-components ─────────────────────────────────────────────────────────
 
+/**
+ * A seat at the table: face, name, what they promised, what they have taken.
+ *
+ * The face is a button. Four names on a felt tell you nothing about who you are
+ * playing with, and the profile is one tap away everywhere else in the app —
+ * there is no reason a card table should be the exception.
+ */
+function Avatar({ player, size, onOpen }: {
+  player: JokerPlayerPublic;
+  size: number;
+  onOpen?: () => void;
+}) {
+  const ring = player.isBot ? 'rgba(255,255,255,0.16)' : 'rgba(155,0,255,0.45)';
+  return (
+    <button
+      onClick={onOpen}
+      disabled={!onOpen}
+      style={{
+        width: size, height: size, borderRadius: '50%', flexShrink: 0, overflow: 'hidden',
+        border: `1.5px solid ${ring}`,
+        background: 'linear-gradient(135deg, rgba(124,58,237,0.35), rgba(37,99,235,0.3))',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: size * 0.5, lineHeight: 1, padding: 0,
+        cursor: onOpen ? 'pointer' : 'default',
+      }}
+    >
+      {player.avatarUrl
+        ? <img src={player.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        : <span>{player.isBot ? '🤖' : (player.avatar || '🃏')}</span>}
+    </button>
+  );
+}
+
 function PlayerBadge({ player, match, myId, position, compact }: {
   player: JokerPlayerPublic | undefined;
   match: any; myId: string | null;
@@ -441,9 +538,15 @@ function PlayerBadge({ player, match, myId, position, compact }: {
   compact?: boolean;
 }) {
   const t = useT();
+  const openProfile = useSocialStore(s => s.openProfile);
   if (!player) return <div style={{ width: position === 'side' ? 72 : undefined }} />;
+  const openMe = player.profileId && !player.isBot
+    ? () => { haptic('selection'); openProfile(player.profileId!); }
+    : undefined;
 
   const isDealer   = player.seatIndex === match.currentDealerSeat;
+  // The one who names the ხიშტი this deal — worth showing, it is a real edge.
+  const isTrumpChooser = player.seatIndex === match.trumpChooserSeat && match.status === 'declaration';
   const declaration = match.declarations[player.id] ?? null;
   const taken       = match.tricksTaken[player.id] ?? 0;
   const isMyTurn    = match.currentPlaySeat === player.seatIndex && match.status === 'playing';
@@ -469,13 +572,18 @@ function PlayerBadge({ player, match, myId, position, compact }: {
           transition: 'border-color 0.3s',
         }}
       >
-        {/* Name */}
-        <div className="flex items-center gap-1">
-          {isDealer && <span style={{ fontSize: 12 }}>🎴</span>}
-          <span className="font-mono text-[12px] text-white truncate" style={{ maxWidth: 52 }}>
-            {player.name}{player.isBot ? '🤖' : ''}
+        {/* Face + name */}
+        <div className="flex items-center gap-1.5">
+          <Avatar player={player} size={22} onOpen={openMe} />
+          <span className="font-mono text-[12px] text-white truncate" style={{ maxWidth: 40 }}>
+            {player.name}
           </span>
         </div>
+        {(isDealer || isTrumpChooser) && (
+          <span className="font-mono text-[9px]" style={{ color: 'rgba(251,191,36,0.75)' }}>
+            {isDealer ? '🎴 დამრიგებელი' : '👑 ხიშტი'}
+          </span>
+        )}
         {/* Score */}
         <span className="font-mono text-[12px] font-bold" style={{ color: score >= 0 ? '#00f5ff' : '#f87171' }}>
           {score >= 0 ? '+' : ''}{score}
@@ -508,10 +616,10 @@ function PlayerBadge({ player, match, myId, position, compact }: {
         maxWidth: 260, transition: 'border-color 0.3s',
       }}
     >
-      {isDealer && <span style={{ fontSize: 11 }}>🎴</span>}
+      <Avatar player={player} size={position === 'bottom' ? 28 : 24} onOpen={openMe} />
       <div style={{ minWidth: 0 }}>
         <p className="font-mono text-[11px] text-white font-semibold truncate" style={{ maxWidth: 110 }}>
-          {player.name}{isMe ? ' ✦' : ''}{player.isBot ? ' 🤖' : ''}
+          {isDealer ? '🎴 ' : isTrumpChooser ? '👑 ' : ''}{player.name}{isMe ? ' ✦' : ''}
         </p>
         {!compact && declaration !== null && (
           <p className="font-mono text-[12px] text-white/40">
@@ -563,21 +671,23 @@ function TrickArea({ match, seatedPlayers }: { match: any; seatedPlayers: JokerP
         boxShadow: 'inset 0 0 60px rgba(0,0,0,0.65), inset 0 0 20px rgba(0,80,20,0.3), 0 4px 24px rgba(0,0,0,0.5)',
       }} />
 
-      {/* Trump indicator */}
-      {trumpSuit && trumpSuit !== 'J' && (
-        <div style={{
-          position: 'absolute', top: 8, right: 10, zIndex: 3,
-          display: 'flex', alignItems: 'center', gap: 4,
-          padding: '2px 8px', borderRadius: 20,
-          background: 'rgba(0,0,0,0.45)',
-          border: '1px solid rgba(255,255,255,0.12)',
-        }}>
-          <span style={{ fontSize: 11, color: (trumpSuit === 'H' || trumpSuit === 'D') ? '#e53e3e' : '#e2e8f0' }}>
-            {SUIT_SYMBOL[trumpSuit]}
-          </span>
-          <span className="font-mono text-[12px] text-white/40">trump</span>
-        </div>
-      )}
+      {/* ხიშტი — named by the first speaker, and true for the whole deal. */}
+      <div style={{
+        position: 'absolute', top: 8, right: 10, zIndex: 3,
+        display: 'flex', alignItems: 'center', gap: 4,
+        padding: '2px 8px', borderRadius: 20,
+        background: 'rgba(0,0,0,0.45)',
+        border: `1px solid ${trumpSuit ? 'rgba(251,191,36,0.45)' : 'rgba(255,255,255,0.12)'}`,
+      }}>
+        {trumpSuit && trumpSuit !== 'J'
+          ? <>
+              <span style={{ fontSize: 13, color: (trumpSuit === 'H' || trumpSuit === 'D') ? '#ff6b6b' : '#e2e8f0' }}>
+                {SUIT_SYMBOL[trumpSuit]}
+              </span>
+              <span className="font-mono text-[10px] text-yellow-400/70">ხიშტი</span>
+            </>
+          : <span className="font-mono text-[10px] text-white/35">უხიშტოდ</span>}
+      </div>
 
       {/* Round / phase indicator */}
       <div style={{
@@ -588,8 +698,16 @@ function TrickArea({ match, seatedPlayers }: { match: any; seatedPlayers: JokerP
       }}>
         <span className="font-mono text-[12px] text-white/35">
           {t.games.joker.round} {match.currentRoundIndex + 1}
+          {match.pulkaIds?.[match.currentRoundIndex] ? ` · პულკა ${match.pulkaIds[match.currentRoundIndex]}` : ''}
         </span>
       </div>
+
+      {/* Torn or stuffed — the shape of the whole hand, in one line. */}
+      {match.bidTension && match.status !== 'declaration' && (
+        <div style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', zIndex: 3 }}>
+          <TensionChip tension={match.bidTension} cardCount={match.roundPlan[match.currentRoundIndex] ?? 0} compact />
+        </div>
+      )}
 
       {/* Played cards */}
       {trick.map((pc) => {
@@ -598,7 +716,7 @@ function TrickArea({ match, seatedPlayers }: { match: any; seatedPlayers: JokerP
         return (
           <div key={`${pc.playerId}-${cardKey(pc.card)}`}
             style={{ position: 'absolute', zIndex: 4, ...posStyle[pos] }}>
-            <JokerCard card={pc.card} size="md" animate />
+            <JokerCard card={pc.card} size="md" trump={!!trumpSuit && pc.card.suit === trumpSuit} animate />
           </div>
         );
       })}
@@ -618,11 +736,12 @@ function TrickArea({ match, seatedPlayers }: { match: any; seatedPlayers: JokerP
 const HAND_W = 72;
 const HAND_H = 108;
 
-function HandFan({ cards, playableSet, isMyTurn, selectedCard, onCardClick }: {
+function HandFan({ cards, playableSet, isMyTurn, selectedCard, trumpSuit, onCardClick }: {
   cards: Card[];
   playableSet: Set<string>;
   isMyTurn: boolean;
   selectedCard: Card | null;
+  trumpSuit: Suit | null;
   onCardClick: (card: Card) => void;
 }) {
   if (cards.length === 0) return null;
@@ -655,6 +774,7 @@ function HandFan({ cards, playableSet, isMyTurn, selectedCard, onCardClick }: {
               card={card}
               selected={isSelected}
               playable={isMyTurn && isPlayable}
+              trump={!!trumpSuit && card.suit === trumpSuit}
               disabled={false}
               size="lg"
               onClick={() => onCardClick(card)}
@@ -668,33 +788,123 @@ function HandFan({ cards, playableSet, isMyTurn, selectedCard, onCardClick }: {
 
 // ── Declaration panel ──────────────────────────────────────────────────────
 
-function DeclarationPanel({ cardCount, onDeclare }: { cardCount: number; onDeclare: (n: number) => void }) {
+const TRUMP_CHOICES: Array<{ suit: Suit | null; label: string; color: string }> = [
+  { suit: 'S', label: '♠', color: '#e2e8f0' },
+  { suit: 'H', label: '♥', color: '#ff6b6b' },
+  { suit: 'D', label: '♦', color: '#ff6b6b' },
+  { suit: 'C', label: '♣', color: '#e2e8f0' },
+  { suit: null, label: 'უხიშტოდ', color: 'rgba(255,255,255,0.65)' },
+];
+
+/**
+ * Naming your word — and, if you speak first, the ხიშტი with it.
+ *
+ * Two rules are visible here rather than hidden in a rejection:
+ *   • the first speaker of the deal owns the trump suit for everybody;
+ *   • the last speaker may not make the bids add up to the cards dealt, so that
+ *     one number is struck out on their pad rather than refused after the tap.
+ */
+function DeclarationPanel({ cardCount, forbidden, isTrumpChooser, sumSoFar, onDeclare }: {
+  cardCount: number;
+  forbidden: number | null;
+  isTrumpChooser: boolean;
+  sumSoFar: number;
+  onDeclare: (n: number, trump?: Suit | null) => void;
+}) {
   const t = useT();
+  const [trump, setTrump] = useState<Suit | null>(null);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 16 }}
       className="mb-2"
     >
       <div style={{ borderRadius: 14, padding: '10px 12px', background: 'rgba(155,0,255,0.07)', border: '1px solid rgba(155,0,255,0.28)' }}>
-        <p className="font-mono text-[12px] text-white/50 mb-2.5 text-center uppercase tracking-widest jk-decl-active"
+
+        {isTrumpChooser && (
+          <>
+            <p className="font-mono text-[11px] text-white/40 mb-1.5 text-center">
+              შენ ირჩევ ხიშტს — მთელი დარიგებისთვის
+            </p>
+            <div className="flex gap-1.5 justify-center mb-2.5 flex-wrap">
+              {TRUMP_CHOICES.map(c => {
+                const on = trump === c.suit;
+                return (
+                  <button key={c.label} onClick={() => { haptic('selection'); setTrump(c.suit); }}
+                    className="px-2.5 h-9 rounded-xl font-display font-bold transition-all active:scale-90"
+                    style={{
+                      minWidth: c.suit ? 38 : undefined,
+                      fontSize: c.suit ? 18 : 11,
+                      background: on ? 'rgba(251,191,36,0.22)' : 'rgba(255,255,255,0.05)',
+                      border: `1px solid ${on ? 'rgba(251,191,36,0.75)' : 'rgba(255,255,255,0.12)'}`,
+                      color: on ? '#fbbf24' : c.color,
+                    }}>
+                    {c.label}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
+
+        <p className="font-mono text-[12px] text-white/50 mb-1 text-center uppercase tracking-widest jk-decl-active"
           style={{ display: 'inline-block', width: '100%', padding: '2px 0' }}>
           {t.games.joker.howManyTricks}
         </p>
+        <p className="font-mono text-[10.5px] text-white/30 mb-2 text-center">
+          გამოცხადებული: {sumSoFar} / {cardCount}
+          {forbidden !== null && <span style={{ color: '#f0a5a5' }}> · {forbidden} აკრძალულია</span>}
+        </p>
+
         <div className="flex gap-2 flex-wrap justify-center">
-          {Array.from({ length: cardCount + 1 }, (_, n) => (
-            <button key={n} onClick={() => onDeclare(n)}
-              className="w-10 h-10 rounded-xl font-display font-bold text-sm transition-all active:scale-90"
-              style={{
-                background: n === 0 ? 'rgba(255,255,255,0.06)' : 'linear-gradient(135deg,rgba(155,0,255,0.3),rgba(0,245,255,0.18))',
-                border: '1px solid rgba(155,0,255,0.4)', color: '#fff',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-              }}>
-              {n}
-            </button>
-          ))}
+          {Array.from({ length: cardCount + 1 }, (_, n) => {
+            const barred = forbidden === n;
+            return (
+              <button key={n} onClick={() => { if (!barred) onDeclare(n, isTrumpChooser ? trump : undefined); }}
+                disabled={barred}
+                className="w-10 h-10 rounded-xl font-display font-bold text-sm transition-all active:scale-90"
+                style={{
+                  background: barred ? 'rgba(255,255,255,0.02)'
+                    : n === 0 ? 'rgba(255,255,255,0.06)'
+                    : 'linear-gradient(135deg,rgba(155,0,255,0.3),rgba(0,245,255,0.18))',
+                  border: `1px solid ${barred ? 'rgba(255,255,255,0.06)' : 'rgba(155,0,255,0.4)'}`,
+                  color: barred ? 'rgba(255,255,255,0.15)' : '#fff',
+                  textDecoration: barred ? 'line-through' : 'none',
+                  boxShadow: barred ? 'none' : '0 2px 8px rgba(0,0,0,0.3)',
+                }}>
+                {n}
+              </button>
+            );
+          })}
         </div>
       </div>
     </motion.div>
+  );
+}
+
+/**
+ * Where the deal stands before a card is played: over-called means somebody
+ * loses a trick they promised (წაგლეჯვა), under-called means somebody is handed
+ * one they did not want (შეტენვა). Announced, because the whole hand is played
+ * differently depending on which it is.
+ */
+export function TensionChip({ tension, cardCount, compact }: {
+  tension: { sum: number; diff: number; kind: 'tear' | 'stuff' | 'even' };
+  cardCount: number;
+  compact?: boolean;
+}) {
+  const { sum, diff, kind } = tension;
+  const label = kind === 'tear' ? 'წაგლეჯვა' : kind === 'stuff' ? 'შეტენვა' : 'თანაბარი';
+  const color = kind === 'tear' ? '#ff8a92' : kind === 'stuff' ? '#7fe0a0' : 'rgba(255,255,255,0.5)';
+  return (
+    <span className="font-mono" style={{
+      fontSize: compact ? 10 : 11, color,
+      padding: '2px 8px', borderRadius: 20,
+      background: 'rgba(0,0,0,0.4)', border: `1px solid ${color}44`,
+      whiteSpace: 'nowrap',
+    }}>
+      {label} {diff > 0 ? `+${diff}` : diff < 0 ? diff : ''} · {sum}/{cardCount}
+    </span>
   );
 }
 
@@ -731,7 +941,8 @@ function RoundEndPanel({ match, myId }: { match: any; myId: string | null }) {
         <p className="font-mono text-[12px] uppercase tracking-widest text-white/30 text-center">{t.games.joker.roundResults}</p>
         <p className="font-display text-base font-bold text-center mt-0.5" style={{ color: '#c084fc' }}>
           {t.games.joker.round} {lastResult.roundIndex + 1} · {lastResult.cardCount}🃏
-          {lastResult.pulkaId !== null ? ` · Pulka ${lastResult.pulkaId}` : ''}
+          {lastResult.pulkaId !== null ? ` · პულკა ${lastResult.pulkaId}` : ''}
+          {lastResult.trumpSuit ? ` · ხიშტი ${SUIT_SYMBOL[lastResult.trumpSuit as Suit]}` : ' · უხიშტოდ'}
         </p>
       </div>
       <div className="px-4 py-3">
@@ -747,7 +958,6 @@ function RoundEndPanel({ match, myId }: { match: any; myId: string | null }) {
             const took = lastResult.taken[p.id] ?? 0;
             const pts  = lastResult.points[p.id] ?? 0;
             const khishti = lastResult.khishtiPlayers.includes(p.id);
-            const bonus = lastResult.pulkaBonusPlayers[p.id] ?? 0;
             const isMe = p.id === myId;
             return (
               <div key={p.id} className="flex items-center gap-1 px-2 py-1.5 rounded-lg"
@@ -755,13 +965,33 @@ function RoundEndPanel({ match, myId }: { match: any; myId: string | null }) {
                 <span className={`font-mono text-[12px] flex-1 truncate ${isMe ? 'text-white' : 'text-white/55'}`}>{p.name}{isMe ? ' ✦' : ''}</span>
                 <span className="font-mono text-[12px] text-white/40 w-8 text-center">{decl}</span>
                 <span className="font-mono text-[12px] text-white/40 w-8 text-center">{took}</span>
-                <span className="font-mono text-[12px] font-bold w-10 text-right" style={{ color: pts >= 0 ? '#00f5ff' : '#f87171' }}>
-                  {pts >= 0 ? '+' : ''}{pts}{khishti ? ' ⚡' : ''}{bonus > 0 ? ` 🎉` : ''}
+                <span className="font-mono text-[12px] font-bold w-10 text-right" style={{ color: pts > 0 ? '#00f5ff' : 'rgba(255,255,255,0.35)' }}>
+                  {pts > 0 ? '+' : ''}{pts}{khishti ? ' ⚡' : ''}
                 </span>
               </div>
             );
           })}
         </div>
+        {/* პრემია — settled when the column is finished, so it belongs here. */}
+        {(Object.keys(lastResult.premiumPlayers ?? {}).length > 0 ||
+          Object.keys(lastResult.premiumPenalties ?? {}).length > 0) && (
+          <div className="mt-2 rounded-xl px-2.5 py-2" style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.3)' }}>
+            <p className="font-mono text-[10px] uppercase tracking-widest mb-1" style={{ color: '#fbbf24' }}>
+              🎉 პრემია · პულკა {lastResult.pulkaId}
+            </p>
+            {match.players.map((p: any) => {
+              const plus = lastResult.premiumPlayers?.[p.id] ?? 0;
+              const minus = lastResult.premiumPenalties?.[p.id] ?? 0;
+              if (!plus && !minus) return null;
+              return (
+                <p key={p.id} className="font-mono text-[11px]" style={{ color: plus ? '#7fe0a0' : '#ff8a92' }}>
+                  {p.name}: {plus ? `+${plus} (საუკეთესო დარიგება გაორმაგდა)` : `−${minus} (საუკეთესო დარიგება ჩამოეშალა)`}
+                </p>
+              );
+            })}
+          </div>
+        )}
+
         <div className="mt-2 pt-2 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
           {[...match.players]
             .sort((a: any, b: any) => (match.scores[b.id] ?? 0) - (match.scores[a.id] ?? 0))
@@ -779,6 +1009,66 @@ function RoundEndPanel({ match, myId }: { match: any; myId: string | null }) {
       <div className="px-4 pb-3 text-center">
         <p className="font-mono text-[12px] text-white/25 animate-pulse">{t.games.joker.nextRoundSoon}</p>
       </div>
+    </div>
+  );
+}
+
+// ── Final standings ────────────────────────────────────────────────────────
+
+const MEDALS = ['🥇', '🥈', '🥉', ''];
+
+/**
+ * The table at the end of the night.
+ *
+ * Not just a total: the number people argue about afterwards is how the pulkas
+ * went — who took a premium, who was left with a ხიშტი — so those are on the
+ * card too, and they arrive one row at a time rather than all at once.
+ */
+function FinalStandings({ match, myId }: { match: any; myId: string | null }) {
+  const ranked = [...match.players].sort(
+    (a: JokerPlayerPublic, b: JokerPlayerPublic) => (match.scores[b.id] ?? 0) - (match.scores[a.id] ?? 0),
+  );
+  const history = (match.roundHistory ?? []) as any[];
+  const premiums = (id: string) => history.filter(r => (r.premiumPlayers?.[id] ?? 0) > 0).length;
+  const khishtis = (id: string) => history.filter(r => (r.khishtiPlayers ?? []).includes(id)).length;
+  const best = (id: string) => Math.max(0, ...history.map(r => r.points?.[id] ?? 0));
+
+  return (
+    <div className="px-4 py-3 space-y-1.5">
+      {ranked.map((p: JokerPlayerPublic, i: number) => {
+        const isMe = p.id === myId;
+        const score = match.scores[p.id] ?? 0;
+        return (
+          <motion.div
+            key={p.id}
+            initial={{ opacity: 0, x: -14 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.12 * i, type: 'spring', stiffness: 320, damping: 26 }}
+            className="flex items-center gap-2.5 px-2 py-1.5 rounded-xl"
+            style={{
+              background: isMe ? 'rgba(0,245,255,0.06)' : 'rgba(255,255,255,0.02)',
+              border: `1px solid ${i === 0 ? 'rgba(251,191,36,0.4)' : isMe ? 'rgba(0,245,255,0.18)' : 'transparent'}`,
+            }}
+          >
+            <span style={{ fontSize: 15, width: 20 }}>{MEDALS[i] || `${i + 1}.`}</span>
+            <Avatar player={p} size={26} />
+            <div className="min-w-0 flex-1">
+              <p className={`font-mono text-[13px] truncate ${isMe ? 'text-white' : 'text-white/70'}`}>
+                {p.name}{isMe ? ' ✦' : ''}
+              </p>
+              <p className="font-mono text-[9.5px] text-white/30">
+                საუკ. დარიგება {best(p.id)}
+                {premiums(p.id) > 0 ? ` · 🎉 ${premiums(p.id)}` : ''}
+                {khishtis(p.id) > 0 ? ` · ⚡ ${khishtis(p.id)}` : ''}
+              </p>
+            </div>
+            <span className="font-mono text-[15px] font-bold"
+              style={{ color: score >= 0 ? '#00f5ff' : '#f87171' }}>
+              {score}
+            </span>
+          </motion.div>
+        );
+      })}
     </div>
   );
 }
@@ -812,7 +1102,8 @@ function ScoreboardPanel({ match, myId, onClose }: { match: any; myId: string | 
           <div key={r.roundIndex} className="rounded-lg px-2 py-1.5" style={{ background: 'rgba(255,255,255,0.03)' }}>
             <p className="font-mono text-[12px] text-white/30 mb-1">
               {t.games.joker.round} {r.roundIndex + 1} · {r.cardCount}🃏
-              {r.pulkaId !== null ? ` · Pulka ${r.pulkaId}` : ''}
+              {r.pulkaId !== null ? ` · პულკა ${r.pulkaId}` : ''}
+              {r.trumpSuit ? ` · ხიშტი ${SUIT_SYMBOL[r.trumpSuit as Suit]}` : ' · უხიშტოდ'}
             </p>
             <div className="space-y-0.5">
               {match.players.map((p: any) => {
@@ -820,13 +1111,14 @@ function ScoreboardPanel({ match, myId, onClose }: { match: any; myId: string | 
                 const taken = r.taken[p.id] ?? 0;
                 const pts = r.points[p.id] ?? 0;
                 const khishti = r.khishtiPlayers.includes(p.id);
-                const bonus = r.pulkaBonusPlayers[p.id] ?? 0;
+                const bonus = r.premiumPlayers?.[p.id] ?? 0;
+                const erased = r.premiumPenalties?.[p.id] ?? 0;
                 return (
                   <div key={p.id} className="flex items-center gap-1">
                     <span className="font-mono text-[12px] text-white/40 w-14 truncate">{p.name}</span>
                     <span className="font-mono text-[12px] text-white/30">{decl}→{taken}</span>
                     <span className="font-mono text-[12px] ml-auto" style={{ color: pts >= 0 ? 'rgba(0,245,255,0.7)' : '#f87171' }}>
-                      {pts >= 0 ? '+' : ''}{pts}{khishti ? ` ${tNow().misc.khishtiAbbr}` : ''}{bonus > 0 ? ` +${bonus}🎉` : ''}
+                      {pts > 0 ? '+' : ''}{pts}{khishti ? ` ${tNow().misc.khishtiAbbr}` : ''}{bonus > 0 ? ` +${bonus}🎉` : ''}{erased > 0 ? ` −${erased}` : ''}
                     </span>
                   </div>
                 );
@@ -860,9 +1152,12 @@ function WaitingRoom({ match, isCreator, onStart, isLoading }: {
         {Array.from({ length: 4 }, (_, i) => {
           const p = match.players.find((pl: any) => pl.seatIndex === i);
           return (
-            <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-xl"
+            <div key={i} className="flex items-center gap-2.5 px-3 py-2 rounded-xl"
               style={{ background: p ? 'rgba(155,0,255,0.08)' : 'rgba(255,255,255,0.02)', border: `1px solid ${p ? 'rgba(155,0,255,0.2)' : 'rgba(255,255,255,0.06)'}` }}>
               <span className="font-mono text-[12px] text-white/30 w-4">{i + 1}</span>
+              {p
+                ? <Avatar player={p} size={26} onOpen={p.profileId ? () => useSocialStore.getState().openProfile(p.profileId!) : undefined} />
+                : <div style={{ width: 26, height: 26, borderRadius: '50%', border: '1px dashed rgba(255,255,255,0.12)' }} />}
               <span className={`font-mono text-xs ${p ? 'text-white' : 'text-white/20'}`}>
                 {p ? `${p.name}${i === 0 ? ' 👑' : ''}` : '—'}
               </span>

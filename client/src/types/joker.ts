@@ -18,29 +18,30 @@ export interface JokerPlayerPublic {
   seatIndex: number;
   cardCount: number;
   isBot?: boolean;
+  avatar?: string;
+  avatarUrl?: string | null;
 }
 
 export interface JokerSettings {
   mode: 'classic' | 'nines_only';
-  khishtiPenalty: number;
-  exactBidMultiplier: number;
-  zeroBidExactScore: number;
-  missPenaltyPerTrick: number;
   bonusEnabled: boolean;
   spectatorsAllowed: boolean;
   privateTable: boolean;
-  pulkaBonusPoints: number;
 }
 
 export interface JokerRoundResult {
   roundIndex: number;
   cardCount: number;
+  trumpSuit: Suit | null;
   declarations: Record<string, number>;
   taken: Record<string, number>;
   points: Record<string, number>;
   khishtiPlayers: string[];
   pulkaId: number | null;
-  pulkaBonusPlayers: Record<string, number>;
+  /** Best deal of the pulka, doubled for a player who kept every word in it. */
+  premiumPlayers: Record<string, number>;
+  /** …and erased for everyone else. */
+  premiumPenalties: Record<string, number>;
 }
 
 export interface JokerChatMsg {
@@ -59,12 +60,21 @@ export interface JokerMatchPublic {
   spectatorCount: number;
   botPlayerIds: string[];
   roundPlan: number[];
+  pulkaIds: (number | null)[];
   currentRoundIndex: number;
   totalRounds: number;
   currentDealerSeat: number;
   declarations: Record<string, number | null>;
   currentDeclarationSeat: number;
   tricksTaken: Record<string, number>;
+  /** ხიშტი for this deal — null means უხიშტოდ. */
+  trumpSuit: Suit | null;
+  /** The seat that names it: the first to declare this deal. */
+  trumpChooserSeat: number;
+  /** Over-called (tear) or under-called (stuff), and by how much. */
+  bidTension: { sum: number; diff: number; kind: 'tear' | 'stuff' | 'even' };
+  /** The one bid the last declarer may not make (null until their turn). */
+  forbiddenBid: number | null;
   currentTrick: PlayedCard[];
   currentPlaySeat: number;
   scores: Record<string, number>;

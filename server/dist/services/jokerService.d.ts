@@ -17,27 +17,28 @@ export interface JokerPlayer {
     profileId: string | null;
     seatIndex: number;
     isBot?: boolean;
+    avatar?: string;
+    avatarUrl?: string | null;
 }
 export interface JokerSettings {
     mode: 'classic' | 'nines_only';
-    khishtiPenalty: number;
-    exactBidMultiplier: number;
-    zeroBidExactScore: number;
-    missPenaltyPerTrick: number;
     bonusEnabled: boolean;
     spectatorsAllowed: boolean;
     privateTable: boolean;
-    pulkaBonusPoints: number;
 }
 export interface JokerRoundResult {
     roundIndex: number;
     cardCount: number;
+    trumpSuit: Suit | null;
     declarations: Record<string, number>;
     taken: Record<string, number>;
     points: Record<string, number>;
     khishtiPlayers: string[];
     pulkaId: number | null;
-    pulkaBonusPlayers: Record<string, number>;
+    /** Premium: best deal of the pulka doubled, for a player who was exact in all of it. */
+    premiumPlayers: Record<string, number>;
+    /** Premium: everyone else loses their best deal of that pulka. */
+    premiumPenalties: Record<string, number>;
 }
 export interface JokerChatMsg {
     senderId: string;
@@ -60,6 +61,13 @@ export interface JokerMatch {
     declarations: Record<string, number | null>;
     currentDeclarationSeat: number;
     tricksTaken: Record<string, number>;
+    /**
+     * ხიშტი — the trump suit for this deal, named by the first player to declare
+     * (the "host" of the hand, left of the dealer). null = უხიშტოდ, no trump.
+     */
+    trumpSuit: Suit | null;
+    /** The seat that names the trump: the first declarer of this deal. */
+    trumpChooserSeat: number;
     currentTrick: PlayedCard[];
     currentTrickLeaderSeat: number;
     currentPlaySeat: number;
@@ -75,18 +83,21 @@ export interface JokerMatch {
  * Build and shuffle a 38-card deck (ranks 6–A per suit + 2 jokers).
  */
 export declare function createDeck(): Card[];
+/** How many deals make one პულკა — one column of the score sheet. */
+export declare const PULKA_SIZE = 4;
 /**
- * Return the round plan (card-count array) for the given mode.
- * Classic:    [9,9,9,9, 9,8,7,6,5,4,3,2,1, 1,2,3,4,5,6,7,8,9, 9,9,9,9]
- * Nines-only: [9,9,9,9]
+ * The deals of a game.
+ *
+ * A პულკა is four deals of nine — one where each player deals once — and the
+ * score sheet is four such columns. That shape is what the premium is built on:
+ * "exact in all four" only means something if the block IS four.
+ *
+ * Classic:    4 pulkas → 16 deals.
+ * Nines-only: 1 pulka  → 4 deals, for a short table.
  */
 export declare function getJokerRoundPlan(mode: 'classic' | 'nines_only'): number[];
-/**
- * Assign a pulka id (integer) to each round that belongs to a pulka, null otherwise.
- * Classic:    rounds 0-3  -> pulka 1,  rounds 22-25 -> pulka 2
- * Nines-only: rounds 0-3  -> pulka 1
- */
-export declare function computePulkaIds(mode: 'classic' | 'nines_only', roundPlan: number[]): (number | null)[];
+/** Which პულკა each deal belongs to — blocks of four, numbered from 1. */
+export declare function computePulkaIds(_mode: 'classic' | 'nines_only', roundPlan: number[]): (number | null)[];
 /**
  * Deal `cardCount` cards per player from a freshly shuffled deck.
  * Dealing starts from seat (dealerSeat+1)%4 going clockwise.
@@ -101,23 +112,54 @@ export declare function dealRound(match: JokerMatch): void;
 export declare function validateCardPlay(hand: Card[], card: Card, trick: PlayedCard[]): string | null;
 /**
  * Resolve the current trick.
- * Joker beats everything. If a jokerTarget is set, that player wins the trick.
- * Otherwise highest-ranked card of the led suit wins (no trump).
+ *
+ * The joker still beats everything — including ხიშტი — and may hand the trick
+ * to whoever it was given to. Otherwise the highest trump wins, and if no trump
+ * was played, the highest card of the led suit.
  */
-export declare function resolveTrick(trick: PlayedCard[], players: JokerPlayer[]): {
+export declare function resolveTrick(trick: PlayedCard[], players: JokerPlayer[], trumpSuit?: Suit | null): {
     winnerId: string;
     winnerSeat: number;
 };
 /**
- * Calculate score for one player for one round.
+ * The one bid the LAST declarer of a deal is not allowed to make.
  *
- * Khishti:   declared ≥ 1 && actual === 0  →  -khishtiPenalty
- * Exact bid: actual === declared            →  declared === 0 ? zeroBidExactScore : declared * exactBidMultiplier
- * Miss:      actual !== declared            →  -(|actual - declared| * missPenaltyPerTrick)
+ * The bids must never add up to exactly the number of cards: if they did, every
+ * player could make their word and the hand would have no edge to it. So the
+ * last player is pushed off that number — with six cards dealt and 1+4+1
+ * already called, they cannot pass, because passing would make it add up. They
+ * must go up, and someone will lose a trick they promised (წაგლეჯვა) or be
+ * handed one they did not want (შეტენვა).
+ *
+ * Returns null while it is not yet the last player's turn.
  */
-export declare function calcRoundScore(declared: number, actual: number, settings: Pick<JokerSettings, 'khishtiPenalty' | 'exactBidMultiplier' | 'zeroBidExactScore' | 'missPenaltyPerTrick'>): {
+export declare function forbiddenBid(match: JokerMatch): number | null;
+/**
+ * Where the hand stands: more promised than there are tricks (someone will be
+ * torn off one — წაგლეჯვა), or fewer (someone will be stuffed — შეტენვა).
+ */
+export declare function bidTension(match: JokerMatch): {
+    sum: number;
+    diff: number;
+    kind: 'tear' | 'stuff' | 'even';
+};
+/**
+ * What one deal is worth to one player.
+ *
+ * Keeping your word:
+ *   პასი (0) …  50        1 … 100     2 … 150     3 … 200     4 … 250
+ *   5 … 300     6 … 350    7 … 400     8 … 450
+ *   and taking the WHOLE deal is worth 100 per card — nine of nine is 900,
+ *   four of four is 400 — because there is nothing left to lose by then.
+ *
+ * Breaking it — stuffed with a trick you did not want, or torn off one you
+ * promised — pays 10 a trick for what you actually took, and nothing more.
+ * A ხიშტი (promised, took none) is therefore worth exactly zero.
+ */
+export declare function calcRoundScore(declared: number, actual: number, cardCount: number): {
     points: number;
     khishti: boolean;
+    exact: boolean;
 };
 /**
  * Called when all tricks in a round are done.

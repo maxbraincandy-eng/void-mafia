@@ -44,42 +44,25 @@ export function createDeck() {
     deck.push({ suit: 'J', rank: 0 });
     return shuffle(deck);
 }
+/** How many deals make one პულკა — one column of the score sheet. */
+export const PULKA_SIZE = 4;
 /**
- * Return the round plan (card-count array) for the given mode.
- * Classic:    [9,9,9,9, 9,8,7,6,5,4,3,2,1, 1,2,3,4,5,6,7,8,9, 9,9,9,9]
- * Nines-only: [9,9,9,9]
+ * The deals of a game.
+ *
+ * A პულკა is four deals of nine — one where each player deals once — and the
+ * score sheet is four such columns. That shape is what the premium is built on:
+ * "exact in all four" only means something if the block IS four.
+ *
+ * Classic:    4 pulkas → 16 deals.
+ * Nines-only: 1 pulka  → 4 deals, for a short table.
  */
 export function getJokerRoundPlan(mode) {
-    if (mode === 'nines_only') {
-        return [9, 9, 9, 9];
-    }
-    return [
-        9, 9, 9, 9,
-        9, 8, 7, 6, 5, 4, 3, 2, 1,
-        1, 2, 3, 4, 5, 6, 7, 8, 9,
-        9, 9, 9, 9,
-    ];
+    const pulkas = mode === 'nines_only' ? 1 : 4;
+    return new Array(pulkas * PULKA_SIZE).fill(9);
 }
-/**
- * Assign a pulka id (integer) to each round that belongs to a pulka, null otherwise.
- * Classic:    rounds 0-3  -> pulka 1,  rounds 22-25 -> pulka 2
- * Nines-only: rounds 0-3  -> pulka 1
- */
-export function computePulkaIds(mode, roundPlan) {
-    const result = new Array(roundPlan.length).fill(null);
-    if (mode === 'nines_only') {
-        // All 4 rounds belong to pulka 1
-        for (let i = 0; i < roundPlan.length; i++) {
-            result[i] = 1;
-        }
-        return result;
-    }
-    // Classic: first 4 rounds (0-3) = pulka 1, last 4 rounds (22-25) = pulka 2
-    for (let i = 0; i <= 3 && i < roundPlan.length; i++)
-        result[i] = 1;
-    for (let i = 22; i <= 25 && i < roundPlan.length; i++)
-        result[i] = 2;
-    return result;
+/** Which პულკა each deal belongs to — blocks of four, numbered from 1. */
+export function computePulkaIds(_mode, roundPlan) {
+    return roundPlan.map((_, i) => Math.floor(i / PULKA_SIZE) + 1);
 }
 // ─── Game logic ───────────────────────────────────────────────────────────────
 /**
@@ -146,10 +129,12 @@ export function validateCardPlay(hand, card, trick) {
 }
 /**
  * Resolve the current trick.
- * Joker beats everything. If a jokerTarget is set, that player wins the trick.
- * Otherwise highest-ranked card of the led suit wins (no trump).
+ *
+ * The joker still beats everything — including ხიშტი — and may hand the trick
+ * to whoever it was given to. Otherwise the highest trump wins, and if no trump
+ * was played, the highest card of the led suit.
  */
-export function resolveTrick(trick, players) {
+export function resolveTrick(trick, players, trumpSuit = null) {
     if (trick.length === 0) {
         throw new Error('Cannot resolve an empty trick.');
     }
@@ -161,32 +146,68 @@ export function resolveTrick(trick, players) {
         return { winnerId: targetId, winnerSeat: targetPlayer?.seatIndex ?? jokerPlay.seatIndex };
     }
     const ledSuit = trick[0].card.suit;
-    let winner = trick[0];
-    for (let i = 1; i < trick.length; i++) {
-        const played = trick[i];
-        if (played.card.suit === ledSuit && played.card.rank > winner.card.rank) {
+    const trumps = trumpSuit && trumpSuit !== 'J'
+        ? trick.filter(p => p.card.suit === trumpSuit)
+        : [];
+    const contenders = trumps.length > 0 ? trumps : trick.filter(p => p.card.suit === ledSuit);
+    let winner = contenders[0] ?? trick[0];
+    for (const played of contenders) {
+        if (played.card.rank > winner.card.rank)
             winner = played;
-        }
     }
     return { winnerId: winner.playerId, winnerSeat: winner.seatIndex };
 }
 /**
- * Calculate score for one player for one round.
+ * The one bid the LAST declarer of a deal is not allowed to make.
  *
- * Khishti:   declared ≥ 1 && actual === 0  →  -khishtiPenalty
- * Exact bid: actual === declared            →  declared === 0 ? zeroBidExactScore : declared * exactBidMultiplier
- * Miss:      actual !== declared            →  -(|actual - declared| * missPenaltyPerTrick)
+ * The bids must never add up to exactly the number of cards: if they did, every
+ * player could make their word and the hand would have no edge to it. So the
+ * last player is pushed off that number — with six cards dealt and 1+4+1
+ * already called, they cannot pass, because passing would make it add up. They
+ * must go up, and someone will lose a trick they promised (წაგლეჯვა) or be
+ * handed one they did not want (შეტენვა).
+ *
+ * Returns null while it is not yet the last player's turn.
  */
-export function calcRoundScore(declared, actual, settings) {
-    if (declared > 0 && actual === 0) {
-        return { points: -settings.khishtiPenalty, khishti: true };
-    }
+export function forbiddenBid(match) {
+    const declared = match.players.filter(p => match.declarations[p.id] !== null);
+    if (declared.length !== match.players.length - 1)
+        return null;
+    const cardCount = match.roundPlan[match.currentRoundIndex] ?? 0;
+    const sum = declared.reduce((n, p) => n + (match.declarations[p.id] ?? 0), 0);
+    const forbidden = cardCount - sum;
+    return forbidden >= 0 && forbidden <= cardCount ? forbidden : null;
+}
+/**
+ * Where the hand stands: more promised than there are tricks (someone will be
+ * torn off one — წაგლეჯვა), or fewer (someone will be stuffed — შეტენვა).
+ */
+export function bidTension(match) {
+    const cardCount = match.roundPlan[match.currentRoundIndex] ?? 0;
+    const sum = match.players.reduce((n, p) => n + (match.declarations[p.id] ?? 0), 0);
+    const diff = sum - cardCount;
+    return { sum, diff, kind: diff > 0 ? 'tear' : diff < 0 ? 'stuff' : 'even' };
+}
+/**
+ * What one deal is worth to one player.
+ *
+ * Keeping your word:
+ *   პასი (0) …  50        1 … 100     2 … 150     3 … 200     4 … 250
+ *   5 … 300     6 … 350    7 … 400     8 … 450
+ *   and taking the WHOLE deal is worth 100 per card — nine of nine is 900,
+ *   four of four is 400 — because there is nothing left to lose by then.
+ *
+ * Breaking it — stuffed with a trick you did not want, or torn off one you
+ * promised — pays 10 a trick for what you actually took, and nothing more.
+ * A ხიშტი (promised, took none) is therefore worth exactly zero.
+ */
+export function calcRoundScore(declared, actual, cardCount) {
+    const khishti = declared > 0 && actual === 0;
     if (actual === declared) {
-        const points = declared === 0 ? settings.zeroBidExactScore : declared * settings.exactBidMultiplier;
-        return { points, khishti: false };
+        const points = declared === cardCount && cardCount > 0 ? 100 * cardCount : 50 + 50 * declared;
+        return { points, khishti, exact: true };
     }
-    const points = -(Math.abs(actual - declared) * settings.missPenaltyPerTrick);
-    return { points, khishti: false };
+    return { points: 10 * actual, khishti, exact: false };
 }
 // ─── Score application ────────────────────────────────────────────────────────
 /**
@@ -197,52 +218,93 @@ export function applyRoundScores(match) {
     const roundIndex = match.currentRoundIndex;
     const cardCount = match.roundPlan[roundIndex];
     const pulkaId = match.pulkaIds[roundIndex];
-    const { pulkaBonusPoints, bonusEnabled } = match.settings;
+    const { bonusEnabled } = match.settings;
     const declarations = {};
     const taken = {};
     const points = {};
     const khishtiPlayers = [];
-    const pulkaBonusPlayers = {};
     for (const player of match.players) {
         const declared = match.declarations[player.id] ?? 0;
         const actual = match.tricksTaken[player.id] ?? 0;
         declarations[player.id] = declared;
         taken[player.id] = actual;
-        const { points: pts, khishti } = calcRoundScore(declared, actual, match.settings);
+        const { points: pts, khishti, exact } = calcRoundScore(declared, actual, cardCount);
         points[player.id] = pts;
-        if (khishti) {
+        if (khishti)
             khishtiPlayers.push(player.id);
-        }
-        // Update running score
         match.scores[player.id] = (match.scores[player.id] ?? 0) + pts;
-        // Pulka tracking: only if bonus is enabled and round was exact (not khishti)
-        if (bonusEnabled && pulkaId !== null && !khishti && pts >= 0) {
-            if (!match.pulkaExacts[player.id]) {
+        // How many deals of this pulka they have kept their word in so far.
+        if (pulkaId !== null) {
+            if (!match.pulkaExacts[player.id])
                 match.pulkaExacts[player.id] = {};
-            }
             const prev = match.pulkaExacts[player.id][pulkaId] ?? 0;
-            const next = prev + 1;
-            match.pulkaExacts[player.id][pulkaId] = next;
-            // Award pulka bonus if player has been exact in all 4 rounds of this pulka
-            if (next >= 4) {
-                pulkaBonusPlayers[player.id] = pulkaBonusPoints;
-                match.scores[player.id] += pulkaBonusPoints;
-            }
+            match.pulkaExacts[player.id][pulkaId] = exact ? prev + 1 : prev;
         }
     }
     const result = {
         roundIndex,
         cardCount,
+        trumpSuit: match.trumpSuit,
         declarations,
         taken,
         points,
         khishtiPlayers,
         pulkaId,
-        pulkaBonusPlayers,
+        premiumPlayers: {},
+        premiumPenalties: {},
     };
     match.roundHistory.push(result);
+    // The premium is settled when the column is full, because it is about the
+    // whole column — not about this deal.
+    const isPulkaEnd = pulkaId !== null && match.pulkaIds[roundIndex + 1] !== pulkaId;
+    if (bonusEnabled && isPulkaEnd) {
+        const { bonus, penalty } = settlePremium(match, pulkaId);
+        result.premiumPlayers = bonus;
+        result.premiumPenalties = penalty;
+    }
     match.updatedAt = Date.now();
     return result;
+}
+/**
+ * პრემია — the reward for a clean column.
+ *
+ * Keep your word in every deal of a pulka — never stuffed, never torn — and
+ * your best deal of that pulka counts twice. Everyone else loses their own best
+ * deal of the same pulka. That is why a pulka is played as one thing rather
+ * than four separate hands: one broken word in the fourth deal costs the whole
+ * column.
+ *
+ * At most three players can ever manage it: the bids never add up to the cards
+ * dealt, so somebody breaks their word in every single deal.
+ */
+function settlePremium(match, pulkaId) {
+    const rounds = match.roundHistory.filter(r => r.pulkaId === pulkaId);
+    const bonus = {};
+    const penalty = {};
+    if (rounds.length === 0)
+        return { bonus, penalty };
+    const best = (id) => Math.max(0, ...rounds.map(r => r.points[id] ?? 0));
+    const cleanSweep = (id) => rounds.every(r => (r.taken[id] ?? 0) === (r.declarations[id] ?? 0));
+    const winners = match.players.filter(p => cleanSweep(p.id));
+    if (winners.length === 0)
+        return { bonus, penalty };
+    for (const w of winners) {
+        const b = best(w.id);
+        if (b > 0) {
+            bonus[w.id] = b;
+            match.scores[w.id] = (match.scores[w.id] ?? 0) + b;
+        }
+    }
+    for (const other of match.players) {
+        if (winners.some(w => w.id === other.id))
+            continue;
+        const lost = best(other.id);
+        if (lost > 0) {
+            penalty[other.id] = lost;
+            match.scores[other.id] = (match.scores[other.id] ?? 0) - lost;
+        }
+    }
+    return { bonus, penalty };
 }
 // ─── CRUD ─────────────────────────────────────────────────────────────────────
 export function createMatch(creator, settings) {
@@ -277,6 +339,8 @@ export function createMatch(creator, settings) {
         declarations,
         currentDeclarationSeat: 1, // seat after dealer
         tricksTaken,
+        trumpSuit: null,
+        trumpChooserSeat: 1,
         currentTrick: [],
         currentTrickLeaderSeat: 1,
         currentPlaySeat: 1,

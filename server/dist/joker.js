@@ -1,6 +1,6 @@
 import { ok, err, } from './types/index.js';
-import { createMatch, getMatch, getMatchByCode, getMatchForSocket, getOpenMatches, dealRound, validateCardPlay, resolveTrick, applyRoundScores, finishMatch, } from './services/jokerService.js';
-import { addXP } from './services/playerService.js';
+import { createMatch, getMatch, getMatchByCode, getMatchForSocket, getOpenMatches, dealRound, validateCardPlay, resolveTrick, applyRoundScores, finishMatch, forbiddenBid, bidTension, } from './services/jokerService.js';
+import { addXP, getPlayer } from './services/playerService.js';
 import { voiceJoin as jokerVoiceJoin, voiceLeave as jokerVoiceLeave, voiceGetMatchId as jokerVoiceGetMatchId, } from './services/jokerVoiceService.js';
 import { buildIceConfig } from './lib/iceConfig.js';
 const JOKER_ROOM = (id) => `jk:${id}`;
@@ -28,16 +28,25 @@ function toPublic(match) {
             seatIndex: p.seatIndex,
             cardCount: (match.hands[p.id] ?? []).length,
             isBot: p.isBot ?? false,
+            avatar: p.avatar ?? '🃏',
+            avatarUrl: p.avatarUrl ?? null,
         })),
         spectatorCount: match.spectatorSocketIds.length,
         botPlayerIds: match.botPlayerIds,
         roundPlan: match.roundPlan,
+        pulkaIds: match.pulkaIds,
         currentRoundIndex: match.currentRoundIndex,
         totalRounds: match.roundPlan.length,
         currentDealerSeat: match.currentDealerSeat,
         declarations: match.declarations,
         currentDeclarationSeat: match.currentDeclarationSeat,
         tricksTaken: match.tricksTaken,
+        trumpSuit: match.trumpSuit,
+        trumpChooserSeat: match.trumpChooserSeat,
+        // What the table already knows about this deal: whether it is over- or
+        // under-called, and the one bid the last player is barred from.
+        bidTension: bidTension(match),
+        forbiddenBid: forbiddenBid(match),
         currentTrick: match.currentTrick,
         currentPlaySeat: match.currentPlaySeat,
         scores: match.scores,
@@ -67,7 +76,12 @@ function broadcastState(io, match) {
     }
 }
 // ── Extracted game logic (called by socket handlers AND bot engine) ────
-function executeDeclare(io, match, player, tricks) {
+function executeDeclare(io, match, player, tricks, trump) {
+    // The first to speak names the ხიშტი for the whole deal, together with their
+    // own word. Everybody else is bidding into a suit that is already decided.
+    if (player.seatIndex === match.trumpChooserSeat && trump !== undefined) {
+        match.trumpSuit = trump === 'J' ? null : trump;
+    }
     match.declarations[player.id] = tricks;
     match.currentDeclarationSeat = (match.currentDeclarationSeat + 1) % 4;
     const allDeclared = match.players.every(p => match.declarations[p.id] !== null);
@@ -83,6 +97,10 @@ function executeDeclare(io, match, player, tricks) {
     scheduleBotAction(io, match);
 }
 function executePlayCard(io, match, player, card, jokerTarget) {
+    // Same guard as the handler, for the bot path and any future caller: a trick
+    // that is already full must never take another card.
+    if (match.currentTrick.length >= match.players.length)
+        return;
     const hand = match.hands[player.id] ?? [];
     const cardIndex = hand.findIndex(c => c.suit === card.suit && c.rank === card.rank);
     if (cardIndex === -1)
@@ -95,7 +113,7 @@ function executePlayCard(io, match, player, card, jokerTarget) {
     match.currentPlaySeat = (match.currentPlaySeat + 1) % 4;
     match.updatedAt = Date.now();
     if (match.currentTrick.length === 4) {
-        const { winnerId, winnerSeat } = resolveTrick(match.currentTrick, match.players);
+        const { winnerId, winnerSeat } = resolveTrick(match.currentTrick, match.players, match.trumpSuit);
         match.tricksTaken[winnerId] = (match.tricksTaken[winnerId] ?? 0) + 1;
         broadcastState(io, match);
         setTimeout(() => {
@@ -130,6 +148,9 @@ function executePlayCard(io, match, player, card, jokerTarget) {
                         dealRound(match);
                         match.status = 'declaration';
                         match.currentDeclarationSeat = (match.currentDealerSeat + 1) % 4;
+                        // A new deal, a new ხიშტი — named by whoever speaks first this time.
+                        match.trumpSuit = null;
+                        match.trumpChooserSeat = (match.currentDealerSeat + 1) % 4;
                         match.currentTrick = [];
                         match.currentTrickLeaderSeat = (match.currentDealerSeat + 1) % 4;
                         match.currentPlaySeat = (match.currentDealerSeat + 1) % 4;
@@ -190,8 +211,25 @@ function scheduleBotAction(io, match) {
         }
         if (match.status === 'declaration') {
             const cardCount = match.roundPlan[match.currentRoundIndex];
-            const decl = Math.floor(Math.random() * (cardCount + 1));
-            executeDeclare(io, match, currentPlayer, decl);
+            // Count the strong cards rather than rolling dice: a bot that calls nine
+            // on a hand of sixes makes the whole table's scores meaningless.
+            const hand = match.hands[currentPlayer.id] ?? [];
+            const strong = hand.filter(c => c.suit === 'J' || c.rank >= 13).length;
+            const banned = forbiddenBid(match);
+            let decl = Math.min(cardCount, strong);
+            if (decl === banned)
+                decl = decl > 0 ? decl - 1 : 1;
+            // The first to speak also names the ხიშტი — its longest suit.
+            let trump;
+            if (currentPlayer.seatIndex === match.trumpChooserSeat) {
+                const counts = {};
+                for (const c of hand)
+                    if (c.suit !== 'J')
+                        counts[c.suit] = (counts[c.suit] ?? 0) + 1;
+                const best = Object.entries(counts).sort(([, a], [, b]) => b - a)[0];
+                trump = best ? best[0] : null;
+            }
+            executeDeclare(io, match, currentPlayer, Math.max(0, Math.min(cardCount, decl)), trump);
         }
         else if (match.status === 'playing') {
             const hand = match.hands[currentPlayer.id] ?? [];
@@ -223,7 +261,7 @@ export function registerJokerHandlers(io, socket) {
         }
     });
     // ── Create match ──────────────────────────────────────────────────
-    socket.on('joker:create', (data, cb) => {
+    socket.on('joker:create', async (data, cb) => {
         try {
             const name = String(data?.name ?? 'Player').trim().slice(0, 24) || 'Player';
             const existing = getMatchForSocket(socket.id);
@@ -232,23 +270,24 @@ export function registerJokerHandlers(io, socket) {
             }
             const settings = {
                 mode: 'classic',
-                khishtiPenalty: 200,
-                exactBidMultiplier: 50,
-                zeroBidExactScore: 50,
-                missPenaltyPerTrick: 50,
                 bonusEnabled: true,
                 spectatorsAllowed: true,
                 privateTable: false,
-                pulkaBonusPoints: 400,
                 ...data?.settings,
             };
             const creatorId = socket.data.profileId ?? socket.id;
+            // The face, fetched once at the table. Cheaper than every client asking
+            // for four profiles on every state push, and it is what makes the seats
+            // look like people rather than rows.
+            const me = socket.data.profileId ? await getPlayer(socket.data.profileId) : null;
             const creator = {
                 id: creatorId,
                 socketId: socket.id,
                 name,
                 profileId: socket.data.profileId ?? null,
                 seatIndex: 0,
+                avatar: me?.avatar ?? '🃏',
+                avatarUrl: me?.avatarUrl ?? null,
             };
             const match = createMatch(creator, settings);
             socket.join(JOKER_ROOM(match.id));
@@ -260,7 +299,7 @@ export function registerJokerHandlers(io, socket) {
         }
     });
     // ── Join match ────────────────────────────────────────────────────
-    socket.on('joker:join', (data, cb) => {
+    socket.on('joker:join', async (data, cb) => {
         try {
             const name = String(data?.name ?? 'Player').trim().slice(0, 24) || 'Player';
             const match = getMatchByCode(data.code ?? '');
@@ -282,12 +321,15 @@ export function registerJokerHandlers(io, socket) {
             if (match.players.length < 4 && match.status === 'waiting') {
                 const nextSeat = match.players.length;
                 const playerId = socket.data.profileId ?? socket.id;
+                const joiner = socket.data.profileId ? await getPlayer(socket.data.profileId) : null;
                 const newPlayer = {
                     id: playerId,
                     socketId: socket.id,
                     name,
                     profileId: socket.data.profileId ?? null,
                     seatIndex: nextSeat,
+                    avatar: joiner?.avatar ?? '🃏',
+                    avatarUrl: joiner?.avatarUrl ?? null,
                 };
                 match.players.push(newPlayer);
                 match.scores[playerId] = 0;
@@ -332,6 +374,8 @@ export function registerJokerHandlers(io, socket) {
             dealRound(match);
             match.status = 'declaration';
             match.currentDeclarationSeat = (match.currentDealerSeat + 1) % 4;
+            match.trumpSuit = null;
+            match.trumpChooserSeat = (match.currentDealerSeat + 1) % 4;
             match.currentTrick = [];
             match.currentTrickLeaderSeat = (match.currentDealerSeat + 1) % 4;
             match.currentPlaySeat = (match.currentDealerSeat + 1) % 4;
@@ -368,9 +412,17 @@ export function registerJokerHandlers(io, socket) {
             if (!Number.isInteger(tricks) || tricks < 0 || tricks > cardCount) {
                 return cb(err(`Declaration must be between 0 and ${cardCount}.`));
             }
+            // The bids must not add up to the cards dealt — the last player is pushed
+            // off that number, and cannot simply pass to keep the hand tidy.
+            if (forbiddenBid(match) === tricks) {
+                return cb(err(`${tricks} ვერ ითქმება — ჯამი ზუსტად ${cardCount} გამოვა.`));
+            }
             // Human declared — clear bot timer if running
             clearTurnTimer(match.id);
-            executeDeclare(io, match, player, tricks);
+            const trump = player.seatIndex === match.trumpChooserSeat
+                ? (data.trump === undefined ? null : data.trump)
+                : undefined;
+            executeDeclare(io, match, player, tricks, trump);
             cb(ok(null));
         }
         catch (e) {
@@ -390,6 +442,13 @@ export function registerJokerHandlers(io, socket) {
                 return cb(err('You are not a player in this match.'));
             if (player.seatIndex !== match.currentPlaySeat) {
                 return cb(err('It is not your turn to play.'));
+            }
+            // The finished trick stays on the felt for a moment so everyone can see
+            // it. During that pause the seat pointer has already come back round to
+            // the leader, so a fast tap would drop a fifth card into a trick that is
+            // over — and that card would simply vanish from the deal.
+            if (match.currentTrick.length >= match.players.length) {
+                return cb(err('ხელი ჯერ არ დასრულებულა.'));
             }
             const hand = match.hands[player.id] ?? [];
             const validationError = validateCardPlay(hand, data.card, match.currentTrick);

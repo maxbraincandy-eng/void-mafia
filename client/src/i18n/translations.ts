@@ -247,8 +247,8 @@ export const TRANSLATIONS = {
       joker: {
         title: 'Joker',
         subtitle: 'Classic 4-player trick-taking card game',
-        modeClassic: 'Classic Joker',
-        modeNines: 'Nines Only',
+        modeClassic: '4 pulkas',
+        modeNines: '1 pulka (short)',
         createTable: 'Create Joker Table',
         joinTable: 'Join Table',
         spectate: 'Spectate',
@@ -2452,8 +2452,8 @@ export const TRANSLATIONS = {
       joker: {
         title: 'ჯოკერი',
         subtitle: 'კლასიკური 4-მოთამაშიანი კარტის თამაში',
-        modeClassic: 'კლასიკური ჯოკერი',
-        modeNines: 'ცხრიანები',
+        modeClassic: '4 პულკა',
+        modeNines: '1 პულკა (მოკლე)',
         createTable: 'ჯოკერის მაგიდის შექმნა',
         joinTable: 'მაგიდაში შესვლა',
         spectate: 'ყურება',
@@ -4656,8 +4656,8 @@ export const TRANSLATIONS = {
       joker: {
         title: 'Джокер',
         subtitle: 'Классическая карточная игра со взятками на 4 игроков',
-        modeClassic: 'Классический джокер',
-        modeNines: 'Только девятки',
+        modeClassic: '4 пульки',
+        modeNines: '1 пулька (короткая)',
         createTable: 'Создать стол джокера',
         joinTable: 'Присоединиться к столу',
         spectate: 'Наблюдать',
