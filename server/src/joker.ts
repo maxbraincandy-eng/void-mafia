@@ -10,7 +10,7 @@ import {
 import {
   createMatch, getMatch, getMatchByCode, getMatchForSocket, getOpenMatches,
   dealRound, validateCardPlay, resolveTrick, applyRoundScores, finishMatch,
-  forbiddenBid, bidTension,
+  forbiddenBid, bidTension, KHISHTI_PENALTIES,
   type JokerMatch, type JokerPlayer, type JokerSettings, type Card, type PlayedCard, type Suit,
 } from './services/jokerService.js';
 import { addXP, getPlayer } from './services/playerService.js';
@@ -310,12 +310,16 @@ export function registerJokerHandlers(io: AppServer, socket: AppSocket): void {
         return cb(err('You are already in a Joker match.'));
       }
 
+      const raw = data?.settings ?? {};
       const settings: JokerSettings = {
-        mode: 'classic',
-        bonusEnabled: true,
-        spectatorsAllowed: true,
-        privateTable: false,
-        ...data?.settings,
+        mode: raw.mode === 'nines_only' ? 'nines_only' : 'classic',
+        bonusEnabled: raw.bonusEnabled !== false,
+        spectatorsAllowed: raw.spectatorsAllowed !== false,
+        privateTable: raw.privateTable === true,
+        // Only the table the host actually picked from — anything else would be
+        // a score rule nobody at the table agreed to.
+        khishtiPenalty: KHISHTI_PENALTIES.includes(Number(raw.khishtiPenalty) as any)
+          ? Number(raw.khishtiPenalty) : 200,
       };
 
       const creatorId = socket.data.profileId ?? socket.id;

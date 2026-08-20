@@ -154,6 +154,8 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms }: { onOpenSpace?: () =>
   } = useJokerStore();
   const [jkJoinCode, setJkJoinCode] = useState('');
   const [jkMode, setJkMode] = useState<'classic' | 'nines_only'>('classic');
+  // The host settles ხიშტი before the first deal — tables disagree about it.
+  const [jkKhishti, setJkKhishti] = useState<number>(200);
 
   // ── Ludo ────────────────────────────────────────────────────────────
   const {
@@ -257,7 +259,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms }: { onOpenSpace?: () =>
   // ── Create/join handlers (behaviour preserved) ───────────────────────
   const handleCkCreate = () => ckCreate(playerName);
   const handleCkJoin = () => { if (ckJoinCode.trim()) { ckJoin(ckJoinCode.trim().toUpperCase(), playerName); setCkJoinCode(''); } };
-  const handleJkCreate = () => jkCreate(playerName, { mode: jkMode });
+  const handleJkCreate = () => jkCreate(playerName, { mode: jkMode, khishtiPenalty: jkKhishti });
   const handleJkJoin = () => { if (jkJoinCode.trim()) { jkJoin(jkJoinCode.trim().toUpperCase(), playerName); setJkJoinCode(''); } };
   const handleLdCreate = () => ldCreate(playerName, ldMaxPlayers);
   const handleLdJoin = () => { if (ldJoinCode.trim()) { ldJoin(ldJoinCode.trim().toUpperCase(), playerName); setLdJoinCode(''); } };
@@ -296,13 +298,25 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms }: { onOpenSpace?: () =>
       onJoin: handleJkJoin, codeMax: 7, codePh: 'JK-0000', list: jkList, error: jkError, clearError: jkClear,
       renderRow: m => <JokerRow key={m.id} match={m} onJoin={code => { recordRecent('joker'); jkJoin(code, playerName); }} />,
       extra: (
-        <div className="flex gap-2">
-          {(['classic', 'nines_only'] as const).map(m => (
-            <button key={m} onClick={() => setJkMode(m)} className="px-3 py-1 rounded-full font-mono text-[12px] uppercase tracking-wider transition-all"
-              style={{ background: jkMode === m ? 'rgba(255,165,0,0.2)' : 'rgba(255,255,255,0.03)', border: `1px solid ${jkMode === m ? 'rgba(255,165,0,0.5)' : 'rgba(255,255,255,0.08)'}`, color: jkMode === m ? '#fbbf24' : 'rgba(255,255,255,0.35)' }}>
-              {m === 'classic' ? t.games.joker.modeClassic : t.games.joker.modeNines}
-            </button>
-          ))}
+        <div className="flex flex-col gap-2">
+          <div className="flex gap-2 flex-wrap">
+            {(['classic', 'nines_only'] as const).map(m => (
+              <button key={m} onClick={() => setJkMode(m)} className="px-3 py-1 rounded-full font-mono text-[12px] tracking-wider transition-all"
+                style={{ background: jkMode === m ? 'rgba(255,165,0,0.2)' : 'rgba(255,255,255,0.03)', border: `1px solid ${jkMode === m ? 'rgba(255,165,0,0.5)' : 'rgba(255,255,255,0.08)'}`, color: jkMode === m ? '#fbbf24' : 'rgba(255,255,255,0.35)' }}>
+                {m === 'classic' ? t.games.joker.modeClassic : t.games.joker.modeNines}
+              </button>
+            ))}
+          </div>
+          {/* ხიშტი: what a broken word costs. The host decides, once. */}
+          <div className="flex gap-1.5 items-center flex-wrap">
+            <span className="font-mono text-[11px] text-white/35">ხიშტი:</span>
+            {[0, 100, 200, 500].map(v => (
+              <button key={v} onClick={() => setJkKhishti(v)} className="px-2.5 py-1 rounded-full font-mono text-[11px] transition-all"
+                style={{ background: jkKhishti === v ? 'rgba(255,165,0,0.2)' : 'rgba(255,255,255,0.03)', border: `1px solid ${jkKhishti === v ? 'rgba(255,165,0,0.5)' : 'rgba(255,255,255,0.08)'}`, color: jkKhishti === v ? '#fbbf24' : 'rgba(255,255,255,0.35)' }}>
+                {v === 0 ? '10/ხელი' : `−${v}`}
+              </button>
+            ))}
+          </div>
         </div>
       ),
     },

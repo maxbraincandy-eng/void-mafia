@@ -25,7 +25,18 @@ export interface JokerSettings {
     bonusEnabled: boolean;
     spectatorsAllowed: boolean;
     privateTable: boolean;
+    /**
+     * What a broken word costs — chosen by the host before the first deal,
+     * because tables disagree about it and always have.
+     *
+     * 0 keeps the soft rule (ten a trick for what was actually taken, never
+     * below zero); 100 / 200 / 500 make it a real fall. Both readings of ხიშტი
+     * are in here: the table that plays it as a consolation and the table that
+     * plays it as a punishment.
+     */
+    khishtiPenalty: number;
 }
+export declare const KHISHTI_PENALTIES: readonly [0, 100, 200, 500];
 export interface JokerRoundResult {
     roundIndex: number;
     cardCount: number;
@@ -83,21 +94,9 @@ export interface JokerMatch {
  * Build and shuffle a 38-card deck (ranks 6–A per suit + 2 jokers).
  */
 export declare function createDeck(): Card[];
-/** How many deals make one პულკა — one column of the score sheet. */
-export declare const PULKA_SIZE = 4;
-/**
- * The deals of a game.
- *
- * A პულკა is four deals of nine — one where each player deals once — and the
- * score sheet is four such columns. That shape is what the premium is built on:
- * "exact in all four" only means something if the block IS four.
- *
- * Classic:    4 pulkas → 16 deals.
- * Nines-only: 1 pulka  → 4 deals, for a short table.
- */
 export declare function getJokerRoundPlan(mode: 'classic' | 'nines_only'): number[];
-/** Which პულკა each deal belongs to — blocks of four, numbered from 1. */
-export declare function computePulkaIds(_mode: 'classic' | 'nines_only', roundPlan: number[]): (number | null)[];
+/** Which პულკა (column) each deal belongs to, numbered from 1. */
+export declare function computePulkaIds(mode: 'classic' | 'nines_only', _roundPlan: number[]): (number | null)[];
 /**
  * Deal `cardCount` cards per player from a freshly shuffled deck.
  * Dealing starts from seat (dealerSeat+1)%4 going clockwise.
@@ -153,10 +152,12 @@ export declare function bidTension(match: JokerMatch): {
  *   four of four is 400 — because there is nothing left to lose by then.
  *
  * Breaking it — stuffed with a trick you did not want, or torn off one you
- * promised — pays 10 a trick for what you actually took, and nothing more.
- * A ხიშტი (promised, took none) is therefore worth exactly zero.
+ * promised — costs whatever the host set the ხიშტი at: a flat fall of 100, 200
+ * or 500, or, when they set it to zero, the soft rule of ten a trick for what
+ * was actually taken. Missing by one and missing by four cost the same, because
+ * the promise is the whole of it.
  */
-export declare function calcRoundScore(declared: number, actual: number, cardCount: number): {
+export declare function calcRoundScore(declared: number, actual: number, cardCount: number, khishtiPenalty?: number): {
     points: number;
     khishti: boolean;
     exact: boolean;

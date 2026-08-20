@@ -1,4 +1,5 @@
 import { generateId } from '../utils/helpers.js';
+export const KHISHTI_PENALTIES = [0, 100, 200, 500];
 // ─── In-memory store ─────────────────────────────────────────────────────────
 const matchStore = new Map();
 // ─── Utility helpers ─────────────────────────────────────────────────────────
@@ -44,25 +45,38 @@ export function createDeck() {
     deck.push({ suit: 'J', rank: 0 });
     return shuffle(deck);
 }
-/** How many deals make one პულკა — one column of the score sheet. */
-export const PULKA_SIZE = 4;
 /**
- * The deals of a game.
+ * The deals of a game, and the four columns they are written in.
  *
- * A პულკა is four deals of nine — one where each player deals once — and the
- * score sheet is four such columns. That shape is what the premium is built on:
- * "exact in all four" only means something if the block IS four.
+ * Both structures people actually play:
  *
- * Classic:    4 pulkas → 16 deals.
- * Nines-only: 1 pulka  → 4 deals, for a short table.
+ *   classic     — up 1…9, four nines, back down 9…1, four nines. 26 deals, and
+ *                 the score sheet's four columns are exactly those four stages.
+ *   nines_only  — four blocks of four nines. 16 deals, four columns of four.
+ *
+ * The columns matter beyond bookkeeping: პრემია is won or lost over a whole
+ * column, so where one ends is a rule, not a layout choice.
  */
+const PLANS = {
+    classic: [
+        [1, 2, 3, 4, 5, 6, 7, 8, 9],
+        [9, 9, 9, 9],
+        [9, 8, 7, 6, 5, 4, 3, 2, 1],
+        [9, 9, 9, 9],
+    ],
+    nines_only: [
+        [9, 9, 9, 9],
+        [9, 9, 9, 9],
+        [9, 9, 9, 9],
+        [9, 9, 9, 9],
+    ],
+};
 export function getJokerRoundPlan(mode) {
-    const pulkas = mode === 'nines_only' ? 1 : 4;
-    return new Array(pulkas * PULKA_SIZE).fill(9);
+    return PLANS[mode].flat();
 }
-/** Which პულკა each deal belongs to — blocks of four, numbered from 1. */
-export function computePulkaIds(_mode, roundPlan) {
-    return roundPlan.map((_, i) => Math.floor(i / PULKA_SIZE) + 1);
+/** Which პულკა (column) each deal belongs to, numbered from 1. */
+export function computePulkaIds(mode, _roundPlan) {
+    return PLANS[mode].flatMap((block, i) => block.map(() => i + 1));
 }
 // ─── Game logic ───────────────────────────────────────────────────────────────
 /**
@@ -198,16 +212,18 @@ export function bidTension(match) {
  *   four of four is 400 — because there is nothing left to lose by then.
  *
  * Breaking it — stuffed with a trick you did not want, or torn off one you
- * promised — pays 10 a trick for what you actually took, and nothing more.
- * A ხიშტი (promised, took none) is therefore worth exactly zero.
+ * promised — costs whatever the host set the ხიშტი at: a flat fall of 100, 200
+ * or 500, or, when they set it to zero, the soft rule of ten a trick for what
+ * was actually taken. Missing by one and missing by four cost the same, because
+ * the promise is the whole of it.
  */
-export function calcRoundScore(declared, actual, cardCount) {
+export function calcRoundScore(declared, actual, cardCount, khishtiPenalty = 0) {
     const khishti = declared > 0 && actual === 0;
     if (actual === declared) {
         const points = declared === cardCount && cardCount > 0 ? 100 * cardCount : 50 + 50 * declared;
         return { points, khishti, exact: true };
     }
-    return { points: 10 * actual, khishti, exact: false };
+    return { points: khishtiPenalty > 0 ? -khishtiPenalty : 10 * actual, khishti, exact: false };
 }
 // ─── Score application ────────────────────────────────────────────────────────
 /**
@@ -228,7 +244,7 @@ export function applyRoundScores(match) {
         const actual = match.tricksTaken[player.id] ?? 0;
         declarations[player.id] = declared;
         taken[player.id] = actual;
-        const { points: pts, khishti, exact } = calcRoundScore(declared, actual, cardCount);
+        const { points: pts, khishti, exact } = calcRoundScore(declared, actual, cardCount, match.settings.khishtiPenalty ?? 0);
         points[player.id] = pts;
         if (khishti)
             khishtiPlayers.push(player.id);
@@ -283,6 +299,7 @@ function settlePremium(match, pulkaId) {
     const penalty = {};
     if (rounds.length === 0)
         return { bonus, penalty };
+    // Best DEAL of the column — a fall is never anybody's best, so the floor is 0.
     const best = (id) => Math.max(0, ...rounds.map(r => r.points[id] ?? 0));
     const cleanSweep = (id) => rounds.every(r => (r.taken[id] ?? 0) === (r.declarations[id] ?? 0));
     const winners = match.players.filter(p => cleanSweep(p.id));

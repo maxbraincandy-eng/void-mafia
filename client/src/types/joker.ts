@@ -27,7 +27,16 @@ export interface JokerSettings {
   bonusEnabled: boolean;
   spectatorsAllowed: boolean;
   privateTable: boolean;
+  /** What a broken word costs: 0 = 10 a trick, otherwise a flat fall. */
+  khishtiPenalty: number;
 }
+
+export const KHISHTI_PENALTIES = [0, 100, 200, 500] as const;
+
+/** The suits as they are named at a Georgian table. */
+export const SUIT_NAME: Record<Suit, string> = {
+  S: 'ყვავი', H: 'გული', D: 'აგური', C: 'ჯვარი', J: 'ჯოკერი',
+};
 
 export interface JokerRoundResult {
   roundIndex: number;

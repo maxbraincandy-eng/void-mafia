@@ -4,7 +4,7 @@ import { useT } from '@/store/langStore';
 import { useJokerStore } from '@/store/jokerStore';
 import { useJokerVoice } from '@/hooks/useJokerVoice';
 import { JokerCard } from './JokerCard';
-import type { Card, JokerPlayerPublic, Suit } from '@/types/joker';
+import { SUIT_NAME, type Card, type JokerPlayerPublic, type Suit } from '@/types/joker';
 import { haptic } from '@/lib/haptics';
 import { tNow } from '@/store/langStore';
 import { GameInviteButton } from '@/components/social/GameInviteButton';
@@ -54,12 +54,36 @@ function useLandscapeToggle() {
   const [deviceLandscape, setDeviceLandscape] = useState(
     () => typeof window !== 'undefined' && window.matchMedia('(orientation: landscape)').matches,
   );
+  // MEASURED, not 100vh. On a phone browser 100vh is the height WITHOUT the
+  // address bar, so a rotated surface built from it hangs past the bottom of
+  // the screen and the page scrolls sideways to reach the rest — which is
+  // exactly what going landscape used to do here.
+  const [vp, setVp] = useState(() => ({
+    w: typeof window === 'undefined' ? 0 : window.innerWidth,
+    h: typeof window === 'undefined' ? 0 : window.innerHeight,
+  }));
 
   useEffect(() => {
     const mq = window.matchMedia('(orientation: landscape)');
     const onChange = (e: MediaQueryListEvent) => setDeviceLandscape(e.matches);
+    const measure = () => {
+      const vv = window.visualViewport;
+      setVp({
+        w: Math.round(vv?.width ?? window.innerWidth),
+        h: Math.round(vv?.height ?? window.innerHeight),
+      });
+    };
+    measure();
     mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
+    window.addEventListener('resize', measure);
+    window.addEventListener('orientationchange', measure);
+    window.visualViewport?.addEventListener('resize', measure);
+    return () => {
+      mq.removeEventListener('change', onChange);
+      window.removeEventListener('resize', measure);
+      window.removeEventListener('orientationchange', measure);
+      window.visualViewport?.removeEventListener('resize', measure);
+    };
   }, []);
 
   // Never leave the phone locked after the table is gone.
@@ -87,15 +111,30 @@ function useLandscapeToggle() {
 
   // Only fake it when the device itself is still portrait.
   const rotate = want && !deviceLandscape;
+
+  // While the surface is rotated the document must not scroll at all: any
+  // scroll would move the page under a turned view, which reads as the screen
+  // sliding away sideways.
+  useEffect(() => {
+    if (!rotate) return;
+    const { overflow } = document.body.style;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = overflow; };
+  }, [rotate]);
+
   const style: React.CSSProperties = rotate
     ? {
         position: 'fixed', top: 0, left: 0,
-        width: '100vh', height: '100vw',
+        width: vp.h, height: vp.w,          // measured, in pixels
         transform: 'rotate(90deg) translateY(-100%)',
         transformOrigin: 'top left',
+        overflow: 'hidden',
       }
     : {};
-  return { want, rotate, style, toggle };
+
+  // What the game actually has to lay out into, whichever way round we are.
+  const surface = rotate ? { w: vp.h, h: vp.w } : vp;
+  return { want, rotate, style, surface, toggle };
 }
 
 export function JokerGame() {
@@ -107,13 +146,23 @@ export function JokerGame() {
   } = useJokerStore();
 
   const [chatInput, setChatInput] = useState('');
+  const [showChat, setShowChat] = useState(false);
+  const [unreadChat, setUnreadChat] = useState(0);
   const [showScoreboard, setShowScoreboard] = useState(false);
   const [jokerPendingCard, setJokerPendingCard] = useState<Card | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
 
+  const chatLen = match?.chat?.length ?? 0;
+  const seenChat = useRef(0);
   useEffect(() => {
-    if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
-  }, [match?.chat]);
+    if (showChat) {
+      seenChat.current = chatLen;
+      setUnreadChat(0);
+      if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
+    } else {
+      setUnreadChat(Math.max(0, chatLen - seenChat.current));
+    }
+  }, [chatLen, showChat]);
 
   // ── Voice (must be before conditional return) ──────────────────────
   const voice = useJokerVoice();
@@ -192,6 +241,15 @@ export function JokerGame() {
     }
   }
 
+  // How much room the table actually has. Sideways on a phone the height is
+  // the phone's WIDTH, so the same layout has to hold in ~390px — hence one
+  // switch here rather than guesses scattered through the markup.
+  const tight = orientation.surface.h < 560;
+  // A tall phone can afford full-size cards on the felt; a short one cannot.
+  const feltCardSize = tight ? 'md' : orientation.surface.h >= 760 ? 'xl' : 'lg';
+  const handCardSize = tight ? 'md' : 'xl';
+  const handMaxWidth = Math.max(240, Math.min(460, orientation.surface.w - 24));
+
   const winner = isFinished && match.winnerPlayerId
     ? match.players.find(p => p.id === match.winnerPlayerId)
     : null;
@@ -242,6 +300,22 @@ export function JokerGame() {
             }}>
             {orientation.want ? '📱' : '🔄'}
           </button>
+          {/* Chat lives behind a button now: on a phone it was eating a
+              hundred pixels of felt to show two lines nobody was reading. */}
+          <button onClick={() => setShowChat(c => !c)}
+            className="font-mono text-[15px] w-11 h-11 rounded border transition-colors flex items-center justify-center relative"
+            style={{
+              color: showChat ? '#c084fc' : 'rgba(255,255,255,0.35)',
+              borderColor: showChat ? 'rgba(192,132,252,0.45)' : 'rgba(255,255,255,0.1)',
+            }}>
+            💬
+            {!showChat && unreadChat > 0 && (
+              <span style={{
+                position: 'absolute', top: 4, right: 4, width: 7, height: 7,
+                borderRadius: '50%', background: '#c084fc',
+              }} />
+            )}
+          </button>
           <button onClick={() => setShowScoreboard(s => !s)}
             className="font-mono text-[12px] text-white/40 hover:text-white/70 px-3 py-2 rounded border border-white/10 hover:border-white/25 transition-colors min-h-[44px] flex items-center">
             {t.games.joker.score}
@@ -271,31 +345,36 @@ export function JokerGame() {
         {match.status !== 'waiting' && !isFinished && (
           <div className="flex-1 flex flex-col overflow-hidden min-h-0">
 
-            {/* Top player */}
-            <div className="flex-shrink-0 flex justify-center pt-2 pb-0.5 px-2">
-              <PlayerBadge player={seatedPlayers[2]} match={match} myId={myId} position="top" />
-            </div>
+            {/* The table, with the three other seats sitting ON its edges.
+                Giving each of them a column of its own used to cost the felt a
+                third of the screen — and the felt is the game. */}
+            <div className="flex-1 min-h-0 relative px-1 py-1">
+              <TrickArea match={match} seatedPlayers={seatedPlayers} cardSize={feltCardSize} minHeight={tight ? 150 : 210} />
 
-            {/* Left | Table | Right */}
-            <div className="flex-1 flex items-stretch min-h-0 gap-1 px-1">
-              {/* Left player */}
-              <div className="flex-shrink-0 flex items-center">
+              {/* Centred over the felt when there is height for it; tucked into
+                  the corner when there is not, because a short felt puts the
+                  played cards exactly where that badge would sit. */}
+              <div
+                className="absolute z-10"
+                style={tight
+                  ? { top: 4, left: 8 }
+                  : { top: 4, left: '50%', transform: 'translateX(-50%)' }}
+              >
+                <PlayerBadge player={seatedPlayers[2]} match={match} myId={myId} position="top" compact={tight} />
+              </div>
+              <div className="absolute z-10" style={{ left: 4, top: '50%', transform: 'translateY(-50%)' }}>
                 <PlayerBadge player={seatedPlayers[1]} match={match} myId={myId} position="side" />
               </div>
-
-              {/* Table felt */}
-              <div className="flex-1 min-h-0 py-1">
-                <TrickArea match={match} seatedPlayers={seatedPlayers} />
-              </div>
-
-              {/* Right player */}
-              <div className="flex-shrink-0 flex items-center">
+              <div className="absolute z-10" style={{ right: 4, top: '50%', transform: 'translateY(-50%)' }}>
                 <PlayerBadge player={seatedPlayers[3]} match={match} myId={myId} position="side" />
               </div>
             </div>
 
             {/* ── Bottom section: declaration + hand ── */}
-            <div className="flex-shrink-0 px-2 pb-2">
+            <div
+              className="flex-shrink-0 px-2"
+              style={{ paddingBottom: `calc(${tight ? 2 : 8}px + env(safe-area-inset-bottom, 0px))` }}
+            >
 
               {/* Declaration panel (my turn) */}
               <AnimatePresence>
@@ -322,9 +401,27 @@ export function JokerGame() {
                 </div>
               )}
 
-              {/* My player badge */}
+              {/* My own seat, with the mic beside it. Sideways there is no room
+                  for a full-width talk button, but there is always room for a
+                  thumb-sized one next to my own name. */}
               {isPlayer && (
-                <PlayerBadge player={seatedPlayers[0]} match={match} myId={myId} position="bottom" />
+                <div className="flex items-center gap-2">
+                  <PlayerBadge player={seatedPlayers[0]} match={match} myId={myId} position="bottom" compact={tight} />
+                  {!isFinished && voice.joined && tight && (
+                    <button
+                      onPointerDown={handlePttStart}
+                      onPointerUp={handlePttStop}
+                      onPointerLeave={handlePttStop}
+                      className="rounded-full font-mono text-[13px] transition-all active:scale-95 select-none flex items-center justify-center"
+                      style={{
+                        width: 34, height: 34, flexShrink: 0, touchAction: 'none',
+                        background: voice.isTalking ? 'rgba(168,85,247,0.35)' : 'rgba(168,85,247,0.1)',
+                        border: `1px solid ${voice.isTalking ? 'rgba(168,85,247,0.8)' : 'rgba(168,85,247,0.28)'}`,
+                        color: voice.isTalking ? '#fff' : 'rgba(168,85,247,0.7)',
+                      }}
+                    >🎙</button>
+                  )}
+                </div>
               )}
 
               {/* My hand — fan layout */}
@@ -336,6 +433,8 @@ export function JokerGame() {
                     isMyTurn={isMyPlayTurn}
                     selectedCard={selectedCard}
                     trumpSuit={match.trumpSuit ?? null}
+                    size={handCardSize}
+                    maxWidth={handMaxWidth}
                     onCardClick={handleCardClick}
                   />
                   {myHand.length === 0 && match.status === 'playing' && (
@@ -345,7 +444,7 @@ export function JokerGame() {
               )}
 
               {/* Turn status text */}
-              {isPlayer && isMyPlayTurn && (
+              {isPlayer && isMyPlayTurn && !tight && (
                 <p className={`text-center font-mono text-[11px] mt-1.5 tracking-wider ${selectedCard ? 'text-yellow-400/80' : 'text-cyan-400 jk-my-turn-text'}`}
                   style={{ textShadow: selectedCard ? 'none' : '0 0 10px rgba(0,245,255,0.5)' }}>
                   {selectedCard ? `▶ ${t.games.joker.tapAgainToPlay}` : `▶ ${t.games.joker.yourTurn}`}
@@ -353,7 +452,7 @@ export function JokerGame() {
               )}
 
               {/* PTT button */}
-              {isPlayer && !isFinished && voice.joined && (
+              {isPlayer && !isFinished && voice.joined && !tight && (
                 <button
                   onPointerDown={handlePttStart}
                   onPointerUp={handlePttStop}
@@ -473,25 +572,36 @@ export function JokerGame() {
         </AnimatePresence>
       </div>
 
-      {/* ── Chat ── */}
-      <div className="flex-shrink-0 border-t" style={{ borderColor: 'rgba(155,0,255,0.12)', maxHeight: 110 }}>
-        <div ref={chatRef} className="overflow-y-auto px-3 py-1 space-y-0.5" style={{ maxHeight: 72 }}>
-          {match.chat.map((msg: any, i: number) => (
-            <div key={i} className="flex gap-2 items-start">
-              <span className="font-mono text-[12px] text-white/30 flex-shrink-0 mt-0.5">{msg.senderName}</span>
-              <span className="font-mono text-[12px] text-white/60 break-words min-w-0">{msg.text}</span>
+      {/* ── Chat drawer ── */}
+      <AnimatePresence>
+        {showChat && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+            className="flex-shrink-0 border-t overflow-hidden"
+            style={{ borderColor: 'rgba(155,0,255,0.12)', background: 'rgba(8,4,22,0.98)' }}
+          >
+            <div ref={chatRef} className="overflow-y-auto px-3 py-1.5 space-y-0.5" style={{ maxHeight: 108 }}>
+              {match.chat.length === 0 && (
+                <p className="font-mono text-[11px] text-white/20 text-center py-2">…</p>
+              )}
+              {match.chat.map((msg: any, i: number) => (
+                <div key={i} className="flex gap-2 items-start">
+                  <span className="font-mono text-[12px] text-white/30 flex-shrink-0 mt-0.5">{msg.senderName}</span>
+                  <span className="font-mono text-[12px] text-white/60 break-words min-w-0">{msg.text}</span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-        <div className="flex gap-2 px-3 pb-2">
-          <input value={chatInput} onChange={e => setChatInput(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') handleChatSend(); }}
-            placeholder={t.games.joker.chatPlaceholder} maxLength={200}
-            className="flex-1 bg-transparent font-mono text-xs text-white placeholder-white/20 outline-none border-b border-white/10 focus:border-white/30 transition-colors py-0.5" />
-          <button onClick={handleChatSend} disabled={!chatInput.trim()}
-            className="font-mono text-xs text-white/40 hover:text-white/70 transition-colors disabled:opacity-20">↵</button>
-        </div>
-      </div>
+            <div className="flex gap-2 px-3 pb-2">
+              <input value={chatInput} onChange={e => setChatInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleChatSend(); }}
+                placeholder={t.games.joker.chatPlaceholder} maxLength={200}
+                className="flex-1 bg-transparent font-mono text-xs text-white placeholder-white/20 outline-none border-b border-white/10 focus:border-white/30 transition-colors py-1" />
+              <button onClick={handleChatSend} disabled={!chatInput.trim()}
+                className="font-mono text-xs text-white/40 hover:text-white/70 transition-colors disabled:opacity-20">↵</button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
@@ -641,7 +751,9 @@ function PlayerBadge({ player, match, myId, position, compact }: {
   );
 }
 
-function TrickArea({ match, seatedPlayers }: { match: any; seatedPlayers: JokerPlayerPublic[] }) {
+function TrickArea({ match, seatedPlayers, cardSize = 'md', minHeight = 190 }: {
+  match: any; seatedPlayers: JokerPlayerPublic[]; cardSize?: 'md' | 'lg' | 'xl'; minHeight?: number;
+}) {
   const t = useT();
   const trick = match.currentTrick as Array<{ playerId: string; seatIndex: number; card: Card }>;
 
@@ -650,18 +762,46 @@ function TrickArea({ match, seatedPlayers }: { match: any; seatedPlayers: JokerP
 
   const positions = ['bottom', 'left', 'top', 'right'] as const;
 
-  // Card positions relative to felt center; placed with absolute + translate
+  /*
+   * The four cards sit in a cross AROUND THE MIDDLE of the felt.
+   *
+   * Measured rather than guessed: the felt is a different shape on a phone held
+   * upright, the same phone turned sideways, and a tablet, and a fixed offset
+   * that looks right on one of them pushes a card clean off another. The
+   * spacing is therefore whatever the felt can actually hold, and never less
+   * than the cards can overlap without hiding each other.
+   */
+  const feltRef = useRef<HTMLDivElement>(null);
+  const [box, setBox] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    const el = feltRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setBox({ w: el.clientWidth, h: el.clientHeight }));
+    ro.observe(el);
+    setBox({ w: el.clientWidth, h: el.clientHeight });
+    return () => ro.disconnect();
+  }, []);
+
+  const cw = cardSize === 'xl' ? 88 : cardSize === 'lg' ? 72 : 58;
+  const ch = cardSize === 'xl' ? 132 : cardSize === 'lg' ? 108 : 87;
+  // A share of the table rather than a fixed gap: on a big felt the four cards
+  // should sit apart like four players' cards do, and on a short one they close
+  // up until they nearly touch — but never past the edge, and never so far
+  // apart that the trick stops reading as one pile.
+  const offY = Math.max(26, Math.min(130, box.h * 0.24, box.h / 2 - ch / 2 - 6));
+  const offX = Math.max(34, Math.min(150, box.w * 0.26, box.w / 2 - cw / 2 - 6));
+  const centre = 'translate(-50%, -50%) ';
   const posStyle: Record<string, React.CSSProperties> = {
-    bottom: { bottom: '14%',  left: '50%', transform: 'translateX(-50%)' },
-    left:   { left:   '14%',  top:  '50%', transform: 'translateY(-50%)' },
-    top:    { top:    '14%',  left: '50%', transform: 'translateX(-50%)' },
-    right:  { right:  '14%',  top:  '50%', transform: 'translateY(-50%)' },
+    bottom: { left: '50%', top: '50%', transform: `${centre}translate(0, ${offY}px)` },
+    left:   { left: '50%', top: '50%', transform: `${centre}translate(-${offX}px, 0)` },
+    top:    { left: '50%', top: '50%', transform: `${centre}translate(0, -${offY}px)` },
+    right:  { left: '50%', top: '50%', transform: `${centre}translate(${offX}px, 0)` },
   };
 
   const trumpSuit = match.trumpSuit as Suit | null;
 
   return (
-    <div style={{ width: '100%', height: '100%', minHeight: 160, position: 'relative' }}>
+    <div ref={feltRef} style={{ width: '100%', height: '100%', minHeight, position: 'relative', overflow: 'hidden', borderRadius: 18 }}>
       {/* Felt */}
       <div style={{
         position: 'absolute', inset: 0,
@@ -684,14 +824,14 @@ function TrickArea({ match, seatedPlayers }: { match: any; seatedPlayers: JokerP
               <span style={{ fontSize: 13, color: (trumpSuit === 'H' || trumpSuit === 'D') ? '#ff6b6b' : '#e2e8f0' }}>
                 {SUIT_SYMBOL[trumpSuit]}
               </span>
-              <span className="font-mono text-[10px] text-yellow-400/70">ხიშტი</span>
+              <span className="font-mono text-[10px] text-yellow-400/70">{SUIT_NAME[trumpSuit]}</span>
             </>
           : <span className="font-mono text-[10px] text-white/35">უხიშტოდ</span>}
       </div>
 
       {/* Round / phase indicator */}
       <div style={{
-        position: 'absolute', top: 8, left: 10, zIndex: 3,
+        position: 'absolute', bottom: 8, left: 10, zIndex: 3,
         padding: '2px 8px', borderRadius: 20,
         background: 'rgba(0,0,0,0.45)',
         border: '1px solid rgba(255,255,255,0.1)',
@@ -716,7 +856,7 @@ function TrickArea({ match, seatedPlayers }: { match: any; seatedPlayers: JokerP
         return (
           <div key={`${pc.playerId}-${cardKey(pc.card)}`}
             style={{ position: 'absolute', zIndex: 4, ...posStyle[pos] }}>
-            <JokerCard card={pc.card} size="md" trump={!!trumpSuit && pc.card.suit === trumpSuit} animate />
+            <JokerCard card={pc.card} size={cardSize} trump={!!trumpSuit && pc.card.suit === trumpSuit} animate />
           </div>
         );
       })}
@@ -733,27 +873,27 @@ function TrickArea({ match, seatedPlayers }: { match: any; seatedPlayers: JokerP
 
 // ── Fan hand layout ────────────────────────────────────────────────────────
 
-const HAND_W = 72;
-const HAND_H = 108;
-
-function HandFan({ cards, playableSet, isMyTurn, selectedCard, trumpSuit, onCardClick }: {
+function HandFan({ cards, playableSet, isMyTurn, selectedCard, trumpSuit, size, maxWidth, onCardClick }: {
   cards: Card[];
   playableSet: Set<string>;
   isMyTurn: boolean;
   selectedCard: Card | null;
   trumpSuit: Suit | null;
+  size: 'md' | 'xl';
+  maxWidth: number;
   onCardClick: (card: Card) => void;
 }) {
   if (cards.length === 0) return null;
 
   const n = cards.length;
-  // Overlap shrinks as hand gets bigger so it always fits in ~340px
-  const maxWidth = Math.min(340, window.innerWidth - 32);
-  const overlap = n <= 1 ? 0 : Math.min(42, Math.floor((maxWidth - HAND_W) / (n - 1)));
-  const totalW = (n - 1) * overlap + HAND_W;
+  const cw = size === 'xl' ? 88 : 58;
+  const ch = size === 'xl' ? 132 : 87;
+  // Overlap shrinks as the hand grows, so nine cards fit the same width four do.
+  const overlap = n <= 1 ? 0 : Math.min(cw * 0.62, Math.floor((maxWidth - cw) / (n - 1)));
+  const totalW = (n - 1) * overlap + cw;
 
   return (
-    <div style={{ position: 'relative', height: HAND_H + 18, width: totalW, margin: '0 auto' }}>
+    <div style={{ position: 'relative', height: ch + 18, width: totalW, margin: '0 auto' }}>
       {cards.map((card, i) => {
         const key = cardKey(card);
         const isSelected = selectedCard ? cardKey(selectedCard) === key : false;
@@ -764,7 +904,7 @@ function HandFan({ cards, playableSet, isMyTurn, selectedCard, trumpSuit, onCard
             style={{
               position: 'absolute',
               left: i * overlap,
-              bottom: isSelected ? 18 : 0,
+              bottom: isSelected ? 20 : 0,
               zIndex: isSelected ? n + 2 : i + 1,
               transition: 'bottom 0.15s ease',
               filter: isMyTurn && !isPlayable && !isSelected ? 'brightness(0.55)' : 'none',
@@ -776,7 +916,7 @@ function HandFan({ cards, playableSet, isMyTurn, selectedCard, trumpSuit, onCard
               playable={isMyTurn && isPlayable}
               trump={!!trumpSuit && card.suit === trumpSuit}
               disabled={false}
-              size="lg"
+              size={size}
               onClick={() => onCardClick(card)}
             />
           </div>
@@ -788,12 +928,13 @@ function HandFan({ cards, playableSet, isMyTurn, selectedCard, trumpSuit, onCard
 
 // ── Declaration panel ──────────────────────────────────────────────────────
 
-const TRUMP_CHOICES: Array<{ suit: Suit | null; label: string; color: string }> = [
-  { suit: 'S', label: '♠', color: '#e2e8f0' },
-  { suit: 'H', label: '♥', color: '#ff6b6b' },
-  { suit: 'D', label: '♦', color: '#ff6b6b' },
-  { suit: 'C', label: '♣', color: '#e2e8f0' },
-  { suit: null, label: 'უხიშტოდ', color: 'rgba(255,255,255,0.65)' },
+// All four suits, under the names they are called by at the table.
+const TRUMP_CHOICES: Array<{ suit: Suit | null; symbol: string; name: string; color: string }> = [
+  { suit: 'S', symbol: '♠', name: SUIT_NAME.S, color: '#e2e8f0' },
+  { suit: 'H', symbol: '♥', name: SUIT_NAME.H, color: '#ff6b6b' },
+  { suit: 'D', symbol: '♦', name: SUIT_NAME.D, color: '#ff6b6b' },
+  { suit: 'C', symbol: '♣', name: SUIT_NAME.C, color: '#e2e8f0' },
+  { suit: null, symbol: '∅', name: 'უხიშტოდ', color: 'rgba(255,255,255,0.65)' },
 ];
 
 /**
@@ -830,16 +971,16 @@ function DeclarationPanel({ cardCount, forbidden, isTrumpChooser, sumSoFar, onDe
               {TRUMP_CHOICES.map(c => {
                 const on = trump === c.suit;
                 return (
-                  <button key={c.label} onClick={() => { haptic('selection'); setTrump(c.suit); }}
-                    className="px-2.5 h-9 rounded-xl font-display font-bold transition-all active:scale-90"
+                  <button key={c.name} onClick={() => { haptic('selection'); setTrump(c.suit); }}
+                    className="px-2.5 py-1 rounded-xl transition-all active:scale-90 flex flex-col items-center"
                     style={{
-                      minWidth: c.suit ? 38 : undefined,
-                      fontSize: c.suit ? 18 : 11,
+                      minWidth: 46,
                       background: on ? 'rgba(251,191,36,0.22)' : 'rgba(255,255,255,0.05)',
                       border: `1px solid ${on ? 'rgba(251,191,36,0.75)' : 'rgba(255,255,255,0.12)'}`,
                       color: on ? '#fbbf24' : c.color,
                     }}>
-                    {c.label}
+                    <span style={{ fontSize: 17, lineHeight: 1.1, fontWeight: 700 }}>{c.symbol}</span>
+                    <span className="font-mono" style={{ fontSize: 9, opacity: 0.75 }}>{c.name}</span>
                   </button>
                 );
               })}
@@ -942,7 +1083,7 @@ function RoundEndPanel({ match, myId }: { match: any; myId: string | null }) {
         <p className="font-display text-base font-bold text-center mt-0.5" style={{ color: '#c084fc' }}>
           {t.games.joker.round} {lastResult.roundIndex + 1} · {lastResult.cardCount}🃏
           {lastResult.pulkaId !== null ? ` · პულკა ${lastResult.pulkaId}` : ''}
-          {lastResult.trumpSuit ? ` · ხიშტი ${SUIT_SYMBOL[lastResult.trumpSuit as Suit]}` : ' · უხიშტოდ'}
+          {lastResult.trumpSuit ? ` · ხიშტი ${SUIT_SYMBOL[lastResult.trumpSuit as Suit]} ${SUIT_NAME[lastResult.trumpSuit as Suit]}` : ' · უხიშტოდ'}
         </p>
       </div>
       <div className="px-4 py-3">
@@ -1103,7 +1244,7 @@ function ScoreboardPanel({ match, myId, onClose }: { match: any; myId: string | 
             <p className="font-mono text-[12px] text-white/30 mb-1">
               {t.games.joker.round} {r.roundIndex + 1} · {r.cardCount}🃏
               {r.pulkaId !== null ? ` · პულკა ${r.pulkaId}` : ''}
-              {r.trumpSuit ? ` · ხიშტი ${SUIT_SYMBOL[r.trumpSuit as Suit]}` : ' · უხიშტოდ'}
+              {r.trumpSuit ? ` · ხიშტი ${SUIT_SYMBOL[r.trumpSuit as Suit]} ${SUIT_NAME[r.trumpSuit as Suit]}` : ' · უხიშტოდ'}
             </p>
             <div className="space-y-0.5">
               {match.players.map((p: any) => {

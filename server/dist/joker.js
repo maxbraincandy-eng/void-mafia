@@ -1,5 +1,5 @@
 import { ok, err, } from './types/index.js';
-import { createMatch, getMatch, getMatchByCode, getMatchForSocket, getOpenMatches, dealRound, validateCardPlay, resolveTrick, applyRoundScores, finishMatch, forbiddenBid, bidTension, } from './services/jokerService.js';
+import { createMatch, getMatch, getMatchByCode, getMatchForSocket, getOpenMatches, dealRound, validateCardPlay, resolveTrick, applyRoundScores, finishMatch, forbiddenBid, bidTension, KHISHTI_PENALTIES, } from './services/jokerService.js';
 import { addXP, getPlayer } from './services/playerService.js';
 import { voiceJoin as jokerVoiceJoin, voiceLeave as jokerVoiceLeave, voiceGetMatchId as jokerVoiceGetMatchId, } from './services/jokerVoiceService.js';
 import { buildIceConfig } from './lib/iceConfig.js';
@@ -268,12 +268,16 @@ export function registerJokerHandlers(io, socket) {
             if (existing && existing.status !== 'finished') {
                 return cb(err('You are already in a Joker match.'));
             }
+            const raw = data?.settings ?? {};
             const settings = {
-                mode: 'classic',
-                bonusEnabled: true,
-                spectatorsAllowed: true,
-                privateTable: false,
-                ...data?.settings,
+                mode: raw.mode === 'nines_only' ? 'nines_only' : 'classic',
+                bonusEnabled: raw.bonusEnabled !== false,
+                spectatorsAllowed: raw.spectatorsAllowed !== false,
+                privateTable: raw.privateTable === true,
+                // Only the table the host actually picked from — anything else would be
+                // a score rule nobody at the table agreed to.
+                khishtiPenalty: KHISHTI_PENALTIES.includes(Number(raw.khishtiPenalty))
+                    ? Number(raw.khishtiPenalty) : 200,
             };
             const creatorId = socket.data.profileId ?? socket.id;
             // The face, fetched once at the table. Cheaper than every client asking

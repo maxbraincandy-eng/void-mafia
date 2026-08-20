@@ -21,7 +21,7 @@ interface JokerCardProps {
   faceDown?: boolean;
   /** Of the ხიშტი suit — worth seeing at a glance while you plan the hand. */
   trump?: boolean;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg' | 'xl';
   animate?: boolean;
   onClick?: () => void;
 }
@@ -49,7 +49,8 @@ export function JokerCard({
 }: JokerCardProps) {
   const dim = size === 'sm' ? { w: 44,  h: 66,  font: 11, suit: 16, r: 6,  p: 3 }
             : size === 'md' ? { w: 58,  h: 87,  font: 14, suit: 22, r: 9,  p: 4 }
-            :                 { w: 72,  h: 108, font: 17, suit: 28, r: 11, p: 5 };
+            : size === 'lg' ? { w: 72,  h: 108, font: 17, suit: 28, r: 11, p: 5 }
+            :                 { w: 88,  h: 132, font: 21, suit: 34, r: 13, p: 6 };
 
   if (faceDown) {
     return (
