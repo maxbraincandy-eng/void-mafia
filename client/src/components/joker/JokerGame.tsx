@@ -3,6 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useT } from '@/store/langStore';
 import { useJokerStore } from '@/store/jokerStore';
 import { useJokerVoice } from '@/hooks/useJokerVoice';
+import { useAuthStore } from '@/store/authStore';
+import { useLiveKitGate, useLivekitRoomVoice } from '@/hooks/useLivekitVoice';
+import { LiveKitVoiceBarView } from '@/components/game/LiveKitVoiceBar';
+import { VoiceDisguiseButton } from '@/components/game/VoiceDisguiseButton';
 import { JokerCard } from './JokerCard';
 import { SUIT_NAME, KHISHTI_PENALTIES, type Card, type JokerPlayerPublic, type Suit } from '@/types/joker';
 import { haptic } from '@/lib/haptics';
@@ -165,16 +169,34 @@ export function JokerGame() {
   }, [chatLen, showChat]);
 
   // ── Voice (must be before conditional return) ──────────────────────
+  /*
+   * The same voice every other table in the app uses: one LiveKit room per
+   * match, joined for as long as the match is live, with the verified voice
+   * changer beside it. ჯოკერი was still on the old push-to-talk mesh, which is
+   * why it simply did not work here.
+   *
+   * The mesh is kept as the fallback for a server with no LiveKit configured —
+   * and only ever joined then, or the microphone would be captured twice.
+   */
+  const { enabled: livekitEnabled, resolved: livekitResolved } = useLiveKitGate();
+  const profile = useAuthStore(s => s.profile);
   const voice = useJokerVoice();
   const jokerMatchId = match?.id;
   const jokerIsPlayer = match?.myPlayerId !== null && match?.myPlayerId !== undefined;
 
+  const lkVoice = useLivekitRoomVoice({
+    roomId: jokerMatchId ? `joker_${jokerMatchId}` : null,
+    identity: profile?.id ?? null,
+    active: livekitEnabled && !!jokerMatchId && match?.status !== 'finished',
+    listenOnly: !jokerIsPlayer,
+  });
+
   useEffect(() => {
-    if (!jokerMatchId) return;
+    if (!jokerMatchId || livekitEnabled || !livekitResolved) return;
     if (jokerIsPlayer) voice.joinVoice(jokerMatchId);
     else voice.joinListen(jokerMatchId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jokerMatchId]);
+  }, [jokerMatchId, livekitEnabled, livekitResolved]);
 
   const jokerIsFinished = match?.status === 'finished';
   useEffect(() => { if (jokerIsFinished) voice.leave(); }, [jokerIsFinished, voice.leave]);
@@ -319,14 +341,16 @@ export function JokerGame() {
           </button>
           {match.status !== 'waiting' && (
             <button onClick={() => setShowScoreboard(s => !s)}
-              className="font-mono text-[12px] text-white/40 hover:text-white/70 px-3 py-2 rounded border border-white/10 hover:border-white/25 transition-colors min-h-[44px] flex items-center">
-              {t.games.joker.score}
+              title={t.games.joker.score}
+              className="font-mono text-[15px] text-white/40 hover:text-white/70 w-11 h-11 rounded border border-white/10 hover:border-white/25 transition-colors flex items-center justify-center">
+              📊
             </button>
           )}
           {isPlayer && match.status === 'playing' && (
             <button onClick={resign}
-              className="font-mono text-[12px] text-red-400/60 hover:text-red-400 px-3 py-2 rounded border border-red-500/15 hover:border-red-500/35 transition-colors min-h-[44px] flex items-center">
-              {t.games.joker.resign}
+              title={t.games.joker.resign}
+              className="font-mono text-[15px] text-red-400/55 hover:text-red-400 w-11 h-11 rounded border border-red-500/15 hover:border-red-500/35 transition-colors flex items-center justify-center">
+              🏳
             </button>
           )}
           <button onClick={leaveMatch}
@@ -341,12 +365,30 @@ export function JokerGame() {
 
         {/* ── Waiting room ── */}
         {match.status === 'waiting' && (
-          <WaitingRoom match={match} isCreator={isCreator} onStart={startMatch} isLoading={isLoading} />
+          <WaitingRoom
+            match={match} isCreator={isCreator} onStart={startMatch} isLoading={isLoading}
+            voiceSlot={livekitEnabled ? (
+              <div className="flex flex-col gap-2">
+                <LiveKitVoiceBarView voice={lkVoice} />
+                <div className="flex"><VoiceDisguiseButton /></div>
+              </div>
+            ) : null}
+          />
         )}
 
         {/* ── Active game ── */}
         {match.status !== 'waiting' && !isFinished && (
           <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+
+            {/* Voice — the bar and the changer, exactly as the other tables
+                have it. Sideways there is no room for a full-width bar, so the
+                mic and the changer move down beside my own seat instead. */}
+            {livekitEnabled && !tight && (
+              <div className="px-3 pt-1.5 flex-shrink-0 flex flex-wrap items-center gap-2">
+                <div className="flex-1" style={{ minWidth: 150 }}><LiveKitVoiceBarView voice={lkVoice} /></div>
+                <VoiceDisguiseButton />
+              </div>
+            )}
 
             {/* The table, with the three other seats sitting ON its edges.
                 Giving each of them a column of its own used to cost the felt a
@@ -410,7 +452,22 @@ export function JokerGame() {
               {isPlayer && (
                 <div className="flex items-center gap-2">
                   <PlayerBadge player={seatedPlayers[0]} match={match} myId={myId} position="bottom" compact={tight} />
-                  {!isFinished && voice.joined && tight && (
+                  {livekitEnabled && tight && !isFinished && (
+                    <>
+                      <button
+                        onClick={() => lkVoice.toggleMic()}
+                        className="rounded-full font-mono text-[13px] transition-all active:scale-95 flex items-center justify-center flex-shrink-0"
+                        style={{
+                          width: 34, height: 34,
+                          background: lkVoice.micEnabled ? 'rgba(0,245,255,0.2)' : 'rgba(255,255,255,0.05)',
+                          border: `1px solid ${lkVoice.micEnabled ? 'rgba(0,245,255,0.6)' : 'rgba(255,255,255,0.14)'}`,
+                          color: lkVoice.micEnabled ? '#00f5ff' : 'rgba(255,255,255,0.45)',
+                        }}
+                      >{lkVoice.micEnabled ? '🎙' : '🔇'}</button>
+                      <VoiceDisguiseButton compact />
+                    </>
+                  )}
+                  {!isFinished && !livekitEnabled && voice.joined && tight && (
                     <button
                       onPointerDown={handlePttStart}
                       onPointerUp={handlePttStop}
@@ -455,7 +512,7 @@ export function JokerGame() {
               )}
 
               {/* PTT button */}
-              {isPlayer && !isFinished && voice.joined && !tight && (
+              {isPlayer && !isFinished && !livekitEnabled && voice.joined && !tight && (
                 <button
                   onPointerDown={handlePttStart}
                   onPointerUp={handlePttStop}
@@ -810,7 +867,9 @@ function TrickArea({ match, seatedPlayers, cardSize = 'md', minHeight = 190 }: {
   // up until they nearly touch — but never past the edge, and never so far
   // apart that the trick stops reading as one pile.
   const offY = Math.max(26, Math.min(130, box.h * 0.24, box.h / 2 - ch / 2 - 6));
-  const offX = Math.max(34, Math.min(150, box.w * 0.26, box.w / 2 - cw / 2 - 6));
+  // …and clear of the side seats, which sit ON the felt now: 80px of edge on
+  // each side belongs to them, and a card landing there hides a name.
+  const offX = Math.max(34, Math.min(150, box.w * 0.26, box.w / 2 - cw / 2 - 80));
   const centre = 'translate(-50%, -50%) ';
   const posStyle: Record<string, React.CSSProperties> = {
     bottom: { left: '50%', top: '50%', transform: `${centre}translate(0, ${offY}px)` },
@@ -1338,8 +1397,9 @@ function Choice({ on, disabled, onClick, children }: {
  * can change them while the table fills, and everyone else can read what they
  * are walking into.
  */
-function WaitingRoom({ match, isCreator, onStart, isLoading }: {
+function WaitingRoom({ match, isCreator, onStart, isLoading, voiceSlot }: {
   match: any; isCreator: boolean; onStart: () => void; isLoading: boolean;
+  voiceSlot?: React.ReactNode;
 }) {
   const t = useT();
   const updateSettings = useJokerStore(s => s.updateSettings);
@@ -1415,6 +1475,9 @@ function WaitingRoom({ match, isCreator, onStart, isLoading }: {
             <Choice on={!premium} disabled={!isCreator} onClick={() => updateSettings({ bonusEnabled: false })}>გამორთული</Choice>
           </SettingRow>
         </div>
+
+        {/* Talking starts before the cards do — half the reason to sit down. */}
+        {voiceSlot}
 
         {/* How they get in */}
         <div className="flex flex-col items-center gap-2.5">
