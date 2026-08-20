@@ -10,8 +10,9 @@ import {
   createMatch, getMatch, getMatchByCode, listMatches, joinMatch,
   leaveMatch, dissolveMatch, startMatch, beginVoting, castVote, spyGuess,
   startAccusation, respondAccusation, forceResolveAccusation,
-  nextRound, rematch, disconnectSocket, getSafeState,
+  nextRound, rematch, disconnectSocket, getSafeState, resumeForUser,
 } from './services/spyfallService.js';
+import { emitToPlayers } from './lib/liveSocket.js';
 import {
   voiceJoin as spyVoiceJoin,
   voiceLeave as spyVoiceLeave,
@@ -28,10 +29,12 @@ function userId(socket: AppSocket): string { return socket.data.profileId ?? soc
 function broadcastState(io: AppServer, matchId: string): void {
   const m = getMatch(matchId);
   if (!m) return;
-  for (const player of m.players) {
-    const s = io.sockets.sockets.get(player.socketId);
-    if (s) s.emit('spy:state' as any, getSafeState(m, player.userId));
-  }
+  // Resolved by identity so a reconnected player keeps receiving state — see
+  // lib/liveSocket.
+  emitToPlayers(io, m.players, 'spy:state', p => getSafeState(m, p.userId), (p, sid) => {
+    p.socketId = sid;
+    p.connected = true;
+  });
 }
 function broadcastList(io: AppServer): void { io.emit('spy:list_update' as any, listMatches()); }
 
@@ -116,6 +119,17 @@ export function registerSpyfallHandlers(io: AppServer, socket: AppSocket): void 
       if (result.isNew) broadcastState(io, m.id);
       broadcastList(io);
       cb(ok(getSafeState(result.match, uid())));
+    } catch (e: any) { cb(err(e.message)); }
+  });
+
+  /** Back after a drop or a reload — see lies.ts for the reasoning. */
+  socket.on('spy:resume' as any, (cb: (r: any) => void) => {
+    try {
+      const m = resumeForUser(uid(), socket.id);
+      if (!m) return cb(ok(null));
+      socket.join(ROOM(m.id));
+      broadcastState(io, m.id);
+      cb(ok(getSafeState(m, uid())));
     } catch (e: any) { cb(err(e.message)); }
   });
 

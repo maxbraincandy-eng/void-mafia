@@ -127,6 +127,18 @@ export function leaveMatch(matchId: string, userId: string): CnMatch | null {
   return m;
 }
 
+/** Re-attach a player who came back on a new socket. See liesService.resumeForUser. */
+export function resumeForUser(userId: string, socketId: string): CnMatch | null {
+  const id = playerMatch.get(userId);
+  const m = id ? matches.get(id) : null;
+  if (!m || m.dissolved || m.status === 'finished') { if (id) playerMatch.delete(userId); return null; }
+  const p = m.players.find(pl => pl.userId === userId);
+  if (!p) { playerMatch.delete(userId); return null; }
+  p.socketId = socketId;
+  p.connected = true;
+  return m;
+}
+
 export function disconnectSocket(socketId: string): string | null {
   const m = getMatchForSocket(socketId);
   if (!m) return null;

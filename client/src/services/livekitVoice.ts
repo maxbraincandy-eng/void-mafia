@@ -194,7 +194,57 @@ function wireRoom(r: Room) {
 // perk comes back by itself the moment it is switched off.
 let perkMask: VoiceMaskPreset | null = null;
 let disguiseMask: Disguise | null = null;
+/**
+ * WHICH room the disguise was chosen for.
+ *
+ * A disguise belongs to the table you put it on, not to you. Carrying it into
+ * the next room — or into a private call — was the surprise: a player picks a
+ * voice for one mafia game and then rings a friend in it. So the wish is bound
+ * to a room id and dropped the moment a DIFFERENT room is joined; your normal
+ * voice is what every new conversation starts with.
+ *
+ * Null while the choice is made outside any room (the lobby strip, before the
+ * game connects) — that first room adopts it rather than throwing it away.
+ */
+let disguiseRoom: string | null = null;
 function desired(): VoiceMaskPreset | null { return disguiseMask ?? perkMask; }
+
+/**
+ * Remembered as a PAIR, never as a bare voice.
+ *
+ * A reload in the middle of a game must not hand the table the real voice back
+ * — that is the one moment the whole disguise was for. But the voice alone,
+ * remembered forever, is what made it follow players into other rooms. The
+ * room it belongs to is therefore part of what is stored, and it is honoured
+ * only when that same room is joined again.
+ */
+const DISGUISE_KEY = 'vm.incognito.voice';
+function persistDisguise(): void {
+  try {
+    if (disguiseMask) localStorage.setItem(DISGUISE_KEY, JSON.stringify({ v: disguiseMask, r: disguiseRoom }));
+    else localStorage.removeItem(DISGUISE_KEY);
+  } catch { /* private mode */ }
+}
+(function restoreDisguise() {
+  try {
+    const raw = localStorage.getItem(DISGUISE_KEY);
+    if (!raw) return;
+    // Older builds stored the bare preset name and meant it forever. That is
+    // the habit being broken, so a leftover one is dropped rather than adopted
+    // by whatever room happens to be next.
+    if (raw[0] !== '{') { localStorage.removeItem(DISGUISE_KEY); return; }
+    const p = JSON.parse(raw);
+    if (p?.v) { disguiseMask = p.v as Disguise; disguiseRoom = typeof p.r === 'string' ? p.r : null; }
+  } catch { /* unreadable — no disguise is the safe default */ }
+})();
+
+// Anything showing the disguise has to hear about a drop it did not ask for.
+const disguiseListeners = new Set<(d: Disguise | null) => void>();
+export function onDisguiseChange(fn: (d: Disguise | null) => void): () => void {
+  disguiseListeners.add(fn);
+  return () => disguiseListeners.delete(fn);
+}
+function announceDisguise(): void { disguiseListeners.forEach(l => l(disguiseMask)); }
 
 /** Set (or clear) the pitch mask on the local mic. Safe before the mic exists. */
 export async function setLiveKitVoiceMask(preset: VoiceMaskPreset | null): Promise<void> {
@@ -205,6 +255,8 @@ export async function setLiveKitVoiceMask(preset: VoiceMaskPreset | null): Promi
 /** Set (or clear) the verified voice disguise. Overrides the perk while on. */
 export async function setLiveKitDisguise(preset: Disguise | null): Promise<void> {
   disguiseMask = preset;
+  disguiseRoom = preset ? currentRoomId : null;
+  persistDisguise();
   await applyVoiceMask(room, desired());
 }
 
@@ -264,6 +316,15 @@ export async function joinLiveKitVoice(identity: string, roomId: string, opts: J
   const seq = ++joinSeq;
   const alive = opts.alive !== false;
   currentRoomId = roomId;
+
+  // A disguise does not travel. Chosen with no room open, this first room
+  // adopts it; chosen for some other room, it ends here — which is what makes
+  // "my own voice" the state every new room and every call starts in.
+  if (disguiseMask) {
+    if (disguiseRoom === null) disguiseRoom = roomId;
+    else if (disguiseRoom !== roomId) { disguiseMask = null; disguiseRoom = null; announceDisguise(); }
+    persistDisguise();
+  }
   patch({ status: 'connecting', room: roomId, dead: !alive, micEnabled: false, error: null });
 
   try {

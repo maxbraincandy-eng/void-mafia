@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { socket, emitWithAck } from '@/lib/socket';
+import { registerMatchResume } from '@/lib/matchResume';
+import { useAuthStore } from '@/store/authStore';
 import type { SpyfallPublicState, SpyfallListItem } from '@/types/spyfall';
 
 function unwrap<T>(res: any): T { if (!res.ok) throw new Error(res.error ?? 'Unknown error'); return res.data as T; }
@@ -45,3 +47,22 @@ export const useSpyfallStore = create<SpyfallStore>((set, get) => ({
 
 (socket as any).on('spy:state', (d: SpyfallPublicState) => useSpyfallStore.setState({ match: d }));
 (socket as any).on('spy:list_update', (l: SpyfallListItem[]) => useSpyfallStore.setState({ matchList: l }));
+
+/** Whatever the lobby knows us as — needed to walk back into a match. */
+function myNickname(): string { return useAuthStore.getState().profile?.username ?? 'Player'; }
+
+/**
+ * Reconnect / reload recovery.
+ *
+ * A new socket means the server was holding a dead handle for us and this
+ * screen would sit frozen until we asked. Nothing to come back to means the
+ * match is over — unless we were dropped from a LOBBY, where the server removes
+ * disconnected players outright and the way back is simply to walk in again.
+ */
+registerMatchResume<SpyfallPublicState>('spy:resume', d => {
+  if (d) { useSpyfallStore.setState({ match: d }); return; }
+  const stale = useSpyfallStore.getState().match;
+  if (!stale) return;
+  if (stale.status === 'waiting') void useSpyfallStore.getState().joinMatch(stale.code, myNickname());
+  else useSpyfallStore.setState({ match: null });
+});

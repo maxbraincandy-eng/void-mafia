@@ -104,6 +104,35 @@ export function leaveMatch(matchId, userId) {
         p.connected = false;
     return m;
 }
+/**
+ * Re-attach a player who came back on a new socket.
+ *
+ * A phone that locks its screen for half a minute gets a fresh socket id, and
+ * the match still holds the dead one — so the player stops receiving state and
+ * their screen freezes mid-round while their voice, on a separate connection,
+ * carries on as if nothing happened. Identity is what survives that, so this
+ * looks the player up by id and re-points the row.
+ *
+ * Also the answer to a full page reload: the client keeps nothing, the server
+ * remembers which match this player is in, so asking is enough to get back.
+ */
+export function resumeForUser(userId, socketId) {
+    const id = playerMatch.get(userId);
+    const m = id ? matches.get(id) : null;
+    if (!m || m.dissolved || m.status === 'finished') {
+        if (id)
+            playerMatch.delete(userId);
+        return null;
+    }
+    const p = m.players.find(pl => pl.userId === userId);
+    if (!p) {
+        playerMatch.delete(userId);
+        return null;
+    }
+    p.socketId = socketId;
+    p.connected = true;
+    return m;
+}
 export function disconnectSocket(socketId) {
     const m = getMatchForSocket(socketId);
     if (!m)
@@ -162,9 +191,13 @@ function setupRound(m) {
         recentQuestionIds.shift();
     m.options = null;
     m.reveal = null;
+    // A rejection belongs to the question that caused it. Carried into the next
+    // round it would show the "that IS the answer" card over a prompt the player
+    // has not even read yet.
     for (const p of m.players) {
         p.bluff = null;
         p.guessId = null;
+        rejectedBluff.delete(p.userId);
     }
     m.status = 'writing';
     m.endsAt = Date.now() + m.settings.writeSeconds * 1000;

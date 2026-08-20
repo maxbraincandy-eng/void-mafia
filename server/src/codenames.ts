@@ -9,7 +9,9 @@ import {
 import {
   createMatch, getMatch, getMatchByCode, listMatches, joinMatch, switchTeam, setSpymaster,
   leaveMatch, dissolveMatch, startMatch, giveClue, guessCard, passTurn, rematch, disconnectSocket, getSafeState,
+  resumeForUser,
 } from './services/codenamesService.js';
+import { emitToPlayers } from './lib/liveSocket.js';
 
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -20,10 +22,12 @@ function userId(socket: AppSocket): string { return socket.data.profileId ?? soc
 function broadcastState(io: AppServer, matchId: string): void {
   const m = getMatch(matchId);
   if (!m) return;
-  for (const player of m.players) {
-    const s = io.sockets.sockets.get(player.socketId);
-    if (s) s.emit('cn:state' as any, getSafeState(m, player.userId));
-  }
+  // Resolved by identity so a reconnected player keeps receiving state — see
+  // lib/liveSocket.
+  emitToPlayers(io, m.players, 'cn:state', p => getSafeState(m, p.userId), (p, sid) => {
+    p.socketId = sid;
+    p.connected = true;
+  });
 }
 function broadcastList(io: AppServer): void { io.emit('cn:list_update' as any, listMatches()); }
 
@@ -66,6 +70,17 @@ export function registerCodenamesHandlers(io: AppServer, socket: AppSocket): voi
   simple('cn:start', startMatch, 'Cannot start — each team needs a spymaster + operative');
   simple('cn:pass', passTurn, 'Cannot pass');
   simple('cn:rematch', rematch, 'Cannot rematch');
+
+  /** Back after a drop or a reload — see lies.ts for the reasoning. */
+  socket.on('cn:resume' as any, (cb: (r: any) => void) => {
+    try {
+      const m = resumeForUser(uid(), socket.id);
+      if (!m) return cb(ok(null));
+      socket.join(ROOM(m.id));
+      broadcastState(io, m.id);
+      cb(ok(getSafeState(m, uid())));
+    } catch (e: any) { cb(err(e.message)); }
+  });
 
   socket.on('cn:leave' as any, (data: { matchId: string }, cb: (r: any) => void) => {
     try {

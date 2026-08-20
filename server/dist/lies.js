@@ -1,16 +1,19 @@
 import { ok, err, } from './types/index.js';
-import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch, dissolveMatch, startMatch, submitBluff, clearRejected, submitGuess, forcePhaseEnd, nextRound, rematch, disconnectSocket, getSafeState, } from './services/liesService.js';
+import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch, dissolveMatch, startMatch, submitBluff, clearRejected, submitGuess, forcePhaseEnd, nextRound, rematch, disconnectSocket, getSafeState, resumeForUser, } from './services/liesService.js';
+import { emitToPlayers } from './lib/liveSocket.js';
 const ROOM = (id) => `lies:${id}`;
 function userId(socket) { return socket.data.profileId ?? socket.id; }
 function broadcastState(io, matchId) {
     const m = getMatch(matchId);
     if (!m)
         return;
-    for (const player of m.players) {
-        const s = io.sockets.sockets.get(player.socketId);
-        if (s)
-            s.emit('lies:state', getSafeState(m, player.userId));
-    }
+    // By identity, not by the socket id the player joined with: a reconnected
+    // phone has a new socket, and emitting into the old one is how a player ends
+    // up frozen mid-round while everyone can still hear them.
+    emitToPlayers(io, m.players, 'lies:state', p => getSafeState(m, p.userId), (p, sid) => {
+        p.socketId = sid;
+        p.connected = true;
+    });
 }
 function broadcastList(io) { io.emit('lies:list_update', listMatches()); }
 const phaseTimers = new Map();
@@ -71,6 +74,27 @@ export function registerLiesHandlers(io, socket) {
                 broadcastState(io, m.id);
             broadcastList(io);
             cb(ok(getSafeState(result.match, uid())));
+        }
+        catch (e) {
+            cb(err(e.message));
+        }
+    });
+    /**
+     * "Am I still in a match, and what is happening in it?"
+     *
+     * Asked after every (re)authentication, so a dropped connection or a full
+     * reload lands the player back in the round instead of on a frozen screen.
+     * Returns null when there is nothing to come back to — the client then clears
+     * whatever stale match it was still showing.
+     */
+    socket.on('lies:resume', (cb) => {
+        try {
+            const m = resumeForUser(uid(), socket.id);
+            if (!m)
+                return cb(ok(null));
+            socket.join(ROOM(m.id));
+            broadcastState(io, m.id); // the table sees them present again
+            cb(ok(getSafeState(m, uid())));
         }
         catch (e) {
             cb(err(e.message));

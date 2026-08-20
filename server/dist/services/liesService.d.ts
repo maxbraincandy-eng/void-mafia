@@ -120,6 +120,19 @@ export declare function joinMatch(matchId: string, userId: string, socketId: str
     isNew: boolean;
 } | null;
 export declare function leaveMatch(matchId: string, userId: string): LiesMatch | null;
+/**
+ * Re-attach a player who came back on a new socket.
+ *
+ * A phone that locks its screen for half a minute gets a fresh socket id, and
+ * the match still holds the dead one — so the player stops receiving state and
+ * their screen freezes mid-round while their voice, on a separate connection,
+ * carries on as if nothing happened. Identity is what survives that, so this
+ * looks the player up by id and re-points the row.
+ *
+ * Also the answer to a full page reload: the client keeps nothing, the server
+ * remembers which match this player is in, so asking is enough to get back.
+ */
+export declare function resumeForUser(userId: string, socketId: string): LiesMatch | null;
 export declare function disconnectSocket(socketId: string): string | null;
 /** Explicit leave during active play — end the match for everyone. */
 export declare function dissolveMatch(matchId: string, leaverId: string): LiesMatch | null;

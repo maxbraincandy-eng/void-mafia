@@ -9,8 +9,9 @@ import {
 import {
   createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch, dissolveMatch,
   startMatch, chooseWord, autoChoose, guess, endTurn, nextTurn, rematch,
-  disconnectSocket, getSafeState, addSeg, clearCanvas, type DrawSeg,
+  disconnectSocket, getSafeState, addSeg, clearCanvas, resumeForUser, type DrawSeg,
 } from './services/drawService.js';
+import { emitToPlayers } from './lib/liveSocket.js';
 
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -21,10 +22,12 @@ function userId(socket: AppSocket): string { return socket.data.profileId ?? soc
 function broadcastState(io: AppServer, matchId: string): void {
   const m = getMatch(matchId);
   if (!m) return;
-  for (const player of m.players) {
-    const s = io.sockets.sockets.get(player.socketId);
-    if (s) s.emit('draw:state' as any, getSafeState(m, player.userId));
-  }
+  // Resolved by identity so a reconnected player keeps receiving state — see
+  // lib/liveSocket.
+  emitToPlayers(io, m.players, 'draw:state', p => getSafeState(m, p.userId), (p, sid) => {
+    p.socketId = sid;
+    p.connected = true;
+  });
 }
 function broadcastList(io: AppServer): void { io.emit('draw:list_update' as any, listMatches()); }
 
@@ -81,6 +84,19 @@ export function registerDrawHandlers(io: AppServer, socket: AppSocket): void {
       // Send the current canvas so a mid-turn joiner sees the drawing so far.
       if (result.match.status === 'drawing' && result.match.segs.length) socket.emit('draw:canvas' as any, result.match.segs);
       cb(ok(getSafeState(result.match, uid())));
+    } catch (e: any) { cb(err(e.message)); }
+  });
+
+  /** Back after a drop or a reload — see lies.ts for the reasoning. */
+  socket.on('draw:resume' as any, (cb: (r: any) => void) => {
+    try {
+      const m = resumeForUser(uid(), socket.id);
+      if (!m) return cb(ok(null));
+      socket.join(ROOM(m.id));
+      broadcastState(io, m.id);
+      // The strokes so far, or they would come back to an empty canvas.
+      if (m.status === 'drawing' && m.segs.length) socket.emit('draw:canvas' as any, m.segs);
+      cb(ok(getSafeState(m, uid())));
     } catch (e: any) { cb(err(e.message)); }
   });
 

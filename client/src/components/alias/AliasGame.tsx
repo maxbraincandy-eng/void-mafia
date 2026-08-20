@@ -4,6 +4,9 @@ import { SFX } from '@/lib/audioEngine';
 import { haptic } from '@/lib/haptics';
 import { useAuthStore } from '@/store/authStore';
 import { useAliasStore } from '@/store/aliasStore';
+import { useLiveKitGate, useLivekitRoomVoice } from '@/hooks/useLivekitVoice';
+import { LiveKitVoiceBarView } from '@/components/game/LiveKitVoiceBar';
+import { VoiceDisguiseButton } from '@/components/game/VoiceDisguiseButton';
 
 /**
  * ალიასი — team word game. Describer sees the word + ✓/skip; teammates guess
@@ -26,6 +29,24 @@ export function AliasGame() {
   const prevStatus = useRef<string>('');
 
   useEffect(() => { const iv = setInterval(() => setNow(Date.now()), 250); return () => clearInterval(iv); }, []);
+
+  /*
+   * Voice, because ალიასი without it is not the game.
+   *
+   * The describer talks and the team shouts back; typing the guesses into a box
+   * is a slower, quieter substitute that exists for people who cannot speak
+   * right now. One LiveKit room per match, live from the lobby so the team can
+   * sort out who is on which side before the clock starts.
+   *
+   * Declared above the `!match` return: hooks cannot be conditional.
+   */
+  const { enabled: livekitEnabled } = useLiveKitGate();
+  const lkVoice = useLivekitRoomVoice({
+    roomId: match?.id ? `alias_${match.id}` : null,
+    identity: profile?.id ?? null,
+    active: livekitEnabled && !!match?.id && match?.status !== 'finished',
+    listenOnly: false,
+  });
 
   // SFX on turn/status transitions
   useEffect(() => {
@@ -64,6 +85,14 @@ export function AliasGame() {
           <button onClick={() => match.status === 'play' ? setConfirmLeave(true) : leaveMatch()} className="w-8 h-8 rounded-full flex items-center justify-center text-white/60" style={{ border: '1px solid rgba(255,255,255,0.15)' }}>✕</button>
         </div>
       </div>
+
+      {/* Voice — the bar, and the voice changer beside it. */}
+      {livekitEnabled && match.status !== 'finished' && (
+        <div className="px-3 pt-2 flex-shrink-0 flex flex-col gap-2">
+          <LiveKitVoiceBarView voice={lkVoice} />
+          <div className="flex flex-col items-start"><VoiceDisguiseButton /></div>
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto p-4">
         <div className="max-w-md mx-auto">

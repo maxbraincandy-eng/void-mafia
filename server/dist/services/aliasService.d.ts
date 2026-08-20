@@ -108,6 +108,8 @@ export declare function joinMatch(matchId: string, userId: string, socketId: str
 } | null;
 export declare function switchTeam(matchId: string, userId: string): AliasMatch | null;
 export declare function leaveMatch(matchId: string, userId: string): AliasMatch | null;
+/** Re-attach a player who came back on a new socket. See liesService.resumeForUser. */
+export declare function resumeForUser(userId: string, socketId: string): AliasMatch | null;
 export declare function disconnectSocket(socketId: string): string | null;
 /** Explicit leave during active play — end the match for everyone. */
 export declare function dissolveMatch(matchId: string, leaverId: string): AliasMatch | null;

@@ -99,6 +99,8 @@ export declare function joinMatch(matchId: string, userId: string, socketId: str
 export declare function switchTeam(matchId: string, userId: string): CnMatch | null;
 export declare function setSpymaster(matchId: string, userId: string): CnMatch | null;
 export declare function leaveMatch(matchId: string, userId: string): CnMatch | null;
+/** Re-attach a player who came back on a new socket. See liesService.resumeForUser. */
+export declare function resumeForUser(userId: string, socketId: string): CnMatch | null;
 export declare function disconnectSocket(socketId: string): string | null;
 /** Explicit leave during active play — end the match for everyone. */
 export declare function dissolveMatch(matchId: string, leaverId: string): CnMatch | null;

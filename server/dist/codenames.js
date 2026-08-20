@@ -1,16 +1,18 @@
 import { ok, err, } from './types/index.js';
-import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, switchTeam, setSpymaster, leaveMatch, dissolveMatch, startMatch, giveClue, guessCard, passTurn, rematch, disconnectSocket, getSafeState, } from './services/codenamesService.js';
+import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, switchTeam, setSpymaster, leaveMatch, dissolveMatch, startMatch, giveClue, guessCard, passTurn, rematch, disconnectSocket, getSafeState, resumeForUser, } from './services/codenamesService.js';
+import { emitToPlayers } from './lib/liveSocket.js';
 const ROOM = (id) => `cn:${id}`;
 function userId(socket) { return socket.data.profileId ?? socket.id; }
 function broadcastState(io, matchId) {
     const m = getMatch(matchId);
     if (!m)
         return;
-    for (const player of m.players) {
-        const s = io.sockets.sockets.get(player.socketId);
-        if (s)
-            s.emit('cn:state', getSafeState(m, player.userId));
-    }
+    // Resolved by identity so a reconnected player keeps receiving state — see
+    // lib/liveSocket.
+    emitToPlayers(io, m.players, 'cn:state', p => getSafeState(m, p.userId), (p, sid) => {
+        p.socketId = sid;
+        p.connected = true;
+    });
 }
 function broadcastList(io) { io.emit('cn:list_update', listMatches()); }
 export function registerCodenamesHandlers(io, socket) {
@@ -71,6 +73,20 @@ export function registerCodenamesHandlers(io, socket) {
     simple('cn:start', startMatch, 'Cannot start — each team needs a spymaster + operative');
     simple('cn:pass', passTurn, 'Cannot pass');
     simple('cn:rematch', rematch, 'Cannot rematch');
+    /** Back after a drop or a reload — see lies.ts for the reasoning. */
+    socket.on('cn:resume', (cb) => {
+        try {
+            const m = resumeForUser(uid(), socket.id);
+            if (!m)
+                return cb(ok(null));
+            socket.join(ROOM(m.id));
+            broadcastState(io, m.id);
+            cb(ok(getSafeState(m, uid())));
+        }
+        catch (e) {
+            cb(err(e.message));
+        }
+    });
     socket.on('cn:leave', (data, cb) => {
         try {
             const matchId = String(data?.matchId);

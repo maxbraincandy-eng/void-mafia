@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { socket, emitWithAck } from '@/lib/socket';
+import { registerMatchResume } from '@/lib/matchResume';
+import { useAuthStore } from '@/store/authStore';
 import type { AliasPublicState, AliasListItem, AliasGuess } from '@/types/alias';
 
 function unwrap<T>(res: any): T { if (!res.ok) throw new Error(res.error ?? 'Unknown error'); return res.data as T; }
@@ -43,3 +45,22 @@ export const useAliasStore = create<AliasStore>((set, get) => ({
 (socket as any).on('alias:state', (d: AliasPublicState) => useAliasStore.setState({ match: d }));
 (socket as any).on('alias:list_update', (l: AliasListItem[]) => useAliasStore.setState({ matchList: l }));
 (socket as any).on('alias:guess', (g: AliasGuess) => useAliasStore.setState(s => ({ guesses: [...s.guesses, g].slice(-40) })));
+
+/** Whatever the lobby knows us as — needed to walk back into a match. */
+function myNickname(): string { return useAuthStore.getState().profile?.username ?? 'Player'; }
+
+/**
+ * Reconnect / reload recovery.
+ *
+ * A new socket means the server was holding a dead handle for us and this
+ * screen would sit frozen until we asked. Nothing to come back to means the
+ * match is over — unless we were dropped from a LOBBY, where the server removes
+ * disconnected players outright and the way back is simply to walk in again.
+ */
+registerMatchResume<AliasPublicState>('alias:resume', d => {
+  if (d) { useAliasStore.setState({ match: d }); return; }
+  const stale = useAliasStore.getState().match;
+  if (!stale) return;
+  if (stale.status === 'waiting') void useAliasStore.getState().joinMatch(stale.code, myNickname());
+  else useAliasStore.setState({ match: null, guesses: [] });
+});

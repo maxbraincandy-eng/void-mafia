@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { socket, emitWithAck } from '@/lib/socket';
+import { registerMatchResume } from '@/lib/matchResume';
+import { useAuthStore } from '@/store/authStore';
 import type { DrawPublicState, DrawListItem, DrawChat, DrawSeg } from '@/types/draw';
 
 function unwrap<T>(res: any): T { if (!res.ok) throw new Error(res.error ?? 'Unknown error'); return res.data as T; }
@@ -52,3 +54,22 @@ export const useDrawStore = create<DrawStore>((set, get) => ({
 (socket as any).on('draw:seg', (seg: DrawSeg) => { drawIncoming.segs.push(seg); });
 (socket as any).on('draw:canvas', (segs: DrawSeg[]) => { drawIncoming.segs.push(...segs); });
 (socket as any).on('draw:clear', () => { drawIncoming.clear = true; });
+
+/** Whatever the lobby knows us as — needed to walk back into a match. */
+function myNickname(): string { return useAuthStore.getState().profile?.username ?? 'Player'; }
+
+/**
+ * Reconnect / reload recovery.
+ *
+ * A new socket means the server was holding a dead handle for us and this
+ * screen would sit frozen until we asked. Nothing to come back to means the
+ * match is over — unless we were dropped from a LOBBY, where the server removes
+ * disconnected players outright and the way back is simply to walk in again.
+ */
+registerMatchResume<DrawPublicState>('draw:resume', d => {
+  if (d) { useDrawStore.setState({ match: d }); return; }
+  const stale = useDrawStore.getState().match;
+  if (!stale) return;
+  if (stale.status === 'waiting') void useDrawStore.getState().joinMatch(stale.code, myNickname());
+  else useDrawStore.setState({ match: null, chat: [] });
+});

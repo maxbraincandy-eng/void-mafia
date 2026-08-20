@@ -76,7 +76,6 @@ import { attachGlobalClickSounds, onSettingsChange } from '@/lib/audioEngine';
 import { useSettingsStore } from '@/store/settingsStore';
 import { socket, emitWithAck } from '@/lib/socket';
 import { setLiveKitVoiceMask } from '@/services/livekitVoice';
-import { restoreIncognitoVoice } from '@/store/incognitoStore';
 import type { GiftReceivedNotification } from '@/types/index';
 import { CLIENT_VERSION } from './version';
 import { overlayOpen } from '@/lib/overlayGuard';
@@ -943,10 +942,9 @@ export default function App() {
         .catch(() => { /* unmasked is the correct fallback */ });
     };
     pull();
-    // The verified disguise is remembered in this browser, not on the server —
-    // it has to be pushed into the audio layer once at start-up or a reload
-    // would silently hand the room the real voice back.
-    restoreIncognitoVoice();
+    // The verified disguise needs no push here: livekitVoice restores it at
+    // start-up together with the room it belongs to, and applies it when (and
+    // only when) that room is joined again.
     const onPush = (d: any) => { void setLiveKitVoiceMask(d?.preset ?? null); };
     socket.on('perks:voicemask' as any, onPush);
     socket.on('connect', pull);

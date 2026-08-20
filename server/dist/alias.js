@@ -1,16 +1,18 @@
 import { ok, err, } from './types/index.js';
-import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, switchTeam, leaveMatch, dissolveMatch, startMatch, startTurn, markWord, endTurn, rematch, disconnectSocket, getSafeState, } from './services/aliasService.js';
+import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, switchTeam, leaveMatch, dissolveMatch, startMatch, startTurn, markWord, endTurn, rematch, disconnectSocket, getSafeState, resumeForUser, } from './services/aliasService.js';
+import { emitToPlayers } from './lib/liveSocket.js';
 const ROOM = (id) => `alias:${id}`;
 function userId(socket) { return socket.data.profileId ?? socket.id; }
 function broadcastState(io, matchId) {
     const m = getMatch(matchId);
     if (!m)
         return;
-    for (const player of m.players) {
-        const s = io.sockets.sockets.get(player.socketId);
-        if (s)
-            s.emit('alias:state', getSafeState(m, player.userId));
-    }
+    // Resolved by identity so a reconnected player keeps receiving state — see
+    // lib/liveSocket.
+    emitToPlayers(io, m.players, 'alias:state', p => getSafeState(m, p.userId), (p, sid) => {
+        p.socketId = sid;
+        p.connected = true;
+    });
 }
 function broadcastList(io) { io.emit('alias:list_update', listMatches()); }
 const turnTimers = new Map();
@@ -81,6 +83,20 @@ export function registerAliasHandlers(io, socket) {
                 return cb(err('Cannot switch'));
             broadcastState(io, m.id);
             cb(ok(null));
+        }
+        catch (e) {
+            cb(err(e.message));
+        }
+    });
+    /** Back after a drop or a reload — see lies.ts for the reasoning. */
+    socket.on('alias:resume', (cb) => {
+        try {
+            const m = resumeForUser(uid(), socket.id);
+            if (!m)
+                return cb(ok(null));
+            socket.join(ROOM(m.id));
+            broadcastState(io, m.id);
+            cb(ok(getSafeState(m, uid())));
         }
         catch (e) {
             cb(err(e.message));

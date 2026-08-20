@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { emitWithAck } from '@/lib/socket';
-import { setLiveKitDisguise } from '@/services/livekitVoice';
+import { setLiveKitDisguise, getLiveKitDisguise, onDisguiseChange } from '@/services/livekitVoice';
 import type { Disguise } from '@/lib/voiceDisguise';
 import type { Res } from '@/types/index';
 
@@ -13,9 +13,10 @@ import type { Res } from '@/types/index';
  *
  * The VOICE half lives entirely in this browser: the microphone is transformed
  * before it is published, so no server ever hears the real voice and there is
- * nothing to leak. It is remembered across rooms on purpose — picking your
- * voice again at the top of every game is the kind of friction that makes a
- * feature go unused.
+ * nothing to leak. It belongs to the room it was chosen for and is dropped when
+ * another room is joined — a disguise that followed you into a private call was
+ * a surprise, never a feature — so this store only MIRRORS what the audio layer
+ * currently has (see services/livekitVoice).
  */
 interface IncognitoState {
   /**
@@ -45,12 +46,8 @@ interface IncognitoState {
   clearError: () => void;
 }
 
-const VOICE_KEY = 'vm.incognito.voice';
 const HIDE_KEY = 'vm.incognito.hide';
 
-function remembered(): Disguise | null {
-  try { return (localStorage.getItem(VOICE_KEY) as Disguise | null) || null; } catch { return null; }
-}
 function rememberedHide(): boolean {
   try { return localStorage.getItem(HIDE_KEY) === '1'; } catch { return false; }
 }
@@ -62,7 +59,7 @@ export const useIncognitoStore = create<IncognitoState>((set, get) => ({
   wantHidden: rememberedHide(),
   hideName: false,
   alias: null,
-  voice: remembered(),
+  voice: getLiveKitDisguise(),
   busy: false,
   error: null,
 
@@ -84,7 +81,7 @@ export const useIncognitoStore = create<IncognitoState>((set, get) => ({
 
   setVoice: async (v) => {
     set({ voice: v });
-    try { v ? localStorage.setItem(VOICE_KEY, v) : localStorage.removeItem(VOICE_KEY); } catch { /* private mode */ }
+    // The audio layer owns the wish (and where it applies); this is the mirror.
     await setLiveKitDisguise(v);
   },
 
@@ -101,8 +98,9 @@ export const useIncognitoStore = create<IncognitoState>((set, get) => ({
 /** The join-time wish, for the socket layer. Read outside React on purpose. */
 export function wantsHiddenName(): boolean { return useIncognitoStore.getState().wantHidden; }
 
-/** Re-apply the remembered voice to a freshly connected room. */
-export function restoreIncognitoVoice(): void {
-  const v = useIncognitoStore.getState().voice;
-  if (v) void setLiveKitDisguise(v);
-}
+// The audio layer drops the disguise by itself when a different room is joined.
+// The UI has to hear about that, or the button would keep claiming a voice the
+// microphone is no longer wearing.
+onDisguiseChange(d => {
+  if (useIncognitoStore.getState().voice !== d) useIncognitoStore.setState({ voice: d });
+});

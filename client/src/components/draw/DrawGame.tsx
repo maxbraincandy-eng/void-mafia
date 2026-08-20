@@ -4,6 +4,9 @@ import { SFX } from '@/lib/audioEngine';
 import { haptic } from '@/lib/haptics';
 import { useAuthStore } from '@/store/authStore';
 import { useDrawStore, drawIncoming } from '@/store/drawStore';
+import { useLiveKitGate, useLivekitRoomVoice } from '@/hooks/useLivekitVoice';
+import { LiveKitVoiceBarView } from '@/components/game/LiveKitVoiceBar';
+import { VoiceDisguiseButton } from '@/components/game/VoiceDisguiseButton';
 import type { DrawSeg } from '@/types/draw';
 
 /**
@@ -85,6 +88,21 @@ export function DrawGame() {
     prevStatus.current = match.status;
   }, [match?.status, match?.drawerId, match?.round]);
 
+  /*
+   * Voice. Half of this game is the shouting: guesses land faster out loud than
+   * typed, and the drawer's silence while everyone yells wrong answers is the
+   * fun. The chat stays for anyone who cannot talk right now.
+   *
+   * Declared above the `!match` return: hooks cannot be conditional.
+   */
+  const { enabled: livekitEnabled } = useLiveKitGate();
+  const lkVoice = useLivekitRoomVoice({
+    roomId: match?.id ? `draw_${match.id}` : null,
+    identity: profile?.id ?? null,
+    active: livekitEnabled && !!match?.id && match?.status !== 'finished',
+    listenOnly: false,
+  });
+
   if (!match) return null;
   const myId = match.myUserId;
   const isHost = match.hostId === myId;
@@ -129,6 +147,16 @@ export function DrawGame() {
           <button onClick={() => (match.status === 'waiting' || match.status === 'finished') ? leaveMatch() : setConfirmLeave(true)} className="w-8 h-8 rounded-full flex items-center justify-center text-white/60" style={{ border: '1px solid rgba(255,255,255,0.15)' }}>✕</button>
         </div>
       </div>
+
+      {/* Voice — one row, because the canvas needs every pixel of height it can
+          get on a phone. The changer's panel is full-width, so it wraps onto a
+          line of its own when opened instead of squeezing the bar. */}
+      {livekitEnabled && match.status !== 'finished' && (
+        <div className="px-3 pt-2 flex-shrink-0 flex flex-wrap items-center gap-2">
+          <div className="flex-1" style={{ minWidth: 150 }}><LiveKitVoiceBarView voice={lkVoice} /></div>
+          <VoiceDisguiseButton />
+        </div>
+      )}
 
       {/* ══ LOBBY ══ */}
       {match.status === 'waiting' && (
