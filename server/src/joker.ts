@@ -10,7 +10,7 @@ import {
 import {
   createMatch, getMatch, getMatchByCode, getMatchForSocket, getOpenMatches,
   dealRound, validateCardPlay, resolveTrick, applyRoundScores, finishMatch,
-  forbiddenBid, bidTension, KHISHTI_PENALTIES,
+  forbiddenBid, bidTension, KHISHTI_PENALTIES, getJokerRoundPlan, computePulkaIds,
   type JokerMatch, type JokerPlayer, type JokerSettings, type Card, type PlayedCard, type Suit,
 } from './services/jokerService.js';
 import { addXP, getPlayer } from './services/playerService.js';
@@ -407,6 +407,41 @@ export function registerJokerHandlers(io: AppServer, socket: AppSocket): void {
       } else {
         cb(err('Cannot join this match.'));
       }
+    } catch (e: any) { cb(err(e.message)); }
+  });
+
+  /**
+   * Change the rules while the table is still filling up.
+   *
+   * These are decisions the four of them make together before the first deal —
+   * how long the game is, what a broken word costs — and until now they could
+   * only be made on the create screen, by one person, before anybody had
+   * arrived. Host only, lobby only: changing the shape of a game underway would
+   * rewrite scores that are already on the sheet.
+   */
+  socket.on('joker:settings' as any, (data: { matchId: string; settings: Partial<JokerSettings> }, cb: (res: any) => void) => {
+    try {
+      const match = getMatch(data?.matchId);
+      if (!match) return cb(err('Match not found.'));
+      if (match.status !== 'waiting') return cb(err('თამაში უკვე დაწყებულია.'));
+      const caller = match.players.find(p => p.socketId === socket.id);
+      if (!caller || caller.seatIndex !== 0) return cb(err('მხოლოდ ჰოსტს შეუძლია.'));
+
+      const raw = data?.settings ?? {};
+      if (raw.mode === 'classic' || raw.mode === 'nines_only') {
+        match.settings.mode = raw.mode;
+        match.roundPlan = getJokerRoundPlan(raw.mode);
+        match.pulkaIds = computePulkaIds(raw.mode, match.roundPlan);
+      }
+      if (KHISHTI_PENALTIES.includes(Number(raw.khishtiPenalty) as any)) {
+        match.settings.khishtiPenalty = Number(raw.khishtiPenalty);
+      }
+      if (typeof raw.bonusEnabled === 'boolean') match.settings.bonusEnabled = raw.bonusEnabled;
+
+      match.updatedAt = Date.now();
+      broadcastState(io, match);
+      io.emit('joker:list_update' as any, getOpenMatches().map(toListItem));
+      cb(ok(toPublic(match)));
     } catch (e: any) { cb(err(e.message)); }
   });
 

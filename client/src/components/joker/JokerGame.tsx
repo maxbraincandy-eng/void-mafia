@@ -4,7 +4,7 @@ import { useT } from '@/store/langStore';
 import { useJokerStore } from '@/store/jokerStore';
 import { useJokerVoice } from '@/hooks/useJokerVoice';
 import { JokerCard } from './JokerCard';
-import { SUIT_NAME, type Card, type JokerPlayerPublic, type Suit } from '@/types/joker';
+import { SUIT_NAME, KHISHTI_PENALTIES, type Card, type JokerPlayerPublic, type Suit } from '@/types/joker';
 import { haptic } from '@/lib/haptics';
 import { tNow } from '@/store/langStore';
 import { GameInviteButton } from '@/components/social/GameInviteButton';
@@ -275,17 +275,18 @@ export function JokerGame() {
         className="flex-shrink-0 flex items-center justify-between px-4"
         style={{ minHeight: 56, paddingTop: 'max(8px, env(safe-area-inset-top, 0px))', borderBottom: '1px solid rgba(155,0,255,0.2)', background: 'rgba(8,4,22,0.98)' }}
       >
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-lg">🃏</span>
+        {/* One line, never two. The old header wrapped the moment a mode name
+            and a round counter shared a phone's width with four buttons. */}
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <span className="text-lg flex-shrink-0">🃏</span>
           <div className="min-w-0">
-            <p className="font-display font-bold text-white text-sm leading-tight">
+            <p className="font-display font-bold text-white leading-tight truncate" style={{ fontSize: 14 }}>
               {t.games.joker.title}
-              <span className="ml-2 font-mono text-[12px] text-white/25 font-normal">
-                {match.settings.mode === 'classic' ? t.games.joker.modeClassic : t.games.joker.modeNines}
-              </span>
             </p>
-            <p className="font-mono text-[12px] text-white/25">
-              {match.code} · {t.games.joker.round} {match.currentRoundIndex + 1}/{match.totalRounds} · {cardCount}🃏
+            <p className="font-mono text-white/30 truncate" style={{ fontSize: 11 }}>
+              {match.status === 'waiting'
+                ? match.code
+                : `${t.games.joker.round} ${match.currentRoundIndex + 1}/${match.totalRounds} · ${cardCount}🃏`}
             </p>
           </div>
         </div>
@@ -316,10 +317,12 @@ export function JokerGame() {
               }} />
             )}
           </button>
-          <button onClick={() => setShowScoreboard(s => !s)}
-            className="font-mono text-[12px] text-white/40 hover:text-white/70 px-3 py-2 rounded border border-white/10 hover:border-white/25 transition-colors min-h-[44px] flex items-center">
-            {t.games.joker.score}
-          </button>
+          {match.status !== 'waiting' && (
+            <button onClick={() => setShowScoreboard(s => !s)}
+              className="font-mono text-[12px] text-white/40 hover:text-white/70 px-3 py-2 rounded border border-white/10 hover:border-white/25 transition-colors min-h-[44px] flex items-center">
+              {t.games.joker.score}
+            </button>
+          )}
           {isPlayer && match.status === 'playing' && (
             <button onClick={resign}
               className="font-mono text-[12px] text-red-400/60 hover:text-red-400 px-3 py-2 rounded border border-red-500/15 hover:border-red-500/35 transition-colors min-h-[44px] flex items-center">
@@ -595,13 +598,27 @@ export function JokerGame() {
                 </div>
               ))}
             </div>
-            <div className="flex gap-2 px-3 pb-2">
+            <div className="flex gap-2 px-3 pb-2.5 items-center">
               <input value={chatInput} onChange={e => setChatInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') handleChatSend(); }}
                 placeholder={t.games.joker.chatPlaceholder} maxLength={200}
-                className="flex-1 bg-transparent font-mono text-xs text-white placeholder-white/20 outline-none border-b border-white/10 focus:border-white/30 transition-colors py-1" />
+                className="flex-1 min-w-0 font-mono text-white placeholder-white/25 outline-none transition-colors"
+                style={{
+                  fontSize: 13, padding: '9px 14px', borderRadius: 999,
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                }} />
+              {/* A filled circle with an arrow in it. The old one was a bare
+                  "↵" that nobody read as a button at all. */}
               <button onClick={handleChatSend} disabled={!chatInput.trim()}
-                className="font-mono text-xs text-white/40 hover:text-white/70 transition-colors disabled:opacity-20">↵</button>
+                aria-label="გაგზავნა"
+                className="rounded-full flex items-center justify-center transition-all active:scale-90 disabled:opacity-30 flex-shrink-0"
+                style={{
+                  width: 34, height: 34,
+                  background: chatInput.trim() ? 'linear-gradient(135deg,#9b00ff,#00e5ff)' : 'rgba(255,255,255,0.06)',
+                  border: '1px solid rgba(155,0,255,0.35)',
+                  color: '#fff', fontSize: 14,
+                }}>➤</button>
             </div>
           </motion.div>
         )}
@@ -1278,54 +1295,165 @@ function ScoreboardPanel({ match, myId, onClose }: { match: any; myId: string | 
 
 // ── Waiting room ───────────────────────────────────────────────────────────
 
+/** One row of the settings card: a label and a row of choices. */
+function SettingRow({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div className="py-2.5" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+      <div className="flex items-baseline gap-2 mb-1.5">
+        <span className="font-mono text-[11px] text-white/45">{label}</span>
+        {hint && <span className="font-mono text-[10px] text-white/25">{hint}</span>}
+      </div>
+      <div className="flex gap-1.5 flex-wrap">{children}</div>
+    </div>
+  );
+}
+
+function Choice({ on, disabled, onClick, children }: {
+  on: boolean; disabled?: boolean; onClick: () => void; children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={() => { if (!disabled) { haptic('selection'); onClick(); } }}
+      disabled={disabled}
+      className="px-3 py-1.5 rounded-xl font-mono transition-all active:scale-95 disabled:cursor-default"
+      style={{
+        fontSize: 11.5,
+        background: on ? 'rgba(251,191,36,0.18)' : 'rgba(255,255,255,0.04)',
+        border: `1px solid ${on ? 'rgba(251,191,36,0.6)' : 'rgba(255,255,255,0.1)'}`,
+        color: on ? '#fbbf24' : 'rgba(255,255,255,0.45)',
+        opacity: disabled && !on ? 0.45 : 1,
+      }}
+    >{children}</button>
+  );
+}
+
+/**
+ * The lobby.
+ *
+ * It is the first thing four people look at together, and it used to be a
+ * stack of loose parts: a wrapping title, four grey rows, a code, a button.
+ * Worse, the two decisions that actually shape the evening — how long the game
+ * runs and what a broken word costs — could only be made on the create screen,
+ * before anybody had arrived to argue about them. They live here now, the host
+ * can change them while the table fills, and everyone else can read what they
+ * are walking into.
+ */
 function WaitingRoom({ match, isCreator, onStart, isLoading }: {
   match: any; isCreator: boolean; onStart: () => void; isLoading: boolean;
 }) {
   const t = useT();
+  const updateSettings = useJokerStore(s => s.updateSettings);
   const [copied, setCopied] = useState(false);
+  const filled = match.players.length;
+  const mode = match.settings?.mode ?? 'classic';
+  const khishti = match.settings?.khishtiPenalty ?? 200;
+  const premium = match.settings?.bonusEnabled !== false;
+  const deals = match.roundPlan?.length ?? 0;
+
   return (
-    <div className="flex-1 flex flex-col items-center justify-center gap-5 p-6">
-      <div className="w-20 h-20 rounded-full flex items-center justify-center text-4xl"
-        style={{ background: 'rgba(155,0,255,0.08)', border: '2px solid rgba(155,0,255,0.2)' }}>
-        🃏
+    <div className="flex-1 overflow-y-auto overscroll-contain">
+      <div className="max-w-sm mx-auto px-4 pt-4 pb-8 flex flex-col gap-4">
+
+        {/* Who is here */}
+        <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(155,0,255,0.22)' }}>
+          <div className="flex items-center justify-between px-3.5 py-2.5" style={{ background: 'rgba(155,0,255,0.09)' }}>
+            <span className="font-display font-bold text-white" style={{ fontSize: 13 }}>
+              მაგიდა · {filled}/4
+            </span>
+            <span className="font-mono text-[10.5px]" style={{ color: filled === 4 ? '#7fe0a0' : 'rgba(255,255,255,0.35)' }}>
+              {filled === 4 ? 'სრულია' : `კიდევ ${4 - filled}`}
+            </span>
+          </div>
+          <div className="p-2 space-y-1.5">
+            {Array.from({ length: 4 }, (_, i) => {
+              const p = match.players.find((pl: any) => pl.seatIndex === i);
+              return (
+                <div key={i} className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl"
+                  style={{
+                    background: p ? 'rgba(155,0,255,0.08)' : 'rgba(255,255,255,0.015)',
+                    border: `1px solid ${p ? 'rgba(155,0,255,0.22)' : 'rgba(255,255,255,0.05)'}`,
+                  }}>
+                  <span className="font-mono text-[11px] text-white/25 w-3">{i + 1}</span>
+                  {p
+                    ? <Avatar player={p} size={30} onOpen={p.profileId ? () => useSocialStore.getState().openProfile(p.profileId!) : undefined} />
+                    : <div style={{ width: 30, height: 30, borderRadius: '50%', border: '1px dashed rgba(255,255,255,0.12)' }} />}
+                  <span className={`font-mono flex-1 truncate ${p ? 'text-white' : 'text-white/20'}`} style={{ fontSize: 13 }}>
+                    {p ? p.name : 'ცარიელი ადგილი'}
+                  </span>
+                  {i === 0 && p && <span style={{ fontSize: 13 }}>👑</span>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* The rules of this table */}
+        <div className="rounded-2xl px-3.5 pb-1 pt-2.5" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <p className="font-display font-bold text-white mb-0.5" style={{ fontSize: 12.5 }}>
+            ⚙️ წესები {!isCreator && <span className="font-mono text-[10px] text-white/25">· ჰოსტი აწესებს</span>}
+          </p>
+
+          <SettingRow label="სტრუქტურა" hint={`${deals} დარიგება · 4 პულკა`}>
+            <Choice on={mode === 'classic'} disabled={!isCreator} onClick={() => updateSettings({ mode: 'classic' })}>
+              კლასიკური 1→9→1
+            </Choice>
+            <Choice on={mode === 'nines_only'} disabled={!isCreator} onClick={() => updateSettings({ mode: 'nines_only' })}>
+              4×4 ცხრიანი
+            </Choice>
+          </SettingRow>
+
+          <SettingRow label="ხიშტი" hint="დარღვეული სიტყვის ფასი">
+            {KHISHTI_PENALTIES.map(v => (
+              <Choice key={v} on={khishti === v} disabled={!isCreator} onClick={() => updateSettings({ khishtiPenalty: v })}>
+                {v === 0 ? '10/ხელი' : `−${v}`}
+              </Choice>
+            ))}
+          </SettingRow>
+
+          <SettingRow label="პრემია" hint="სუფთა პულკა ორმაგდება">
+            <Choice on={premium} disabled={!isCreator} onClick={() => updateSettings({ bonusEnabled: true })}>ჩართული</Choice>
+            <Choice on={!premium} disabled={!isCreator} onClick={() => updateSettings({ bonusEnabled: false })}>გამორთული</Choice>
+          </SettingRow>
+        </div>
+
+        {/* How they get in */}
+        <div className="flex flex-col items-center gap-2.5">
+          <button
+            onClick={() => {
+              navigator.clipboard?.writeText(match.code).catch(() => {});
+              haptic('selection'); setCopied(true); setTimeout(() => setCopied(false), 1800);
+            }}
+            className="w-full py-3 rounded-2xl transition-all active:scale-[0.98] flex flex-col items-center"
+            style={{ border: '1px solid rgba(155,0,255,0.4)', background: 'rgba(155,0,255,0.08)' }}>
+            <span className="font-mono font-bold" style={{ fontSize: 22, letterSpacing: '0.28em', color: '#c084fc' }}>{match.code}</span>
+            <span className="font-mono text-[10px]" style={{ color: copied ? '#7fe0a0' : 'rgba(255,255,255,0.3)' }}>
+              {copied ? '✓ დაკოპირდა' : 'შეეხე კოდის კოპირებისთვის'}
+            </span>
+          </button>
+          {/* A code only reaches whoever is already listening. */}
+          <GameInviteButton game="joker" code={match.code} />
+        </div>
+
+        {/* Start */}
+        {isCreator ? (
+          <button onClick={onStart} disabled={isLoading || filled < 4}
+            className="w-full py-3.5 rounded-2xl font-display font-bold text-white transition-all active:scale-[0.98] disabled:opacity-40"
+            style={{
+              fontSize: 15,
+              background: filled === 4
+                ? 'linear-gradient(135deg,rgba(155,0,255,0.6),rgba(0,245,255,0.35))'
+                : 'rgba(255,255,255,0.05)',
+              border: `1px solid ${filled === 4 ? 'rgba(155,0,255,0.6)' : 'rgba(255,255,255,0.1)'}`,
+              boxShadow: filled === 4 ? '0 0 24px rgba(155,0,255,0.25)' : 'none',
+            }}>
+            {filled === 4 ? `🚀 ${t.games.joker.startGame}` : `ველოდებით კიდევ ${4 - filled} მოთამაშეს`}
+          </button>
+        ) : (
+          <p className="text-center font-mono text-[12px] text-white/35 py-2">
+            {filled === 4 ? 'ჰოსტი იწყებს…' : 'ველოდებით მოთამაშეებს…'}
+          </p>
+        )}
       </div>
-      <div className="text-center">
-        <p className="font-mono text-sm text-white/60">{match.players.length}/4 {t.games.joker.players}</p>
-        <p className="font-mono text-xs text-white/30 mt-1">{t.games.joker.waitingFor4}</p>
-      </div>
-      <div className="w-full max-w-xs space-y-1">
-        {Array.from({ length: 4 }, (_, i) => {
-          const p = match.players.find((pl: any) => pl.seatIndex === i);
-          return (
-            <div key={i} className="flex items-center gap-2.5 px-3 py-2 rounded-xl"
-              style={{ background: p ? 'rgba(155,0,255,0.08)' : 'rgba(255,255,255,0.02)', border: `1px solid ${p ? 'rgba(155,0,255,0.2)' : 'rgba(255,255,255,0.06)'}` }}>
-              <span className="font-mono text-[12px] text-white/30 w-4">{i + 1}</span>
-              {p
-                ? <Avatar player={p} size={26} onOpen={p.profileId ? () => useSocialStore.getState().openProfile(p.profileId!) : undefined} />
-                : <div style={{ width: 26, height: 26, borderRadius: '50%', border: '1px dashed rgba(255,255,255,0.12)' }} />}
-              <span className={`font-mono text-xs ${p ? 'text-white' : 'text-white/20'}`}>
-                {p ? `${p.name}${i === 0 ? ' 👑' : ''}` : '—'}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-      <button
-        onClick={() => { navigator.clipboard?.writeText(match.code).catch(() => {}); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
-        className="flex items-center gap-2 px-4 py-2 rounded-xl font-mono text-sm transition-all active:scale-95"
-        style={{ border: '1px solid rgba(155,0,255,0.4)', background: 'rgba(155,0,255,0.08)', color: '#c084fc' }}>
-        <span>{match.code}</span>
-        <span className="text-xs opacity-60">{copied ? '✓' : '⎘'}</span>
-      </button>
-      {/* A code only reaches whoever is already listening. */}
-      <GameInviteButton game="joker" code={match.code} />
-      {isCreator && match.players.length === 4 && (
-        <button onClick={onStart} disabled={isLoading}
-          className="px-8 py-3 rounded-xl font-display font-bold text-sm uppercase tracking-wider transition-all active:scale-95 disabled:opacity-40"
-          style={{ background: 'linear-gradient(135deg,rgba(155,0,255,0.5),rgba(0,245,255,0.3))', border: '1px solid rgba(155,0,255,0.5)', color: '#fff', boxShadow: '0 0 20px rgba(155,0,255,0.2)' }}>
-          {t.games.joker.startGame}
-        </button>
-      )}
     </div>
   );
 }

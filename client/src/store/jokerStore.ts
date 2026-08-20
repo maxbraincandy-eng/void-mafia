@@ -30,6 +30,8 @@ interface JokerStore {
   fetchList: () => Promise<void>;
   createMatch: (name: string, settings?: Partial<JokerSettings>) => Promise<void>;
   joinMatch: (code: string, name: string) => Promise<void>;
+  /** Host-only, lobby-only: change the game's shape before it starts. */
+  updateSettings: (settings: Partial<JokerSettings>) => Promise<void>;
   startMatch: () => Promise<void>;
   /** The first speaker of a deal also names the ხიშტი (null = უხიშტოდ). */
   declare: (tricks: number, trump?: import('@/types/joker').Suit | null) => Promise<void>;
@@ -71,6 +73,16 @@ export const useJokerStore = create<JokerStore>((set, get) => ({
       const res = await emitWithAck<any, any>('joker:join', { code, name });
       set({ match: injectIdentity(unwrap(res)), myHand: [], isLoading: false });
     } catch (e: any) { set({ isLoading: false, error: e.message }); }
+  },
+
+  updateSettings: async (settings) => {
+    const { match } = get();
+    if (!match) return;
+    set({ error: null });
+    try {
+      const res = await emitWithAck<any, any>('joker:settings', { matchId: match.id, settings });
+      if (!res.ok) set({ error: res.error });
+    } catch (e: any) { set({ error: e.message }); }
   },
 
   startMatch: async () => {
