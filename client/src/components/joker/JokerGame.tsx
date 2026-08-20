@@ -37,11 +37,69 @@ function JokerStyles() {
       .jk-turn-active  { animation: jkTurnPulse  1.1s ease-in-out infinite; }
       .jk-decl-active  { animation: jkDeclPulse  1.0s ease-in-out infinite; }
       .jk-my-turn-text { animation: jkMyTurnBlink 0.9s ease-in-out infinite; }
+      /* The voice row is three different components; one height makes it a row
+         rather than a pile. */
+      .jk-voice-row > *, .jk-voice-row button { height: 38px; }
+      .jk-voice-row > div > div { height: 38px; }
+      .scrollbar-none::-webkit-scrollbar { display: none; }
+      .scrollbar-none { scrollbar-width: none; }
     `}</style>
   );
 }
 
 function cardKey(c: Card) { return `${c.suit}${c.rank}`; }
+
+/**
+ * Voice, in one line the width of a phone.
+ *
+ * The shared bar spells its state out in words — "ხმა გათიშულია", "ჩუმად" —
+ * and at this width those wrap and the row stops reading as a row. Here the
+ * state is a dot, the count is a number, and the mic is a button.
+ */
+function VoiceStrip({ voice }: { voice: any }) {
+  const dot = voice.status === 'connected' ? '#22d36b'
+    : voice.status === 'connecting' || voice.status === 'reconnecting' ? '#f5c542'
+    : 'rgba(255,255,255,0.3)';
+  return (
+    <div className="flex items-center gap-2 px-2.5 rounded-full" style={{
+      height: 34, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(155,0,255,0.25)',
+    }}>
+      <span style={{ width: 7, height: 7, borderRadius: '50%', background: dot, flexShrink: 0 }} />
+      <span className="font-mono" style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>
+        🎧 {voice.connected ? voice.participants : '—'}
+      </span>
+      {voice.audioBlocked && voice.connected && (
+        <button onClick={voice.unlockAudio} className="font-mono" style={{
+          fontSize: 10.5, padding: '3px 8px', borderRadius: 999,
+          background: 'rgba(245,197,66,0.18)', border: '1px solid rgba(245,197,66,0.5)', color: '#f5c542',
+        }}>ხმის ჩართვა</button>
+      )}
+      <button
+        onClick={() => voice.toggleMic()}
+        disabled={!voice.connected}
+        className="rounded-full flex items-center justify-center transition-all active:scale-90 disabled:opacity-40"
+        style={{
+          width: 26, height: 26, fontSize: 12,
+          background: voice.micEnabled ? 'rgba(0,245,255,0.2)' : 'rgba(255,255,255,0.06)',
+          border: `1px solid ${voice.micEnabled ? 'rgba(0,245,255,0.6)' : 'rgba(255,255,255,0.14)'}`,
+          color: voice.micEnabled ? '#00f5ff' : 'rgba(255,255,255,0.45)',
+        }}
+      >{voice.micEnabled ? '🎙' : '🔇'}</button>
+    </div>
+  );
+}
+
+/** One fact about the deal, in a pill. They read as a row, not as clutter. */
+function StatusPill({ tone, children }: { tone?: 'gold'; children: React.ReactNode }) {
+  return (
+    <span className="font-mono flex-shrink-0" style={{
+      fontSize: 10.5, padding: '4px 9px', borderRadius: 999, whiteSpace: 'nowrap',
+      background: tone === 'gold' ? 'rgba(251,191,36,0.1)' : 'rgba(255,255,255,0.04)',
+      border: `1px solid ${tone === 'gold' ? 'rgba(251,191,36,0.3)' : 'rgba(255,255,255,0.09)'}`,
+      color: tone === 'gold' ? '#fbbf24' : 'rgba(255,255,255,0.5)',
+    }}>{children}</span>
+  );
+}
 
 /**
  * Hold the phone the way the table wants to be held.
@@ -380,12 +438,36 @@ export function JokerGame() {
         {match.status !== 'waiting' && !isFinished && (
           <div className="flex-1 flex flex-col overflow-hidden min-h-0">
 
+            {/* Everything the deal is, on one line: which deal, which column,
+                what ხიშტი, and which way the bids lean. These were three chips
+                scattered over the felt, two of them on top of the cards. */}
+            <div className="px-3 pt-1.5 flex-shrink-0 flex items-center justify-center gap-1.5 flex-wrap">
+              <StatusPill>
+                {t.games.joker.round} {match.currentRoundIndex + 1}/{match.totalRounds}
+              </StatusPill>
+              {match.pulkaIds?.[match.currentRoundIndex] && (
+                <StatusPill>პულკა {match.pulkaIds[match.currentRoundIndex]}</StatusPill>
+              )}
+              <StatusPill tone={match.trumpSuit ? 'gold' : undefined}>
+                {match.trumpSuit
+                  ? <>ხიშტი <span style={{ color: match.trumpSuit === 'H' || match.trumpSuit === 'D' ? '#ff6b6b' : '#e2e8f0' }}>{SUIT_SYMBOL[match.trumpSuit as Suit]}</span> {SUIT_NAME[match.trumpSuit as Suit]}</>
+                  : 'უხიშტოდ'}
+              </StatusPill>
+              {match.bidTension && match.status !== 'declaration' && (
+                <TensionChip tension={match.bidTension} cardCount={cardCount} compact />
+              )}
+              {/* Sideways the felt is barely taller than one card, so the seat
+                  opposite cannot sit on it without covering the trick. It sits
+                  here instead, on the line that is already about the deal. */}
+              {tight && <PlayerBadge player={seatedPlayers[2]} match={match} myId={myId} position="top" compact />}
+            </div>
+
             {/* Voice — the bar and the changer, exactly as the other tables
                 have it. Sideways there is no room for a full-width bar, so the
                 mic and the changer move down beside my own seat instead. */}
             {livekitEnabled && !tight && (
-              <div className="px-3 pt-1.5 flex-shrink-0 flex flex-wrap items-center gap-2">
-                <div className="flex-1" style={{ minWidth: 150 }}><LiveKitVoiceBarView voice={lkVoice} /></div>
+              <div className="px-3 pt-1.5 flex-shrink-0 flex items-center justify-center gap-2 flex-wrap">
+                <VoiceStrip voice={lkVoice} />
                 <VoiceDisguiseButton />
               </div>
             )}
@@ -394,23 +476,26 @@ export function JokerGame() {
                 Giving each of them a column of its own used to cost the felt a
                 third of the screen — and the felt is the game. */}
             <div className="flex-1 min-h-0 relative px-1 py-1">
-              <TrickArea match={match} seatedPlayers={seatedPlayers} cardSize={feltCardSize} minHeight={tight ? 150 : 210} />
+              <TrickArea match={match} seatedPlayers={seatedPlayers} cardSize={feltCardSize} minHeight={tight ? 110 : 210} />
 
               {/* Centred over the felt when there is height for it; tucked into
                   the corner when there is not, because a short felt puts the
                   played cards exactly where that badge would sit. */}
-              <div
-                className="absolute z-10"
-                style={tight
-                  ? { top: 4, left: 8 }
-                  : { top: 4, left: '50%', transform: 'translateX(-50%)' }}
-              >
-                <PlayerBadge player={seatedPlayers[2]} match={match} myId={myId} position="top" compact={tight} />
-              </div>
-              <div className="absolute z-10" style={{ left: 4, top: '50%', transform: 'translateY(-50%)' }}>
+              {/* Centred above the cross of played cards. The offsets are
+                  measured off the felt, so the top card never reaches this. */}
+              {!tight && (
+                <div className="absolute z-10" style={{ top: 4, left: '50%', transform: 'translateX(-50%)' }}>
+                  <PlayerBadge player={seatedPlayers[2]} match={match} myId={myId} position="top" />
+                </div>
+              )}
+              <div className="absolute z-10" style={tight
+                ? { left: 8, top: '50%', transform: 'translateY(-50%)' }
+                : { left: 8, bottom: 8 }}>
                 <PlayerBadge player={seatedPlayers[1]} match={match} myId={myId} position="side" />
               </div>
-              <div className="absolute z-10" style={{ right: 4, top: '50%', transform: 'translateY(-50%)' }}>
+              <div className="absolute z-10" style={tight
+                ? { right: 8, top: '50%', transform: 'translateY(-50%)' }
+                : { right: 8, bottom: 8 }}>
                 <PlayerBadge player={seatedPlayers[3]} match={match} myId={myId} position="side" />
               </div>
             </div>
@@ -436,13 +521,8 @@ export function JokerGame() {
 
               {/* Declaration waiting */}
               {match.status === 'declaration' && (!isMyDeclTurn || myDeclaration !== null) && (
-                <div className="flex-shrink-0 text-center pb-1">
-                  <p className="font-mono text-[12px] text-white/35">
-                    {myDeclaration !== null
-                      ? `${t.games.joker.yourDeclaration}: ${myDeclaration}`
-                      : t.games.joker.waitingDeclaration}
-                  </p>
-                  <DeclarationProgress match={match} />
+                <div className="flex-shrink-0 pb-1">
+                  <DeclarationProgress match={match} myId={myId} cardCount={cardCount} />
                 </div>
               )}
 
@@ -450,7 +530,7 @@ export function JokerGame() {
                   for a full-width talk button, but there is always room for a
                   thumb-sized one next to my own name. */}
               {isPlayer && (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-center gap-2">
                   <PlayerBadge player={seatedPlayers[0]} match={match} myId={myId} position="bottom" compact={tight} />
                   {livekitEnabled && tight && !isFinished && (
                     <>
@@ -719,112 +799,135 @@ function Avatar({ player, size, onOpen }: {
   );
 }
 
+/**
+ * A seat at the table.
+ *
+ * One plate, three placements — the felt's top edge, its sides, and my own
+ * below it — because four seats drawn three different ways is what made this
+ * look unfinished. Every plate says the same four things in the same order:
+ * who, what they promised, what they have taken, and what they are on.
+ *
+ * The face is a button: four names on a felt tell you nothing about who you are
+ * playing with, and the profile is one tap away everywhere else in the app.
+ */
 function PlayerBadge({ player, match, myId, position, compact }: {
   player: JokerPlayerPublic | undefined;
   match: any; myId: string | null;
   position: 'top' | 'side' | 'bottom';
   compact?: boolean;
 }) {
-  const t = useT();
   const openProfile = useSocialStore(s => s.openProfile);
-  if (!player) return <div style={{ width: position === 'side' ? 72 : undefined }} />;
+  if (!player) return <div style={{ width: position === 'side' ? 96 : undefined }} />;
   const openMe = player.profileId && !player.isBot
     ? () => { haptic('selection'); openProfile(player.profileId!); }
     : undefined;
 
   const isDealer   = player.seatIndex === match.currentDealerSeat;
-  // The one who names the ხიშტი this deal — worth showing, it is a real edge.
   const isTrumpChooser = player.seatIndex === match.trumpChooserSeat && match.status === 'declaration';
   const declaration = match.declarations[player.id] ?? null;
   const taken       = match.tricksTaken[player.id] ?? 0;
-  const isMyTurn    = match.currentPlaySeat === player.seatIndex && match.status === 'playing';
+  const isPlayTurn  = match.currentPlaySeat === player.seatIndex && match.status === 'playing';
   const isDeclTurn  = match.currentDeclarationSeat === player.seatIndex && match.status === 'declaration';
   const isMe        = player.id === myId;
   const score       = match.scores[player.id] ?? 0;
   const cardCount   = player.cardCount;
-  const isActive    = isMyTurn || isDeclTurn;
+  const active      = isPlayTurn || isDeclTurn;
 
-  const borderColor = isMyTurn ? 'rgba(0,245,255,0.55)' : isDeclTurn ? 'rgba(192,132,252,0.55)' : isMe ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.07)';
-  const bgColor     = isActive ? (isMyTurn ? 'rgba(0,245,255,0.07)' : 'rgba(155,0,255,0.08)') : 'rgba(255,255,255,0.03)';
-  const animClass   = isMyTurn ? 'jk-turn-active' : isDeclTurn ? 'jk-decl-active' : '';
+  const accent = isPlayTurn ? 'rgba(0,245,255,0.6)' : isDeclTurn ? 'rgba(192,132,252,0.6)' : null;
+  const animClass = isPlayTurn ? 'jk-turn-active' : isDeclTurn ? 'jk-decl-active' : '';
+
+  const plate: React.CSSProperties = {
+    borderRadius: 12,
+    background: active
+      ? (isPlayTurn ? 'rgba(0,245,255,0.09)' : 'rgba(155,0,255,0.12)')
+      : 'rgba(8,4,22,0.82)',
+    border: `1px solid ${accent ?? (isMe ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.09)')}`,
+    backdropFilter: 'blur(6px)',
+    boxShadow: '0 4px 14px rgba(0,0,0,0.45)',
+    transition: 'border-color 0.3s, background 0.3s',
+  };
+
+  /** promised → taken, the number everyone at the table is actually watching. */
+  const Progress = () => {
+    if (declaration === null) {
+      return match.status === 'declaration'
+        ? <span className="font-mono" style={{ fontSize: 10, color: isDeclTurn ? '#c084fc' : 'rgba(255,255,255,0.28)' }}>
+            {isDeclTurn ? 'ამბობს…' : '—'}
+          </span>
+        : null;
+    }
+    const done = taken === declaration;
+    const over = taken > declaration;
+    return (
+      <span className="font-mono" style={{
+        fontSize: 10.5, padding: '1px 6px', borderRadius: 999,
+        background: done ? 'rgba(127,224,160,0.14)' : over ? 'rgba(255,138,146,0.14)' : 'rgba(255,255,255,0.06)',
+        border: `1px solid ${done ? 'rgba(127,224,160,0.35)' : over ? 'rgba(255,138,146,0.3)' : 'rgba(255,255,255,0.1)'}`,
+        color: done ? '#7fe0a0' : over ? '#ff8a92' : 'rgba(255,255,255,0.65)',
+        whiteSpace: 'nowrap',
+      }}>{taken}/{declaration}</span>
+    );
+  };
+
+  const Score = () => (
+    <span className="font-mono font-bold" style={{ fontSize: 11, color: score >= 0 ? '#00f5ff' : '#ff8a92' }}>
+      {score >= 0 ? '+' : ''}{score}
+    </span>
+  );
+
+  /** How many cards are still in that hand — a strip, not a number to read. */
+  const Cards = () => (
+    <div className="flex gap-[2px]" style={{ opacity: cardCount ? 1 : 0.25 }}>
+      {Array.from({ length: Math.min(cardCount, 9) }, (_, i) => (
+        <div key={i} style={{
+          width: 3, height: 9, borderRadius: 1,
+          background: active ? (isPlayTurn ? 'rgba(0,245,255,0.7)' : 'rgba(192,132,252,0.7)') : 'rgba(192,132,252,0.38)',
+        }} />
+      ))}
+    </div>
+  );
+
+  const Mark = () => (
+    (isDealer || isTrumpChooser)
+      ? <span title={isTrumpChooser ? 'ხიშტს ირჩევს' : 'დამრიგებელი'} style={{ fontSize: 10 }}>
+          {isTrumpChooser ? '👑' : '🎴'}
+        </span>
+      : null
+  );
 
   if (position === 'side') {
-    // Compact vertical badge for left/right players
     return (
-      <div
-        className={animClass}
-        style={{
-          width: 72, padding: '6px 8px', borderRadius: 10,
-          background: bgColor, border: `1px solid ${borderColor}`,
-          display: 'flex', flexDirection: 'column', gap: 3,
-          transition: 'border-color 0.3s',
-        }}
-      >
-        {/* Face + name */}
-        <div className="flex items-center gap-1.5">
+      <div className={animClass} style={{ ...plate, width: 96, padding: '6px 7px' }}>
+        <div className="flex items-center gap-1.5 mb-1">
           <Avatar player={player} size={22} onOpen={openMe} />
-          <span className="font-mono text-[12px] text-white truncate" style={{ maxWidth: 40 }}>
-            {player.name}
-          </span>
+          <span className="font-mono text-white truncate" style={{ fontSize: 11, maxWidth: 46 }}>{player.name}</span>
+          <Mark />
         </div>
-        {(isDealer || isTrumpChooser) && (
-          <span className="font-mono text-[9px]" style={{ color: 'rgba(251,191,36,0.75)' }}>
-            {isDealer ? '🎴 დამრიგებელი' : '👑 ხიშტი'}
-          </span>
-        )}
-        {/* Score */}
-        <span className="font-mono text-[12px] font-bold" style={{ color: score >= 0 ? '#00f5ff' : '#f87171' }}>
-          {score >= 0 ? '+' : ''}{score}
-        </span>
-        {/* Declaration → taken */}
-        {declaration !== null && (
-          <span className="font-mono text-[12px] text-white/40">
-            {declaration}→{taken}
-          </span>
-        )}
-        {/* Card count dots */}
-        <div className="flex gap-0.5 flex-wrap">
-          {Array.from({ length: Math.min(cardCount, 8) }, (_, i) => (
-            <div key={i} style={{ width: 5, height: 9, background: isActive ? (isMyTurn ? 'rgba(0,245,255,0.6)' : 'rgba(192,132,252,0.6)') : 'rgba(192,132,252,0.35)', borderRadius: 1.5 }} />
-          ))}
-          {cardCount > 8 && <span className="font-mono text-[12px] text-white/25">+{cardCount - 8}</span>}
+        <div className="flex items-center justify-between gap-1">
+          <Progress />
+          <Score />
         </div>
+        <div className="mt-1"><Cards /></div>
       </div>
     );
   }
 
-  // Horizontal badge for top/bottom
+  // Top and bottom read as one horizontal line.
   return (
-    <div
-      className={animClass}
-      style={{
-        display: 'inline-flex', alignItems: 'center', gap: 8,
-        padding: '5px 10px', borderRadius: 10,
-        background: bgColor, border: `1px solid ${borderColor}`,
-        maxWidth: 260, transition: 'border-color 0.3s',
-      }}
-    >
-      <Avatar player={player} size={position === 'bottom' ? 28 : 24} onOpen={openMe} />
-      <div style={{ minWidth: 0 }}>
-        <p className="font-mono text-[11px] text-white font-semibold truncate" style={{ maxWidth: 110 }}>
-          {isDealer ? '🎴 ' : isTrumpChooser ? '👑 ' : ''}{player.name}{isMe ? ' ✦' : ''}
-        </p>
-        {!compact && declaration !== null && (
-          <p className="font-mono text-[12px] text-white/40">
-            {t.games.joker.declared}: {declaration} · {t.games.joker.taken}: {taken}
-          </p>
-        )}
-      </div>
-      <span className="font-mono text-[11px] font-bold flex-shrink-0" style={{ color: score >= 0 ? '#00f5ff' : '#f87171' }}>
-        {score >= 0 ? '+' : ''}{score}
+    <div className={animClass} style={{
+      ...plate,
+      display: 'inline-flex', alignItems: 'center', gap: 8,
+      padding: compact ? '4px 8px' : '5px 10px',
+      maxWidth: position === 'bottom' ? '100%' : 280,
+    }}>
+      <Avatar player={player} size={compact ? 22 : 26} onOpen={openMe} />
+      <span className="font-mono text-white truncate" style={{ fontSize: 12, maxWidth: 118 }}>
+        {player.name}{isMe ? ' ✦' : ''}
       </span>
-      {/* Card count */}
-      <div className="flex gap-0.5 flex-shrink-0">
-        {Array.from({ length: Math.min(cardCount, 10) }, (_, i) => (
-          <div key={i} style={{ width: 4, height: 10, background: isActive ? (isMyTurn ? 'rgba(0,245,255,0.65)' : 'rgba(192,132,252,0.65)') : 'rgba(192,132,252,0.3)', borderRadius: 1.5 }} />
-        ))}
-        {cardCount > 10 && <span className="font-mono text-[12px] text-white/25">+{cardCount - 10}</span>}
-      </div>
+      <Mark />
+      <Progress />
+      <Score />
+      {!compact && <Cards />}
     </div>
   );
 }
@@ -866,17 +969,40 @@ function TrickArea({ match, seatedPlayers, cardSize = 'md', minHeight = 190 }: {
   // should sit apart like four players' cards do, and on a short one they close
   // up until they nearly touch — but never past the edge, and never so far
   // apart that the trick stops reading as one pile.
-  const offY = Math.max(26, Math.min(130, box.h * 0.24, box.h / 2 - ch / 2 - 6));
+  // The top edge belongs to the seat sitting on it — 52px of it — or the plate
+  // covers the card that was just played into the trick.
+  const offY = Math.max(26, Math.min(130, box.h * 0.24, box.h / 2 - ch / 2 - 52));
   // …and clear of the side seats, which sit ON the felt now: 80px of edge on
   // each side belongs to them, and a card landing there hides a name.
   const offX = Math.max(34, Math.min(150, box.w * 0.26, box.w / 2 - cw / 2 - 80));
   const centre = 'translate(-50%, -50%) ';
-  const posStyle: Record<string, React.CSSProperties> = {
-    bottom: { left: '50%', top: '50%', transform: `${centre}translate(0, ${offY}px)` },
-    left:   { left: '50%', top: '50%', transform: `${centre}translate(-${offX}px, 0)` },
-    top:    { left: '50%', top: '50%', transform: `${centre}translate(0, -${offY}px)` },
-    right:  { left: '50%', top: '50%', transform: `${centre}translate(${offX}px, 0)` },
-  };
+
+  /*
+   * Two arrangements, because the felt has two shapes.
+   *
+   * Upright it is tall: the four cards sit in a cross, each in front of the
+   * player who played it, which is how a real table reads. Turned sideways it
+   * is a wide strip barely taller than one card — a cross there would put the
+   * top card underneath the seat plate sitting on that edge — so they lay out
+   * in a row across the middle instead, in seat order round the table.
+   */
+  const wide = box.w > box.h * 2;
+  const step = cw + 14;
+  const rowAt = (i: number) => `${centre}translate(${Math.round((i - 1.5) * step)}px, 0)`;
+  const posStyle: Record<string, React.CSSProperties> = wide
+    ? {
+        left:   { left: '50%', top: '50%', transform: rowAt(0) },
+        top:    { left: '50%', top: '50%', transform: rowAt(1) },
+        right:  { left: '50%', top: '50%', transform: rowAt(2) },
+        bottom: { left: '50%', top: '50%', transform: rowAt(3) },
+      }
+    : {
+        bottom: { left: '50%', top: '50%', transform: `${centre}translate(0, ${offY}px)` },
+        left:   { left: '50%', top: '50%', transform: `${centre}translate(-${offX}px, 0)` },
+        top:    { left: '50%', top: '50%', transform: `${centre}translate(0, -${offY}px)` },
+        right:  { left: '50%', top: '50%', transform: `${centre}translate(${offX}px, 0)` },
+      };
+
 
   const trumpSuit = match.trumpSuit as Suit | null;
 
@@ -891,41 +1017,20 @@ function TrickArea({ match, seatedPlayers, cardSize = 'md', minHeight = 190 }: {
         boxShadow: 'inset 0 0 60px rgba(0,0,0,0.65), inset 0 0 20px rgba(0,80,20,0.3), 0 4px 24px rgba(0,0,0,0.5)',
       }} />
 
-      {/* ხიშტი — named by the first speaker, and true for the whole deal. */}
-      <div style={{
-        position: 'absolute', top: 8, right: 10, zIndex: 3,
-        display: 'flex', alignItems: 'center', gap: 4,
-        padding: '2px 8px', borderRadius: 20,
-        background: 'rgba(0,0,0,0.45)',
-        border: `1px solid ${trumpSuit ? 'rgba(251,191,36,0.45)' : 'rgba(255,255,255,0.12)'}`,
-      }}>
-        {trumpSuit && trumpSuit !== 'J'
-          ? <>
-              <span style={{ fontSize: 13, color: (trumpSuit === 'H' || trumpSuit === 'D') ? '#ff6b6b' : '#e2e8f0' }}>
-                {SUIT_SYMBOL[trumpSuit]}
-              </span>
-              <span className="font-mono text-[10px] text-yellow-400/70">{SUIT_NAME[trumpSuit]}</span>
-            </>
-          : <span className="font-mono text-[10px] text-white/35">უხიშტოდ</span>}
-      </div>
-
-      {/* Round / phase indicator */}
-      <div style={{
-        position: 'absolute', bottom: 8, left: 10, zIndex: 3,
-        padding: '2px 8px', borderRadius: 20,
-        background: 'rgba(0,0,0,0.45)',
-        border: '1px solid rgba(255,255,255,0.1)',
-      }}>
-        <span className="font-mono text-[12px] text-white/35">
-          {t.games.joker.round} {match.currentRoundIndex + 1}
-          {match.pulkaIds?.[match.currentRoundIndex] ? ` · პულკა ${match.pulkaIds[match.currentRoundIndex]}` : ''}
-        </span>
-      </div>
-
-      {/* Torn or stuffed — the shape of the whole hand, in one line. */}
-      {match.bidTension && match.status !== 'declaration' && (
-        <div style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', zIndex: 3 }}>
-          <TensionChip tension={match.bidTension} cardCount={match.roundPlan[match.currentRoundIndex] ?? 0} compact />
+      {/* An empty felt is a green field; give it a centre. The suit that is
+          ხიშტი this deal, cut into the cloth. */}
+      {trick.length === 0 && (
+        <div style={{
+          position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', zIndex: 1, pointerEvents: 'none',
+        }}>
+          <span style={{
+            fontSize: Math.min(120, Math.max(56, box.h * 0.34)),
+            color: trumpSuit && (trumpSuit === 'H' || trumpSuit === 'D') ? 'rgba(255,120,120,0.09)' : 'rgba(255,255,255,0.07)',
+            lineHeight: 1,
+          }}>
+            {trumpSuit ? SUIT_SYMBOL[trumpSuit] : '🃏'}
+          </span>
         </div>
       )}
 
@@ -1129,22 +1234,40 @@ export function TensionChip({ tension, cardCount, compact }: {
   );
 }
 
-function DeclarationProgress({ match }: { match: any }) {
-  const t = useT();
+/**
+ * Where the calling has got to.
+ *
+ * This was a sentence that wrapped — "ბატონი მაქსი: ? Salius: ? …" — and read
+ * like debug output. It is four chips now: the face, the number they called,
+ * and a ring on whoever the table is waiting for. The running total against the
+ * cards dealt is the other half of the decision, so it sits at the end.
+ */
+function DeclarationProgress({ match, myId, cardCount }: { match: any; myId: string | null; cardCount: number }) {
+  const sum = match.bidTension?.sum ?? 0;
+  const called = match.players.filter((p: any) => match.declarations[p.id] !== null && match.declarations[p.id] !== undefined).length;
   return (
-    <div className="flex gap-3 justify-center mt-1 flex-wrap">
+    <div className="flex items-center justify-center gap-1.5 flex-wrap">
       {match.players.map((p: JokerPlayerPublic) => {
         const decl = match.declarations[p.id];
+        const has = decl !== null && decl !== undefined;
+        const turn = match.currentDeclarationSeat === p.seatIndex;
         return (
-          <div key={p.id} className="flex items-center gap-1">
-            <span className="font-mono text-[12px] text-white/30">{p.name}:</span>
-            <span className="font-mono text-[12px] font-bold"
-              style={{ color: decl !== null && decl !== undefined ? '#00f5ff' : 'rgba(255,255,255,0.2)' }}>
-              {decl !== null && decl !== undefined ? decl : '?'}
-            </span>
+          <div key={p.id} className="flex items-center gap-1.5 px-1.5 py-1 rounded-full" style={{
+            background: turn ? 'rgba(155,0,255,0.16)' : 'rgba(255,255,255,0.04)',
+            border: `1px solid ${turn ? 'rgba(192,132,252,0.55)' : 'rgba(255,255,255,0.08)'}`,
+          }}>
+            <Avatar player={p} size={18} />
+            <span className="font-mono font-bold" style={{
+              fontSize: 11.5, minWidth: 9, textAlign: 'center',
+              color: has ? '#00f5ff' : turn ? '#c084fc' : 'rgba(255,255,255,0.25)',
+            }}>{has ? decl : turn ? '…' : '?'}</span>
+            {p.id === myId && <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.35)' }}>შენ</span>}
           </div>
         );
       })}
+      <span className="font-mono" style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.35)' }}>
+        {called === match.players.length ? `ჯამი ${sum}/${cardCount}` : `${sum}/${cardCount}`}
+      </span>
     </div>
   );
 }
