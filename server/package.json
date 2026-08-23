@@ -10,7 +10,8 @@
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "check:dist": "node scripts/check-dist.mjs",
-    "test:poker": "npx tsx --test \"src/poker/**/*.test.ts\""
+    "test:poker": "npx tsx --test \"src/poker/**/*.test.ts\"",
+    "test:poker:db": "POKER_TEST_DATABASE_URL=${POKER_TEST_DATABASE_URL:-postgres://postgres@localhost:5433/pokertest} npx tsx --test \"src/poker/**/*.test.ts\""
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

@@ -655,6 +655,19 @@ async function tryInitDb(attempt = 1) {
         dbReady = true;
         setDbReady(true);
         console.log('[Startup] Database ready.');
+        // Poker's schema, sinks and scheduled jobs. Only when poker is enabled —
+        // a deployment with it switched off should not carry its tables around.
+        if (pokerEnabled()) {
+            import('./poker/services/persistence.js').then(async (poker) => {
+                await poker.initializePokerSchema();
+                const { setPokerSinks } = await import('./poker/poker.js');
+                setPokerSinks({ audit: poker.recordAudit, history: poker.recordHand });
+                poker.rebuildLeaderboards();
+                setInterval(() => { poker.rebuildLeaderboards(); }, 10 * 60 * 1000);
+                setInterval(() => { poker.pruneOldRecords(); }, 24 * 60 * 60 * 1000);
+                console.log('[Startup] Poker persistence ready.');
+            }).catch(e => console.warn('[poker] persistence init failed:', e.message));
+        }
         // Rescue legitimate IQ attempts wrongly flagged unverified by older builds.
         import('./services/iqService.js')
             .then(m => m.reconcileVerification())

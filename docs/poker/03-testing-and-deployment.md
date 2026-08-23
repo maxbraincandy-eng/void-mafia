@@ -9,15 +9,24 @@ From `server/`:
 npx tsx --test "src/poker/**/*.test.ts"      # or: npm run test:poker
 ```
 
+The persistence tests need a real PostgreSQL and skip themselves without one:
+
+```bash
+POKER_TEST_DATABASE_URL=postgres://postgres@localhost:5433/pokertest \
+  npx tsx --test "src/poker/**/*.test.ts"    # or: npm run test:poker:db
+```
+
+Without it: 82 pass, 10 skip. With it: 92 pass.
+
 Current output:
 
 ```
-# tests 82
-# pass 82
+# tests 92
+# pass 92
 # fail 0
 ```
 
-What the 82 cover:
+What the 92 cover:
 
 | File | Tests | What they pin down |
 |---|---|---|
@@ -28,6 +37,7 @@ What the 82 cover:
 | `services/tableService.test.ts` | 21 | seating and buy-in, the pre-deal pause, button rotation, replayed and out-of-turn actions, the action clock to the millisecond, disconnect grace and reconnect, rebuy rules, host-leave closing, hand histories, chip conservation over 40 hands, timer cleanup |
 | `services/views.test.ts` | 8 | the information rule over 200 hands, card counts without faces, the seed withheld until settlement, observers, whose options are published, the mid-hand stack, lobby rows, private tables |
 | `services/rateLimit.test.ts` | 7 | a burst passes and a flood does not, refill rate, per-player and per-action isolation, unknown actions fail closed, `retryAfter`, bucket sweeping, and that reconnecting does not reset a limit |
+| `services/persistence.db.test.ts` | 10 | against a real PostgreSQL: the schema, that no wallet/balance/ledger table or money-shaped column exists, hands written once and never overwritten, statistics and streaks, leaderboard ranking and the win-rate minimum, reading your own hands back, the audit log, a deletion request, and retention pruning by age |
 | `poker.e2e.test.ts` | 10 | a real Socket.IO server and real clients: anonymous sockets refused, create/join/sit over the wire, the compliance notice, no card leakage in any received payload, replayed packets, hostile payloads, identity spoofing, chat limits, reconnect, host-leave |
 
 The two sweeps are the important ones. Hand-written cases prove the cases
@@ -127,11 +137,24 @@ piped. `node:test` runs each file in a child process and piping the reporter
 through `grep`/`head` can stall the parent — the suite itself finishes in about
 eight seconds and exits 0.
 
-Still to be written (stage 5 and after):
+### Why the persistence tests use a real database
+
+Not sqlite, not a mock. What is worth testing here is exactly what a stand-in
+gets wrong: `ON CONFLICT DO NOTHING` on a re-written hand, `GREATEST` over a
+running total, whether a streak column actually resets on a loss, whether
+`information_schema` shows a table nobody meant to create. A fake would pass all
+of them and prove nothing.
+
+Two of these tests are compliance checks rather than correctness checks: one
+asserts that no poker table is named wallet/balance/ledger/payment/payout/
+deposit/withdrawal and that no column is named currency/cash/usd/price/wallet.
+That is `docs/poker/11-legal-compliance-checklist.md` A8 turned into something
+that fails a build rather than something someone remembers.
+
+Still to be written (stage 6 and after):
 
 * six clients seat, play twenty hands, and every client's view is reconciled
   against the persisted hand history rather than against the live service;
-* a hand history written to Postgres and read back, byte for byte;
 * a table that survives a process restart, or — if it cannot — closes cleanly
   rather than stranding its players.
 
@@ -246,6 +269,14 @@ preventable; a single process owns all tables, so a restart drops live ones; and
 the rate limits are tuned by judgement, not by measurement — stage 9's load
 tests should revisit them.
 
-**Persistence (stage 5)** — risk: hole cards written before a hand ends, or an
-admin query path that can read a live hand. Mitigation: `poker_hand_players` is
-written only at settlement, and there is no admin read path to in-memory state.
+**`services/persistence.ts`** — risks: hole cards written before a hand ends
+(they are not: `poker_hand_players` is written once, at settlement, and nothing
+reads a live hand from the database); a hand history quietly rewritten (both
+inserts are `ON CONFLICT DO NOTHING`, and there is no UPDATE or DELETE against
+`poker_hands` anywhere in the module except the retention job); a database
+outage taking down a live table (writes are fire-and-forget and failures are
+counted by `persistenceFailures()` so the loss is visible rather than silent).
+
+Residual: the failure counter is not yet surfaced anywhere. It should go on the
+admin panel in stage 8, otherwise "visible" means "visible in a log nobody
+reads".

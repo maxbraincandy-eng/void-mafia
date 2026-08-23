@@ -41,6 +41,7 @@ server/src/poker/
     views.ts               per-viewer projection — the information policy
     tableService.ts        tables, seating, timers, the hand loop, reconnect
     rateLimit.ts           token buckets, per profile, per action
+    persistence.ts         schema, hand histories, audit, stats, boards
     *.test.ts              unit tests (excluded from the production build)
   poker.ts                 Socket.IO handlers — the only I/O layer
   poker.e2e.test.ts        real server, real clients, real payloads
@@ -206,7 +207,7 @@ Anti-cheat beyond the protocol:
 | 2 | Compliance config + disabled economy interfaces | **done** |
 | 3 | Table service + per-viewer views: seating, buy-in, timers, hand loop, reconnect, 29 tests | **done** |
 | 4 | Socket layer + rate limits + hostile-payload handling, 17 tests | **done** |
-| 5 | Persistence: tables, sessions, hands, stats (schema in `02`) | next |
+| 5 | Persistence: schema, hand histories, audit log, stats, leaderboards, retention, 10 tests | **done** |
 | 6 | Client: lobby, responsive table, cards/chips/animations | next |
 | 7 | Leaderboards, profile stats, achievements | next |
 | 8 | Admin panel: live tables, hand histories, reports | next |
