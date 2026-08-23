@@ -37,7 +37,13 @@ import { PokerTableService } from './services/tableService.js';
 import type { AuditEntry, HandHistory } from './services/types.js';
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
-/** Poker is off unless the deployment turns it on. See `03-testing-and-deployment.md`. */
+/**
+ * The kill switch.
+ *
+ * On by default, off with `POKER_ENABLED=0`. Off means the handlers are never
+ * registered, so the events do not exist rather than existing and refusing —
+ * and it can be flipped during an incident without a deploy.
+ */
 export declare function pokerEnabled(): boolean;
 /** Hooks the persistence layer fills in (stage 5). Absent means "not stored". */
 export interface PokerSinks {

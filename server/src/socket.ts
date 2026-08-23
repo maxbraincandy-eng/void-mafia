@@ -1300,6 +1300,7 @@ const INVITABLE_GAMES: Record<string, { name: string; emoji: string }> = {
   alias:     { name: 'ალიასი',                emoji: '🗣' },
   draw:      { name: 'დახაზე & გამოიცანი',    emoji: '🎨' },
   sxvamafia: { name: 'მაფია ჰოსტით',          emoji: '🎬' },
+  poker:     { name: 'სოციალური პოკერი',      emoji: '♠️' },
 };
 
 /**

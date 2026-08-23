@@ -46,9 +46,16 @@ import type { AuditEntry, HandHistory, PlayerRef, TableEvent } from './services/
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 
-/** Poker is off unless the deployment turns it on. See `03-testing-and-deployment.md`. */
+/**
+ * The kill switch.
+ *
+ * On by default, off with `POKER_ENABLED=0`. Off means the handlers are never
+ * registered, so the events do not exist rather than existing and refusing —
+ * and it can be flipped during an incident without a deploy.
+ */
 export function pokerEnabled(): boolean {
-  return process.env.POKER_ENABLED === '1' || process.env.POKER_ENABLED === 'true';
+  const flag = process.env.POKER_ENABLED;
+  return flag !== '0' && flag !== 'false' && flag !== 'off';
 }
 
 // ─── Wiring ──────────────────────────────────────────────────────────────────

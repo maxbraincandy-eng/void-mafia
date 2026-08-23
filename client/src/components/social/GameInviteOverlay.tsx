@@ -13,6 +13,7 @@ import { useSpyfallStore } from '@/store/spyfallStore';
 import { useCodenamesStore } from '@/store/codenamesStore';
 import { useAliasStore } from '@/store/aliasStore';
 import { useDrawStore } from '@/store/drawStore';
+import { usePokerStore } from '@/store/pokerStore';
 import { useSxvaMafiaStore } from '@/store/sxvaMafiaStore';
 import { tNow } from '@/store/langStore';
 
@@ -21,11 +22,12 @@ interface GameInvite { game: string; code: string; fromName: string; fromAvatar:
 const GAME_LABEL: Record<string, string> = {
   checkers: 'შაშკი', ludo: 'ლუდო', uno: 'UNO', joker: 'ჯოკერი', www: 'ვინ იქნება მილიონერი',
   lies: 'ტყუილების ოსტატი', spyfall: 'ჯაშუში', codenames: 'Codenames', alias: 'ალიასი', draw: 'დახაზე & გამოიცანი',
-  sxvamafia: 'მაფია ჰოსტით',
+  sxvamafia: 'მაფია ჰოსტით', poker: 'სოციალური პოკერი',
 };
 const GAME_EMOJI: Record<string, string> = {
   checkers: '⚪', ludo: '🎲', uno: '🎴', joker: '🃏', www: '❓',
   lies: '🎭', spyfall: '🕵️', codenames: '🔤', alias: '🗣', draw: '🎨', sxvamafia: '🎬',
+  poker: '♠️',
 };
 
 /**
@@ -64,7 +66,10 @@ export function GameInviteOverlay() {
       game === 'codenames' ? useCodenamesStore.getState().joinMatch :
       game === 'alias' ? useAliasStore.getState().joinMatch :
       game === 'draw' ? useDrawStore.getState().joinMatch :
-      game === 'sxvamafia' ? useSxvaMafiaStore.getState().joinMatch : null;
+      game === 'sxvamafia' ? useSxvaMafiaStore.getState().joinMatch :
+      // Poker joins by code with no nickname argument, so the shared
+      // `(code, name)` call below suits it too.
+      game === 'poker' ? usePokerStore.getState().joinTable : null;
     join?.(code, name)?.catch?.(() => {});
   };
 

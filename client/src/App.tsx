@@ -50,7 +50,9 @@ import { useBlackoutStore } from '@/store/blackoutStore';
 import { AliasGame } from '@/components/alias/AliasGame';
 import { useAliasStore } from '@/store/aliasStore';
 import { SpyfallGame } from '@/components/spyfall/SpyfallGame';
+import { PokerGame } from '@/components/poker/PokerGame';
 import { useSpyfallStore } from '@/store/spyfallStore';
+import { usePokerStore } from '@/store/pokerStore';
 import { LiesGame } from '@/components/lies/LiesGame';
 import { useLiesStore } from '@/store/liesStore';
 import { SxvaMafiaGame } from '@/components/sxvamafia/SxvaMafiaGame';
@@ -381,12 +383,13 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
   const blackoutMatch = useBlackoutStore(s => s.match);
   const aliasMatch    = useAliasStore(s => s.match);
   const spyfallMatch  = useSpyfallStore(s => s.match);
+  const pokerTable    = usePokerStore(s => s.table);
   const liesMatch     = useLiesStore(s => s.match);
   const xmMatch       = useSxvaMafiaStore(s => s.match);
   const wpMatch       = useWatchPartyStore(s => s.match);
   const drawMatch     = useDrawStore(s => s.match);
   const cnMatch       = useCodenamesStore(s => s.match);
-  const inGame = !!(checkersMatch || ludoMatch || jokerMatch || wwwMatch || unoMatch || blackoutMatch || aliasMatch || spyfallMatch || liesMatch || xmMatch || drawMatch || cnMatch);
+  const inGame = !!(checkersMatch || ludoMatch || jokerMatch || wwwMatch || unoMatch || blackoutMatch || aliasMatch || spyfallMatch || liesMatch || xmMatch || drawMatch || cnMatch || pokerTable);
   const [spaceOpen, setSpaceOpen] = useState(false);
   const [spaceCode, setSpaceCode] = useState<string | null>(null);
   const [backroomsOpen, setBackroomsOpen] = useState(false);
@@ -551,6 +554,7 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
       <AnimatePresence>{blackoutMatch && <BlackoutGame />}</AnimatePresence>
       <AnimatePresence>{aliasMatch    && <AliasGame />}</AnimatePresence>
       <AnimatePresence>{spyfallMatch  && <SpyfallGame />}</AnimatePresence>
+      <AnimatePresence>{pokerTable    && <PokerGame />}</AnimatePresence>
       <AnimatePresence>{liesMatch     && <LiesGame />}</AnimatePresence>
       <AnimatePresence>{xmMatch       && <SxvaMafiaGame />}</AnimatePresence>
       <AnimatePresence>{wpMatch       && <WatchPartyRoom onClose={() => {}} />}</AnimatePresence>

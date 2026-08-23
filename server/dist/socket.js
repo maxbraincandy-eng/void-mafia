@@ -1177,6 +1177,7 @@ const INVITABLE_GAMES = {
     alias: { name: 'ალიასი', emoji: '🗣' },
     draw: { name: 'დახაზე & გამოიცანი', emoji: '🎨' },
     sxvamafia: { name: 'მაფია ჰოსტით', emoji: '🎬' },
+    poker: { name: 'სოციალური პოკერი', emoji: '♠️' },
 };
 /**
  * Invites now reach strangers, which is the point — a table short of players

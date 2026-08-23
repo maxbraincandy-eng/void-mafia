@@ -35,9 +35,16 @@ import { ok, err } from '../types/index.js';
 import { PokerTableService, TableError } from './services/tableService.js';
 import { RateLimiter } from './services/rateLimit.js';
 import { getCompliance, complianceFacts } from './compliance.js';
-/** Poker is off unless the deployment turns it on. See `03-testing-and-deployment.md`. */
+/**
+ * The kill switch.
+ *
+ * On by default, off with `POKER_ENABLED=0`. Off means the handlers are never
+ * registered, so the events do not exist rather than existing and refusing —
+ * and it can be flipped during an incident without a deploy.
+ */
 export function pokerEnabled() {
-    return process.env.POKER_ENABLED === '1' || process.env.POKER_ENABLED === 'true';
+    const flag = process.env.POKER_ENABLED;
+    return flag !== '0' && flag !== 'false' && flag !== 'off';
 }
 // ─── Wiring ──────────────────────────────────────────────────────────────────
 /**

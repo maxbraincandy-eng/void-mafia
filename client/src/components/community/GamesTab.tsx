@@ -34,6 +34,7 @@ import { useBlackoutStore } from '@/store/blackoutStore';
 import { useAliasStore } from '@/store/aliasStore';
 import type { AliasListItem } from '@/types/alias';
 import { useSpyfallStore } from '@/store/spyfallStore';
+import { usePokerStore } from '@/store/pokerStore';
 import type { SpyfallListItem } from '@/types/spyfall';
 import { useLiesStore } from '@/store/liesStore';
 import type { LiesListItem } from '@/types/lies';
@@ -195,6 +196,14 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms }: { onOpenSpace?: () =>
   } = useAliasStore();
   const [alJoinCode, setAlJoinCode] = useState('');
 
+  // ── სოციალური პოკერი ────────────────────────────────────────────────
+  const {
+    tables: pkList, isLoading: pkLoading, error: pkError,
+    fetchList: pkFetch, createTable: pkCreate, joinTable: pkJoin, clearError: pkClear,
+  } = usePokerStore();
+  const [pkJoinCode, setPkJoinCode] = useState('');
+  const [pkBlind, setPkBlind] = useState(10);
+
   // ── ჯაშუში (Spyfall) ────────────────────────────────────────────────
   const {
     matchList: spList, isLoading: spLoading, error: spError,
@@ -237,10 +246,10 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms }: { onOpenSpace?: () =>
 
   const handleRefresh = useCallback(() => {
     ckClear(); jkClear(); ldClear(); wwClear(); unoClear(); boClear(); alClear(); drClear(); cnClear(); spClear(); liClear();
-    ckFetch(); jkFetch(); ldFetch(); wwFetch(); unoFetch(); boFetch(); alFetch(); drFetch(); cnFetch(); spFetch(); liFetch();
-  }, [ckFetch, jkFetch, ldFetch, wwFetch, unoFetch, boFetch, alFetch, drFetch, cnFetch, spFetch, liFetch, ckClear, jkClear, ldClear, wwClear, unoClear, boClear, alClear, drClear, cnClear, spClear, liClear]);
+    ckFetch(); jkFetch(); ldFetch(); wwFetch(); unoFetch(); boFetch(); alFetch(); drFetch(); cnFetch(); spFetch(); liFetch(); pkFetch();
+  }, [ckFetch, jkFetch, ldFetch, wwFetch, unoFetch, boFetch, alFetch, drFetch, cnFetch, spFetch, liFetch, pkFetch, ckClear, jkClear, ldClear, wwClear, unoClear, boClear, alClear, drClear, cnClear, spClear, liClear]);
 
-  useEffect(() => { ckFetch(); jkFetch(); ldFetch(); wwFetch(); unoFetch(); boFetch(); alFetch(); drFetch(); cnFetch(); spFetch(); liFetch(); }, [ckFetch, jkFetch, ldFetch, wwFetch, unoFetch, boFetch, alFetch, drFetch, cnFetch, spFetch, liFetch]);
+  useEffect(() => { ckFetch(); jkFetch(); ldFetch(); wwFetch(); unoFetch(); boFetch(); alFetch(); drFetch(); cnFetch(); spFetch(); liFetch(); pkFetch(); }, [ckFetch, jkFetch, ldFetch, wwFetch, unoFetch, boFetch, alFetch, drFetch, cnFetch, spFetch, liFetch, pkFetch]);
 
   useEffect(() => {
     const handler = () => { if (!document.hidden) handleRefresh(); };
@@ -271,6 +280,8 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms }: { onOpenSpace?: () =>
   const handleBoJoin = () => { if (boJoinCode.trim()) { boJoin(boJoinCode.trim().toUpperCase(), playerName); setBoJoinCode(''); } };
   const handleAlCreate = () => alCreate(playerName);
   const handleAlJoin = () => { if (alJoinCode.trim()) { alJoin(alJoinCode.trim().toUpperCase(), playerName); setAlJoinCode(''); } };
+  const handlePkCreate = () => pkCreate({ smallBlind: pkBlind, bigBlind: pkBlind * 2, buyIn: pkBlind * 200 });
+  const handlePkJoin = () => { if (pkJoinCode.trim()) { pkJoin(pkJoinCode.trim().toUpperCase()); setPkJoinCode(''); } };
   const handleSpCreate = () => spCreate(playerName);
   const handleSpJoin = () => { if (spJoinCode.trim()) { spJoin(spJoinCode.trim().toUpperCase(), playerName); setSpJoinCode(''); } };
   const handleLiCreate = () => liCreate(playerName);
@@ -336,6 +347,12 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms }: { onOpenSpace?: () =>
       onJoin: handleBoJoin, codeMax: 6, codePh: 'XXXXXX', list: boList, error: boError, clearError: boClear,
       renderRow: (m, done) => <BlackoutRow key={m.id} match={m} onJoin={code => { recordRecent('blackout'); boJoin(code, playerName); done(); }} />,
     },
+    poker: {
+      accent: '#38bdf8', onCreate: handlePkCreate, loading: pkLoading, joinCode: pkJoinCode, setJoinCode: setPkJoinCode,
+      onJoin: handlePkJoin, codeMax: 6, codePh: 'XXXXXX', list: pkList, error: pkError, clearError: pkClear,
+      renderRow: (m, done) => <PokerRow key={m.id} table={m} onJoin={code => { recordRecent('poker'); pkJoin(code); done(); }} />,
+      extra: <NumPicker label="ბლაინდი" accent="#38bdf8" values={[5, 10, 25, 50]} value={pkBlind} onChange={n => setPkBlind(n)} />,
+    },
     spyfall: {
       accent: '#ff5d6c', onCreate: handleSpCreate, loading: spLoading, joinCode: spJoinCode, setJoinCode: setSpJoinCode,
       onJoin: handleSpJoin, codeMax: 6, codePh: 'XXXXXX', list: spList, error: spError, clearError: spClear,
@@ -376,6 +393,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms }: { onOpenSpace?: () =>
 
     { id: 'maxpuzzle', title: 'ბატონი მაქსის თავსატეხი', sub: 'კითხვები სწორი პასუხების გარეშე', kind: 'launch', accent: '#d9b45a', logo: 'maxseal', badge: true, keywords: 'max puzzle თავსატეხი დილემა ფსიქოლოგია პროფილი არქეტიპი mr max', launch: () => setMaxPuzzleOpen(true) },
 
+    { id: 'poker', title: 'სოციალური პოკერი', sub: 'ტეხასური ჰოლდემი · უფასო ჩიპები · 2-9 მოთ.', kind: 'match', accent: '#38bdf8', emoji: '♠️', badge: true, keywords: 'poker პოკერი holdem ჰოლდემი texas ტეხასი კარტი social სოციალური' },
     { id: 'spyfall', title: 'ჯაშუში', sub: 'იპოვე ჯაშუში ხმით · 3-10 მოთ.', kind: 'match', accent: '#ff5d6c', emoji: '🕵️', badge: true, keywords: 'spyfall ჯაშუში დედუქცია' },
     { id: 'codenames', title: 'Codenames', sub: '2 გუნდი · მინიშნებები · 4-16 მოთ.', kind: 'match', accent: '#25c8f2', logo: 'codenames', emoji: '🔤', badge: true, keywords: 'codenames კოდი გუნდი' },
     { id: 'blackout', title: t.games.blackout.title, sub: t.games.blackout.subtitle, kind: 'match', accent: '#ffd34d', emoji: '🔦', badge: true, keywords: 'blackout impostor დედუქცია' },
@@ -857,6 +875,32 @@ function DrawRow({ match, onJoin }: { match: DrawListItem; onJoin: (code: string
         className="px-2.5 py-1 rounded-lg font-mono text-[12px] uppercase tracking-wider transition-all active:scale-95"
         style={{ background: 'rgba(255,140,38,0.1)', border: '1px solid rgba(255,140,38,0.25)', color: '#ff8c26' }}>
         შეუერთდი
+      </button>
+    </div>
+  );
+}
+
+/**
+ * A poker table in the lobby list.
+ *
+ * Shows the blinds and how full it is — never a chip count and never a "prize".
+ * A lobby row is where a social product either reads as social or does not.
+ */
+function PokerRow({ table, onJoin }: { table: any; onJoin: (code: string) => void }) {
+  return (
+    <div className="flex items-center gap-3 px-2 py-2 rounded-xl" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
+      <div className="flex-1 min-w-0">
+        <p className="font-mono text-xs text-white truncate">{table.name}</p>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="font-mono text-[12px] text-white/25 tracking-widest">{table.code}</span>
+          <span className="font-mono text-[12px] text-white/20">{table.seated}/{table.maxSeats}</span>
+          <span className="font-mono text-[12px] text-white/20">{table.smallBlind}/{table.bigBlind}</span>
+        </div>
+      </div>
+      <button onClick={() => onJoin(table.code)}
+        className="px-2.5 py-1 rounded-lg font-mono text-[12px] uppercase tracking-wider transition-all active:scale-95"
+        style={{ background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.25)', color: '#38bdf8' }}>
+        შესვლა
       </button>
     </div>
   );

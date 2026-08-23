@@ -202,12 +202,14 @@ a "no monetary value" notice over code that contradicts it.
 
 ### Rollout
 
-Poker is behind a feature flag, default **off** (`POKER_ENABLED`, and a row in
-the existing `app_settings` table so it can be flipped without a deploy). Off
-means the lobby entry is absent, the socket handlers are not registered, and the
-tables are not created. Turning it on is one setting; turning it off during an
-incident is the same setting, and live tables close cleanly rather than
-vanishing mid-hand.
+Poker ships **on**, with `POKER_ENABLED=0` as a kill switch. Off means the
+socket handlers are never registered, so the events do not exist rather than
+existing and refusing, and the persistence schema is not created either.
+
+The client degrades quietly rather than loudly: if `poker:list` gets no answer,
+the lobby shows no tables and says nothing. A player looking at a screen full of
+other games has not done anything wrong and cannot act on the failure, so it is
+not worth a red banner.
 
 ## 4. Security risks, per module
 
