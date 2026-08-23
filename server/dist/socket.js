@@ -19,6 +19,7 @@ import { registerCodenamesHandlers, handleCodenamesDisconnect } from './codename
 import { registerSpyfallHandlers, handleSpyfallDisconnect } from './spyfall.js';
 import { registerLiesHandlers, handleLiesDisconnect } from './lies.js';
 import { registerSxvaMafiaHandlers, handleSxvaMafiaDisconnect } from './sxvaMafia.js';
+import { registerPokerHandlers, handlePokerDisconnect } from './poker/poker.js';
 import { registerWatchPartyHandlers, handleWatchPartyDisconnect } from './watchParty.js';
 import { registerIQHandlers } from './iq.js';
 import { registerMaxPuzzleHandlers } from './maxpuzzle.js';
@@ -9635,6 +9636,10 @@ export function attachSocketHandlers(io) {
         registerSpyfallHandlers(io, socket);
         // ── ტყუილების ოსტატი (Master of Lies) ────────────────────────────
         registerLiesHandlers(io, socket);
+        // ── Social poker ─────────────────────────────────────────────────
+        // No-op unless POKER_ENABLED is set: the handlers are not registered at
+        // all, so the events do not exist rather than existing and refusing.
+        registerPokerHandlers(io, socket);
         // ── სხვა მაფია (Other Mafia) ─────────────────────────────────────
         registerSxvaMafiaHandlers(io, socket);
         // ── Watch Party (co-watch) ───────────────────────────────────────
@@ -11166,6 +11171,7 @@ export function attachSocketHandlers(io) {
             handleSpyfallDisconnect(io, socket.id);
             handleLiesDisconnect(io, socket.id);
             handleSxvaMafiaDisconnect(io, socket.id);
+            handlePokerDisconnect(io, socket);
             handleWatchPartyDisconnect(io, socket.id);
             // Remove from any spectate queues
             for (const [qRoomId, queue] of spectateQueues) {

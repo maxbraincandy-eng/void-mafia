@@ -40,8 +40,10 @@ server/src/poker/
     clock.ts               time as a dependency: systemClock and ManualClock
     views.ts               per-viewer projection — the information policy
     tableService.ts        tables, seating, timers, the hand loop, reconnect
+    rateLimit.ts           token buckets, per profile, per action
     *.test.ts              unit tests (excluded from the production build)
-  poker.ts                 (next) Socket.IO handlers — the only I/O layer
+  poker.ts                 Socket.IO handlers — the only I/O layer
+  poker.e2e.test.ts        real server, real clients, real payloads
 server/src/future-economy/ interfaces only, disabled, imported by nothing
 client/src/components/poker/  (next) table UI
 docs/poker/                these documents
@@ -111,31 +113,44 @@ plus one validated action. Notable rules encoded there:
 All events are namespaced `poker:` and carry an acknowledgement callback with
 `{ ok, data }` or `{ ok: false, error }`.
 
-Client → server:
+Client → server (all implemented in `poker.ts`):
 
 | Event | Payload | Notes |
 |---|---|---|
-| `poker:list` | — | open social tables |
-| `poker:create` | `{ name, maxSeats, blinds, private, password? }` | returns table view |
-| `poker:join` | `{ code, password? }` | seat or spectate |
-| `poker:sit` | `{ tableId, seat, buyIn }` | take a seat |
+| `poker:list` | — | open tables + the compliance notice and its facts |
+| `poker:create` | `{ name, maxSeats, smallBlind, bigBlind, ante, buyIn, actionSeconds, handIntervalSeconds, isPrivate, password? }` | returns your table view |
+| `poker:join` | `{ code, password?, name? }` | watch, or rejoin a seat you hold |
+| `poker:sit` | `{ tableId, seat, name? }` | take a seat; the stack comes from the table config |
+| `poker:sit_out` | `{ tableId, out }` | takes effect from the next deal |
+| `poker:rebuy` | `{ tableId }` | free, only when busted, never mid-hand |
 | `poker:leave` | `{ tableId }` | stand up; folds any live hand |
 | `poker:action` | `{ tableId, handId, actionSeq, type, amount? }` | fold/check/call/raise/allIn |
-| `poker:resume` | — | re-attach after a reconnect, get the current view |
-| `poker:chat` | `{ tableId, text }` | rate-limited |
+| `poker:resume` | — | re-attach after a reconnect, get authoritative state |
+| `poker:chat` | `{ tableId, text }` | rate-limited, table members only |
+
+Every one acknowledges with `{ ok: true, data }` or `{ ok: false, error: CODE }`.
+Error codes are stable strings — `AUTH_REQUIRED`, `RATE_LIMITED:<seconds>`,
+`SEQ_MISMATCH`, `HAND_MISMATCH`, `OUT_OF_TURN`, `NOT_SEATED`, `NOT_AT_TABLE`,
+`BAD_ACTION`, `SEAT_TAKEN`, `BAD_PASSWORD`, `NO_TABLE`, `INTERNAL` — because a
+client has to be able to tell "try again" from "you are not allowed".
 
 Server → client:
 
 | Event | Payload |
 |---|---|
-| `poker:state` | per-viewer table + hand view (see §3) |
-| `poker:hand_start` | hand id, button, blinds, your two cards |
-| `poker:action_applied` | who did what, and the new betting state |
-| `poker:street` | new community cards |
-| `poker:showdown` | revealed hands + descriptions |
-| `poker:settlement` | pots, payouts, new stacks |
-| `poker:list_update` | lobby list changed |
-| `poker:error` | rejected action, with a code |
+| `poker:state` | per-viewer table + hand view (see §3) — the main channel |
+| `poker:hand_start` | hand id, hand number, button, and the deck commitment |
+| `poker:settlement` | pots, payouts, shown hands, new stacks, the revealed seed |
+| `poker:closed` | the table has closed, and why |
+| `poker:chat` | a table message |
+| `poker:list_update` | the lobby list changed |
+| `poker:error` | a rejected action, with its code |
+
+`poker:state` carries everything the table renders, so a client that misses an
+event is corrected by the next one rather than drifting. Streets and individual
+actions are not separate events: `hand.board` and `hand.lastAction` in the state
+say what changed, and one authoritative message is easier to reason about than
+five partial ones that must be applied in order.
 
 `actionSeq` is the client's copy of the server's action counter. The server
 rejects an action whose `actionSeq` is not the current one — that is what makes
@@ -157,11 +172,18 @@ Enforced server-side:
 * **Amounts** — a raise is a target total; the server computes the delta and
   caps it at the stack. A client cannot spend chips it does not have.
 * **Sequence** — `actionSeq` blocks duplicates and replays.
-* **Rate limiting** — per socket and per table, on actions and chat.
+* **Rate limiting** — token buckets per profile per action (`rateLimit.ts`),
+  keyed on identity so reconnecting is not a way round a limit.
 * **Timers** — held on the server; a timeout checks if free, otherwise folds.
 * **Information** — hole cards are only ever in the payload of the player who
   holds them, and at showdown only for players who must show.
 * **Randomness** — `crypto.randomInt` and Fisher–Yates, server-side, per hand.
+* **Payload hygiene** — every number is floored and bounded, every string is
+  trimmed and truncated, at the socket boundary. `Infinity` is not a blind and a
+  500-character table name is 40 characters by the time anything sees it.
+* **Authentication** — poker refuses anonymous sockets outright. A seat, a hand
+  history and a leaderboard row all need an identity that survives a reconnect,
+  and `socket.id` is not one.
 * **Audit** — every hand produces an immutable history record (§`02-database.md`)
   and every rejected action is logged with its code.
 
@@ -183,7 +205,7 @@ Anti-cheat beyond the protocol:
 | 1 | Engine: cards, evaluator, betting, pots, state machine, 36 tests | **done** |
 | 2 | Compliance config + disabled economy interfaces | **done** |
 | 3 | Table service + per-viewer views: seating, buy-in, timers, hand loop, reconnect, 29 tests | **done** |
-| 4 | Socket layer + rate limits + audit persistence | next |
+| 4 | Socket layer + rate limits + hostile-payload handling, 17 tests | **done** |
 | 5 | Persistence: tables, sessions, hands, stats (schema in `02`) | next |
 | 6 | Client: lobby, responsive table, cards/chips/animations | next |
 | 7 | Leaderboards, profile stats, achievements | next |

@@ -22,6 +22,8 @@ import { getPlayer, getPlayerByPublicId, toPublicProfile } from './services/play
 import { getClanMembershipByPlayer } from './services/clanService.js';
 import { getPlayerAchievements } from './services/achievementService.js';
 import { sql, initializeDatabase } from './db.js';
+import { assertSocialOnly } from './poker/compliance.js';
+import { pokerEnabled } from './poker/poker.js';
 import { configurePassport, createAuthRouter } from './auth.js';
 import { initPushService, getVapidPublicKey, sendPushToUser as _sendPush } from './pushService.js';
 import { creditPurchasedCoins, creditStorePurchase, grantCoins } from './services/coinService.js';
@@ -64,6 +66,15 @@ console.log('[Startup] Void Mafia server starting');
 console.log(`[Startup] Client build: ${CLIENT_BUILD}`);
 console.log(`[Startup] NODE_ENV=${process.env.NODE_ENV ?? 'development'}`);
 console.log(`[Startup] PORT=${PORT}`);
+
+/*
+ * Social poker ships with a "chips have no monetary value" notice. This check
+ * refuses to start the process if any capability that would make that untrue
+ * has been switched on — the product must never be able to serve the notice
+ * while running code that contradicts it. See docs/poker/11-legal-compliance-checklist.md.
+ */
+assertSocialOnly();
+console.log(`[Startup] Poker: ${pokerEnabled() ? 'enabled' : 'disabled'} (social-only checks passed)`);
 
 const app = express();
 // Railway / any reverse-proxy: trust the X-Forwarded-* headers so that

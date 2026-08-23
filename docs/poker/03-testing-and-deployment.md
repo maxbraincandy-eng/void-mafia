@@ -12,12 +12,12 @@ npx tsx --test "src/poker/**/*.test.ts"      # or: npm run test:poker
 Current output:
 
 ```
-# tests 65
-# pass 65
+# tests 82
+# pass 82
 # fail 0
 ```
 
-What the 65 cover:
+What the 82 cover:
 
 | File | Tests | What they pin down |
 |---|---|---|
@@ -27,6 +27,18 @@ What the 65 cover:
 | `compliance.test.ts` | 4 | the shipped capabilities are social-only, the boot assertion throws on any money-shaped capability, the notice is editable but the facts are not, the economy provider throws on transfer and redeem |
 | `services/tableService.test.ts` | 21 | seating and buy-in, the pre-deal pause, button rotation, replayed and out-of-turn actions, the action clock to the millisecond, disconnect grace and reconnect, rebuy rules, host-leave closing, hand histories, chip conservation over 40 hands, timer cleanup |
 | `services/views.test.ts` | 8 | the information rule over 200 hands, card counts without faces, the seed withheld until settlement, observers, whose options are published, the mid-hand stack, lobby rows, private tables |
+| `services/rateLimit.test.ts` | 7 | a burst passes and a flood does not, refill rate, per-player and per-action isolation, unknown actions fail closed, `retryAfter`, bucket sweeping, and that reconnecting does not reset a limit |
+| `poker.e2e.test.ts` | 10 | a real Socket.IO server and real clients: anonymous sockets refused, create/join/sit over the wire, the compliance notice, no card leakage in any received payload, replayed packets, hostile payloads, identity spoofing, chat limits, reconnect, host-leave |
+
+The two sweeps are the important ones. Hand-written cases prove the cases
+someone thought of; the soak runs a thousand random hands through the real state
+machine and asserts three invariants that must hold for any hand of poker
+whatsoever — it terminates, no chip is created or destroyed, and every chip in
+the pot is paid to somebody. A rule bug that survives both is a rare thing.
+
+Determinism: tests use `seededRandomness(seed)` (xorshift32) rather than the
+CSPRNG, so a failure is reproducible from its seed. Production always uses
+`cryptoRandomness`; `seededRandomness` is never reachable from a running table.
 
 ### The information test
 
@@ -53,16 +65,6 @@ advances two more and asserts they folded. Deadlines are read from the view
 rather than recomputed in the test, so a clock that is *displayed* wrong fails
 too, not just one that fires wrong.
 
-The two sweeps are the important ones. Hand-written cases prove the cases
-someone thought of; the soak runs a thousand random hands through the real state
-machine and asserts three invariants that must hold for any hand of poker
-whatsoever — it terminates, no chip is created or destroyed, and every chip in
-the pot is paid to somebody. A rule bug that survives both is a rare thing.
-
-Determinism: tests use `seededRandomness(seed)` (xorshift32) rather than the
-CSPRNG, so a failure is reproducible from its seed. Production always uses
-`cryptoRandomness`; `seededRandomness` is never reachable from a running table.
-
 ### Writing a new engine test
 
 ```ts
@@ -87,7 +89,7 @@ Rule: a test asserts an outcome of the engine, never the shape of a payload. If
 a test needs to know about sockets, it belongs in the integration suite, not
 here.
 
-## 2. Integration and load testing (stages 4 and 9)
+## 2. Integration and load testing
 
 The method already used across this repo for multiplayer changes, and what
 poker will use:
@@ -104,23 +106,34 @@ cd server && DATABASE_URL=postgres://postgres@localhost:5433/void PORT=4599 npx 
 cd client && node ../scripts/poker-e2e.mjs
 ```
 
-Integration tests to be written with the socket layer (stage 4):
+### Socket tests (`poker.e2e.test.ts`)
 
-* six clients seat, play twenty hands, every client's view agrees with the
-  server's hand history;
-* a client that drops mid-hand and reconnects gets its own cards back and
-  nobody else's;
-* a client that replays a captured `poker:action` packet is rejected with
-  `SEQ_MISMATCH` and the pot is unchanged;
-* a client that sends an action out of turn is rejected with `OUT_OF_TURN`;
-* a client that raises to a number larger than its stack has the raise capped,
-  not honoured;
-* a hand where the payload of every socket is captured and asserted to contain
-  no card belonging to another seat, on every street.
+These bind a real port and talk to it — real Socket.IO, real JSON, real
+acknowledgements. The transport is exactly what this layer is for, and calling
+the service directly would not exercise any of it.
 
-That last one is the test that matters most: it is the automated version of
-"the client cannot see what it should not see", and it should run on every
-change to the view builder.
+Two of them are worth calling out:
+
+* **Identity spoofing.** A player who is not to act sends an action with the
+  acting player's id in the payload. It comes back `OUT_OF_TURN`: the payload
+  does not get to say who you are, the handshake does.
+* **Hostile payloads.** A table created with a 500-character name, `maxSeats:
+  999`, `smallBlind: 1e9` and `bigBlind: Infinity`, then a raise of
+  `Number.MAX_SAFE_INTEGER`. Everything is bounded, the stack never goes
+  negative, and an impossible raise is at most an all-in.
+
+One practical note: run these with output redirected to a file rather than
+piped. `node:test` runs each file in a child process and piping the reporter
+through `grep`/`head` can stall the parent — the suite itself finishes in about
+eight seconds and exits 0.
+
+Still to be written (stage 5 and after):
+
+* six clients seat, play twenty hands, and every client's view is reconciled
+  against the persisted hand history rather than against the live service;
+* a hand history written to Postgres and read back, byte for byte;
+* a table that survives a process restart, or — if it cannot — closes cleanly
+  rather than stranding its players.
 
 Load testing (stage 9): N headless clients over M tables, measuring action
 round-trip latency, memory per live table, and broadcast fan-out. The target
@@ -220,12 +233,18 @@ state is a plain serialisable object.
 knows about `cards`. Mitigation: keep the policy in the one small
 `maySeeCards` function, and extend the test whenever the view grows.
 
-**Socket layer (stage 4, not yet written)** — the largest surface: information
-leakage through the view builder, action replay, out-of-turn actions, chat
-abuse, rate-limit exhaustion, and reconnect identity confusion. The controls are
-in `01-architecture.md` §6 and the tests that prove them are listed in §2 above.
-Until those tests exist, this layer is unproven and should not be enabled in
-production.
+**`poker.ts` (the socket layer)** — the largest surface. Risks and where they
+are handled: information leakage (the view builder, and this file never
+assembles a payload with a card in it); action replay (`actionSeq`, checked
+before the engine is asked anything); identity spoofing (the profile comes from
+the handshake, never from a payload); chat abuse and rate-limit exhaustion
+(token buckets keyed on the profile); unbounded numbers and strings (floored,
+bounded and truncated at the boundary). All six have tests over a real socket.
+
+Residual risks, stated plainly: multi-account collusion is detectable but not
+preventable; a single process owns all tables, so a restart drops live ones; and
+the rate limits are tuned by judgement, not by measurement — stage 9's load
+tests should revisit them.
 
 **Persistence (stage 5)** — risk: hole cards written before a hand ends, or an
 admin query path that can read a live hand. Mitigation: `poker_hand_players` is
