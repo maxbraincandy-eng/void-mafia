@@ -12,12 +12,12 @@ npx tsx --test "src/poker/**/*.test.ts"      # or: npm run test:poker
 Current output:
 
 ```
-# tests 36
-# pass 36
+# tests 65
+# pass 65
 # fail 0
 ```
 
-What the 36 cover:
+What the 65 cover:
 
 | File | Tests | What they pin down |
 |---|---|---|
@@ -25,6 +25,33 @@ What the 36 cover:
 | `engine/pots.test.ts` | 10 | main/side pot construction, folded chips staying in the pot, uncallable bets, split pots, odd chips clockwise from the button, plus a 500-case sweep asserting chips in == chips out |
 | `engine/state.test.ts` | 14 | blinds (full ring and heads-up), the big-blind option, min-raise, a short all-in not re-opening the betting, run-outs, uncontested pots, timeouts, and a 1000-hand random soak asserting every hand terminates, chips are conserved, and payouts equal the pot |
 | `compliance.test.ts` | 4 | the shipped capabilities are social-only, the boot assertion throws on any money-shaped capability, the notice is editable but the facts are not, the economy provider throws on transfer and redeem |
+| `services/tableService.test.ts` | 21 | seating and buy-in, the pre-deal pause, button rotation, replayed and out-of-turn actions, the action clock to the millisecond, disconnect grace and reconnect, rebuy rules, host-leave closing, hand histories, chip conservation over 40 hands, timer cleanup |
+| `services/views.test.ts` | 8 | the information rule over 200 hands, card counts without faces, the seed withheld until settlement, observers, whose options are published, the mid-hand stack, lobby rows, private tables |
+
+### The information test
+
+`views.test.ts` asserts one sentence directly:
+
+> a card belonging to seat X appears in the payload sent to viewer Y if and only
+> if X === Y, or the hand has ended and X had to show.
+
+It plays 200 hands of mixed folds, calls and raises across 25 seeds and checks
+**every** state payload emitted along the way — not the final one, all of them,
+because a leak on the turn that is gone by the river is still a leak. It counts
+what it checked and fails if the sample is small or if no cards were ever sent,
+so it cannot pass by vacuum.
+
+It has been mutation-checked: allowing cards through on the river makes it fail.
+Do that again after any change to `views.ts` — a test that guards a security
+property is worth nothing until you have watched it fail.
+
+### The clock
+
+`ManualClock` makes the timers testable without waiting. A test advances to one
+millisecond before the deadline and asserts the player still has the turn, then
+advances two more and asserts they folded. Deadlines are read from the view
+rather than recomputed in the test, so a clock that is *displayed* wrong fails
+too, not just one that fires wrong.
 
 The two sweeps are the important ones. Hand-written cases prove the cases
 someone thought of; the soak runs a thousand random hands through the real state
@@ -177,6 +204,21 @@ above everything else.
 **`compliance.ts` / `future-economy/`** — risk: someone flips a capability to
 `true` to unblock a feature. Mitigation: the boot assertion turns that into a
 crash rather than a quiet change, and the error message names the checklist.
+
+**`services/tableService.ts`** — risks: an action accepted for the wrong hand,
+a replayed packet counted twice, a timer firing into a closed table, a seat held
+forever by a socket that will never return. Mitigations: `handId` and
+`actionSeq` are both checked before the engine is asked anything, every timer is
+registered per table and cleared on close and on shutdown (asserted by a test),
+and the disconnect grace period releases a seat on a clock rather than on a
+client's say-so. Residual risk: tables live in one process's memory, so a
+restart drops live tables — acceptable while a hand is free, and the reason the
+state is a plain serialisable object.
+
+**`services/views.ts`** — the information policy. Risk: a future field added to
+`SeatView` that happens to carry something private, since the leak test only
+knows about `cards`. Mitigation: keep the policy in the one small
+`maySeeCards` function, and extend the test whenever the view grows.
 
 **Socket layer (stage 4, not yet written)** — the largest surface: information
 leakage through the view builder, action replay, out-of-turn actions, chat

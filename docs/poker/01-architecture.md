@@ -35,7 +35,12 @@ server/src/poker/
     state.ts               the hand state machine
     *.test.ts              unit tests (excluded from the production build)
   compliance.ts            the configurable notice + the boot assertion
-  services/                (next) table registry, seating, timers, persistence
+  services/
+    types.ts               table, seat, config, event and history shapes
+    clock.ts               time as a dependency: systemClock and ManualClock
+    views.ts               per-viewer projection — the information policy
+    tableService.ts        tables, seating, timers, the hand loop, reconnect
+    *.test.ts              unit tests (excluded from the production build)
   poker.ts                 (next) Socket.IO handlers — the only I/O layer
 server/src/future-economy/ interfaces only, disabled, imported by nothing
 client/src/components/poker/  (next) table UI
@@ -177,8 +182,8 @@ Anti-cheat beyond the protocol:
 |---|---|---|
 | 1 | Engine: cards, evaluator, betting, pots, state machine, 36 tests | **done** |
 | 2 | Compliance config + disabled economy interfaces | **done** |
-| 3 | Table service: seating, buy-in, timers, hand loop, reconnect | next |
-| 4 | Socket layer + per-viewer views + rate limits + audit log | next |
+| 3 | Table service + per-viewer views: seating, buy-in, timers, hand loop, reconnect, 29 tests | **done** |
+| 4 | Socket layer + rate limits + audit persistence | next |
 | 5 | Persistence: tables, sessions, hands, stats (schema in `02`) | next |
 | 6 | Client: lobby, responsive table, cards/chips/animations | next |
 | 7 | Leaderboards, profile stats, achievements | next |
