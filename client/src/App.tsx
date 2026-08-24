@@ -55,7 +55,7 @@ import { useSpyfallStore } from '@/store/spyfallStore';
 import { usePokerStore } from '@/store/pokerStore';
 import { LiesGame } from '@/components/lies/LiesGame';
 import { useLiesStore } from '@/store/liesStore';
-import { SxvaMafiaGame } from '@/components/sxvamafia/SxvaMafiaGame';
+import { SxvaMafiaGame, SxvaMafiaKickedNotice } from '@/components/sxvamafia/SxvaMafiaGame';
 import { useSxvaMafiaStore } from '@/store/sxvaMafiaStore';
 import { WatchPartyRoom } from '@/components/watchparty/WatchPartyRoom';
 import { useWatchPartyStore } from '@/store/watchPartyStore';
@@ -555,6 +555,7 @@ function MainApp({ onOpenShop }: { onOpenShop: () => void }) {
       <AnimatePresence>{aliasMatch    && <AliasGame />}</AnimatePresence>
       <AnimatePresence>{spyfallMatch  && <SpyfallGame />}</AnimatePresence>
       <AnimatePresence>{pokerTable    && <PokerGame />}</AnimatePresence>
+      <SxvaMafiaKickedNotice />
       <AnimatePresence>{liesMatch     && <LiesGame />}</AnimatePresence>
       <AnimatePresence>{xmMatch       && <SxvaMafiaGame />}</AnimatePresence>
       <AnimatePresence>{wpMatch       && <WatchPartyRoom onClose={() => {}} />}</AnimatePresence>

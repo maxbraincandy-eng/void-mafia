@@ -15,6 +15,15 @@ export interface XmSeat {
     eliminatedBy: 'vote' | 'mafia' | 'fouls' | null;
     lastCheck: string | null;
     cardIndex: number | null;
+    /**
+     * They left, or the host removed them.
+     *
+     * Distinct from `connected: false`, which means a socket dropped and may come
+     * back. `left` means stop sending them state — a broadcast that keeps
+     * reaching someone who has walked away is how a dissolved room reopens on
+     * their screen after they have closed it.
+     */
+    left: boolean;
 }
 export interface XmLogEntry {
     round: number;
@@ -94,6 +103,8 @@ export interface XmMatch {
         role: XmRole;
     }[] | null;
     dissolved: boolean;
+    /** The host walked away too — stop broadcasting to them. */
+    hostLeft: boolean;
     createdAt: number;
 }
 export interface XmSafeSeat {
@@ -217,6 +228,39 @@ export declare function joinMatch(matchId: string, userId: string, socketId: str
     isNew: boolean;
 } | null;
 export declare function leaveMatch(matchId: string, userId: string): XmMatch | null;
+/**
+ * Who is still in the room and should be sent state.
+ *
+ * The host counts unless they have left — and when they dissolve the room they
+ * have left. Without that, the person who just closed the room receives the
+ * closed room back, which reopens it on their screen; pressing "leave" then
+ * dissolves it again, and they are in a loop they cannot get out of.
+ */
+export declare function recipients(m: XmMatch): {
+    userId: string;
+    socketId: string;
+}[];
+/**
+ * The host removes a player.
+ *
+ * In the lobby the seat simply goes. In a live game the player is eliminated
+ * and recorded as fouled out, because that is what a removal mid-game IS in
+ * hosted mafia — the moderator is not deleting a person, they are ruling them
+ * out of the round, and the protocol should say so.
+ */
+export declare function kickPlayer(matchId: string, byUserId: string, targetUserId: string): XmMatch | null;
+/**
+ * Reconnect.
+ *
+ * State is broadcast to stored socket ids, and a phone that locks its screen or
+ * changes network comes back with a NEW one — so the old handle is dead and the
+ * player's table simply stops updating. Nothing errors; they just freeze while
+ * everyone else plays on. Asking on reconnect is what un-freezes them.
+ *
+ * Someone the host removed does not come back this way: `left` with a fouls
+ * ruling is a decision, not a dropped connection.
+ */
+export declare function resumeForUser(userId: string, socketId: string): XmMatch | null;
 export declare function disconnectSocket(socketId: string): string | null;
 export declare function dissolveMatch(matchId: string, _byUserId: string): XmMatch | null;
 /** Lobby only: the host hands the moderator role to a seated player and takes

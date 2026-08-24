@@ -40,6 +40,15 @@ export interface XmSeat {
   eliminatedBy: 'vote' | 'mafia' | 'fouls' | null;
   lastCheck: string | null; // don/sheriff: their most recent check result, kept visible into the day
   cardIndex: number | null; // which face-down card this player took at the deal
+  /**
+   * They left, or the host removed them.
+   *
+   * Distinct from `connected: false`, which means a socket dropped and may come
+   * back. `left` means stop sending them state — a broadcast that keeps
+   * reaching someone who has walked away is how a dissolved room reopens on
+   * their screen after they have closed it.
+   */
+  left: boolean;
 }
 
 export interface XmLogEntry {
@@ -103,6 +112,8 @@ export interface XmMatch {
   winner: XmWinner;
   reveal: { userId: string; nickname: string; seat: number; role: XmRole }[] | null;
   dissolved: boolean;
+  /** The host walked away too — stop broadcasting to them. */
+  hostLeft: boolean;
   createdAt: number;
 }
 
@@ -239,10 +250,12 @@ export function createMatch(hostId: string, socketId: string, nickname: string, 
     announce: null,
     votes: {}, voteEndsAt: 0, voteRevote: false, voteResult: null,
     lastWordsUserId: null, lastWordsEndsAt: 0, floorGrab: null,
-    winner: null, reveal: null, dissolved: false, createdAt: Date.now(),
+    winner: null, reveal: null, dissolved: false, hostLeft: false, createdAt: Date.now(),
   };
   matches.set(id, m);
-  setTimeout(() => matches.delete(id), 3 * 60 * 60 * 1000);
+  // unref: a three-hour cleanup timer must not be the reason a process refuses
+  // to exit. It is housekeeping, not work anybody is waiting on.
+  setTimeout(() => matches.delete(id), 3 * 60 * 60 * 1000).unref();
   return m;
 }
 
@@ -272,13 +285,23 @@ function aliveTown(m: XmMatch): XmSeat[] { return m.seats.filter(s => s.alive &&
 export function joinMatch(matchId: string, userId: string, socketId: string, nickname: string): { match: XmMatch; isNew: boolean } | null {
   const m = matches.get(matchId);
   if (!m) return null;
-  if (m.hostId === userId) { m.hostSocketId = socketId; m.hostConnected = true; m.hostName = nickname; return { match: m, isNew: false }; }
+  // Walking back in clears the "they left" flag — for the host too, so a
+  // dissolved room they re-enter behaves like a room again.
+  if (m.hostId === userId) {
+    m.hostSocketId = socketId; m.hostConnected = true; m.hostName = nickname; m.hostLeft = false;
+    return { match: m, isNew: false };
+  }
   const seat = findByUser(m, userId);
-  if (seat) { seat.socketId = socketId; seat.connected = true; return { match: m, isNew: false }; }
+  if (seat) {
+    // A player the host removed does not get back in by re-joining.
+    if (seat.left && seat.eliminatedBy === 'fouls') return null;
+    seat.socketId = socketId; seat.connected = true; seat.left = false;
+    return { match: m, isNew: false };
+  }
   const spec = m.spectators.find(s => s.userId === userId);
   if (spec) { spec.socketId = socketId; spec.connected = true; return { match: m, isNew: false }; }
   if (m.phase === 'lobby' && m.seats.length < m.maxSeats) {
-    m.seats.push({ userId, socketId, nickname, seat: m.seats.length + 1, connected: true, role: null, alive: true, fouls: 0, eliminatedRound: null, eliminatedBy: null, lastCheck: null, cardIndex: null });
+    m.seats.push({ userId, socketId, nickname, seat: m.seats.length + 1, connected: true, role: null, alive: true, fouls: 0, eliminatedRound: null, eliminatedBy: null, lastCheck: null, cardIndex: null, left: false });
     return { match: m, isNew: true };
   }
   m.spectators.push({ userId, socketId, nickname, connected: true });
@@ -298,9 +321,101 @@ export function leaveMatch(matchId: string, userId: string): XmMatch | null {
   // Active game: host leaving dissolves; a player leaving marks them disconnected/eliminated.
   if (m.hostId === userId) return dissolveMatch(matchId, userId);
   const seat = findByUser(m, userId);
-  if (seat) { seat.connected = false; }
+  // `left`, not just `connected: false` — they chose to go, so the room stops
+  // pushing state at them. A dropped connection is a different thing and keeps
+  // its seat warm.
+  if (seat) { seat.connected = false; seat.left = true; }
   m.spectators = m.spectators.filter(s => s.userId !== userId);
   return m;
+}
+
+/**
+ * Who is still in the room and should be sent state.
+ *
+ * The host counts unless they have left — and when they dissolve the room they
+ * have left. Without that, the person who just closed the room receives the
+ * closed room back, which reopens it on their screen; pressing "leave" then
+ * dissolves it again, and they are in a loop they cannot get out of.
+ */
+export function recipients(m: XmMatch): { userId: string; socketId: string }[] {
+  const out: { userId: string; socketId: string }[] = [];
+  if (!m.hostLeft) out.push({ userId: m.hostId, socketId: m.hostSocketId });
+  for (const s of m.seats) if (!s.left) out.push({ userId: s.userId, socketId: s.socketId });
+  for (const s of m.spectators) out.push({ userId: s.userId, socketId: s.socketId });
+  return out;
+}
+
+/**
+ * The host removes a player.
+ *
+ * In the lobby the seat simply goes. In a live game the player is eliminated
+ * and recorded as fouled out, because that is what a removal mid-game IS in
+ * hosted mafia — the moderator is not deleting a person, they are ruling them
+ * out of the round, and the protocol should say so.
+ */
+export function kickPlayer(matchId: string, byUserId: string, targetUserId: string): XmMatch | null {
+  const m = matches.get(matchId);
+  if (!m || m.hostId !== byUserId) return null;
+  if (targetUserId === m.hostId) return null;          // the host cannot remove themselves
+
+  const seat = findByUser(m, targetUserId);
+  if (!seat) {
+    const spec = m.spectators.find(x => x.userId === targetUserId);
+    if (!spec) return null;
+    m.spectators = m.spectators.filter(x => x.userId !== targetUserId);
+    return m;
+  }
+
+  if (m.phase === 'lobby') {
+    m.seats = m.seats.filter(s => s.userId !== targetUserId);
+    m.seats.forEach((s, i) => { s.seat = i + 1; });
+    return m;
+  }
+
+  seat.left = true;
+  seat.connected = false;
+  if (seat.alive) {
+    seat.alive = false;
+    seat.eliminatedRound = m.round;
+    seat.eliminatedBy = 'fouls';
+    pushLog(m, 'foul', `${seatLabel(seat)} — ჰოსტმა გარიცხა`);
+    if (m.phase === 'speech' && m.speechOrder[m.speechIdx] === targetUserId) advanceSpeaker(m);
+    checkWin(m);
+  }
+  return m;
+}
+
+/**
+ * Reconnect.
+ *
+ * State is broadcast to stored socket ids, and a phone that locks its screen or
+ * changes network comes back with a NEW one — so the old handle is dead and the
+ * player's table simply stops updating. Nothing errors; they just freeze while
+ * everyone else plays on. Asking on reconnect is what un-freezes them.
+ *
+ * Someone the host removed does not come back this way: `left` with a fouls
+ * ruling is a decision, not a dropped connection.
+ */
+export function resumeForUser(userId: string, socketId: string): XmMatch | null {
+  for (const m of matches.values()) {
+    if (m.dissolved) continue;
+    if (m.hostId === userId) {
+      if (m.hostLeft) continue;
+      m.hostSocketId = socketId;
+      m.hostConnected = true;
+      return m;
+    }
+    const seat = m.seats.find(s => s.userId === userId);
+    if (seat) {
+      if (seat.left) continue;
+      seat.socketId = socketId;
+      seat.connected = true;
+      return m;
+    }
+    const spec = m.spectators.find(s => s.userId === userId);
+    if (spec) { spec.socketId = socketId; spec.connected = true; return m; }
+  }
+  return null;
 }
 
 export function disconnectSocket(socketId: string): string | null {
@@ -324,6 +439,9 @@ export function dissolveMatch(matchId: string, _byUserId: string): XmMatch | nul
   m.phase = 'finished';
   m.dissolved = true;
   m.winner = null;
+  // The host is out of the room the moment they close it: they must not be a
+  // recipient of the very broadcast that tells everyone it is closed.
+  m.hostLeft = true;
   return m;
 }
 
@@ -337,7 +455,7 @@ export function transferHost(matchId: string, byUserId: string, targetUserId: st
   const oldHostSeat: XmSeat = {
     userId: m.hostId, socketId: m.hostSocketId, nickname: m.hostName, seat: target.seat,
     connected: m.hostConnected, role: null, alive: true, fouls: 0,
-    eliminatedRound: null, eliminatedBy: null, lastCheck: null, cardIndex: null,
+    eliminatedRound: null, eliminatedBy: null, lastCheck: null, cardIndex: null, left: false,
   };
   m.seats = m.seats.map(s => (s.userId === targetUserId ? oldHostSeat : s));
   m.seats.forEach((s, i) => { s.seat = i + 1; });
@@ -836,7 +954,7 @@ export function rematch(matchId: string, byUserId: string): XmMatch | null {
   const keep = m.seats.filter(s => s.connected);
   for (const sp of m.spectators.filter(s => s.connected)) {
     if (keep.length >= m.maxSeats) break;
-    keep.push({ userId: sp.userId, socketId: sp.socketId, nickname: sp.nickname, seat: 0, connected: true, role: null, alive: true, fouls: 0, eliminatedRound: null, eliminatedBy: null, lastCheck: null, cardIndex: null });
+    keep.push({ userId: sp.userId, socketId: sp.socketId, nickname: sp.nickname, seat: 0, connected: true, role: null, alive: true, fouls: 0, eliminatedRound: null, eliminatedBy: null, lastCheck: null, cardIndex: null, left: false });
   }
   m.seats = keep;
   m.seats.forEach((s, i) => { s.seat = i + 1; s.role = null; s.alive = true; s.fouls = 0; s.eliminatedRound = null; s.eliminatedBy = null; s.lastCheck = null; s.cardIndex = null; });

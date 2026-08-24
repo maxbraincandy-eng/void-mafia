@@ -16,6 +16,7 @@ import {
   dissolveMatch, transferHost, startMatch, reshuffleRoles, setRoleConfig, setSettings, pickCard, beginMafiaMeet, endMafiaMeet, beginNight, mafiaVote, donCheck, sheriffCheck,
   endNight, beginDay, nextSpeaker, advanceSpeakerAuto, extendSpeech, nominate, grabFloor,
   castVote, endVote, giveFoul, endLastWords, rematch, disconnectSocket, getSafeState,
+  kickPlayer, recipients, resumeForUser,
 } from './services/sxvaMafiaService.js';
 
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -24,18 +25,21 @@ type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerE
 const ROOM = (id: string) => `xm:${id}`;
 function userId(socket: AppSocket): string { return socket.data.profileId ?? socket.id; }
 
-function everyone(m: ReturnType<typeof getMatch>): { userId: string; socketId: string }[] {
-  if (!m) return [];
-  const out: { userId: string; socketId: string }[] = [{ userId: m.hostId, socketId: m.hostSocketId }];
-  for (const s of m.seats) out.push({ userId: s.userId, socketId: s.socketId });
-  for (const s of m.spectators) out.push({ userId: s.userId, socketId: s.socketId });
-  return out;
-}
-
-function broadcastState(io: AppServer, matchId: string): void {
+/**
+ * Send the state to everyone still in the room.
+ *
+ * `exceptUserId` is for the person whose own action removed them: a player who
+ * leaves, or a host who closes the room. Sending them the result of their own
+ * departure puts the room back on their screen, and leaving again repeats it —
+ * which is exactly the loop this argument exists to break. Note that leaving
+ * the Socket.IO room is not enough on its own, because this broadcast addresses
+ * stored socket ids rather than a room.
+ */
+function broadcastState(io: AppServer, matchId: string, exceptUserId?: string): void {
   const m = getMatch(matchId);
   if (!m) return;
-  for (const v of everyone(m)) {
+  for (const v of recipients(m)) {
+    if (exceptUserId && v.userId === exceptUserId) continue;
     const s = io.sockets.sockets.get(v.socketId);
     if (s) s.emit('xm:state' as any, getSafeState(m, v.userId));
   }
@@ -86,7 +90,37 @@ export function registerSxvaMafiaHandlers(io: AppServer, socket: AppSocket): voi
   const uid = () => userId(socket);
   const after = (matchId: string) => { broadcastState(io, matchId); syncTimer(io, matchId); };
 
-  socket.on('xm:list' as any, (cb: (r: any) => void) => { try { cb(ok(listMatches())); } catch (e: any) { cb(err(e.message)); } });
+  /*
+   * Accepts both `(cb)` and `(payload, cb)`.
+   *
+   * The handler used to take a callback only, so a caller that passed any
+   * payload had its callback land in the second argument and was never
+   * answered — the request simply hung until the client's ack timeout. A lobby
+   * listing is not worth a ten-second stall over an argument shape.
+   */
+  socket.on('xm:list' as any, (a: any, b?: any) => {
+    const cb = typeof a === 'function' ? a : typeof b === 'function' ? b : null;
+    if (!cb) return;
+    try { cb(ok(listMatches())); } catch (e: any) { cb(err(e.message)); }
+  });
+
+  /**
+   * Re-attach after a reconnect.
+   *
+   * The client asks on every fresh socket; the answer is authoritative state
+   * for whatever room this identity is actually in, or null.
+   */
+  socket.on('xm:resume' as any, (a: any, b?: any) => {
+    const cb = typeof a === 'function' ? a : typeof b === 'function' ? b : null;
+    if (!cb) return;
+    try {
+      const m = resumeForUser(uid(), socket.id);
+      if (!m) return cb(ok(null));
+      socket.join(ROOM(m.id));
+      broadcastState(io, m.id);   // the table sees them present again
+      cb(ok(getSafeState(m, uid())));
+    } catch (e: any) { cb(err(e.message)); }
+  });
 
   socket.on('xm:create' as any, (data: { nickname?: string; maxSeats?: number }, cb: (r: any) => void) => {
     try {
@@ -116,9 +150,11 @@ export function registerSxvaMafiaHandlers(io: AppServer, socket: AppSocket): voi
   socket.on('xm:leave' as any, (data: { matchId: string }, cb: (r: any) => void) => {
     try {
       const matchId = String(data?.matchId);
-      const m = leaveMatch(matchId, uid());
+      const me = uid();
+      const m = leaveMatch(matchId, me);
       socket.leave(ROOM(matchId));
-      if (m) broadcastState(io, matchId);
+      // Everyone except the person who left — see broadcastState.
+      if (m) broadcastState(io, matchId, me);
       syncTimer(io, matchId);
       broadcastList(io);
       cb(ok(null));
@@ -234,6 +270,43 @@ export function registerSxvaMafiaHandlers(io: AppServer, socket: AppSocket): voi
     };
 
   socket.on('xm:transfer_host' as any, targetAction(transferHost, 'ვერ გადაეცა ჰოსტობა'));
+
+  /**
+   * The host removes a player.
+   *
+   * The removed player is told directly, once, so their client can close the
+   * game rather than sit on a table it is no longer part of — they are not in
+   * `recipients` any more, so the state broadcast will not reach them.
+   */
+  socket.on('xm:kick' as any, (data: { matchId: string; targetId: string }, cb: (r: any) => void) => {
+    try {
+      const matchId = String(data?.matchId);
+      const targetId = String(data?.targetId);
+
+      // Their socket id has to be read BEFORE the kick: in the lobby the seat
+      // is removed outright, and a player who is never told has a screen full
+      // of a room they are no longer in.
+      const before = getMatch(matchId);
+      const targetSocketId =
+        before?.seats.find(s => s.userId === targetId)?.socketId
+        ?? before?.spectators.find(s => s.userId === targetId)?.socketId
+        ?? null;
+
+      const m = kickPlayer(matchId, uid(), targetId);
+      if (!m) return cb(err('ვერ გაირიცხა'));
+
+      if (targetSocketId) {
+        const ts = io.sockets.sockets.get(targetSocketId);
+        ts?.emit('xm:kicked' as any, { matchId });
+        ts?.leave(ROOM(matchId));
+      }
+
+      after(matchId);
+      if (m.phase === 'finished') broadcastList(io);
+      broadcastList(io);
+      cb(ok(null));
+    } catch (e: any) { cb(err(e.message)); }
+  });
 
   socket.on('xm:pick_card' as any, (data: { matchId: string; cardIndex: number }, cb: (r: any) => void) => {
     try {

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { socket, emitWithAck } from '@/lib/socket';
+import { registerMatchResume } from '@/lib/matchResume';
 import type { XmSafeState, XmListItem } from '@/types/sxvaMafia';
 
 function unwrap<T>(res: any): T { if (!res.ok) throw new Error(res.error ?? 'Unknown error'); return res.data as T; }
@@ -32,6 +33,7 @@ interface XmStore {
   endVote: () => Promise<void>;
   endLastWords: () => Promise<void>;
   giveFoul: (targetId: string, delta?: number) => Promise<void>;
+  kick: (targetId: string) => Promise<void>;
   grabFloor: () => Promise<void>;
   rematch: () => Promise<void>;
 
@@ -43,7 +45,20 @@ interface XmStore {
   castVote: (targetId: string) => Promise<void>;
 
   clearError: () => void;
+  /** Set when the host removed you, so the game can say why it closed. */
+  kicked: boolean;
+  clearKicked: () => void;
 }
+
+/**
+ * Matches this client has walked out of.
+ *
+ * A late `xm:state` for a room you have left must not reopen it. The server no
+ * longer sends one, but the guard stays: a broadcast already in flight when you
+ * pressed leave would otherwise put the room back on your screen, and pressing
+ * leave again would close it again — a loop with no exit.
+ */
+const departed = new Set<string>();
 
 const emit = (ev: string, data?: any) => emitWithAck<any, any>(ev, data);
 
@@ -53,12 +68,36 @@ export const useSxvaMafiaStore = create<XmStore>((set, get) => {
   const targetEv = (ev: string) => async (targetId: string) => { const id = mid(); if (!id) return; try { const r = await emit(ev, { matchId: id, targetId }); if (!r.ok) set({ error: r.error }); } catch (e: any) { set({ error: e.message }); } };
 
   return {
-    match: null, matchList: [], isLoading: false, error: null,
+    match: null, matchList: [], isLoading: false, error: null, kicked: false,
 
     fetchList: async () => { try { const r = await emit('xm:list'); set({ matchList: unwrap(r) }); } catch (e: any) { set({ error: e.message }); } },
-    createMatch: async (nickname, opts) => { set({ isLoading: true, error: null }); try { const r = await emit('xm:create', { nickname, ...opts }); set({ match: unwrap(r), isLoading: false }); } catch (e: any) { set({ isLoading: false, error: e.message }); } },
-    joinMatch: async (code, nickname) => { set({ isLoading: true, error: null }); try { const r = await emit('xm:join', { code, nickname }); set({ match: unwrap(r), isLoading: false }); } catch (e: any) { set({ isLoading: false, error: e.message }); } },
-    leaveMatch: async () => { const id = mid(); if (!id) return; try { await emit('xm:leave', { matchId: id }); } catch { /* ignore */ } set({ match: null }); },
+    createMatch: async (nickname, opts) => {
+      set({ isLoading: true, error: null, kicked: false });
+      try {
+        const r = await emit('xm:create', { nickname, ...opts });
+        const m = unwrap<XmSafeState>(r);
+        departed.delete(m.id);
+        set({ match: m, isLoading: false });
+      } catch (e: any) { set({ isLoading: false, error: e.message }); }
+    },
+    joinMatch: async (code, nickname) => {
+      set({ isLoading: true, error: null, kicked: false });
+      try {
+        const r = await emit('xm:join', { code, nickname });
+        const m = unwrap<XmSafeState>(r);
+        departed.delete(m.id);
+        set({ match: m, isLoading: false });
+      } catch (e: any) { set({ isLoading: false, error: e.message }); }
+    },
+    leaveMatch: async () => {
+      const id = mid();
+      if (!id) return;
+      // Close locally first and remember we are out, so nothing in flight can
+      // pull us back while the acknowledgement is still on the wire.
+      departed.add(id);
+      set({ match: null, error: null, kicked: false });
+      try { await emit('xm:leave', { matchId: id }); } catch { /* we are leaving regardless */ }
+    },
 
     start: hostEv('xm:start'),
     reshuffle: hostEv('xm:reshuffle'),
@@ -76,6 +115,7 @@ export const useSxvaMafiaStore = create<XmStore>((set, get) => {
     endVote: hostEv('xm:end_vote'),
     endLastWords: hostEv('xm:end_last_words'),
     giveFoul: async (targetId, delta = 1) => { const id = mid(); if (!id) return; try { const r = await emit('xm:give_foul', { matchId: id, targetId, delta }); if (!r.ok) set({ error: r.error }); } catch (e: any) { set({ error: e.message }); } },
+    kick: targetEv('xm:kick'),
     grabFloor: hostEv('xm:grab_floor'),
     rematch: hostEv('xm:rematch'),
 
@@ -86,8 +126,31 @@ export const useSxvaMafiaStore = create<XmStore>((set, get) => {
     castVote: targetEv('xm:cast_vote'),
 
     clearError: () => set({ error: null }),
+    clearKicked: () => set({ kicked: false }),
   };
 });
 
-(socket as any).on('xm:state', (d: XmSafeState) => useSxvaMafiaStore.setState({ match: d }));
+(socket as any).on('xm:state', (d: XmSafeState) => {
+  if (departed.has(d.id)) return;
+  useSxvaMafiaStore.setState({ match: d });
+});
+
+/**
+ * Reconnect recovery.
+ *
+ * A new socket means the server was holding a dead handle for us: state is
+ * broadcast to stored socket ids, so the table would sit frozen on whatever it
+ * last received while everyone else played on. Asking puts us back.
+ */
+registerMatchResume<XmSafeState>('xm:resume', d => {
+  if (d && !departed.has(d.id)) { useSxvaMafiaStore.setState({ match: d }); return; }
+  // Nothing to come back to: the room closed, or we were removed from it.
+  if (useSxvaMafiaStore.getState().match) useSxvaMafiaStore.setState({ match: null });
+});
+
+/** The host removed us: close the table and say so, rather than freezing on it. */
+(socket as any).on('xm:kicked', ({ matchId }: { matchId: string }) => {
+  departed.add(matchId);
+  useSxvaMafiaStore.setState({ match: null, kicked: true });
+});
 (socket as any).on('xm:list_update', (l: XmListItem[]) => useSxvaMafiaStore.setState({ matchList: l }));
