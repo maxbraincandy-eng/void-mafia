@@ -177,6 +177,16 @@ const SeatTile = memo(function SeatTile({ seat, isHostTile, fill, match, myId, s
       </div>
       {dead && (
         <div className="absolute inset-0 flex flex-col items-center justify-center" style={{ background: 'rgba(70,0,8,0.45)', borderRadius: 14 }}>
+          {/*
+            The cross.
+            Across a twelve-tile table a small badge is something you have to
+            read; a struck-through tile is something you see. Drawn as an SVG
+            rather than rotated borders so it always meets the real corners.
+          */}
+          <svg className="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none" viewBox="0 0 100 100">
+            <line x1="2" y1="2" x2="98" y2="98" stroke={RED} strokeOpacity="0.5" strokeWidth="1.1" vectorEffect="non-scaling-stroke" />
+            <line x1="98" y1="2" x2="2" y2="98" stroke={RED} strokeOpacity="0.5" strokeWidth="1.1" vectorEffect="non-scaling-stroke" />
+          </svg>
           <span className="text-2xl" style={{ filter: 'drop-shadow(0 0 8px #ff0000)' }}>💀</span>
           <span className="font-mono text-[9px] font-black tracking-widest mt-1 px-2 py-0.5 rounded" style={{ color: '#fff', background: `${RED}cc` }}>
             {seat!.eliminatedBy === 'mafia' ? 'მოკლული' : seat!.eliminatedBy === 'fouls' ? '4 ფაული' : 'გარიცხული'}
@@ -228,6 +238,32 @@ export function SxvaMafiaGame() {
   const [codeCopied, setCodeCopied] = useState(false);
   const [roleOpen, setRoleOpen] = useState(false);
   const [journalOpen, setJournalOpen] = useState(false);
+  /**
+   * The room the table actually has.
+   *
+   * The ring used to be capped at `cols × 186px` — 744px on a 1440px screen,
+   * with the rest of the width empty and the bottom row clipped by the host
+   * bar. Measuring lets the grid take the space it has and, more importantly,
+   * never take more.
+   */
+  const stageRef = useRef<HTMLDivElement>(null);
+  const [stageBox, setStageBox] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el) return;
+    const measure = () => {
+      const next = { w: el.clientWidth, h: el.clientHeight };
+      // Only on a real change: the grid is sized from this box, so writing the
+      // same numbers back on every observation is a re-render for nothing.
+      setStageBox(prev => (prev.w === next.w && prev.h === next.h ? prev : next));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    window.visualViewport?.addEventListener('resize', measure);
+    return () => { ro.disconnect(); window.visualViewport?.removeEventListener('resize', measure); };
+  }, [match?.phase]);
+
   const [foulMode, setFoulMode] = useState(false);
   const [hostTarget, setHostTarget] = useState<string | null>(null);
   // Owner-only testing aids. The server enforces this; the flag only decides
@@ -529,31 +565,78 @@ export function SxvaMafiaGame() {
   const stageBig = match.phase === 'speech' ? fmt(speechLeft) : match.phase === 'vote' ? fmt(voteLeft) : match.phase === 'last_words' ? fmt(lwLeft) : '';
   const nightMood = match.phase === 'night';
 
+  /**
+   * The centre of the table.
+   *
+   * On a wide screen the host's camera fills it, the way a moderator sits at
+   * the head of a real table — the phase, the clock and who is speaking sit on
+   * top of the picture rather than instead of it. Without a camera it falls
+   * back to the phase icon, so a text-only server still reads.
+   */
   const StageCard = (
-    <div className="relative w-full h-full rounded-2xl overflow-hidden flex flex-col items-center justify-between p-3 text-center"
+    <div className="relative w-full h-full rounded-2xl overflow-hidden flex flex-col"
       style={{ background: nightMood ? 'linear-gradient(160deg,#0a1030,#05060f)' : 'linear-gradient(160deg,#25080e,#0a0609)', border: `1.5px solid ${nightMood ? '#3a4a8a66' : RED + '44'}`, boxShadow: 'inset 0 0 44px rgba(0,0,0,0.55)' }}>
-      <div>
-        <p className="font-mono text-[10px] tracking-[0.25em] text-white/40">რაუნდი {match.round}</p>
-        <p className="font-display font-black text-white mt-0.5" style={{ fontSize: 17 }}>{phaseTitle}</p>
-      </div>
-      <div className="flex flex-col items-center gap-0.5">
-        <motion.span key={match.phase + stageIcon} initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} style={{ fontSize: 40 }}>{stageIcon}</motion.span>
-        {stageBig && <span className="font-mono font-black" style={{ fontSize: 32, color: RED, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{stageBig}</span>}
-        {stageSub && <p className="font-mono text-[12px] mt-1 px-2" style={{ color: 'rgba(255,255,255,0.72)' }}>{stageSub}</p>}
-        {match.phase === 'vote' && match.nominations.length > 0 && (
-          <p className="font-mono text-[11px] mt-1" style={{ color: '#ffcc33' }}>{match.nominations.map(n => `#${n.seat}:${match.voteTally[n.userId] ?? 0}`).join('  ')}</p>
+
+      {/* The host, as big as the stage allows. */}
+      {streamFor(match.hostId) ? (
+        <div className="absolute inset-0">
+          <VideoTile stream={streamFor(match.hostId)} mirror={match.hostId === myId} muted={match.hostId === myId} />
+          <div className="absolute inset-0 pointer-events-none"
+            style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.12) 34%, rgba(0,0,0,0.15) 62%, rgba(0,0,0,0.82) 100%)' }} />
+        </div>
+      ) : (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          {/* A watermark, not a subject: the clock is drawn over this. */}
+          <motion.span key={match.phase + stageIcon} initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 0.1 }}
+            style={{ fontSize: 132, filter: 'grayscale(1)' }}>{stageIcon}</motion.span>
+        </div>
+      )}
+
+      {/* Phase, on top of the picture. */}
+      <div className="relative text-center pt-2.5 px-3">
+        <p className="font-mono text-[10px] tracking-[0.25em] text-white/45">რაუნდი {match.round}</p>
+        <p className="font-display font-black text-white mt-0.5" style={{ fontSize: 19, textShadow: '0 2px 10px rgba(0,0,0,0.9)' }}>{phaseTitle}</p>
+
+        {(match.phase === 'speech' || match.nextSpeaker) && (
+          <div className="flex items-center justify-center gap-1.5 mt-1.5 flex-wrap">
+            {match.speakingUserId && (() => {
+              const sp = match.seats.find(x => x.userId === match.speakingUserId);
+              return sp ? (
+                <span className="font-mono text-[11px] px-2 py-0.5 rounded-full"
+                  style={{ background: 'rgba(0,229,255,0.14)', border: '1px solid rgba(0,229,255,0.45)', color: '#7fe6ff' }}>
+                  საუბრობს #{sp.seat}
+                </span>
+              ) : null;
+            })()}
+            {match.nextSpeaker && (
+              <span className="font-mono text-[11px] px-2 py-0.5 rounded-full"
+                style={{ background: 'rgba(255,204,51,0.12)', border: '1px solid rgba(255,204,51,0.4)', color: '#ffcc33' }}>
+                შემდეგი #{match.nextSpeaker.seat}
+              </span>
+            )}
+          </div>
         )}
       </div>
-      {/* host mini-tile */}
-      <div className="w-full flex items-center gap-2 rounded-xl px-2 py-1.5" style={{ background: 'rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.08)' }}>
-        <div className="relative rounded-lg overflow-hidden flex-shrink-0" style={{ width: 46, height: 34, background: '#0b0b12' }}>
-          <VideoTile stream={streamFor(match.hostId)} mirror={match.hostId === myId} muted={match.hostId === myId} />
-          {!streamFor(match.hostId) && <div className="absolute inset-0 flex items-center justify-center text-sm">🎬</div>}
-        </div>
-        <div className="text-left leading-tight min-w-0">
-          <p className="font-mono text-[11px] font-bold" style={{ color: RED }}>H · ჰოსტი</p>
-          <p className="font-mono text-[10px] truncate" style={{ color: match.hostConnected ? '#7fe0a0' : '#ff6b6b' }}>{match.hostName}{!match.hostConnected && ' · გათიშ.'}</p>
-        </div>
+
+      {/* The clock, when one is running. */}
+      <div className="relative flex-1 flex flex-col items-center justify-center pointer-events-none">
+        {stageBig && (
+          <span className="font-mono font-black" style={{ fontSize: 40, color: RED, fontVariantNumeric: 'tabular-nums', lineHeight: 1, textShadow: '0 2px 14px rgba(0,0,0,0.85)' }}>{stageBig}</span>
+        )}
+        {stageSub && !stageBig && (
+          <p className="font-mono text-[12px] px-3 text-center" style={{ color: 'rgba(255,255,255,0.78)', textShadow: '0 1px 8px rgba(0,0,0,0.9)' }}>{stageSub}</p>
+        )}
+        {match.phase === 'vote' && match.nominations.length > 0 && (
+          <p className="font-mono text-[12px] mt-1" style={{ color: '#ffcc33' }}>{match.nominations.map(n => `#${n.seat}:${match.voteTally[n.userId] ?? 0}`).join('  ')}</p>
+        )}
+      </div>
+
+      {/* Who is running the table. */}
+      <div className="relative flex items-center gap-2 px-3 pb-2.5">
+        <span className="font-mono text-[11px] font-bold px-1.5 py-0.5 rounded" style={{ background: `${RED}e6`, color: '#fff' }}>H</span>
+        <span className="font-mono text-[12px] truncate" style={{ color: match.hostConnected ? '#fff' : '#ff6b6b', textShadow: '0 1px 6px rgba(0,0,0,0.9)' }}>
+          {match.hostName}{!match.hostConnected && ' · გათიშ.'}
+        </span>
         {foulMode && <span className="ml-auto font-mono text-[9px] px-1.5 py-0.5 rounded" style={{ background: '#ffcc33', color: '#000' }}>⚠️ ფაული</span>}
       </div>
     </div>
@@ -618,8 +701,8 @@ export function SxvaMafiaGame() {
       )}
 
       {/* Grid / stage */}
-      <div className="flex-1 overflow-y-auto overscroll-contain px-3 py-3">
-        {!lkEnabled && match.phase !== 'finished' && <p className="text-center font-mono text-[11px] text-white/40 mb-2">📡 ვიდეო ამ სერვერზე გათიშულია — თამაში ტექსტურ რეჟიმში მიდის</p>}
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 py-3 flex flex-col">
+        {!lkEnabled && match.phase !== 'finished' && <p className="flex-shrink-0 text-center font-mono text-[11px] text-white/40 mb-2">📡 ვიდეო ამ სერვერზე გათიშულია — თამაში ტექსტურ რეჟიმში მიდის</p>}
         {match.phase === 'finished' ? (
           <FinishedView match={match} onLeave={doLeave} onRematch={() => { SFX.click?.(); store.rematch(); }} isHost={isHost} />
         ) : match.phase === 'assign' ? (
@@ -727,12 +810,36 @@ export function SxvaMafiaGame() {
           </div>
         ) : useRing ? (
           // ── Centre-stage table: players ring the stage ──────────────────────
-          <div className="min-h-full flex items-center justify-center">
-            <div className="w-full" style={{ maxWidth: dims.cols * 186, display: 'grid', gridTemplateColumns: `repeat(${dims.cols}, 1fr)`, gridTemplateRows: `repeat(${dims.rows}, 1fr)`, gap: 8, aspectRatio: `${dims.cols} / ${dims.rows}` }}>
+          (() => {
+            /*
+             * Fit the ring to the box, on both axes.
+             *
+             * Tiles are 16:9 because that is the shape a webcam is; a grid sized
+             * off width alone runs off the bottom of the screen, which is
+             * exactly what it was doing — the last row sat underneath the host
+             * bar. So take the smaller of what the width allows and what the
+             * height allows, and centre the result.
+             */
+            const GAP = 10;
+            const availW = Math.max(320, stageBox.w);
+            const availH = Math.max(280, stageBox.h);
+            const tileW = Math.min(
+              (availW - GAP * (dims.cols - 1)) / dims.cols,
+              ((availH - GAP * (dims.rows - 1)) / dims.rows) * (16 / 9),
+            );
+            const tileH = tileW * (9 / 16);
+            const gridW = tileW * dims.cols + GAP * (dims.cols - 1);
+            const gridH = tileH * dims.rows + GAP * (dims.rows - 1);
+
+            return (
+          <div ref={stageRef} className="flex-1 min-h-0 flex items-center justify-center">
+            <div style={{ width: gridW, height: gridH, display: 'grid', gridTemplateColumns: `repeat(${dims.cols}, 1fr)`, gridTemplateRows: `repeat(${dims.rows}, 1fr)`, gap: GAP }}>
               <div style={{ gridColumn: `2 / ${dims.cols}`, gridRow: `2 / ${dims.rows}` }}>{StageCard}</div>
               {match.seats.map((s, i) => { const cell = cells[place[i]]!; return <div key={s.userId} style={{ gridColumn: cell.col, gridRow: cell.row }}>{renderSeat(s, { fill: true })}</div>; })}
             </div>
           </div>
+            );
+          })()
         ) : match.phase !== 'lobby' ? (
           // ── In-play: 2-column grid that fills the screen; host tile at the bottom ──
           <div className="mx-auto w-full" style={{ height: '100%', display: 'flex', flexDirection: 'column', maxWidth: wide ? 560 : undefined }}>

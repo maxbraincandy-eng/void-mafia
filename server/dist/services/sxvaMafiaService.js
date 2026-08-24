@@ -1065,6 +1065,16 @@ export function getSafeState(m, viewerUserId) {
         speechEndsAt: m.phase === 'speech' ? m.speechEndsAt : 0,
         speechIdx: m.speechIdx,
         speechTotal: m.speechOrder.length,
+        // Who is up after this one. The table wants to know whose turn is coming,
+        // and working it out on the client would mean shipping the whole speech
+        // order — which is a list of who is still alive, in order, to everybody.
+        nextSpeaker: (() => {
+            if (m.phase !== 'speech')
+                return null;
+            const nextId = m.speechOrder[m.speechIdx + 1];
+            const seat = nextId ? findByUser(m, nextId) : null;
+            return seat ? { nickname: seat.nickname, seat: seat.seat } : null;
+        })(),
         nominations: m.nominations.map(uid => { const s = findByUser(m, uid); return { userId: uid, nickname: s?.nickname ?? '?', seat: s?.seat ?? 0 }; }),
         iNominated: !!(meSeat && m.nominatedBy[viewerUserId]),
         nightEndsAt: m.phase === 'night' ? m.nightEndsAt : 0,

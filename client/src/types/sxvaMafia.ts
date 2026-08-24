@@ -48,6 +48,7 @@ export interface XmSafeState {
   speechEndsAt: number;
   speechIdx: number;
   speechTotal: number;
+  nextSpeaker: { nickname: string; seat: number } | null;
   nominations: { userId: string; nickname: string; seat: number }[];
   iNominated: boolean;
   nightEndsAt: number;
