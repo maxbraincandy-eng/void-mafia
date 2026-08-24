@@ -308,6 +308,26 @@ export function joinMatch(matchId: string, userId: string, socketId: string, nic
   return { match: m, isNew: true };
 }
 
+/**
+ * Seat a test bot.
+ *
+ * Separate from `joinMatch` because a bot has no socket: there is no id to
+ * store, nothing to reconnect, and nothing to broadcast to. Lobby only — a bot
+ * cannot walk into a game that has already dealt, for the same reason a person
+ * cannot.
+ */
+export function joinMatchAsBot(matchId: string, botId: string, nickname: string): XmMatch | null {
+  const m = matches.get(matchId);
+  if (!m || m.phase !== 'lobby') return null;
+  if (m.seats.length >= m.maxSeats) return null;
+  m.seats.push({
+    userId: botId, socketId: `nosocket_${botId}`, nickname,
+    seat: m.seats.length + 1, connected: true, role: null, alive: true, fouls: 0,
+    eliminatedRound: null, eliminatedBy: null, lastCheck: null, cardIndex: null, left: false,
+  });
+  return m;
+}
+
 export function leaveMatch(matchId: string, userId: string): XmMatch | null {
   const m = matches.get(matchId);
   if (!m) return null;

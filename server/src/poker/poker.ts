@@ -41,6 +41,7 @@ import { ok, err } from '../types/index.js';
 import { PokerTableService, TableError } from './services/tableService.js';
 import { RateLimiter } from './services/rateLimit.js';
 import { getCompliance, complianceFacts } from './compliance.js';
+import { botName, isBot, isOwner, newBotId } from '../services/testBots.js';
 import type { AuditEntry, HandHistory, PlayerRef, TableEvent } from './services/types.js';
 
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -87,6 +88,7 @@ function ensure(io: AppServer): PokerTableService {
     emit: (event: TableEvent) => deliver(io, event),
     audit: entry => sinks.audit?.(entry),
     history: history => sinks.history?.(history),
+    isBot,
   });
   return service;
 }
@@ -240,6 +242,65 @@ export function registerPokerHandlers(io: AppServer, socket: AppSocket): void {
     });
     return { ok: true };
   }));
+
+  /**
+   * Owner-only: seat a test bot, or clear them all out.
+   *
+   * Async because the owner check reads the profile, and it is checked against
+   * the socket's identity rather than anything in the payload.
+   */
+  socket.on('poker:add_bot' as any, async (d: any, cb?: (res: unknown) => void) => {
+    const reply = typeof cb === 'function' ? cb : () => {};
+    try {
+      const me = identity(socket);
+      if (!me) return reply(err('AUTH_REQUIRED'));
+      if (!(await isOwner(me.playerId))) return reply(err('OWNER_ONLY'));
+
+      const tableId = text(d?.tableId, 64);
+      const table = svc.getTable(tableId);
+      if (!table) return reply(err('NO_TABLE'));
+
+      const free = Array.from({ length: table.config.maxSeats }, (_, i) => i)
+        .find(i => !table.seats.some(s => s.seat === i));
+      if (free === undefined) return reply(err('TABLE_FULL'));
+
+      const bot = {
+        playerId: newBotId(),
+        name: botName(table.seats.map(s => s.player.name)),
+        avatar: '🤖',
+        avatarUrl: null,
+      };
+      svc.sit(tableId, bot, free);
+      sinks.audit?.({
+        at: Date.now(), actorId: me.playerId, actorKind: 'admin',
+        event: 'test_bot_added', tableId, detail: { seat: free, botId: bot.playerId },
+      });
+      reply(ok({ seat: free }));
+    } catch (e) {
+      if (e instanceof TableError) reply(err(e.code));
+      else { console.error('[poker/bot]', e); reply(err('INTERNAL')); }
+    }
+  });
+
+  socket.on('poker:clear_bots' as any, async (d: any, cb?: (res: unknown) => void) => {
+    const reply = typeof cb === 'function' ? cb : () => {};
+    try {
+      const me = identity(socket);
+      if (!me) return reply(err('AUTH_REQUIRED'));
+      if (!(await isOwner(me.playerId))) return reply(err('OWNER_ONLY'));
+
+      const tableId = text(d?.tableId, 64);
+      const table = svc.getTable(tableId);
+      if (!table) return reply(err('NO_TABLE'));
+
+      const bots = table.seats.filter(s => isBot(s.player.playerId)).map(s => s.player.playerId);
+      for (const id of bots) svc.leave(tableId, id);
+      reply(ok({ removed: bots.length }));
+    } catch (e) {
+      if (e instanceof TableError) reply(err(e.code));
+      else { console.error('[poker/bot]', e); reply(err('INTERNAL')); }
+    }
+  });
 
   socket.on('poker:chat' as any, handle('chat', (me, d) => {
     const tableId = text(d.tableId, 64);

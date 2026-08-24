@@ -31,7 +31,8 @@
  * That dead end is deliberate — see `server/src/future-economy/README.md`.
  */
 import { cardToString, cryptoRandomness } from '../engine/cards.js';
-import { applyAction, actOnTimeout, forceFold, startHand, potTotal, RuleError, } from '../engine/state.js';
+import { decide as botDecide } from './botPolicy.js';
+import { applyAction, actionsFor, actOnTimeout, forceFold, startHand, potTotal, RuleError, } from '../engine/state.js';
 import { buildTableSummary, buildTableView } from './views.js';
 import { systemClock } from './clock.js';
 import { DEFAULT_TABLE_CONFIG, } from './types.js';
@@ -72,6 +73,8 @@ export class PokerTableService {
         this.history = deps.history ?? (() => { });
         let n = 0;
         this.newId = deps.newId ?? (() => `pt_${Date.now().toString(36)}_${(n++).toString(36)}_${Math.random().toString(36).slice(2, 8)}`);
+        this.isBot = deps.isBot ?? (() => false);
+        this.botThinkMs = deps.botThinkMs ?? 1400;
         this.newCode = deps.newCode ?? (() => {
             let code = '';
             for (let i = 0; i < 6; i++)
@@ -471,8 +474,11 @@ export class PokerTableService {
         }
         if (hand.actingSeat !== null) {
             const acting = hand.seats.find(s => s.seat === hand.actingSeat);
-            if (acting)
+            if (acting) {
                 this.startActionTimer(table, acting.playerId);
+                if (this.isBot(acting.playerId))
+                    this.scheduleBot(table, hand.handId, acting.playerId);
+            }
         }
         this.pushTable(table);
     }
@@ -547,6 +553,54 @@ export class PokerTableService {
                 };
             }),
         };
+    }
+    /**
+     * A bot's turn.
+     *
+     * Deliberately on a timer rather than immediate: a table where three bots
+     * resolve a whole street between two frames is unwatchable, and the point of
+     * these seats is to make the table observable. The decision goes through
+     * `act()` like anyone else's — same sequence check, same validation, same
+     * audit trail — so a bot cannot do anything a player could not.
+     */
+    scheduleBot(table, handId, playerId) {
+        this.later(table, () => {
+            const hand = table.hand;
+            if (!hand || hand.handId !== handId || hand.phase === 'COMPLETE')
+                return;
+            const seat = hand.seats.find(s => s.seat === hand.actingSeat);
+            if (!seat || seat.playerId !== playerId)
+                return; // the turn moved on
+            const legal = actionsFor(hand, playerId);
+            if (!legal)
+                return;
+            const action = botDecide({
+                legal,
+                hole: seat.hole.map(cardToString),
+                board: hand.board.map(cardToString),
+                toCall: legal.callAmount,
+                pot: potTotal(hand),
+                stack: seat.stack,
+                // Deterministic per spot, so the same table state does not flicker
+                // between decisions if this ever runs twice.
+                roll: ((hand.actions.length * 2654435761) % 1000) / 1000,
+            });
+            try {
+                this.act(table.id, playerId, { handId, actionSeq: table.actionSeq, action });
+            }
+            catch {
+                // A bot must never stall the table for the human sitting at it. If the
+                // policy somehow produced something the engine refuses, fall back to
+                // the safest legal move and carry on.
+                try {
+                    this.act(table.id, playerId, {
+                        handId, actionSeq: table.actionSeq,
+                        action: { type: legal.canCheck ? 'check' : 'fold' },
+                    });
+                }
+                catch { /* the hand moved on without us */ }
+            }
+        }, this.botThinkMs);
     }
     // ─── Timers ───────────────────────────────────────────────────────────────
     startActionTimer(table, playerId) {

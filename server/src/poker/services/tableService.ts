@@ -32,8 +32,9 @@
  */
 
 import { cardToString, cryptoRandomness, type Randomness } from '../engine/cards.js';
+import { decide as botDecide } from './botPolicy.js';
 import {
-  applyAction, actOnTimeout, forceFold, startHand, potTotal,
+  applyAction, actionsFor, actOnTimeout, forceFold, startHand, potTotal,
   RuleError, type HandState,
 } from '../engine/state.js';
 import type { Action } from '../engine/betting.js';
@@ -53,6 +54,15 @@ export interface TableServiceDeps {
   rng?: Randomness;
   newId?: () => string;
   newCode?: () => string;
+  /**
+   * Which seats are test bots.
+   *
+   * Injected rather than assumed, so the service has no opinion about how a bot
+   * is identified and the tests can make anything a bot.
+   */
+  isBot?: (playerId: string) => boolean;
+  /** How long a bot appears to think. Short in tests, human-paced in production. */
+  botThinkMs?: number;
 }
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -92,6 +102,8 @@ export class PokerTableService {
   private readonly history: HistorySink;
   private readonly newId: () => string;
   private readonly newCode: () => string;
+  private readonly isBot: (playerId: string) => boolean;
+  private readonly botThinkMs: number;
 
   constructor(deps: TableServiceDeps) {
     this.clock = deps.clock ?? systemClock;
@@ -101,6 +113,8 @@ export class PokerTableService {
     this.history = deps.history ?? (() => {});
     let n = 0;
     this.newId = deps.newId ?? (() => `pt_${Date.now().toString(36)}_${(n++).toString(36)}_${Math.random().toString(36).slice(2, 8)}`);
+    this.isBot = deps.isBot ?? (() => false);
+    this.botThinkMs = deps.botThinkMs ?? 1400;
     this.newCode = deps.newCode ?? (() => {
       let code = '';
       for (let i = 0; i < 6; i++) code += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)];
@@ -504,7 +518,10 @@ export class PokerTableService {
 
     if (hand.actingSeat !== null) {
       const acting = hand.seats.find(s => s.seat === hand.actingSeat);
-      if (acting) this.startActionTimer(table, acting.playerId);
+      if (acting) {
+        this.startActionTimer(table, acting.playerId);
+        if (this.isBot(acting.playerId)) this.scheduleBot(table, hand.handId, acting.playerId);
+      }
     }
     this.pushTable(table);
   }
@@ -580,6 +597,53 @@ export class PokerTableService {
         };
       }),
     };
+  }
+
+  /**
+   * A bot's turn.
+   *
+   * Deliberately on a timer rather than immediate: a table where three bots
+   * resolve a whole street between two frames is unwatchable, and the point of
+   * these seats is to make the table observable. The decision goes through
+   * `act()` like anyone else's — same sequence check, same validation, same
+   * audit trail — so a bot cannot do anything a player could not.
+   */
+  private scheduleBot(table: PokerTable, handId: string, playerId: string): void {
+    this.later(table, () => {
+      const hand = table.hand;
+      if (!hand || hand.handId !== handId || hand.phase === 'COMPLETE') return;
+      const seat = hand.seats.find(s => s.seat === hand.actingSeat);
+      if (!seat || seat.playerId !== playerId) return;      // the turn moved on
+
+      const legal = actionsFor(hand, playerId);
+      if (!legal) return;
+
+      const action = botDecide({
+        legal,
+        hole: seat.hole.map(cardToString),
+        board: hand.board.map(cardToString),
+        toCall: legal.callAmount,
+        pot: potTotal(hand),
+        stack: seat.stack,
+        // Deterministic per spot, so the same table state does not flicker
+        // between decisions if this ever runs twice.
+        roll: ((hand.actions.length * 2654435761) % 1000) / 1000,
+      });
+
+      try {
+        this.act(table.id, playerId, { handId, actionSeq: table.actionSeq, action });
+      } catch {
+        // A bot must never stall the table for the human sitting at it. If the
+        // policy somehow produced something the engine refuses, fall back to
+        // the safest legal move and carry on.
+        try {
+          this.act(table.id, playerId, {
+            handId, actionSeq: table.actionSeq,
+            action: { type: legal.canCheck ? 'check' : 'fold' },
+          });
+        } catch { /* the hand moved on without us */ }
+      }
+    }, this.botThinkMs);
   }
 
   // ─── Timers ───────────────────────────────────────────────────────────────

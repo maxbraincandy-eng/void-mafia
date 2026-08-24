@@ -47,6 +47,8 @@ export function pokerErrorText(code: string): string {
     NOT_ENOUGH_PLAYERS: 'ორი მოთამაშე მაინც სჭირდება',
     CANNOT_RAISE: 'აწევა ახლა არ შეიძლება',
     BAD_ACTION: 'უცნობი მოქმედება',
+    TABLE_FULL: 'მაგიდა სავსეა',
+    OWNER_ONLY: 'მხოლოდ ოუნერისთვის',
     INTERNAL: 'რაღაც შეცდომაა',
   };
   return map[code] ?? code;
@@ -73,6 +75,10 @@ export interface PokerStore {
   sendChat: (text: string) => Promise<void>;
   clearError: () => void;
   dismissClosed: () => void;
+
+  /** Owner-only testing aids. The server checks the permission, not this. */
+  addBot: () => Promise<void>;
+  clearBots: () => Promise<void>;
 }
 
 const myName = () => useAuthStore.getState().profile?.username ?? 'Player';
@@ -176,6 +182,20 @@ export const usePokerStore = create<PokerStore>((set, get) => ({
     if (!table || !text.trim()) return;
     try { await emitWithAck<any, any>('poker:chat', { tableId: table.id, text: text.trim() }); }
     catch (e: any) { set({ error: pokerErrorText(e.message) }); }
+  },
+
+  addBot: async () => {
+    const { table } = get();
+    if (!table) return;
+    try { await emitWithAck<any, any>('poker:add_bot', { tableId: table.id }); }
+    catch (e: any) { set({ error: e.message === 'OWNER_ONLY' ? 'მხოლოდ ოუნერისთვის' : pokerErrorText(e.message) }); }
+  },
+
+  clearBots: async () => {
+    const { table } = get();
+    if (!table) return;
+    try { await emitWithAck<any, any>('poker:clear_bots', { tableId: table.id }); }
+    catch (e: any) { set({ error: e.message === 'OWNER_ONLY' ? 'მხოლოდ ოუნერისთვის' : pokerErrorText(e.message) }); }
   },
 
   clearError: () => set({ error: null }),

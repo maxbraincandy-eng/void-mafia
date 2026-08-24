@@ -288,3 +288,109 @@ test('resume offers nothing to somebody who was removed or never joined', async 
 
   host.close(); back.close(); stranger.close(); players[1]!.close();
 });
+
+// ─── Test bots ───────────────────────────────────────────────────────────────
+
+/**
+ * Bots are added over the socket by an owner, but the socket path needs a real
+ * profile lookup. These drive the service and the driver directly, which is
+ * what actually decides whether a game with bots can be played through.
+ */
+test('a game of bots deals, runs a night, and votes — driven by the host alone', async () => {
+  const { joinMatchAsBot, getMatch, startMatch, beginMafiaMeet, endMafiaMeet,
+          beginNight, endNight, beginDay, nextSpeaker, endVote } =
+    await import('./services/sxvaMafiaService.js');
+  const { tick } = await import('./services/xmBotDriver.js');
+
+  const host = await open('b1_host');
+  const created = await send(host, 'xm:create', { nickname: 'Host', maxSeats: 10 });
+  const match = (created as { data: any }).data;
+
+  for (let i = 0; i < 5; i++) {
+    assert.ok(joinMatchAsBot(match.id, `bot_b1_${i}`, `ბოტი ${i}`), `bot ${i} seated`);
+  }
+
+  assert.ok(startMatch(match.id, 'b1_host'), 'five players is enough to start');
+  assert.equal(getMatch(match.id)!.phase, 'assign');
+
+  // The deal: every bot has to take a card, one tick at a time.
+  for (let i = 0; i < 40 && getMatch(match.id)!.seats.some(s => s.cardIndex === null); i++) {
+    assert.ok(tick(match.id), 'a bot took a card');
+  }
+  const dealt = getMatch(match.id)!;
+  assert.ok(dealt.seats.every(s => s.cardIndex !== null), 'everyone has a card');
+  assert.ok(dealt.seats.every(s => s.role !== null), 'and therefore a role');
+
+  // Night: mafia agree on a target, the checks happen.
+  beginMafiaMeet(match.id, 'b1_host');
+  endMafiaMeet(match.id, 'b1_host');
+  beginNight(match.id, 'b1_host');
+  for (let i = 0; i < 40; i++) if (!tick(match.id)) break;
+
+  const night = getMatch(match.id)!;
+  assert.ok(Object.keys(night.night.mafiaVotes).length > 0, 'the mafia picked somebody');
+  assert.ok(night.night.sheriffCheck !== null || !night.seats.some(s => s.role === 'sheriff' && s.alive),
+    'the sheriff checked somebody, if there is one');
+
+  endNight(match.id, 'b1_host');
+  beginDay(match.id, 'b1_host');
+
+  // Day: walk the speeches; a bot holding the floor sometimes nominates.
+  for (let i = 0; i < 30 && getMatch(match.id)!.phase === 'speech'; i++) {
+    for (let t = 0; t < 3; t++) if (!tick(match.id)) break;
+    nextSpeaker(match.id, 'b1_host');
+  }
+
+  const afterDay = getMatch(match.id)!;
+  if (afterDay.phase === 'vote') {
+    for (let i = 0; i < 40; i++) if (!tick(match.id)) break;
+    const voted = getMatch(match.id)!;
+    const botVotes = Object.keys(voted.votes).filter(id => id.startsWith('bot_'));
+    assert.ok(botVotes.length > 0, 'the bots voted');
+    endVote(match.id, 'b1_host');
+  }
+
+  // Whatever happened, the game is somewhere legitimate and not stuck.
+  const end = getMatch(match.id)!;
+  assert.ok(
+    ['speech', 'vote', 'last_words', 'night', 'day_announce', 'finished'].includes(end.phase),
+    `the game is in a real phase, not stuck: ${end.phase}`,
+  );
+
+  host.close();
+});
+
+test('a bot never takes a card somebody else already has', async () => {
+  const { joinMatchAsBot, getMatch, startMatch } = await import('./services/sxvaMafiaService.js');
+  const { tick } = await import('./services/xmBotDriver.js');
+
+  const host = await open('b2_host');
+  const created = await send(host, 'xm:create', { nickname: 'Host', maxSeats: 10 });
+  const match = (created as { data: any }).data;
+  for (let i = 0; i < 6; i++) joinMatchAsBot(match.id, `bot_b2_${i}`, `ბოტი ${i}`);
+  startMatch(match.id, 'b2_host');
+
+  for (let i = 0; i < 60 && getMatch(match.id)!.seats.some(s => s.cardIndex === null); i++) tick(match.id);
+
+  const indices = getMatch(match.id)!.seats.map(s => s.cardIndex);
+  assert.equal(new Set(indices).size, indices.length, 'every card went to exactly one player');
+
+  host.close();
+});
+
+test('a bot cannot be seated once the cards are out', async () => {
+  const { joinMatchAsBot, startMatch } = await import('./services/sxvaMafiaService.js');
+
+  const host = await open('b3_host');
+  const created = await send(host, 'xm:create', { nickname: 'Host', maxSeats: 10 });
+  const match = (created as { data: any }).data;
+  for (let i = 0; i < 4; i++) joinMatchAsBot(match.id, `bot_b3_${i}`, `ბოტი ${i}`);
+  startMatch(match.id, 'b3_host');
+
+  assert.equal(
+    joinMatchAsBot(match.id, 'bot_b3_late', 'გვიანი'), null,
+    'the lobby is the only door in, for a bot as much as for a person',
+  );
+
+  host.close();
+});

@@ -31,6 +31,7 @@
  * is counted so the loss is visible rather than silent.
  */
 import { sql } from '../../db.js';
+import { isBot } from '../../services/testBots.js';
 let failures = 0;
 export function persistenceFailures() { return failures; }
 function swallow(where) {
@@ -249,6 +250,11 @@ async function writeHand(h) {
 async function updateStats(h) {
     const showdown = h.players.some(p => p.showed);
     for (const p of h.players) {
+        // A test bot's results are not a person's record. They never reach
+        // statistics, and therefore never reach a leaderboard — otherwise an
+        // afternoon of testing would rewrite the boards.
+        if (isBot(p.playerId))
+            continue;
         const won = p.net > 0;
         const voluntary = p.contributed > h.bigBlind ? 1 : 0;
         await sql `

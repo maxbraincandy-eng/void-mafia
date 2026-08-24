@@ -34,6 +34,9 @@ interface XmStore {
   endLastWords: () => Promise<void>;
   giveFoul: (targetId: string, delta?: number) => Promise<void>;
   kick: (targetId: string) => Promise<void>;
+  /** Owner-only testing aids. The server checks the permission, not this. */
+  addBot: () => Promise<void>;
+  clearBots: () => Promise<void>;
   grabFloor: () => Promise<void>;
   rematch: () => Promise<void>;
 
@@ -116,6 +119,8 @@ export const useSxvaMafiaStore = create<XmStore>((set, get) => {
     endLastWords: hostEv('xm:end_last_words'),
     giveFoul: async (targetId, delta = 1) => { const id = mid(); if (!id) return; try { const r = await emit('xm:give_foul', { matchId: id, targetId, delta }); if (!r.ok) set({ error: r.error }); } catch (e: any) { set({ error: e.message }); } },
     kick: targetEv('xm:kick'),
+    addBot: hostEv('xm:add_bot'),
+    clearBots: hostEv('xm:clear_bots'),
     grabFloor: hostEv('xm:grab_floor'),
     rematch: hostEv('xm:rematch'),
 

@@ -43,6 +43,15 @@ export interface TableServiceDeps {
     rng?: Randomness;
     newId?: () => string;
     newCode?: () => string;
+    /**
+     * Which seats are test bots.
+     *
+     * Injected rather than assumed, so the service has no opinion about how a bot
+     * is identified and the tests can make anything a bot.
+     */
+    isBot?: (playerId: string) => boolean;
+    /** How long a bot appears to think. Short in tests, human-paced in production. */
+    botThinkMs?: number;
 }
 /** Bounds a host may not exceed. A table is a game setting, not a free-form form. */
 export declare const LIMITS: {
@@ -83,6 +92,8 @@ export declare class PokerTableService {
     private readonly history;
     private readonly newId;
     private readonly newCode;
+    private readonly isBot;
+    private readonly botThinkMs;
     constructor(deps: TableServiceDeps);
     listTables(): TableSummary[];
     getTable(tableId: string): PokerTable | null;
@@ -176,6 +187,16 @@ export declare class PokerTableService {
     private afterEngine;
     private settle;
     private buildHistory;
+    /**
+     * A bot's turn.
+     *
+     * Deliberately on a timer rather than immediate: a table where three bots
+     * resolve a whole street between two frames is unwatchable, and the point of
+     * these seats is to make the table observable. The decision goes through
+     * `act()` like anyone else's — same sequence check, same validation, same
+     * audit trail — so a bot cannot do anything a player could not.
+     */
+    private scheduleBot;
     private startActionTimer;
     private clearActionTimer;
     private later;

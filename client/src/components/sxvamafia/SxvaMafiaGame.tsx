@@ -230,6 +230,9 @@ export function SxvaMafiaGame() {
   const [journalOpen, setJournalOpen] = useState(false);
   const [foulMode, setFoulMode] = useState(false);
   const [hostTarget, setHostTarget] = useState<string | null>(null);
+  // Owner-only testing aids. The server enforces this; the flag only decides
+  // whether the controls are worth drawing.
+  const isOwner = profile?.moderatorLevel === 'owner';
   const [confirmKick, setConfirmKick] = useState<string | null>(null);
   const [cinematic, setCinematic] = useState<{ type: 'night' | 'morning'; key: number } | null>(null);
   const prevPhase = useRef<string>('');
@@ -368,6 +371,28 @@ export function SxvaMafiaGame() {
     return (
       <div className="flex items-center gap-2 overflow-x-auto pb-1">
         {match.phase === 'lobby' && btn(match.seats.length < 4 ? `საჭიროა ${4 - match.seats.length} მოთ.` : '🎬 დაწყება', () => store.start(), true)}
+        {/*
+          Testing aids, owner only. A game that needs four players cannot be
+          tested by one, and bots take cards, act at night and vote on their
+          own so the whole loop can be watched by the host alone.
+        */}
+        {isOwner && match.phase === 'lobby' && (
+          <>
+            <button onClick={() => { SFX.click?.(); store.addBot(); }}
+              disabled={match.seats.length >= match.maxSeats}
+              className="px-3 py-2 rounded-xl font-mono text-[12px] whitespace-nowrap disabled:opacity-35"
+              style={{ background: 'rgba(168,85,247,0.16)', border: '1px solid rgba(168,85,247,0.45)', color: '#c4a2ff' }}>
+              🤖 ბოტი
+            </button>
+            {match.seats.some(s => s.userId.startsWith('bot_')) && (
+              <button onClick={() => { SFX.click?.(); store.clearBots(); }}
+                className="px-3 py-2 rounded-xl font-mono text-[12px] whitespace-nowrap"
+                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.14)', color: 'rgba(255,255,255,0.6)' }}>
+                ბოტების მოცილება
+              </button>
+            )}
+          </>
+        )}
         {match.phase === 'assign' && (() => {
           const all = match.cards.length > 0 && match.cards.every(c => c.claimedById);
           return <>{btn('🔀 თავიდან დარიგება', () => store.reshuffle())}

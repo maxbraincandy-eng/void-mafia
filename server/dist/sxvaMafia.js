@@ -1,5 +1,7 @@
 import { ok, err, } from './types/index.js';
-import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch, dissolveMatch, transferHost, startMatch, reshuffleRoles, setRoleConfig, setSettings, pickCard, beginMafiaMeet, endMafiaMeet, beginNight, mafiaVote, donCheck, sheriffCheck, endNight, beginDay, nextSpeaker, advanceSpeakerAuto, extendSpeech, nominate, grabFloor, castVote, endVote, giveFoul, endLastWords, rematch, disconnectSocket, getSafeState, kickPlayer, recipients, resumeForUser, } from './services/sxvaMafiaService.js';
+import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch, dissolveMatch, transferHost, startMatch, reshuffleRoles, setRoleConfig, setSettings, pickCard, beginMafiaMeet, endMafiaMeet, beginNight, mafiaVote, donCheck, sheriffCheck, endNight, beginDay, nextSpeaker, advanceSpeakerAuto, extendSpeech, nominate, grabFloor, castVote, endVote, giveFoul, endLastWords, rematch, disconnectSocket, getSafeState, kickPlayer, recipients, resumeForUser, joinMatchAsBot, } from './services/sxvaMafiaService.js';
+import { botName, isBot, isOwner, newBotId } from './services/testBots.js';
+import { tick as botTick, hasBots } from './services/xmBotDriver.js';
 const ROOM = (id) => `xm:${id}`;
 function userId(socket) { return socket.data.profileId ?? socket.id; }
 /**
@@ -26,6 +28,39 @@ function broadcastState(io, matchId, exceptUserId) {
 }
 function broadcastList(io) { io.emit('xm:list_update', listMatches()); }
 const timers = new Map();
+const botTimers = new Map();
+/**
+ * Give the bots a turn, one move at a time.
+ *
+ * Paced rather than resolved in a burst: a night that finishes between two
+ * frames tells nobody whether the night works, and the whole point of these
+ * seats is to make the game watchable by one person. Each move that lands
+ * broadcasts and schedules the next look.
+ */
+function scheduleBots(io, matchId) {
+    const existing = botTimers.get(matchId);
+    if (existing)
+        clearTimeout(existing);
+    if (!hasBots(matchId))
+        return;
+    const t = setTimeout(() => {
+        botTimers.delete(matchId);
+        let moved = false;
+        try {
+            moved = botTick(matchId);
+        }
+        catch (e) {
+            console.warn('[xm/bot]', e);
+        }
+        if (!moved)
+            return;
+        broadcastState(io, matchId);
+        syncTimer(io, matchId);
+        scheduleBots(io, matchId);
+    }, 1200);
+    t.unref();
+    botTimers.set(matchId, t);
+}
 function clearT(id) { const t = timers.get(id); if (t) {
     clearTimeout(t);
     timers.delete(id);
@@ -73,7 +108,11 @@ function syncTimer(io, matchId) {
 }
 export function registerSxvaMafiaHandlers(io, socket) {
     const uid = () => userId(socket);
-    const after = (matchId) => { broadcastState(io, matchId); syncTimer(io, matchId); };
+    const after = (matchId) => {
+        broadcastState(io, matchId);
+        syncTimer(io, matchId);
+        scheduleBots(io, matchId);
+    };
     /*
      * Accepts both `(cb)` and `(payload, cb)`.
      *
@@ -302,6 +341,58 @@ export function registerSxvaMafiaHandlers(io, socket) {
         }
     };
     socket.on('xm:transfer_host', targetAction(transferHost, 'ვერ გადაეცა ჰოსტობა'));
+    /**
+     * Owner-only: seat a test bot, or clear them out.
+     *
+     * A moderator alone cannot test a game that needs four players, and "get four
+     * friends online at the same time" is not a test plan. Owner-gated against
+     * the socket's identity, never against anything in the payload.
+     */
+    socket.on('xm:add_bot', async (d, cb) => {
+        const reply = typeof cb === 'function' ? cb : () => { };
+        try {
+            if (!(await isOwner(socket.data.profileId)))
+                return reply(err('მხოლოდ ოუნერისთვის'));
+            const matchId = String(d?.matchId ?? '');
+            const m = getMatch(matchId);
+            if (!m)
+                return reply(err('თამაში ვერ მოიძებნა'));
+            if (m.hostId !== uid())
+                return reply(err('მხოლოდ ჰოსტს შეუძლია'));
+            const name = botName(m.seats.map(s => s.nickname));
+            const added = joinMatchAsBot(matchId, newBotId(), name);
+            if (!added)
+                return reply(err('ადგილი აღარ არის'));
+            after(matchId);
+            broadcastList(io);
+            reply(ok(null));
+        }
+        catch (e) {
+            reply(err(e.message));
+        }
+    });
+    socket.on('xm:clear_bots', async (d, cb) => {
+        const reply = typeof cb === 'function' ? cb : () => { };
+        try {
+            if (!(await isOwner(socket.data.profileId)))
+                return reply(err('მხოლოდ ოუნერისთვის'));
+            const matchId = String(d?.matchId ?? '');
+            const m = getMatch(matchId);
+            if (!m)
+                return reply(err('თამაში ვერ მოიძებნა'));
+            if (m.hostId !== uid())
+                return reply(err('მხოლოდ ჰოსტს შეუძლია'));
+            for (const seat of m.seats.filter(s => isBot(s.userId))) {
+                kickPlayer(matchId, uid(), seat.userId);
+            }
+            after(matchId);
+            broadcastList(io);
+            reply(ok(null));
+        }
+        catch (e) {
+            reply(err(e.message));
+        }
+    });
     /**
      * The host removes a player.
      *

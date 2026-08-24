@@ -227,6 +227,15 @@ export declare function joinMatch(matchId: string, userId: string, socketId: str
     match: XmMatch;
     isNew: boolean;
 } | null;
+/**
+ * Seat a test bot.
+ *
+ * Separate from `joinMatch` because a bot has no socket: there is no id to
+ * store, nothing to reconnect, and nothing to broadcast to. Lobby only — a bot
+ * cannot walk into a game that has already dealt, for the same reason a person
+ * cannot.
+ */
+export declare function joinMatchAsBot(matchId: string, botId: string, nickname: string): XmMatch | null;
 export declare function leaveMatch(matchId: string, userId: string): XmMatch | null;
 /**
  * Who is still in the room and should be sent state.

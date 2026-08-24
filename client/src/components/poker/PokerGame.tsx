@@ -168,7 +168,12 @@ export function PokerGame() {
   const {
     table, compliance, chat, lastSettlement, closedReason, error,
     sit, sitOut, rebuy, leave, act, sendChat, clearError, dismissClosed,
+    addBot, clearBots,
   } = usePokerStore();
+
+  // Owner-only testing aids. The server enforces this; the flag only decides
+  // whether the controls are worth drawing.
+  const isOwner = profile?.moderatorLevel === 'owner';
 
   const [now, setNow] = useState(Date.now());
   const [raiseTo, setRaiseTo] = useState(0);
@@ -519,6 +524,10 @@ export function PokerGame() {
             onSitOut={out => void sitOut(out)}
             onRebuy={() => void rebuy()}
             onNotice={() => setNoticeOpen(true)}
+            isOwner={isOwner}
+            onAddBot={() => { haptic('tap'); void addBot(); }}
+            onClearBots={() => { haptic('tap'); void clearBots(); }}
+            hasBots={table.seats.some(s => s.playerId.startsWith('bot_'))}
           />
         )}
       </div>
@@ -940,17 +949,50 @@ function ActionControls({ youCan, raiseTo, setRaiseTo, bigBlind, pot, secondsLef
   );
 }
 
-function IdleControls({ table, you, onSit, onSitOut, onRebuy, onNotice }: {
+function IdleControls({
+  table, you, onSit, onSitOut, onRebuy, onNotice, isOwner, onAddBot, onClearBots, hasBots,
+}: {
   table: PokerTableView;
   you: PokerSeatView | null;
   onSit: () => void;
   onSitOut: (out: boolean) => void;
   onRebuy: () => void;
   onNotice: () => void;
+  isOwner: boolean;
+  onAddBot: () => void;
+  onClearBots: () => void;
+  hasBots: boolean;
 }) {
   const tableFull = table.seats.length >= table.maxSeats;
 
   return (
+    <>
+    {/*
+      Testing aids, owner only.
+      A new game cannot be tested by one person, and "get five friends online"
+      is not a test plan. Bots say what they are, and nothing they do counts.
+    */}
+    {isOwner && (
+      <div className="flex items-center gap-2 mb-2">
+        <button
+          onClick={onAddBot}
+          disabled={tableFull}
+          className="flex-1 py-2 rounded-xl font-mono text-[11px] disabled:opacity-30"
+          style={{ background: 'rgba(168,85,247,0.14)', border: '1px solid rgba(168,85,247,0.4)', color: '#c4a2ff' }}
+        >
+          🤖 ტესტ-ბოტის დამატება
+        </button>
+        {hasBots && (
+          <button
+            onClick={onClearBots}
+            className="px-3 py-2 rounded-xl font-mono text-[11px]"
+            style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.55)' }}
+          >
+            გასუფთავება
+          </button>
+        )}
+      </div>
+    )}
     <div className="flex items-center gap-2">
       {!you && (
         <button
@@ -991,6 +1033,7 @@ function IdleControls({ table, you, onSit, onSitOut, onRebuy, onNotice }: {
         ინფო
       </button>
     </div>
+    </>
   );
 }
 

@@ -32,6 +32,7 @@
  */
 
 import { sql } from '../../db.js';
+import { isBot } from '../../services/testBots.js';
 import type { AuditEntry, HandHistory } from './types.js';
 
 let failures = 0;
@@ -273,6 +274,10 @@ async function writeHand(h: HandHistory): Promise<void> {
 async function updateStats(h: HandHistory): Promise<void> {
   const showdown = h.players.some(p => p.showed);
   for (const p of h.players) {
+    // A test bot's results are not a person's record. They never reach
+    // statistics, and therefore never reach a leaderboard — otherwise an
+    // afternoon of testing would rewrite the boards.
+    if (isBot(p.playerId)) continue;
     const won = p.net > 0;
     const voluntary = p.contributed > h.bigBlind ? 1 : 0;
     await sql`
