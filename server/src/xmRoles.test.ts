@@ -12,7 +12,7 @@ import { strict as assert } from 'assert';
 import {
   createMatch, getMatch, joinMatchAsBot, setRoleConfig, startMatch, pickCard,
   beginMafiaMeet, endMafiaMeet, beginNight, endNight,
-  mafiaVote, doctorHeal, maniacKill, cultConvert,
+  mafiaVote, donCheck, doctorHeal, maniacKill, cultConvert,
   effectiveCounts, type XmMatch, type XmRole,
 } from './services/sxvaMafiaService.js';
 
@@ -81,6 +81,7 @@ test('the doctor saves the mafia\'s target', () => {
   const m = table(['don', 'doctor', 'citizen', 'citizen', 'citizen']);
   const [don, doc, victim] = [bySeat(m, 0), bySeat(m, 1), bySeat(m, 2)];
 
+  donCheck(m.id, don.userId, victim.userId);
   mafiaVote(m.id, don.userId, victim.userId);
   doctorHeal(m.id, doc.userId, victim.userId);
   endNight(m.id, hostOf(m));
@@ -97,6 +98,7 @@ test('the doctor cannot heal the same person two nights running', () => {
   // The mafia shoot somebody the doctor did not choose, so the patient lives to
   // be a repeat — the first version of this test shot the person it then tried
   // to heal again, and blamed the rule for refusing a corpse.
+  donCheck(m.id, don.userId, shot.userId);
   mafiaVote(m.id, don.userId, shot.userId);
   doctorHeal(m.id, doc.userId, patient.userId);
   endNight(m.id, hostOf(m));
@@ -120,6 +122,9 @@ test('the maniac kills on their own, and two can die in one night', () => {
   const m = table(['don', 'maniac', 'citizen', 'citizen', 'citizen', 'citizen']);
   const [don, maniac, a, b] = [bySeat(m, 0), bySeat(m, 1), bySeat(m, 2), bySeat(m, 3)];
 
+  // The don checks before shooting — the rule, and the reason this assertion
+  // started failing the moment it was added.
+  donCheck(m.id, don.userId, a.userId);
   mafiaVote(m.id, don.userId, a.userId);
   maniacKill(m.id, maniac.userId, b.userId);
   endNight(m.id, hostOf(m));
@@ -135,6 +140,7 @@ test('one save covers every knife aimed at the same person', () => {
   const m = table(['don', 'maniac', 'doctor', 'citizen', 'citizen', 'citizen']);
   const [don, maniac, doc, target] = [bySeat(m, 0), bySeat(m, 1), bySeat(m, 2), bySeat(m, 3)];
 
+  donCheck(m.id, don.userId, target.userId);
   mafiaVote(m.id, don.userId, target.userId);
   maniacKill(m.id, maniac.userId, target.userId);
   doctorHeal(m.id, doc.userId, target.userId);
@@ -219,6 +225,7 @@ test('the mafia cannot claim parity while a maniac is still shooting', () => {
   live.seats[4]!.alive = false;
   // Alive: don, maniac, one citizen. The mafia are 1 of 3 — no parity anyway,
   // but make it 1 v 1 v 1 and confirm nobody has won yet.
+  donCheck(m.id, live.seats[0]!.userId, live.seats[2]!.userId);
   mafiaVote(m.id, live.seats[0]!.userId, live.seats[2]!.userId);
   maniacKill(m.id, live.seats[1]!.userId, live.seats[2]!.userId);
   endNight(m.id, hostOf(m));
@@ -239,4 +246,55 @@ test('town wins only when nothing hostile is left', () => {
   endNight(m.id, hostOf(m));
 
   assert.equal(getMatch(m.id)!.winner, 'town');
+});
+
+// ─── The don's order, and ending a game ──────────────────────────────────────
+
+test('the don checks before shooting, so the answer is on screen while they choose', async () => {
+  const { mafiaVote: vote, donCheck } = await import('./services/sxvaMafiaService.js');
+  const m = table(['don', 'sheriff', 'citizen', 'citizen', 'citizen']);
+  const [don, sheriff, plain] = [bySeat(m, 0), bySeat(m, 1), bySeat(m, 2)];
+
+  assert.equal(
+    vote(m.id, don.userId, plain.userId), null,
+    'shooting first meant the night could resolve on the check, and the one piece '
+    + 'of information the don gets all night went past on its way to the morning',
+  );
+
+  assert.ok(donCheck(m.id, don.userId, sheriff.userId), 'so the check comes first');
+  assert.equal(getMatch(m.id)!.night.donResult, true);
+  assert.match(bySeat(getMatch(m.id)!, 0).lastCheck ?? '', /შერიფია/, 'and it says so in words');
+
+  assert.ok(vote(m.id, don.userId, plain.userId), 'then the kill');
+});
+
+test('a plain mafia shoots without checking anything', async () => {
+  const { mafiaVote: vote } = await import('./services/sxvaMafiaService.js');
+  const m = table(['don', 'mafia', 'citizen', 'citizen', 'citizen']);
+  assert.ok(vote(m.id, bySeat(m, 1).userId, bySeat(m, 2).userId), 'the order rule is the don\'s alone');
+});
+
+test('the host can end a game without closing the room', async () => {
+  const { endGame } = await import('./services/sxvaMafiaService.js');
+  const m = table(['don', 'sheriff', 'citizen', 'citizen', 'citizen']);
+  const code = m.code;
+  const seats = m.seats.length;
+
+  assert.ok(endGame(m.id, hostOf(m)));
+
+  const after = getMatch(m.id)!;
+  assert.equal(after.phase, 'lobby', 'everyone lands back in the lobby');
+  assert.equal(after.dissolved, false, 'the room is not closed');
+  assert.equal(after.code, code, 'and keeps its code, so nobody has to reassemble');
+  assert.equal(after.seats.length, seats, 'with the same people still seated');
+  assert.ok(after.seats.every(s => s.role === null && s.alive), 'roles and lives reset');
+  assert.equal(after.round, 0);
+});
+
+test('only the host ends the game, and never from the lobby', async () => {
+  const { endGame } = await import('./services/sxvaMafiaService.js');
+  const m = table(['don', 'citizen', 'citizen', 'citizen']);
+  assert.equal(endGame(m.id, bySeat(m, 1).userId), null, 'a player cannot stop everyone\'s game');
+  assert.ok(endGame(m.id, hostOf(m)));
+  assert.equal(endGame(m.id, hostOf(m)), null, 'and there is nothing to end once it is over');
 });

@@ -57,6 +57,7 @@ export interface XmSafeState {
   nightEndsAt: number;
   iActedTonight: boolean;
   nightPrivate: string | null;
+  iCheckedTonight: boolean;
   nightAllActed: boolean;
   mafiaPicks: { userId: string; nickname: string; targetId: string; targetName: string }[];
   announce: XmAnnounce | null;

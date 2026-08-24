@@ -1,5 +1,5 @@
 import { ok, err, } from './types/index.js';
-import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch, dissolveMatch, transferHost, startMatch, reshuffleRoles, setRoleConfig, setSettings, pickCard, beginMafiaMeet, endMafiaMeet, beginNight, mafiaVote, donCheck, sheriffCheck, endNight, beginDay, nextSpeaker, advanceSpeakerAuto, extendSpeech, nominate, grabFloor, doctorHeal, maniacKill, cultConvert, castVote, endVote, nextCandidate, giveFoul, endLastWords, rematch, disconnectSocket, getSafeState, kickPlayer, recipients, resumeForUser, joinMatchAsBot, } from './services/sxvaMafiaService.js';
+import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch, dissolveMatch, transferHost, startMatch, reshuffleRoles, setRoleConfig, setSettings, pickCard, beginMafiaMeet, endMafiaMeet, beginNight, mafiaVote, donCheck, sheriffCheck, endNight, beginDay, nextSpeaker, advanceSpeakerAuto, extendSpeech, nominate, grabFloor, doctorHeal, maniacKill, cultConvert, castVote, endVote, nextCandidate, giveFoul, endLastWords, rematch, endGame, disconnectSocket, getSafeState, kickPlayer, recipients, resumeForUser, joinMatchAsBot, } from './services/sxvaMafiaService.js';
 import { botName, isBot, isOwner, newBotId } from './services/testBots.js';
 import { tick as botTick, hasBots } from './services/xmBotDriver.js';
 const ROOM = (id) => `xm:${id}`;
@@ -221,6 +221,9 @@ export function registerSxvaMafiaHandlers(io, socket) {
     };
     socket.on('xm:start', hostAction(startMatch, 'ვერ დაიწყო — საჭიროა მინიმუმ 4 მოთამაშე'));
     socket.on('xm:reshuffle', hostAction(reshuffleRoles, 'ვერ განახლდა'));
+    // Stop the game and go back to the lobby — the room, the seats and the code
+    // all survive. Distinct from closing the room, which ends it for everyone.
+    socket.on('xm:end_game', hostAction(endGame, 'ვერ დასრულდა'));
     socket.on('xm:set_roles', (data, cb) => {
         try {
             const matchId = String(data?.matchId);

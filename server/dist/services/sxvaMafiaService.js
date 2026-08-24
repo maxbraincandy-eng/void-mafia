@@ -647,6 +647,17 @@ export function beginNight(matchId, byUserId) {
     return m;
 }
 /** Mafia member picks the kill target for tonight. */
+/**
+ * The mafia's kill vote.
+ *
+ * The don must check first.
+ *
+ * They used to be able to do it in either order, and choosing the kill last
+ * meant the night resolved the instant the check landed — the answer they had
+ * just paid a whole night for flashed past on its way to the morning. Checking
+ * first puts the result on screen while the kill is still being decided, which
+ * is also the order it is useful in.
+ */
 export function mafiaVote(matchId, byUserId, targetUserId) {
     const m = matches.get(matchId);
     if (!m || m.phase !== 'night')
@@ -657,6 +668,8 @@ export function mafiaVote(matchId, byUserId, targetUserId) {
         return null;
     if (!target || !target.alive || isMafiaRole(target.role))
         return null; // mafia don't shoot their own
+    if (actor.role === 'don' && m.night.donCheck === null)
+        return null; // check first — see above
     m.night.mafiaVotes[byUserId] = targetUserId;
     maybeAutoNight(m);
     return m;
@@ -673,7 +686,11 @@ export function donCheck(matchId, byUserId, targetUserId) {
         return null;
     m.night.donCheck = targetUserId;
     m.night.donResult = target.role === 'sheriff';
-    actor.lastCheck = `🎩 ${seatLabel(target)}: ${m.night.donResult ? 'შერიფია ✓' : 'შერიფი არ არის'}`;
+    // Spelled out, not a tick: this is the one piece of information the don gets
+    // all night and it should not need decoding.
+    actor.lastCheck = m.night.donResult
+        ? `🎩 ${seatLabel(target)} — შერიფია ✅`
+        : `🎩 ${seatLabel(target)} — შერიფი არ არის ❌`;
     maybeAutoNight(m);
     return m;
 }
@@ -689,7 +706,9 @@ export function sheriffCheck(matchId, byUserId, targetUserId) {
         return null;
     m.night.sheriffCheck = targetUserId;
     m.night.sheriffResult = isMafiaRole(target.role);
-    actor.lastCheck = `🔎 ${seatLabel(target)}: ${m.night.sheriffResult ? 'მაფიაა ✗' : 'მშვიდობიანია ✓'}`;
+    actor.lastCheck = m.night.sheriffResult
+        ? `🔎 ${seatLabel(target)} — მაფიაა ❌`
+        : `🔎 ${seatLabel(target)} — მშვიდობიანია ✅`;
     maybeAutoNight(m);
     return m;
 }
@@ -1173,10 +1192,15 @@ function checkWin(m) {
     }
     return false;
 }
-export function rematch(matchId, byUserId) {
-    const m = matches.get(matchId);
-    if (!m || m.hostId !== byUserId || m.phase !== 'finished')
-        return null;
+/**
+ * Take the room back to the lobby.
+ *
+ * `rematch` is this after a finished game; `endGame` is this from the middle of
+ * one. They are the same reset, and they were worth separating from
+ * `dissolveMatch` — until now the only way out of a running game was to close
+ * the room entirely, which throws everybody out to start again from a new code.
+ */
+function resetToLobby(m) {
     // Keep the host and connected seats; fold spectators into open seats.
     const keep = m.seats.filter(s => s.connected);
     for (const sp of m.spectators.filter(s => s.connected)) {
@@ -1212,6 +1236,23 @@ export function rematch(matchId, byUserId) {
     m.reveal = null;
     m.dissolved = false;
     m.log = [];
+    m.hostLeft = false;
+}
+export function endGame(matchId, byUserId) {
+    const m = matches.get(matchId);
+    if (!m || m.hostId !== byUserId)
+        return null;
+    if (m.phase === 'lobby' || m.dissolved)
+        return null;
+    pushLog(m, 'game', '⏹ ჰოსტმა თამაში დაასრულა — ლობი');
+    resetToLobby(m);
+    return m;
+}
+export function rematch(matchId, byUserId) {
+    const m = matches.get(matchId);
+    if (!m || m.hostId !== byUserId || m.phase !== 'finished')
+        return null;
+    resetToLobby(m);
     return m;
 }
 // ── Safe state ─────────────────────────────────────────────────────────────────
@@ -1334,6 +1375,11 @@ export function getSafeState(m, viewerUserId) {
         nightEndsAt: m.phase === 'night' ? m.nightEndsAt : 0,
         iActedTonight,
         nightPrivate,
+        iCheckedTonight: m.phase === 'night' && meSeat?.alive
+            ? (meSeat.role === 'don' ? m.night.donCheck !== null
+                : meSeat.role === 'sheriff' ? m.night.sheriffCheck !== null
+                    : false)
+            : false,
         nightAllActed: m.phase === 'night' ? nightAllActed(m) : false,
         mafiaPicks,
         announce: (m.phase === 'day_announce' || m.phase === 'last_words') ? m.announce : null,

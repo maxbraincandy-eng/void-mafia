@@ -68,14 +68,15 @@ export function tick(matchId: string): boolean {
     const alive = m.seats.filter(s => s.alive && !s.left);
 
     for (const seat of aliveBots(m)) {
+      // The don checks before shooting — the same order a person has to follow.
+      if (seat.role === 'don' && m.night.donCheck === null) {
+        const target = pick(alive.filter(s => s.userId !== seat.userId), salt + seat.seat * 3);
+        if (target && donCheck(matchId, seat.userId, target.userId)) return true;
+      }
       if (isMafiaRole(seat) && !m.night.mafiaVotes[seat.userId]) {
         const targets = alive.filter(s => !isMafiaRole(s));
         const target = pick(targets, salt + seat.seat);
         if (target && mafiaVote(matchId, seat.userId, target.userId)) return true;
-      }
-      if (seat.role === 'don' && m.night.donCheck === null) {
-        const target = pick(alive.filter(s => s.userId !== seat.userId), salt + seat.seat * 3);
-        if (target && donCheck(matchId, seat.userId, target.userId)) return true;
       }
       if (seat.role === 'sheriff' && m.night.sheriffCheck === null) {
         const target = pick(alive.filter(s => s.userId !== seat.userId), salt + seat.seat * 5);

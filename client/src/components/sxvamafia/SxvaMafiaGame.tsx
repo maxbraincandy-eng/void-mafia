@@ -10,6 +10,8 @@ import { useLiveKitGate, useLivekitRoomVoice } from '@/hooks/useLivekitVoice';
 import {
   getLiveKitRemoteVideo, getLiveKitLocalVideo, getLiveKitSpeaking, setLiveKitCamera,
 } from '@/services/livekitVoice';
+import { SeatEmblem } from './SeatEmblem';
+import { VoidCardBack } from './VoidCardBack';
 import { XM_ROLE_META, XM_TEAM_META, type XmSafeSeat, type XmSafeState, type XmRole } from '@/types/sxvaMafia';
 import { GameInviteButton } from '@/components/social/GameInviteButton';
 
@@ -116,7 +118,6 @@ const SeatTile = memo(function SeatTile({ seat, isHostTile, fill, match, myId, s
   const conn = isHostTile ? match.hostConnected : seat!.connected;
   const glow = turnSpeaking ? RED : grabbing ? '#ffcc33' : isSpeaking ? '#39d98a' : mate ? '#ff6b6b' : 'transparent';
   const canFoul = isHost && foulMode && !isHostTile && seat!.alive;
-  const initial = (name || '?').trim().charAt(0).toUpperCase() || '?';
   const avatarColor = isHostTile ? RED : AV[((seat?.seat ?? 0)) % AV.length]!;
 
   return (
@@ -140,7 +141,14 @@ const SeatTile = memo(function SeatTile({ seat, isHostTile, fill, match, myId, s
           ) : (
             <div className="rounded-full flex items-center justify-center font-display font-black text-white"
               style={{ width: '42%', aspectRatio: '1', fontSize: '1.5rem', background: `linear-gradient(155deg, ${avatarColor}, #16111f)`, border: '1px solid rgba(255,255,255,0.1)', boxShadow: 'inset 0 -6px 14px rgba(0,0,0,0.45), 0 3px 10px rgba(0,0,0,0.45)' }}>
-              {isHostTile ? '🎬' : initial}
+              {/*
+                An emblem, not an initial: at twelve seats two players share a
+                letter as often as not, and an uppercased Georgian letter is a
+                tofu box in most fonts. See SeatEmblem.
+              */}
+              {isHostTile
+                ? <span style={{ fontSize: '1.4rem' }}>🎬</span>
+                : <SeatEmblem seed={seat?.userId ?? name} size="66%" color="rgba(255,255,255,0.92)" />}
             </div>
           )}
         </div>
@@ -304,6 +312,7 @@ export function SxvaMafiaGame() {
     doctor: match?.setup.doctor ?? 0, maniac: match?.setup.maniac ?? 0, cult: match?.setup.cult ?? 0,
   };
   const [confirmKick, setConfirmKick] = useState<string | null>(null);
+  const [confirmEnd, setConfirmEnd] = useState(false);
   const [cinematic, setCinematic] = useState<{ type: 'night' | 'morning'; key: number } | null>(null);
   const prevPhase = useRef<string>('');
   const cameraInit = useRef(false);
@@ -488,6 +497,18 @@ export function SxvaMafiaGame() {
         )}
         {match.phase === 'vote' && btn('✅ ხმების დათვლა', () => store.endVote())}
         {match.phase === 'last_words' && btn('➡️ გაგრძელება', () => store.endLastWords(), true)}
+        {/*
+          Stop the game, keep the room.
+          Until now the only way out of a running game was to close the room
+          entirely, which throws everybody out to reassemble under a new code.
+        */}
+        {match.phase !== 'lobby' && (
+          <button onClick={() => { SFX.click?.(); setConfirmEnd(true); }}
+            className="px-3 py-2 rounded-xl font-mono text-[12px] whitespace-nowrap"
+            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.14)', color: 'rgba(255,255,255,0.6)' }}>
+            ⏹ დასრულება
+          </button>
+        )}
         {(match.phase === 'speech' || match.phase === 'night' || match.phase === 'day_announce') &&
           <button onClick={() => { SFX.click?.(); setFoulMode(f => !f); }} className="px-3 py-2 rounded-xl font-display font-bold text-[13px] whitespace-nowrap"
             style={{ background: foulMode ? '#ffcc33' : 'rgba(255,255,255,0.06)', color: foulMode ? '#000' : '#fff', border: '1px solid rgba(255,255,255,0.14)' }}>⚠️ ფაული {foulMode ? 'ჩართ.' : ''}</button>}
@@ -546,13 +567,36 @@ export function SxvaMafiaGame() {
           {match.nightPrivate && <p className="text-center font-mono text-[13px] mt-2 text-white">{match.nightPrivate}</p>}</div>);
       }
       if (nightRole === 'don') {
+        /*
+         * Check first, then shoot.
+         *
+         * Both at once meant the night could resolve the instant the check
+         * landed, and the one piece of information the don gets all night went
+         * past on its way to the morning. Now the answer is on screen while the
+         * kill is still being chosen — which is also the order it is useful in.
+         */
+        // Tonight's check, not last night's — see iCheckedTonight.
+        const checked = match.iCheckedTonight;
         return (<div className="space-y-2">
-          <p className="text-center font-mono text-[11px]" style={{ color: RED }}>🔫 მაფიის მსხვერპლი</p>
-          <Chips seats={aliveSeats.filter(s => !match.mateIds.includes(s.userId) && s.userId !== myId)} onPick={store.mafiaVote} />
-          {consensus}
-          <p className="text-center font-mono text-[11px]" style={{ color: '#ffcc33' }}>🎩 შეამოწმე შერიფზე</p>
-          <Chips seats={aliveSeats.filter(s => s.userId !== myId)} onPick={store.donCheck} />
-          {match.nightPrivate && <p className="text-center font-mono text-[13px] text-white">{match.nightPrivate}</p>}</div>);
+          <div className="rounded-xl px-3 py-2.5" style={{ background: 'rgba(255,204,51,0.07)', border: '1px solid rgba(255,204,51,0.28)' }}>
+            <p className="text-center font-mono text-[11px] mb-2" style={{ color: '#ffcc33' }}>
+              1️⃣ 🎩 ჯერ შეამოწმე — შერიფია თუ არა
+            </p>
+            {checked ? (
+              <p className="text-center font-display font-bold text-[15px] text-white">{match.nightPrivate}</p>
+            ) : (
+              <Chips seats={aliveSeats.filter(s => s.userId !== myId)} onPick={store.donCheck} />
+            )}
+          </div>
+
+          <div className="rounded-xl px-3 py-2.5" style={{ background: checked ? `${RED}0f` : 'rgba(255,255,255,0.02)', border: `1px solid ${checked ? RED + '44' : 'rgba(255,255,255,0.08)'}`, opacity: checked ? 1 : 0.45 }}>
+            <p className="text-center font-mono text-[11px] mb-2" style={{ color: RED }}>2️⃣ 🔫 მაფიის მსხვერპლი</p>
+            {checked
+              ? <Chips seats={aliveSeats.filter(s => !match.mateIds.includes(s.userId) && s.userId !== myId)} onPick={store.mafiaVote} />
+              : <p className="text-center font-mono text-[11px] text-white/40">ჯერ შემოწმება</p>}
+            {checked && consensus}
+          </div>
+        </div>);
       }
       if (nightRole === 'mafia') {
         return (<div><p className="text-center font-mono text-[11px] mb-2" style={{ color: RED }}>🔫 აირჩიე მსხვერპლი (მაფიასთან ერთად)</p>
@@ -843,10 +887,14 @@ export function SxvaMafiaGame() {
                     className="relative rounded-xl flex flex-col items-center justify-center"
                     style={{
                       aspectRatio: '3/4',
-                      border: `2px solid ${rm ? rm.color : claimed ? 'rgba(255,255,255,0.12)' : RED + '66'}`,
-                      background: rm ? `linear-gradient(160deg, ${rm.color}22, #0a0609)` : claimed ? 'rgba(255,255,255,0.03)' : 'linear-gradient(160deg, #2a0a10, #12060a)',
+                      border: `2px solid ${rm ? rm.color : claimed ? 'rgba(255,255,255,0.12)' : 'rgba(168,85,247,0.45)'}`,
+                      // The unclaimed back is the VOID card's own colour, not the
+                      // table's red — it is the deck, not a role.
+                      background: rm ? `linear-gradient(160deg, ${rm.color}22, #0a0609)`
+                        : claimed ? 'rgba(255,255,255,0.03)'
+                        : 'linear-gradient(160deg, #1b0f33, #0b0714)',
                       cursor: canPick ? 'pointer' : 'default',
-                      boxShadow: rm ? `0 0 16px ${rm.color}55` : canPick ? `0 4px 14px ${RED}22` : 'none',
+                      boxShadow: rm ? `0 0 16px ${rm.color}55` : canPick ? '0 4px 16px rgba(168,85,247,0.28)' : 'none',
                     }}>
                     {rm ? (
                       <motion.div initial={{ rotateY: 90, opacity: 0 }} animate={{ rotateY: 0, opacity: 1 }} className="flex flex-col items-center px-1">
@@ -855,12 +903,12 @@ export function SxvaMafiaGame() {
                         <span className="font-mono text-[8px] text-white/40 mt-0.5">{rm.team === 'mafia' ? 'მაფია' : 'ქალაქი'}</span>
                       </motion.div>
                     ) : claimed ? (
-                      <div className="flex flex-col items-center">
-                        <span className="text-2xl opacity-50">🎴</span>
+                      <div className="flex flex-col items-center w-full">
+                        <VoidCardBack size="52%" dim />
                         <span className="font-mono text-[11px] text-white/50 mt-1">#{c.claimedBySeat}</span>
                       </div>
                     ) : (
-                      <span className="font-display font-black" style={{ fontSize: 28, color: `${RED}` }}>?</span>
+                      <VoidCardBack size="66%" live={canPick} />
                     )}
                   </motion.button>
                 );

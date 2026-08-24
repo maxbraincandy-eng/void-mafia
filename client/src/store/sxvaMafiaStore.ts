@@ -40,6 +40,7 @@ interface XmStore {
   clearBots: () => Promise<void>;
   grabFloor: () => Promise<void>;
   rematch: () => Promise<void>;
+  endGame: () => Promise<void>;
 
   // player
   mafiaVote: (targetId: string) => Promise<void>;
@@ -128,6 +129,7 @@ export const useSxvaMafiaStore = create<XmStore>((set, get) => {
     clearBots: hostEv('xm:clear_bots'),
     grabFloor: hostEv('xm:grab_floor'),
     rematch: hostEv('xm:rematch'),
+    endGame: hostEv('xm:end_game'),
 
     mafiaVote: targetEv('xm:mafia_vote'),
     donCheck: targetEv('xm:don_check'),

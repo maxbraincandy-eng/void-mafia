@@ -234,6 +234,14 @@ export interface XmSafeState {
     nightEndsAt: number;
     iActedTonight: boolean;
     nightPrivate: string | null;
+    /**
+     * Did I check TONIGHT?
+     *
+     * Distinct from having a result at all: `nightPrivate` holds last night's
+     * answer too, and a don whose panel unlocked on a stale result would skip
+     * this night's check entirely.
+     */
+    iCheckedTonight: boolean;
     nightAllActed: boolean;
     mafiaPicks: {
         userId: string;
@@ -402,6 +410,17 @@ export declare function beginMafiaMeet(matchId: string, byUserId: string): XmMat
 export declare function endMafiaMeet(matchId: string, byUserId: string): XmMatch | null;
 export declare function beginNight(matchId: string, byUserId: string): XmMatch | null;
 /** Mafia member picks the kill target for tonight. */
+/**
+ * The mafia's kill vote.
+ *
+ * The don must check first.
+ *
+ * They used to be able to do it in either order, and choosing the kill last
+ * meant the night resolved the instant the check landed — the answer they had
+ * just paid a whole night for flashed past on its way to the morning. Checking
+ * first puts the result on screen while the kill is still being decided, which
+ * is also the order it is useful in.
+ */
 export declare function mafiaVote(matchId: string, byUserId: string, targetUserId: string): XmMatch | null;
 export declare function donCheck(matchId: string, byUserId: string, targetUserId: string): XmMatch | null;
 export declare function sheriffCheck(matchId: string, byUserId: string, targetUserId: string): XmMatch | null;
@@ -443,6 +462,7 @@ export declare const FLOOR_GRAB_MS = 6000;
 export declare function grabFloor(matchId: string, byUserId: string): XmMatch | null;
 /** Host (or timer) ends the farewell speech; flow returns to the day/night loop. */
 export declare function endLastWords(matchId: string, byUserId: string | null): XmMatch | null;
+export declare function endGame(matchId: string, byUserId: string): XmMatch | null;
 export declare function rematch(matchId: string, byUserId: string): XmMatch | null;
 export declare function getSafeState(m: XmMatch, viewerUserId: string): XmSafeState;
 //# sourceMappingURL=sxvaMafiaService.d.ts.map
