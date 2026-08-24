@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, memo } from 'react';
+import { useEffect, useRef, useState, memo, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SFX } from '@/lib/audioEngine';
@@ -10,7 +10,7 @@ import { useLiveKitGate, useLivekitRoomVoice } from '@/hooks/useLivekitVoice';
 import {
   getLiveKitRemoteVideo, getLiveKitLocalVideo, getLiveKitSpeaking, setLiveKitCamera,
 } from '@/services/livekitVoice';
-import { SeatEmblem } from './SeatEmblem';
+import { SeatEmblem, assignEmblems } from './SeatEmblem';
 import { VoidCardBack } from './VoidCardBack';
 import { XM_ROLE_META, XM_TEAM_META, type XmSafeSeat, type XmSafeState, type XmRole } from '@/types/sxvaMafia';
 import { GameInviteButton } from '@/components/social/GameInviteButton';
@@ -106,8 +106,9 @@ interface SeatTileProps {
   seat: XmSafeSeat | null; isHostTile?: boolean; fill?: boolean;
   match: XmSafeState; myId: string; stream: MediaStream | null; isSpeaking: boolean;
   foulMode: boolean; isHost: boolean; speechLeft: number; onFoul: (uid: string) => void; grabbing?: boolean;
+  emblem?: number;
 }
-const SeatTile = memo(function SeatTile({ seat, isHostTile, fill, match, myId, stream, isSpeaking, foulMode, isHost, speechLeft, onFoul, grabbing }: SeatTileProps) {
+const SeatTile = memo(function SeatTile({ seat, isHostTile, fill, match, myId, stream, isSpeaking, foulMode, isHost, speechLeft, onFoul, grabbing, emblem }: SeatTileProps) {
   const uid = isHostTile ? match.hostId : seat!.userId;
   const name = isHostTile ? match.hostName : seat!.nickname;
   const isMe = uid === myId;
@@ -148,7 +149,7 @@ const SeatTile = memo(function SeatTile({ seat, isHostTile, fill, match, myId, s
               */}
               {isHostTile
                 ? <span style={{ fontSize: '1.4rem' }}>🎬</span>
-                : <SeatEmblem seed={seat?.userId ?? name} size="66%" color="rgba(255,255,255,0.92)" />}
+                : <SeatEmblem seed={seat?.userId ?? name} index={emblem} size="66%" color="rgba(255,255,255,0.92)" />}
             </div>
           )}
         </div>
@@ -415,11 +416,17 @@ export function SxvaMafiaGame() {
    * tap on a video tile. One extra tap buys an undo and an explicit removal.
    */
   const onFoul = (uid: string) => { SFX.click?.(); haptic('selection'); setHostTarget(uid); };
+  /* One mark per seat at this table — see assignEmblems. */
+  const emblems = useMemo(
+    () => assignEmblems((match?.seats ?? []).map(s => s.userId)),
+    [match?.seats.map(s => s.userId).join(',')],
+  );
+
   const renderSeat = (seat: XmSafeSeat | null, extra: { isHostTile?: boolean; fill?: boolean } = {}) => {
     const uid = extra.isHostTile ? match!.hostId : seat!.userId;
     const grabbing = !extra.isHostTile && match!.floorGrabUserId === uid && match!.floorGrabUntil > now;
     return <SeatTile key={extra.isHostTile ? 'host' : seat!.userId} seat={seat} match={match!} myId={myId}
-      stream={streamFor(uid)} isSpeaking={speaking.has(uid)} grabbing={grabbing} foulMode={foulMode} isHost={isHost} speechLeft={speechLeft} onFoul={onFoul} {...extra} />;
+      stream={streamFor(uid)} isSpeaking={speaking.has(uid)} grabbing={grabbing} foulMode={foulMode} isHost={isHost} speechLeft={speechLeft} onFoul={onFoul} emblem={emblems.get(uid)} {...extra} />;
   };
 
   // ── target chips for actions (mini-avatar pills) ────────────────────────────
@@ -448,7 +455,13 @@ export function SxvaMafiaGame() {
         style={{ background: primary ? `linear-gradient(135deg, ${RED}, #b81020)` : 'rgba(255,255,255,0.06)', color: '#fff', border: primary ? 'none' : '1px solid rgba(255,255,255,0.14)' }}>{label}</button>
     );
     return (
-      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+      /*
+        Wrap, do not scroll.
+        A horizontal scroller quietly cuts the last button in half and there is
+        nothing on screen that says it can be scrolled — "პირველი ღამე" was
+        arriving with its second word missing.
+      */
+      <div className="flex flex-wrap items-center justify-center gap-2 pb-1">
         {match.phase === 'lobby' && btn(match.seats.length < 4 ? `საჭიროა ${4 - match.seats.length} მოთ.` : '🎬 დაწყება', () => store.start(), true)}
         {/*
           Testing aids, owner only. A game that needs four players cannot be
@@ -497,18 +510,8 @@ export function SxvaMafiaGame() {
         )}
         {match.phase === 'vote' && btn('✅ ხმების დათვლა', () => store.endVote())}
         {match.phase === 'last_words' && btn('➡️ გაგრძელება', () => store.endLastWords(), true)}
-        {/*
-          Stop the game, keep the room.
-          Until now the only way out of a running game was to close the room
-          entirely, which throws everybody out to reassemble under a new code.
-        */}
-        {match.phase !== 'lobby' && (
-          <button onClick={() => { SFX.click?.(); setConfirmEnd(true); }}
-            className="px-3 py-2 rounded-xl font-mono text-[12px] whitespace-nowrap"
-            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.14)', color: 'rgba(255,255,255,0.6)' }}>
-            ⏹ დასრულება
-          </button>
-        )}
+        {/* Ending a game and closing the room both live behind ✕ — they are
+            ways out, not phase controls, and the bar is for running the game. */}
         {(match.phase === 'speech' || match.phase === 'night' || match.phase === 'day_announce') &&
           <button onClick={() => { SFX.click?.(); setFoulMode(f => !f); }} className="px-3 py-2 rounded-xl font-display font-bold text-[13px] whitespace-nowrap"
             style={{ background: foulMode ? '#ffcc33' : 'rgba(255,255,255,0.06)', color: foulMode ? '#000' : '#fff', border: '1px solid rgba(255,255,255,0.14)' }}>⚠️ ფაული {foulMode ? 'ჩართ.' : ''}</button>}
@@ -1318,15 +1321,55 @@ export function SxvaMafiaGame() {
       <AnimatePresence>
         {confirmLeave && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[590] flex items-center justify-center px-8" style={{ background: 'rgba(4,4,10,0.8)' }} onClick={() => setConfirmLeave(false)}>
-            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }} onClick={e => e.stopPropagation()}
-              className="w-full max-w-xs rounded-2xl p-5 text-center" style={{ background: 'rgba(20,10,14,0.99)', border: `1px solid ${RED}44` }}>
-              <p className="font-display font-bold text-white text-[15px]">თამაშის დატოვება?</p>
-              <p className="font-mono text-[11px] text-white/45 mt-1">{isHost ? 'ჰოსტის გასვლა თამაშს ყველასთვის დაასრულებს.' : 'შენ თამაშიდან გახვალ.'}</p>
-              <div className="mt-4 flex gap-2">
-                <button onClick={() => setConfirmLeave(false)} className="flex-1 py-2.5 rounded-xl font-mono text-[12px]" style={{ color: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.15)' }}>დარჩენა</button>
-                <button onClick={() => { setConfirmLeave(false); doLeave(); }} className="flex-1 py-2.5 rounded-xl font-mono text-[12px] text-white" style={{ background: RED }}>გასვლა</button>
-              </div>
+            className="fixed inset-0 z-[590] flex items-center justify-center px-8" style={{ background: 'rgba(4,4,10,0.85)' }} onClick={() => setConfirmLeave(false)}>
+            <motion.div initial={{ scale: 0.92 }} animate={{ scale: 1 }} exit={{ scale: 0.92 }} onClick={e => e.stopPropagation()}
+              className="w-full max-w-xs rounded-2xl p-5" style={{ background: 'rgba(20,10,14,0.99)', border: `1px solid ${RED}44` }}>
+
+              {/*
+                For the host this is a choice, not a question.
+                Ending the game and closing the room are different decisions —
+                one keeps the room, the code and the seats; the other throws
+                everybody out to reassemble. They should never be one button.
+              */}
+              {isHost ? (
+                <>
+                  <p className="font-display font-bold text-white text-[15px] text-center">რას აკეთებ?</p>
+
+                  {match.phase !== 'lobby' && (
+                    <button
+                      onClick={() => { SFX.click?.(); setConfirmLeave(false); store.endGame(); }}
+                      className="w-full mt-4 py-3 rounded-xl text-left px-3.5"
+                      style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.16)' }}>
+                      <span className="font-display font-bold text-white text-[13.5px]">⏹ ხელის დასრულება — ლობი</span>
+                      <span className="block font-mono text-[10.5px] text-white/40 mt-0.5">ოთახი და კოდი რჩება, ყველა ლობიში ბრუნდება</span>
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => { SFX.click?.(); setConfirmLeave(false); setConfirmEnd(true); }}
+                    className="w-full mt-2 py-3 rounded-xl text-left px-3.5"
+                    style={{ background: `${RED}18`, border: `1px solid ${RED}55` }}>
+                    <span className="font-display font-bold text-[13.5px]" style={{ color: '#ff8a92' }}>✕ მაგიდის გაუქმება</span>
+                    <span className="block font-mono text-[10.5px] text-white/40 mt-0.5">ოთახი იხურება ყველასთვის</span>
+                  </button>
+
+                  <button
+                    onClick={() => setConfirmLeave(false)}
+                    className="w-full mt-2 py-2.5 rounded-xl font-mono text-[12px]"
+                    style={{ color: 'rgba(255,255,255,0.55)', border: '1px solid rgba(255,255,255,0.14)' }}>
+                    გაგრძელება
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="font-display font-bold text-white text-[15px] text-center">თამაშის დატოვება?</p>
+                  <p className="font-mono text-[11px] text-white/45 mt-1 text-center">შენ თამაშიდან გახვალ.</p>
+                  <div className="mt-4 flex gap-2">
+                    <button onClick={() => setConfirmLeave(false)} className="flex-1 py-2.5 rounded-xl font-mono text-[12px]" style={{ color: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.15)' }}>დარჩენა</button>
+                    <button onClick={() => { setConfirmLeave(false); doLeave(); }} className="flex-1 py-2.5 rounded-xl font-mono text-[12px] text-white" style={{ background: RED }}>გასვლა</button>
+                  </div>
+                </>
+              )}
             </motion.div>
           </motion.div>
         )}

@@ -20,6 +20,8 @@
 interface Props {
   /** Stable id — the same player gets the same emblem, always. */
   seed: string;
+  /** Overrides the hash, so a table can guarantee no two seats share a mark. */
+  index?: number;
   /** Square size — a number of pixels, or any CSS length such as '70%'. */
   size: number | string;
   /** The seat's colour; the mark is drawn in a light tint of it. */
@@ -99,8 +101,30 @@ export function seatEmblemIndex(seed: string): number {
   return hash(seed) % EMBLEMS.length;
 }
 
-export function SeatEmblem({ seed, size, color }: Props) {
-  const draw = EMBLEMS[seatEmblemIndex(seed)]!;
+/**
+ * One emblem each, at this table.
+ *
+ * A hash alone collides: with twelve marks and four players two of them drew
+ * the same pocket watch, which defeats the entire point of not using initials.
+ * So the hash picks a preference and a linear probe settles the ties, walked in
+ * a fixed order so everybody's screen agrees.
+ */
+export function assignEmblems(seatIds: string[]): Map<string, number> {
+  const taken = new Set<number>();
+  const out = new Map<string, number>();
+  for (const id of seatIds) {
+    let idx = seatEmblemIndex(id);
+    for (let step = 0; step < EMBLEMS.length && taken.has(idx); step++) {
+      idx = (idx + 1) % EMBLEMS.length;
+    }
+    taken.add(idx);
+    out.set(id, idx);
+  }
+  return out;
+}
+
+export function SeatEmblem({ seed, size, color, index }: Props) {
+  const draw = EMBLEMS[index ?? seatEmblemIndex(seed)]!;
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" style={{ display: 'block' }} aria-hidden>
       {draw(color)}
