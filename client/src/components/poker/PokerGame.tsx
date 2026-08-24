@@ -5,6 +5,10 @@ import { haptic } from '@/lib/haptics';
 import { useAuthStore } from '@/store/authStore';
 import { usePokerStore } from '@/store/pokerStore';
 import { GameInviteButton } from '@/components/social/GameInviteButton';
+import { useLiveKitGate, useLivekitRoomVoice } from '@/hooks/useLivekitVoice';
+import { getLiveKitSpeaking } from '@/services/livekitVoice';
+import { LiveKitVoiceBarView } from '@/components/game/LiveKitVoiceBar';
+import { VoiceDisguiseButton } from '@/components/game/VoiceDisguiseButton';
 import { PokerCard } from './PokerCard';
 import type { PokerSeatView, PokerTableView } from '@/types/poker';
 
@@ -26,6 +30,15 @@ import type { PokerSeatView, PokerTableView } from '@/types/poker';
  * Everything scales from one measured container rather than from viewport
  * units, because `100vh` on a phone includes the URL bar that is not there —
  * that is what put the bottom of the Joker table off the screen.
+ *
+ * VOICE
+ * ─────
+ * One LiveKit room per table (`poker_<tableId>`), joined for as long as the
+ * table is open, with the app's voice changer available like everywhere else.
+ * Watchers join listen-only: someone who is not in the hand should not be able
+ * to talk into it. Speaking rings are drawn from LiveKit's active-speaker list,
+ * which is keyed by profile id — the same id a seat carries — so no extra
+ * plumbing is needed to know who is talking.
  *
  * WHAT THIS COMPONENT DOES NOT DO
  * ───────────────────────────────
@@ -144,6 +157,7 @@ export function PokerGame() {
   const [chatDraft, setChatDraft] = useState('');
   const [noticeOpen, setNoticeOpen] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const [speaking, setSpeaking] = useState<Set<string>>(new Set());
 
   const landscape = useLandscape();
   const feltRef = useRef<HTMLDivElement>(null);
@@ -163,9 +177,17 @@ export function PokerGame() {
     return () => { observer.disconnect(); window.visualViewport?.removeEventListener('resize', measure); };
   }, [table?.id, landscape]);
 
-  // One ticker for every countdown on screen.
+  // One ticker for every countdown on screen — and for the speaking ring, which
+  // LiveKit exposes as a plain set rather than as an event stream.
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 250);
+    const id = setInterval(() => {
+      setNow(Date.now());
+      const live = getLiveKitSpeaking();
+      setSpeaking(prev => {
+        if (prev.size === live.size && [...live].every(x => prev.has(x))) return prev;
+        return new Set(live);
+      });
+    }, 250);
     return () => clearInterval(id);
   }, []);
 
@@ -173,6 +195,22 @@ export function PokerGame() {
 
   const hand = table?.hand ?? null;
   const you = table?.seats.find(s => s.seat === table.yourSeat) ?? null;
+
+  /*
+   * Voice: one room per table, for as long as the table is open.
+   *
+   * `listenOnly` for watchers — a person who is not in the hand can hear it but
+   * cannot talk into it. Note the room is NOT tied to a hand: conversation at a
+   * table does not stop because a hand ended, and rejoining a LiveKit room
+   * every thirty seconds would be both slow and unpleasant.
+   */
+  const { enabled: livekitEnabled } = useLiveKitGate();
+  const voice = useLivekitRoomVoice({
+    roomId: table ? `poker_${table.id}` : null,
+    identity: profile?.id ?? null,
+    active: livekitEnabled && !!table && table.status !== 'closed',
+    listenOnly: table?.yourSeat === null || table?.yourSeat === undefined,
+  });
   const youCan = table?.youCan ?? null;
   const isYourTurn = Boolean(youCan);
 
@@ -235,6 +273,30 @@ export function PokerGame() {
             {hand ? ` · #${hand.handNo} · ${PHASE_LABEL[hand.phase] ?? hand.phase}` : ' · ლოდინი'}
           </p>
         </div>
+
+        {livekitEnabled && (
+          <button
+            onClick={() => {
+              haptic('tap');
+              // Safari will not start remote audio until a gesture has touched
+              // it, so the first tap on the mic doubles as that gesture.
+              voice.unlockAudio();
+              if (table.yourSeat !== null) voice.toggleMic();
+              else setChatOpen(true);
+            }}
+            className="w-9 h-9 rounded-xl grid place-items-center transition-colors relative"
+            style={{
+              background: voice.micEnabled ? 'rgba(34,211,107,0.18)' : 'rgba(255,255,255,0.05)',
+              color: voice.micEnabled ? '#22d36b' : 'rgba(255,255,255,0.6)',
+            }}
+            aria-label={voice.micEnabled ? 'მიკროფონის გამორთვა' : 'მიკროფონის ჩართვა'}
+          >
+            {voice.micEnabled ? '🎙' : '🔇'}
+            {voice.status === 'connecting' && (
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full" style={{ background: '#f5c542' }} />
+            )}
+          </button>
+        )}
 
         <GameInviteButton game="poker" code={table.code} compact />
 
@@ -370,6 +432,7 @@ export function PokerGame() {
                     isYou={seat.playerId === profile?.id}
                     compact={felt.w < 380 || isTight(felt.h)}
                     tight={tight}
+                    speaking={speaking.has(seat.playerId)}
                     clock={seat.isActing ? clockFraction : null}
                   />
                 : <EmptyChair
@@ -451,9 +514,21 @@ export function PokerGame() {
             }}
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
-              <p className="font-display font-bold text-white text-sm">ჩატი</p>
+              <p className="font-display font-bold text-white text-sm">ხმა და ჩატი</p>
               <button onClick={() => setChatOpen(false)} className="text-white/40 text-lg px-2">✕</button>
             </div>
+
+            {livekitEnabled && (
+              <div className="px-4 py-3 border-b border-white/[0.06] space-y-2">
+                <LiveKitVoiceBarView voice={voice} />
+                <div className="flex items-center gap-2">
+                  <VoiceDisguiseButton compact />
+                  {table.yourSeat === null && (
+                    <span className="font-mono text-[10px] text-white/35">მხოლოდ მოსმენა — დაჯექი, რომ ილაპარაკო</span>
+                  )}
+                </div>
+              </div>
+            )}
             <div className="flex-1 overflow-y-auto px-4 py-2 space-y-1.5">
               {chat.length === 0 && <p className="font-mono text-[11px] text-white/25 py-6 text-center">ჯერ არაფერია</p>}
               {chat.map((message, i) => (
@@ -583,8 +658,9 @@ function initial(name: string): string {
   return /[a-z]/i.test(first) ? first.toUpperCase() : first;
 }
 
-function Seat({ seat, isYou, compact, tight, clock }: {
-  seat: PokerSeatView; isYou: boolean; compact: boolean; tight: boolean; clock: number | null;
+function Seat({ seat, isYou, compact, tight, speaking, clock }: {
+  seat: PokerSeatView; isYou: boolean; compact: boolean; tight: boolean;
+  speaking: boolean; clock: number | null;
 }) {
   const size = compact ? 44 : 52;
   const dim = seat.folded || seat.sittingOut;
@@ -607,7 +683,13 @@ function Seat({ seat, isYou, compact, tight, clock }: {
             width: size, height: size,
             background: 'linear-gradient(145deg,#1e293b,#0f172a)',
             border: seat.isActing ? `2px solid ${ACCENT}` : '1.5px solid rgba(255,255,255,0.10)',
-            boxShadow: seat.isActing ? `0 0 16px ${ACCENT}55` : undefined,
+            // Two rings can be true at once — it is your turn AND you are
+            // talking — so speaking gets the outer glow and the turn keeps the
+            // border. Sharing one channel would hide whichever lost.
+            boxShadow: [
+              seat.isActing ? `0 0 16px ${ACCENT}55` : '',
+              speaking ? '0 0 0 3px rgba(34,211,107,0.85), 0 0 18px rgba(34,211,107,0.45)' : '',
+            ].filter(Boolean).join(', ') || undefined,
             fontSize: size * 0.36,
           }}
         >

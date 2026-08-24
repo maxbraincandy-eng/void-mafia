@@ -78,8 +78,9 @@ const SECTIONS: SectionDef[] = [
       'uno', 'joker',
       'draw', 'spyfall',
       'lies', 'codenames',
-      'www', 'alias',
-      'blackout', 'mergeevo',
+      'poker', 'www',
+      'alias', 'blackout',
+      'mergeevo',
     ],
   },
   {
@@ -763,7 +764,7 @@ function GameArt({ d, size }: { d: GameDef; size: number }) {
  * carried the badge, which is the same as none of them carrying it. Keep this
  * list short and prune it as things stop being new.
  */
-const NEW_GAMES = new Set(['noir', 'mergeevo', 'logic']);
+const NEW_GAMES = new Set(['noir', 'mergeevo', 'logic', 'poker']);
 
 function NumPicker({ label, values, value, onChange, accent }: { label: string; values: number[]; value: number; onChange: (n: number) => void; accent: string }) {
   return (
