@@ -76,7 +76,25 @@ const PHASE_LABEL: Record<string, string> = {
  * the phone is always at the bottom and everyone else is arranged clockwise
  * from there. Nobody should have to work out which of nine avatars is them.
  */
-const SEAT_BLOCK = { w: 78, h: 96 };
+/**
+ * How big a seat is allowed to be, given how many of them there are.
+ *
+ * Twelve avatars at six-handed size do not fit round a phone — they overlap
+ * each other long before they reach the board. So the seat shrinks with the
+ * count rather than the table growing, which is the only one of the two a
+ * 390px screen allows.
+ */
+function seatMetrics(maxSeats: number, compact: boolean) {
+  const avatar = maxSeats <= 6 ? (compact ? 44 : 52)
+               : maxSeats <= 9 ? (compact ? 38 : 46)
+               : (compact ? 32 : 38);
+  return {
+    avatar,
+    card: (maxSeats <= 9 ? 'xs' : 'xs') as 'xs',
+    // The block is the avatar plus the name, the stack, and the cards above it.
+    block: { w: avatar + 26, h: avatar + (maxSeats <= 9 ? 44 : 36) },
+  };
+}
 
 /**
  * A short felt — a phone on its side, mostly.
@@ -88,19 +106,20 @@ const SEAT_BLOCK = { w: 78, h: 96 };
 const isTight = (h: number) => h < 400;
 
 /** The felt's radii. Seats sit on this same ring, so they hug the rim. */
-function feltRadii(w: number, h: number) {
+function feltRadii(w: number, h: number, maxSeats = 6) {
+  const { block } = seatMetrics(maxSeats, w < 380);
   return {
-    rx: Math.max(60, w / 2 - SEAT_BLOCK.w * 0.55),
+    rx: Math.max(60, w / 2 - block.w * 0.55),
     // The seat block sits above the avatar (two mini cards, then the name), so
     // the vertical inset has to clear the whole block or the top seat's cards
     // slide under the header.
-    ry: Math.max(70, h / 2 - (isTight(h) ? 54 : SEAT_BLOCK.h * 0.80)),
+    ry: Math.max(70, h / 2 - (isTight(h) ? block.h * 0.62 : block.h * 0.80)),
   };
 }
 
 function seatPosition(slot: number, total: number, w: number, h: number) {
   const angle = (Math.PI / 2) + (slot / total) * Math.PI * 2;  // start at bottom
-  const { rx, ry } = feltRadii(w, h);
+  const { rx, ry } = feltRadii(w, h, total);
   return {
     left: w / 2 + Math.cos(angle) * rx,
     top: h / 2 + Math.sin(angle) * ry,
@@ -327,10 +346,14 @@ export function PokerGame() {
           className="absolute pointer-events-none"
           style={{
             left: '50%', top: '50%', transform: 'translate(-50%,-50%)',
-            width: feltRadii(felt.w, felt.h).rx * 2, height: feltRadii(felt.w, felt.h).ry * 2,
+            width: feltRadii(felt.w, felt.h, table.maxSeats).rx * 2,
+            height: feltRadii(felt.w, felt.h, table.maxSeats).ry * 2,
             // A stadium rather than an ellipse: on a tall phone an ellipse of
             // these proportions reads as a big oval, not as a table.
-            borderRadius: Math.min(feltRadii(felt.w, felt.h).rx, feltRadii(felt.w, felt.h).ry),
+            borderRadius: Math.min(
+              feltRadii(felt.w, felt.h, table.maxSeats).rx,
+              feltRadii(felt.w, felt.h, table.maxSeats).ry,
+            ),
             background: 'radial-gradient(ellipse at 50% 35%, #16324a 0%, #0e2135 60%, #0a1626 100%)',
             border: '1px solid rgba(56,189,248,0.16)',
             boxShadow: 'inset 0 2px 30px rgba(0,0,0,0.6), 0 0 60px rgba(56,189,248,0.05)',
@@ -343,7 +366,7 @@ export function PokerGame() {
           style={{
             left: '50%', top: '50%',
             transform: 'translate(-50%,-50%)',
-            width: feltRadii(felt.w, felt.h).rx * 1.7,
+            width: feltRadii(felt.w, felt.h, table.maxSeats).rx * 1.7,
           }}
         >
           {hand && (
@@ -431,11 +454,13 @@ export function PokerGame() {
                     seat={seat}
                     isYou={seat.playerId === profile?.id}
                     compact={felt.w < 380 || isTight(felt.h)}
+                    maxSeats={table.maxSeats}
                     tight={tight}
                     speaking={speaking.has(seat.playerId)}
                     clock={seat.isActing ? clockFraction : null}
                   />
                 : <EmptyChair
+                    size={seatMetrics(table.maxSeats, felt.w < 380 || isTight(felt.h)).avatar}
                     seatNo={seatNo}
                     canSit={table.yourSeat === null && table.status !== 'closed'}
                     buyIn={table.config.buyIn}
@@ -658,15 +683,24 @@ function initial(name: string): string {
   return /[a-z]/i.test(first) ? first.toUpperCase() : first;
 }
 
-function Seat({ seat, isYou, compact, tight, speaking, clock }: {
-  seat: PokerSeatView; isYou: boolean; compact: boolean; tight: boolean;
-  speaking: boolean; clock: number | null;
+function Seat({ seat, isYou, compact, maxSeats, tight, speaking, clock }: {
+  seat: PokerSeatView; isYou: boolean; compact: boolean; maxSeats: number;
+  tight: boolean; speaking: boolean; clock: number | null;
 }) {
-  const size = compact ? 44 : 52;
+  const size = seatMetrics(maxSeats, compact).avatar;
+  const crowded = maxSeats > 9;
   const dim = seat.folded || seat.sittingOut;
 
-  /* Opponents' cards: a count, never a face. The server does not send them. */
-  const miniCards = seat.inHand && !isYou && !seat.folded ? (
+  /*
+   * Opponents' cards: a count, never a face. The server does not send them.
+   *
+   * At ten and twelve seats the pairs are dropped entirely. Twelve card blocks
+   * round a 390px ring run off both edges of the screen, and they were only
+   * ever saying "this player is still in the hand" — which the dimmed seat
+   * already says. A hand that is actually revealed at showdown still shows.
+   */
+  const showBacks = seat.inHand && !isYou && !seat.folded && !crowded;
+  const miniCards = (showBacks || (seat.cards && !isYou)) ? (
     <div className={tight ? 'flex -space-x-3 mr-1' : 'flex -space-x-3 mb-1'}>
       {Array.from({ length: seat.cards ? seat.cards.length : seat.cardCount }, (_, i) =>
         seat.cards
@@ -730,15 +764,24 @@ function Seat({ seat, isYou, compact, tight, speaking, clock }: {
   );
 
   return (
-    <div className="flex flex-col items-center" style={{ width: (tight ? size + 62 : size + 34), opacity: dim ? 0.45 : 1 }}>
+    <div
+      className="flex flex-col items-center"
+      style={{ width: tight ? size + 62 : size + 34, opacity: dim ? 0.45 : 1 }}
+    >
       {tight
         ? <div className="flex items-center">{miniCards}{avatar}</div>
         : <>{miniCards}{avatar}</>}
 
-      <p className="font-display text-[10px] text-white/75 truncate max-w-full mt-0.5 leading-tight">
+      <p
+        className="font-display truncate max-w-full mt-0.5 leading-tight text-white/75"
+        style={{ fontSize: crowded ? 9 : 10 }}
+      >
         {isYou ? 'შენ' : seat.name}
       </p>
-      <p className="font-mono text-[10px] leading-tight" style={{ color: seat.allIn ? '#f59e0b' : 'rgba(255,255,255,0.4)' }}>
+      <p
+        className="font-mono leading-tight"
+        style={{ fontSize: crowded ? 9 : 10, color: seat.allIn ? '#f59e0b' : 'rgba(255,255,255,0.4)' }}
+      >
         {seat.allIn ? 'ALL IN' : chips(seat.stack)}
       </p>
 
@@ -762,8 +805,8 @@ function Seat({ seat, isYou, compact, tight, speaking, clock }: {
   );
 }
 
-function EmptyChair({ seatNo, canSit, buyIn, onSit }: {
-  seatNo: number; canSit: boolean; buyIn: number; onSit: () => void;
+function EmptyChair({ seatNo, size, canSit, buyIn, onSit }: {
+  seatNo: number; size: number; canSit: boolean; buyIn: number; onSit: () => void;
 }) {
   return (
     <button
@@ -771,7 +814,7 @@ function EmptyChair({ seatNo, canSit, buyIn, onSit }: {
       disabled={!canSit}
       className="rounded-full grid place-items-center transition-all active:scale-95 disabled:cursor-default"
       style={{
-        width: 46, height: 46,
+        width: size, height: size,
         background: canSit ? 'rgba(56,189,248,0.08)' : 'rgba(255,255,255,0.02)',
         border: canSit ? `1.5px dashed ${ACCENT}66` : '1.5px dashed rgba(255,255,255,0.08)',
       }}

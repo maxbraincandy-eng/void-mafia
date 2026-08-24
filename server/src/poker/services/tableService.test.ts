@@ -439,3 +439,29 @@ function playOutStreet(service: PokerTableService, table: PokerTable): void {
 }
 
 export { statesFor };
+
+test('a twelve-seat table seats twelve and deals them all in', () => {
+  const { service, clock } = harness(5);
+  const table = service.createTable(player(0), { name: 'Big', maxSeats: 12 });
+  for (let i = 0; i < 12; i++) service.sit(table.id, player(i), i);
+  clock.advance(table.config.handIntervalSeconds * 1000 + 10);
+
+  assert.equal(table.seats.length, 12);
+  assert.equal(table.hand!.seats.length, 12, 'everyone is dealt in');
+  const total = table.seats.reduce((sum, s) => sum + s.stack, 0);
+
+  for (let i = 0; i < 6; i++) nextHand(service, clock, table);
+  assert.equal(chipsAt(table), total, 'twelve-handed conserves chips like any other size');
+});
+
+test('the seat cap is twelve, and asking for more gets twelve', () => {
+  const { service } = harness();
+  const big = service.createTable(player(0), { name: 'Cap', maxSeats: 99 });
+  assert.equal(big.config.maxSeats, 12, 'clamped, not refused — a bad number is not a failed request');
+
+  assert.throws(
+    () => service.sit(big.id, player(1), 12),
+    (err: unknown) => err instanceof TableError && err.code === 'BAD_SEAT',
+    'seat 12 does not exist on a twelve-seat table; seats are 0-11',
+  );
+});

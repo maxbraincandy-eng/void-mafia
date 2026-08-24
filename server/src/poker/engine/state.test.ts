@@ -221,3 +221,44 @@ test('a thousand random hands never lose a chip or hang', () => {
     assert.equal(paid, put, `hand ${seed} paid out something other than the pot`);
   }
 });
+
+/**
+ * Twelve-handed.
+ *
+ * The reason nine is the usual cap is that nine is what a physical table seats,
+ * not that the deck runs out — twelve players take 24 hole cards, three burns
+ * and five board cards, which is 32 of 52. This asserts that directly, because
+ * "the deck is big enough" is exactly the kind of thing that is obviously true
+ * right up until someone adds a burn card.
+ */
+test('a twelve-handed table deals, runs the board, and never exhausts the deck', () => {
+  for (let seed = 1; seed <= 60; seed++) {
+    const stacks = Array.from({ length: 12 }, (_, i) => 500 + i * 137 + (seed % 50));
+    const start = stacks.reduce((a, b) => a + b, 0);
+    let h = table(stacks, seed);
+
+    assert.equal(h.seats.length, 12);
+    assert.ok(h.seats.every(s => s.hole.length === 2), 'everyone got two cards');
+
+    // Nobody folds: force the widest deal, the deepest showdown, and the most
+    // side pots the table can produce.
+    let guard = 0;
+    while (h.phase !== 'COMPLETE' && guard++ < 400) {
+      const id = acting(h);
+      const legal = actionsFor(h, id)!;
+      if ((seed + guard) % 9 === 0 && legal.canRaise) h = applyAction(h, id, { type: 'allIn' });
+      else if (legal.canCheck) h = applyAction(h, id, { type: 'check' });
+      else h = applyAction(h, id, { type: 'call' });
+    }
+
+    assert.equal(h.phase, 'COMPLETE', `seed ${seed} did not finish`);
+    assert.equal(h.board.length, 5, 'the board ran out to five');
+    assert.equal(chipsInPlay(h), start, `seed ${seed} lost or invented chips`);
+
+    // Every card that left the deck is distinct — the real deck-exhaustion test,
+    // since a deck that wrapped round would deal a duplicate before it threw.
+    const dealt = [...h.seats.flatMap(s => s.hole), ...h.board].map(c => `${c.rank}${c.suit}`);
+    assert.equal(new Set(dealt).size, dealt.length, `seed ${seed} dealt a duplicate card`);
+    assert.ok(dealt.length === 29, 'twelve hands plus a five-card board');
+  }
+});

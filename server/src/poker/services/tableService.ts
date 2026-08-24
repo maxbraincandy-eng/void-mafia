@@ -59,7 +59,13 @@ const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 /** Bounds a host may not exceed. A table is a game setting, not a free-form form. */
 export const LIMITS = {
-  maxSeats: { min: 2, max: 9 },
+  /*
+   * Nine is the usual cap because a nine-handed table is what a physical one
+   * seats, not because of the deck: twelve players take 24 hole cards, three
+   * burns and five board cards — 32 of 52, with twenty to spare. Twelve is
+   * therefore a layout question, not a rules one, and the layout handles it.
+   */
+  maxSeats: { min: 2, max: 12 },
   smallBlind: { min: 1, max: 5_000 },
   buyIn: { min: 100, max: 1_000_000 },
   actionSeconds: { min: 10, max: 120 },

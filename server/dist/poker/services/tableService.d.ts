@@ -48,7 +48,7 @@ export interface TableServiceDeps {
 export declare const LIMITS: {
     readonly maxSeats: {
         readonly min: 2;
-        readonly max: 9;
+        readonly max: 12;
     };
     readonly smallBlind: {
         readonly min: 1;

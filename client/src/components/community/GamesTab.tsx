@@ -204,6 +204,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms }: { onOpenSpace?: () =>
   } = usePokerStore();
   const [pkJoinCode, setPkJoinCode] = useState('');
   const [pkBlind, setPkBlind] = useState(10);
+  const [pkSeats, setPkSeats] = useState(6);
 
   // ── ჯაშუში (Spyfall) ────────────────────────────────────────────────
   const {
@@ -281,7 +282,9 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms }: { onOpenSpace?: () =>
   const handleBoJoin = () => { if (boJoinCode.trim()) { boJoin(boJoinCode.trim().toUpperCase(), playerName); setBoJoinCode(''); } };
   const handleAlCreate = () => alCreate(playerName);
   const handleAlJoin = () => { if (alJoinCode.trim()) { alJoin(alJoinCode.trim().toUpperCase(), playerName); setAlJoinCode(''); } };
-  const handlePkCreate = () => pkCreate({ smallBlind: pkBlind, bigBlind: pkBlind * 2, buyIn: pkBlind * 200 });
+  const handlePkCreate = () => pkCreate({
+    smallBlind: pkBlind, bigBlind: pkBlind * 2, buyIn: pkBlind * 200, maxSeats: pkSeats,
+  });
   const handlePkJoin = () => { if (pkJoinCode.trim()) { pkJoin(pkJoinCode.trim().toUpperCase()); setPkJoinCode(''); } };
   const handleSpCreate = () => spCreate(playerName);
   const handleSpJoin = () => { if (spJoinCode.trim()) { spJoin(spJoinCode.trim().toUpperCase(), playerName); setSpJoinCode(''); } };
@@ -352,7 +355,12 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms }: { onOpenSpace?: () =>
       accent: '#38bdf8', onCreate: handlePkCreate, loading: pkLoading, joinCode: pkJoinCode, setJoinCode: setPkJoinCode,
       onJoin: handlePkJoin, codeMax: 6, codePh: 'XXXXXX', list: pkList, error: pkError, clearError: pkClear,
       renderRow: (m, done) => <PokerRow key={m.id} table={m} onJoin={code => { recordRecent('poker'); pkJoin(code); done(); }} />,
-      extra: <NumPicker label="ბლაინდი" accent="#38bdf8" values={[5, 10, 25, 50]} value={pkBlind} onChange={n => setPkBlind(n)} />,
+      extra: (
+        <div className="space-y-2">
+          <NumPicker label="ბლაინდი" accent="#38bdf8" values={[5, 10, 25, 50]} value={pkBlind} onChange={n => setPkBlind(n)} />
+          <NumPicker label="ადგილი" accent="#38bdf8" values={[6, 9, 10, 12]} value={pkSeats} onChange={n => setPkSeats(n)} />
+        </div>
+      ),
     },
     spyfall: {
       accent: '#ff5d6c', onCreate: handleSpCreate, loading: spLoading, joinCode: spJoinCode, setJoinCode: setSpJoinCode,
@@ -394,7 +402,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms }: { onOpenSpace?: () =>
 
     { id: 'maxpuzzle', title: 'ბატონი მაქსის თავსატეხი', sub: 'კითხვები სწორი პასუხების გარეშე', kind: 'launch', accent: '#d9b45a', logo: 'maxseal', badge: true, keywords: 'max puzzle თავსატეხი დილემა ფსიქოლოგია პროფილი არქეტიპი mr max', launch: () => setMaxPuzzleOpen(true) },
 
-    { id: 'poker', title: 'სოციალური პოკერი', sub: 'ტეხასური ჰოლდემი · უფასო ჩიპები · 2-9 მოთ.', kind: 'match', accent: '#38bdf8', emoji: '♠️', badge: true, keywords: 'poker პოკერი holdem ჰოლდემი texas ტეხასი კარტი social სოციალური' },
+    { id: 'poker', title: 'სოციალური პოკერი', sub: 'ტეხასური ჰოლდემი · უფასო ჩიპები · 2-12 მოთ.', kind: 'match', accent: '#38bdf8', emoji: '♠️', badge: true, keywords: 'poker პოკერი holdem ჰოლდემი texas ტეხასი კარტი social სოციალური' },
     { id: 'spyfall', title: 'ჯაშუში', sub: 'იპოვე ჯაშუში ხმით · 3-10 მოთ.', kind: 'match', accent: '#ff5d6c', emoji: '🕵️', badge: true, keywords: 'spyfall ჯაშუში დედუქცია' },
     { id: 'codenames', title: 'Codenames', sub: '2 გუნდი · მინიშნებები · 4-16 მოთ.', kind: 'match', accent: '#25c8f2', logo: 'codenames', emoji: '🔤', badge: true, keywords: 'codenames კოდი გუნდი' },
     { id: 'blackout', title: t.games.blackout.title, sub: t.games.blackout.subtitle, kind: 'match', accent: '#ffd34d', emoji: '🔦', badge: true, keywords: 'blackout impostor დედუქცია' },

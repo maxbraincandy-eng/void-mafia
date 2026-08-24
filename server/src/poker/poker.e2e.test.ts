@@ -229,7 +229,7 @@ test('a hostile payload is bounded, not honoured', async () => {
   })) as { data: any }).data;
 
   assert.ok(table.name.length <= 40, 'a 500-character table name is truncated');
-  assert.ok(table.maxSeats <= 9, 'nine seats is the table, whatever was asked for');
+  assert.ok(table.maxSeats <= 12, 'twelve seats is the table, whatever was asked for');
   assert.ok(table.config.smallBlind <= 5000 && table.config.smallBlind > 0);
   assert.ok(Number.isFinite(table.config.bigBlind), 'Infinity is not a blind');
   assert.ok(table.config.buyIn <= 1_000_000);
