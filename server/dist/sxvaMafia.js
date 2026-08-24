@@ -1,5 +1,5 @@
 import { ok, err, } from './types/index.js';
-import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch, dissolveMatch, transferHost, startMatch, reshuffleRoles, setRoleConfig, setSettings, pickCard, beginMafiaMeet, endMafiaMeet, beginNight, mafiaVote, donCheck, sheriffCheck, endNight, beginDay, nextSpeaker, advanceSpeakerAuto, extendSpeech, nominate, grabFloor, castVote, endVote, nextCandidate, giveFoul, endLastWords, rematch, disconnectSocket, getSafeState, kickPlayer, recipients, resumeForUser, joinMatchAsBot, } from './services/sxvaMafiaService.js';
+import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch, dissolveMatch, transferHost, startMatch, reshuffleRoles, setRoleConfig, setSettings, pickCard, beginMafiaMeet, endMafiaMeet, beginNight, mafiaVote, donCheck, sheriffCheck, endNight, beginDay, nextSpeaker, advanceSpeakerAuto, extendSpeech, nominate, grabFloor, doctorHeal, maniacKill, cultConvert, castVote, endVote, nextCandidate, giveFoul, endLastWords, rematch, disconnectSocket, getSafeState, kickPlayer, recipients, resumeForUser, joinMatchAsBot, } from './services/sxvaMafiaService.js';
 import { botName, isBot, isOwner, newBotId } from './services/testBots.js';
 import { tick as botTick, hasBots } from './services/xmBotDriver.js';
 const ROOM = (id) => `xm:${id}`;
@@ -461,6 +461,9 @@ export function registerSxvaMafiaHandlers(io, socket) {
     socket.on('xm:mafia_vote', targetAction(mafiaVote, 'ვერ აირჩია სამიზნე'));
     socket.on('xm:don_check', targetAction(donCheck, 'ვერ შეამოწმა'));
     socket.on('xm:sheriff_check', targetAction(sheriffCheck, 'ვერ შეამოწმა'));
+    socket.on('xm:doctor_heal', targetAction(doctorHeal, 'ვერ განკურნა'));
+    socket.on('xm:maniac_kill', targetAction(maniacKill, 'ვერ აირჩია სამიზნე'));
+    socket.on('xm:cult_convert', targetAction(cultConvert, 'ვერ მოიმხრო'));
     socket.on('xm:nominate', targetAction(nominate, 'ვერ დაასახელა'));
     socket.on('xm:cast_vote', targetAction(castVote, 'ვერ მისცა ხმა'));
     socket.on('xm:rematch', (data, cb) => {

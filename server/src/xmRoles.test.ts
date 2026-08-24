@@ -1,0 +1,242 @@
+/**
+ * The optional roles: doctor, maniac, cult.
+ *
+ * These are rules tests, not transport tests — they drive the service directly,
+ * because what matters is the order the night resolves in and who has won, and
+ * neither of those is visible from a socket.
+ */
+
+import { test } from 'node:test';
+import { strict as assert } from 'assert';
+
+import {
+  createMatch, getMatch, joinMatchAsBot, setRoleConfig, startMatch, pickCard,
+  beginMafiaMeet, endMafiaMeet, beginNight, endNight,
+  mafiaVote, doctorHeal, maniacKill, cultConvert,
+  effectiveCounts, type XmMatch, type XmRole,
+} from './services/sxvaMafiaService.js';
+
+let n = 0;
+const nextId = () => `rt_${n++}`;
+
+/** A match with `seats` players, dealt the exact roles asked for. */
+function table(roles: XmRole[]): XmMatch {
+  const hostId = nextId();
+  const m = createMatch(hostId, 'sock', 'Host', { maxSeats: 12 });
+  for (let i = 0; i < roles.length; i++) joinMatchAsBot(m.id, `bot_${m.id}_${i}`, `P${i}`);
+
+  setRoleConfig(m.id, hostId, {
+    don: roles.filter(r => r === 'don').length,
+    mafia: roles.filter(r => r === 'mafia').length,
+    sheriff: roles.filter(r => r === 'sheriff').length,
+    doctor: roles.filter(r => r === 'doctor').length,
+    maniac: roles.filter(r => r === 'maniac').length,
+    cult: roles.filter(r => r === 'cult').length,
+  });
+  startMatch(m.id, hostId);
+
+  // Take the cards, then overwrite the roles: the deal is random and these
+  // tests are about the rules, not about who drew what.
+  const live = getMatch(m.id)!;
+  live.seats.forEach((seat, i) => {
+    pickCard(m.id, seat.userId, i);
+    seat.role = roles[i]!;
+    seat.cult = roles[i] === 'cult';
+  });
+
+  beginMafiaMeet(m.id, hostId);
+  endMafiaMeet(m.id, hostId);
+  beginNight(m.id, hostId);
+  return live;
+}
+
+const hostOf = (m: XmMatch) => m.hostId;
+const bySeat = (m: XmMatch, i: number) => m.seats[i]!;
+
+// ─── Composition ─────────────────────────────────────────────────────────────
+
+test('the optional roles are off unless the host asks for them', () => {
+  const m = createMatch(nextId(), 'sock', 'Host', { maxSeats: 12 });
+  for (let i = 0; i < 8; i++) joinMatchAsBot(m.id, `bot_auto_${i}`, `P${i}`);
+  const counts = effectiveCounts(getMatch(m.id)!);
+  assert.equal(counts.doctor, 0);
+  assert.equal(counts.maniac, 0);
+  assert.equal(counts.cult, 0, 'a cult must never appear because enough people sat down');
+});
+
+test('a table too small to hold every special loses the extras, not the mafia', () => {
+  const hostId = nextId();
+  const m = createMatch(hostId, 'sock', 'Host', { maxSeats: 12 });
+  for (let i = 0; i < 4; i++) joinMatchAsBot(m.id, `bot_small_${i}`, `P${i}`);
+  setRoleConfig(m.id, hostId, { don: 1, mafia: 1, sheriff: 1, doctor: 1, maniac: 1, cult: 1 });
+
+  const counts = effectiveCounts(getMatch(m.id)!);
+  assert.ok(counts.don + counts.mafia >= 1, 'there is still a mafia');
+  assert.equal(counts.don + counts.mafia + counts.sheriff + counts.doctor + counts.maniac + counts.cult + counts.citizen, 4);
+});
+
+// ─── The doctor ──────────────────────────────────────────────────────────────
+
+test('the doctor saves the mafia\'s target', () => {
+  const m = table(['don', 'doctor', 'citizen', 'citizen', 'citizen']);
+  const [don, doc, victim] = [bySeat(m, 0), bySeat(m, 1), bySeat(m, 2)];
+
+  mafiaVote(m.id, don.userId, victim.userId);
+  doctorHeal(m.id, doc.userId, victim.userId);
+  endNight(m.id, hostOf(m));
+
+  assert.equal(getMatch(m.id)!.seats[2]!.alive, true, 'shot and saved');
+  assert.equal(getMatch(m.id)!.announce!.killed.length, 0, 'a quiet night');
+});
+
+test('the doctor cannot heal the same person two nights running', () => {
+  const m = table(['don', 'doctor', 'citizen', 'citizen', 'citizen']);
+  const [don, doc, patient, shot, spare] =
+    [bySeat(m, 0), bySeat(m, 1), bySeat(m, 2), bySeat(m, 3), bySeat(m, 4)];
+
+  // The mafia shoot somebody the doctor did not choose, so the patient lives to
+  // be a repeat — the first version of this test shot the person it then tried
+  // to heal again, and blamed the rule for refusing a corpse.
+  mafiaVote(m.id, don.userId, shot.userId);
+  doctorHeal(m.id, doc.userId, patient.userId);
+  endNight(m.id, hostOf(m));
+
+  // Next night.
+  const live = getMatch(m.id)!;
+  live.phase = 'night';
+  live.night = { mafiaVotes: {}, donCheck: null, donResult: null, sheriffCheck: null, sheriffResult: null,
+                 doctorHeal: null, maniacKill: null, cultConvert: null, cultResult: null };
+
+  assert.equal(
+    doctorHeal(m.id, doc.userId, patient.userId), null,
+    'the same patient twice would make one player simply immortal',
+  );
+  assert.ok(doctorHeal(m.id, doc.userId, spare.userId), 'anyone else who is alive is fine');
+});
+
+// ─── The maniac ──────────────────────────────────────────────────────────────
+
+test('the maniac kills on their own, and two can die in one night', () => {
+  const m = table(['don', 'maniac', 'citizen', 'citizen', 'citizen', 'citizen']);
+  const [don, maniac, a, b] = [bySeat(m, 0), bySeat(m, 1), bySeat(m, 2), bySeat(m, 3)];
+
+  mafiaVote(m.id, don.userId, a.userId);
+  maniacKill(m.id, maniac.userId, b.userId);
+  endNight(m.id, hostOf(m));
+
+  const live = getMatch(m.id)!;
+  assert.equal(live.announce!.killed.length, 2, 'the announcement carries both names');
+  assert.equal(live.seats[2]!.alive, false);
+  assert.equal(live.seats[3]!.alive, false);
+  assert.equal(live.lastWordsQueue.length + (live.lastWordsUserId ? 1 : 0), 2, 'and both are owed a farewell');
+});
+
+test('one save covers every knife aimed at the same person', () => {
+  const m = table(['don', 'maniac', 'doctor', 'citizen', 'citizen', 'citizen']);
+  const [don, maniac, doc, target] = [bySeat(m, 0), bySeat(m, 1), bySeat(m, 2), bySeat(m, 3)];
+
+  mafiaVote(m.id, don.userId, target.userId);
+  maniacKill(m.id, maniac.userId, target.userId);
+  doctorHeal(m.id, doc.userId, target.userId);
+  endNight(m.id, hostOf(m));
+
+  assert.equal(getMatch(m.id)!.seats[3]!.alive, true);
+  assert.equal(getMatch(m.id)!.announce!.killed.length, 0, 'the mafia and the maniac wasted the night on each other');
+});
+
+test('the maniac wins when only one other player is left', () => {
+  const m = table(['maniac', 'citizen', 'citizen', 'citizen']);
+  const live = getMatch(m.id)!;
+  live.seats[2]!.alive = false;
+  live.seats[3]!.alive = false;
+
+  maniacKill(m.id, live.seats[0]!.userId, live.seats[1]!.userId);
+  endNight(m.id, hostOf(m));
+
+  assert.equal(getMatch(m.id)!.winner, 'maniac');
+});
+
+// ─── The cult ────────────────────────────────────────────────────────────────
+
+test('the cult converts, but never the mafia or the maniac', () => {
+  const m = table(['cult', 'don', 'maniac', 'citizen', 'citizen', 'citizen']);
+  const [leader, don, maniac, plain] = [bySeat(m, 0), bySeat(m, 1), bySeat(m, 2), bySeat(m, 3)];
+
+  cultConvert(m.id, leader.userId, don.userId);
+  endNight(m.id, hostOf(m));
+  assert.equal(getMatch(m.id)!.seats[1]!.cult, false, 'the mafia do not join cults');
+  assert.equal(getMatch(m.id)!.night.cultResult, 'immune');
+
+  const live = getMatch(m.id)!;
+  live.phase = 'night';
+  live.night = { mafiaVotes: {}, donCheck: null, donResult: null, sheriffCheck: null, sheriffResult: null,
+                 doctorHeal: null, maniacKill: null, cultConvert: null, cultResult: null };
+  cultConvert(m.id, leader.userId, maniac.userId);
+  endNight(m.id, hostOf(m));
+  assert.equal(getMatch(m.id)!.seats[2]!.cult, false, 'nor does the maniac');
+
+  const live2 = getMatch(m.id)!;
+  live2.phase = 'night';
+  live2.night = { mafiaVotes: {}, donCheck: null, donResult: null, sheriffCheck: null, sheriffResult: null,
+                  doctorHeal: null, maniacKill: null, cultConvert: null, cultResult: null };
+  cultConvert(m.id, leader.userId, plain.userId);
+  endNight(m.id, hostOf(m));
+  assert.equal(getMatch(m.id)!.seats[3]!.cult, true, 'a townsperson does');
+  assert.equal(getMatch(m.id)!.night.cultResult, 'converted');
+});
+
+test('the cult wins when the whole table is cult', () => {
+  const m = table(['cult', 'citizen', 'citizen', 'citizen', 'citizen']);
+  const live = getMatch(m.id)!;
+  live.seats[1]!.cult = true;
+  live.seats[3]!.alive = false;
+  live.seats[4]!.alive = false;
+
+  cultConvert(m.id, live.seats[0]!.userId, live.seats[2]!.userId);
+  endNight(m.id, hostOf(m));
+
+  assert.equal(getMatch(m.id)!.winner, 'cult');
+});
+
+test('a converted player keeps the card they were dealt', () => {
+  const m = table(['cult', 'doctor', 'citizen', 'citizen', 'citizen']);
+  const [leader, doc] = [bySeat(m, 0), bySeat(m, 1)];
+
+  cultConvert(m.id, leader.userId, doc.userId);
+  endNight(m.id, hostOf(m));
+
+  const converted = getMatch(m.id)!.seats[1]!;
+  assert.equal(converted.cult, true, 'they are in the cult');
+  assert.equal(converted.role, 'doctor', 'and they can still heal — they just win with somebody else now');
+});
+
+// ─── Win order ───────────────────────────────────────────────────────────────
+
+test('the mafia cannot claim parity while a maniac is still shooting', () => {
+  const m = table(['don', 'maniac', 'citizen', 'citizen', 'citizen']);
+  const live = getMatch(m.id)!;
+  live.seats[3]!.alive = false;
+  live.seats[4]!.alive = false;
+  // Alive: don, maniac, one citizen. The mafia are 1 of 3 — no parity anyway,
+  // but make it 1 v 1 v 1 and confirm nobody has won yet.
+  mafiaVote(m.id, live.seats[0]!.userId, live.seats[2]!.userId);
+  maniacKill(m.id, live.seats[1]!.userId, live.seats[2]!.userId);
+  endNight(m.id, hostOf(m));
+
+  // Don and maniac remain: two players, one of them the maniac.
+  assert.equal(getMatch(m.id)!.winner, 'maniac', 'the maniac finishes the last one at night');
+});
+
+test('town wins only when nothing hostile is left', () => {
+  const m = table(['don', 'maniac', 'cult', 'citizen', 'citizen', 'citizen']);
+  const live = getMatch(m.id)!;
+  live.seats[0]!.alive = false;   // don
+  live.seats[2]!.alive = false;   // cult leader
+  assert.equal(live.winner, null, 'a live maniac is still a problem');
+
+  live.seats[1]!.alive = false;   // maniac
+  maniacKill(m.id, live.seats[1]!.userId, live.seats[3]!.userId);  // dead, so refused
+  endNight(m.id, hostOf(m));
+
+  assert.equal(getMatch(m.id)!.winner, 'town');
+});

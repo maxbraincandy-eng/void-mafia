@@ -1,6 +1,6 @@
-export type XmRole = 'don' | 'mafia' | 'sheriff' | 'citizen';
+export type XmRole = 'don' | 'mafia' | 'sheriff' | 'citizen' | 'doctor' | 'maniac' | 'cult';
 export type XmPhase = 'lobby' | 'assign' | 'mafia_meet' | 'night' | 'day_announce' | 'speech' | 'vote' | 'last_words' | 'finished';
-export type XmWinner = 'town' | 'mafia' | null;
+export type XmWinner = 'town' | 'mafia' | 'maniac' | 'cult' | null;
 
 export interface XmSafeSeat {
   userId: string; socketId: string; nickname: string; seat: number; connected: boolean;
@@ -9,12 +9,12 @@ export interface XmSafeSeat {
   isSpeaking: boolean;
   isNominated: boolean;
   hasVoted: boolean;
+  cult: boolean;
 }
 
 export interface XmAnnounce {
   round: number;
-  killedUserId: string | null;
-  killedName: string | null;
+  killed: { userId: string; nickname: string; seat: number }[];
 }
 
 export interface XmLogEntry {
@@ -32,7 +32,7 @@ export interface XmSafeState {
   seats: XmSafeSeat[];
   spectatorCount: number;
   settings: { speechSeconds: number; nightSeconds: number; voteSeconds: number; lastWordsSeconds: number; floorControl: boolean };
-  setup: { don: number; mafia: number; sheriff: number; citizen: number };
+  setup: { don: number; mafia: number; sheriff: number; doctor: number; maniac: number; cult: number; citizen: number };
   roleConfigCustom: boolean;
   round: number;
   amHost: boolean;
@@ -41,6 +41,8 @@ export interface XmSafeState {
   myRole: XmRole | null;
   myAlive: boolean;
   myFouls: number;
+  myCult: boolean;
+  healBlockedId: string | null;
   mateIds: string[];
   cards: { index: number; claimedById: string | null; claimedByName: string | null; claimedBySeat: number | null }[];
   myCardIndex: number | null;
@@ -83,9 +85,23 @@ export interface XmListItem {
   id: string; code: string; hostName: string; seatCount: number; maxSeats: number; phase: XmPhase;
 }
 
-export const XM_ROLE_META: Record<XmRole, { label: string; emoji: string; team: 'mafia' | 'town'; color: string }> = {
-  don:     { label: 'დონი',        emoji: '🎩', team: 'mafia', color: '#ff4d5e' },
-  mafia:   { label: 'მაფია',       emoji: '🔫', team: 'mafia', color: '#ff6b6b' },
-  sheriff: { label: 'შერიფი',      emoji: '🔎', team: 'town',  color: '#4fb8ff' },
-  citizen: { label: 'მშვიდობიანი', emoji: '🧑', team: 'town',  color: '#7fe0a0' },
+export type XmTeam = 'mafia' | 'town' | 'maniac' | 'cult';
+
+export const XM_ROLE_META: Record<XmRole, {
+  label: string; emoji: string; team: XmTeam; color: string; night: string | null;
+}> = {
+  don:     { label: 'დონი',        emoji: '🎩', team: 'mafia',  color: '#ff4d5e', night: 'შეამოწმე — შერიფია?' },
+  mafia:   { label: 'მაფია',       emoji: '🔫', team: 'mafia',  color: '#ff6b6b', night: 'აირჩიე მსხვერპლი' },
+  sheriff: { label: 'შერიფი',      emoji: '🔎', team: 'town',   color: '#4fb8ff', night: 'შეამოწმე — მაფიაა?' },
+  citizen: { label: 'მშვიდობიანი', emoji: '🧑', team: 'town',   color: '#7fe0a0', night: null },
+  doctor:  { label: 'ექიმი',       emoji: '💉', team: 'town',   color: '#5ee6c0', night: 'ვის გადაარჩენ ამაღამ?' },
+  maniac:  { label: 'მანიაკი',     emoji: '🔪', team: 'maniac', color: '#ff9f1c', night: 'აირჩიე მსხვერპლი' },
+  cult:    { label: 'კულტის ლიდერი', emoji: '🕯', team: 'cult', color: '#c084fc', night: 'ვის მოიმხრობ?' },
+};
+
+export const XM_TEAM_META: Record<XmTeam, { label: string; emoji: string; color: string }> = {
+  town:   { label: 'ქალაქი',   emoji: '🏙', color: '#7fe0a0' },
+  mafia:  { label: 'მაფია',    emoji: '🔫', color: '#ff4d5e' },
+  maniac: { label: 'მანიაკი',  emoji: '🔪', color: '#ff9f1c' },
+  cult:   { label: 'კულტი',    emoji: '🕯', color: '#c084fc' },
 };

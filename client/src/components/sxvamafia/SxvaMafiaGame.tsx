@@ -10,7 +10,7 @@ import { useLiveKitGate, useLivekitRoomVoice } from '@/hooks/useLivekitVoice';
 import {
   getLiveKitRemoteVideo, getLiveKitLocalVideo, getLiveKitSpeaking, setLiveKitCamera,
 } from '@/services/livekitVoice';
-import { XM_ROLE_META, type XmSafeSeat, type XmSafeState, type XmRole } from '@/types/sxvaMafia';
+import { XM_ROLE_META, XM_TEAM_META, type XmSafeSeat, type XmSafeState, type XmRole } from '@/types/sxvaMafia';
 import { GameInviteButton } from '@/components/social/GameInviteButton';
 
 /**
@@ -298,6 +298,11 @@ export function SxvaMafiaGame() {
   // Owner-only testing aids. The server enforces this; the flag only decides
   // whether the controls are worth drawing.
   const isOwner = profile?.moderatorLevel === 'owner';
+  /** The current composition, so a stepper only has to say what it changes. */
+  const roleCfg = {
+    don: match?.setup.don ?? 0, mafia: match?.setup.mafia ?? 0, sheriff: match?.setup.sheriff ?? 0,
+    doctor: match?.setup.doctor ?? 0, maniac: match?.setup.maniac ?? 0, cult: match?.setup.cult ?? 0,
+  };
   const [confirmKick, setConfirmKick] = useState<string | null>(null);
   const [cinematic, setCinematic] = useState<{ type: 'night' | 'morning'; key: number } | null>(null);
   const prevPhase = useRef<string>('');
@@ -503,6 +508,38 @@ export function SxvaMafiaGame() {
           {match.mafiaPicks.map(p => <p key={p.userId} className="font-mono text-[11px]" style={{ color: '#ff8a92' }}>{p.nickname} → {p.targetName}</p>)}
         </div>
       ) : null;
+      if (nightRole === 'doctor') {
+        const meta = XM_ROLE_META.doctor;
+        return (<div>
+          <p className="text-center font-mono text-[11px] mb-2" style={{ color: meta.color }}>💉 ვის გადაარჩენ ამაღამ?</p>
+          {/* Last night's patient is off the list — the rule, shown rather than
+              explained after the fact by a refusal. */}
+          <Chips seats={aliveSeats.filter(s => s.userId !== match.healBlockedId)} onPick={store.doctorHeal} />
+          {match.healBlockedId && (
+            <p className="text-center font-mono text-[10px] mt-1.5 text-white/35">
+              ერთი და იმავე ადამიანს ზედიზედ ორჯერ ვერ გადაარჩენ
+            </p>
+          )}
+        </div>);
+      }
+      if (nightRole === 'maniac') {
+        const meta = XM_ROLE_META.maniac;
+        return (<div>
+          <p className="text-center font-mono text-[11px] mb-2" style={{ color: meta.color }}>🔪 აირჩიე მსხვერპლი — მარტო ხარ</p>
+          <Chips seats={aliveSeats.filter(s => s.userId !== myId)} onPick={store.maniacKill} />
+        </div>);
+      }
+      if (nightRole === 'cult') {
+        const meta = XM_ROLE_META.cult;
+        return (<div>
+          <p className="text-center font-mono text-[11px] mb-2" style={{ color: meta.color }}>🕯 ვის მოიმხრობ?</p>
+          <Chips seats={aliveSeats.filter(s => s.userId !== myId && !s.cult)} onPick={store.cultConvert} />
+          <p className="text-center font-mono text-[10px] mt-1.5 text-white/35">
+            მაფია და მანიაკი არ მოიმხრობა — გაიგებ დილით
+          </p>
+          {match.nightPrivate && <p className="text-center font-mono text-[13px] mt-2 text-white">{match.nightPrivate}</p>}
+        </div>);
+      }
       if (nightRole === 'sheriff') {
         return (<div><p className="text-center font-mono text-[11px] mb-2" style={{ color: '#4fb8ff' }}>🔎 შეამოწმე ერთი მოთამაშე (მაფიაა თუ არა)</p>
           <Chips seats={aliveSeats.filter(s => s.userId !== myId)} onPick={store.sheriffCheck} />
@@ -602,7 +639,14 @@ export function SxvaMafiaGame() {
     if (match.phase === 'speech') { const s = match.seats.find(x => x.userId === match.speakingUserId); return s ? `#${s.seat} ${s.nickname} ${intro ? 'წარადგენს თავს' : 'საუბრობს'} · ${fmt(speechLeft)}` : ''; }
     if (match.phase === 'vote') return `კენჭისყრა · ${fmt(voteLeft)}`;
     if (match.phase === 'last_words') return `${match.lastWordsName ?? ''} · ${fmt(lwLeft)}`;
-    if (match.phase === 'day_announce') return match.announce ? (match.announce.killedName ? `ღამით მოკლეს: ${match.announce.killedName}` : 'ღამე მშვიდად ჩაიარა') : 'დღე დასრულდა — ღამდება';
+    if (match.phase === 'day_announce') {
+      if (!match.announce) return 'დღე დასრულდა — ღამდება';
+      const killed = match.announce.killed;
+      // A list, because with a maniac at the table two people can die in one night.
+      return killed.length
+        ? `ღამით მოკლეს: ${killed.map(k => `#${k.seat} ${k.nickname}`).join(', ')}`
+        : 'ღამე მშვიდად ჩაიარა';
+    }
     if (match.phase === 'night') return 'ქალაქს სძინავს…';
     if (match.phase === 'assign') return 'როლები დარიგდა';
     return '';
@@ -621,7 +665,7 @@ export function SxvaMafiaGame() {
   const place = distribute(match.seats.length, cells.length);
 
   const stageIcon = intro ? '🤝' : match.phase === 'night' ? '🌙' : match.phase === 'vote' ? '⚖️'
-    : match.phase === 'last_words' ? '🎤' : match.phase === 'day_announce' ? (match.announce?.killedName ? '💀' : '🌅')
+    : match.phase === 'last_words' ? '🎤' : match.phase === 'day_announce' ? ((match.announce?.killed.length ?? 0) > 0 ? '💀' : '🌅')
     : match.phase === 'speech' ? '🗣️' : '🎭';
   const stageBig = match.phase === 'speech' ? fmt(speechLeft) : match.phase === 'vote' ? fmt(voteLeft) : match.phase === 'last_words' ? fmt(lwLeft) : '';
   const nightMood = match.phase === 'night';
@@ -964,11 +1008,30 @@ export function SxvaMafiaGame() {
                   {isHost ? (
                     <div className="space-y-2.5">
                       <RoleStepper emoji="🎩" label="დონი" value={match.setup.don} min={0} max={Math.min(2, match.seats.length - match.setup.mafia - match.setup.sheriff)}
-                        onChange={d => store.setRoles({ don: clamp(match.setup.don + d, 0, 2), mafia: match.setup.mafia, sheriff: match.setup.sheriff })} />
+                        onChange={d => store.setRoles({ ...roleCfg, don: clamp(match.setup.don + d, 0, 2) })} />
                       <RoleStepper emoji="🔫" label="მაფია" value={match.setup.mafia} min={0} max={Math.min(9, match.seats.length - match.setup.don - match.setup.sheriff)}
-                        onChange={d => store.setRoles({ don: match.setup.don, mafia: clamp(match.setup.mafia + d, 0, 9), sheriff: match.setup.sheriff })} />
+                        onChange={d => store.setRoles({ ...roleCfg, mafia: clamp(match.setup.mafia + d, 0, 9) })} />
                       <RoleStepper emoji="🔎" label="შერიფი" value={match.setup.sheriff} min={0} max={Math.min(2, match.seats.length - match.setup.don - match.setup.mafia)}
-                        onChange={d => store.setRoles({ don: match.setup.don, mafia: match.setup.mafia, sheriff: clamp(match.setup.sheriff + d, 0, 2) })} />
+                        onChange={d => store.setRoles({ ...roleCfg, sheriff: clamp(match.setup.sheriff + d, 0, 2) })} />
+
+                      {/*
+                        The optional roles, off by default.
+                        Each one changes the game a great deal — a maniac makes
+                        the mafia's parity meaningless, a cult can take the table
+                        out from under everybody — so they are something the host
+                        turns on, not something that appears on its own.
+                      */}
+                      <div className="pt-1.5 mt-1.5" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+                        <p className="font-mono text-[10px] text-white/30 mb-2 tracking-wider">დამატებითი როლები</p>
+                        <div className="space-y-2.5">
+                          <RoleStepper emoji="💉" label="ექიმი" value={match.setup.doctor} min={0} max={2}
+                            onChange={d => store.setRoles({ ...roleCfg, doctor: clamp(match.setup.doctor + d, 0, 2) })} />
+                          <RoleStepper emoji="🔪" label="მანიაკი" value={match.setup.maniac} min={0} max={2}
+                            onChange={d => store.setRoles({ ...roleCfg, maniac: clamp(match.setup.maniac + d, 0, 2) })} />
+                          <RoleStepper emoji="🕯" label="კულტის ლიდერი" value={match.setup.cult} min={0} max={1}
+                            onChange={d => store.setRoles({ ...roleCfg, cult: clamp(match.setup.cult + d, 0, 1) })} />
+                        </div>
+                      </div>
                       <div className="flex items-center justify-between pt-0.5">
                         <span className="font-mono text-[12.5px] text-white/85">🧑 მშვიდობიანი</span>
                         <span className="font-mono text-[14px] text-white/55">{match.setup.citizen} <span className="text-[10px] text-white/30">(ავტო)</span></span>
@@ -1278,9 +1341,15 @@ function FinishedView({ match, onLeave, onRematch, isHost }: { match: XmSafeStat
   const won = match.winner;
   return (
     <div className="max-w-md mx-auto text-center py-6">
-      <motion.p initial={{ scale: 0.5 }} animate={{ scale: 1 }} className="text-5xl mb-2">{won === 'mafia' ? '🔫' : '🏙'}</motion.p>
-      <p className="font-display font-black" style={{ fontSize: 26, color: won === 'mafia' ? RED : '#7fe0a0' }}>
-        {won === 'mafia' ? 'მაფია გაიმარჯვა!' : 'ქალაქმა გაიმარჯვა!'}
+      {/* Four factions can win now, so the screen asks which rather than assuming. */}
+      <motion.p initial={{ scale: 0.5 }} animate={{ scale: 1 }} className="text-5xl mb-2">
+        {won ? XM_TEAM_META[won].emoji : '🏙'}
+      </motion.p>
+      <p className="font-display font-black" style={{ fontSize: 26, color: won ? XM_TEAM_META[won].color : '#7fe0a0' }}>
+        {won === 'mafia' ? 'მაფიამ გაიმარჯვა!'
+          : won === 'maniac' ? 'მანიაკმა გაიმარჯვა!'
+          : won === 'cult' ? 'კულტმა გაიმარჯვა!'
+          : 'ქალაქმა გაიმარჯვა!'}
       </p>
       <div className="mt-5 space-y-1.5 text-left">
         {match.reveal?.slice().sort((a, b) => a.seat - b.seat).map(r => {

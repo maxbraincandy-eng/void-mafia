@@ -21,7 +21,7 @@ interface XmStore {
   reshuffle: () => Promise<void>;
   transferHost: (targetId: string) => Promise<void>;
   pickCard: (cardIndex: number) => Promise<void>;
-  setRoles: (config: { don: number; mafia: number; sheriff: number } | null) => Promise<void>;
+  setRoles: (config: { don: number; mafia: number; sheriff: number; doctor: number; maniac: number; cult: number } | null) => Promise<void>;
   setSettings: (patch: Partial<{ speechSeconds: number; voteSeconds: number; lastWordsSeconds: number; nightSeconds: number; floorControl: boolean }>) => Promise<void>;
   beginMeet: () => Promise<void>;
   endMeet: () => Promise<void>;
@@ -45,6 +45,9 @@ interface XmStore {
   mafiaVote: (targetId: string) => Promise<void>;
   donCheck: (targetId: string) => Promise<void>;
   sheriffCheck: (targetId: string) => Promise<void>;
+  doctorHeal: (targetId: string) => Promise<void>;
+  maniacKill: (targetId: string) => Promise<void>;
+  cultConvert: (targetId: string) => Promise<void>;
   nominate: (targetId: string) => Promise<void>;
   castVote: (targetId: string) => Promise<void>;
 
@@ -129,6 +132,9 @@ export const useSxvaMafiaStore = create<XmStore>((set, get) => {
     mafiaVote: targetEv('xm:mafia_vote'),
     donCheck: targetEv('xm:don_check'),
     sheriffCheck: targetEv('xm:sheriff_check'),
+    doctorHeal: targetEv('xm:doctor_heal'),
+    maniacKill: targetEv('xm:maniac_kill'),
+    cultConvert: targetEv('xm:cult_convert'),
     nominate: targetEv('xm:nominate'),
     castVote: targetEv('xm:cast_vote'),
 

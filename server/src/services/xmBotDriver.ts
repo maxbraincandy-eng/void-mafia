@@ -24,6 +24,7 @@
 
 import {
   getMatch, pickCard, mafiaVote, donCheck, sheriffCheck, nominate, castVote,
+  doctorHeal, maniacKill, cultConvert,
   type XmMatch, type XmSeat,
 } from './sxvaMafiaService.js';
 import { isBot } from './testBots.js';
@@ -79,6 +80,19 @@ export function tick(matchId: string): boolean {
       if (seat.role === 'sheriff' && m.night.sheriffCheck === null) {
         const target = pick(alive.filter(s => s.userId !== seat.userId), salt + seat.seat * 5);
         if (target && sheriffCheck(matchId, seat.userId, target.userId)) return true;
+      }
+      if (seat.role === 'doctor' && m.night.doctorHeal === null) {
+        // Anyone but last night's patient — the rule the service enforces anyway.
+        const target = pick(alive.filter(s => s.userId !== m.lastHeal), salt + seat.seat * 7);
+        if (target && doctorHeal(matchId, seat.userId, target.userId)) return true;
+      }
+      if (seat.role === 'maniac' && m.night.maniacKill === null) {
+        const target = pick(alive.filter(s => s.userId !== seat.userId), salt + seat.seat * 11);
+        if (target && maniacKill(matchId, seat.userId, target.userId)) return true;
+      }
+      if (seat.role === 'cult' && m.night.cultConvert === null) {
+        const target = pick(alive.filter(s => s.userId !== seat.userId && !s.cult), salt + seat.seat * 13);
+        if (target && cultConvert(matchId, seat.userId, target.userId)) return true;
       }
     }
     return false;

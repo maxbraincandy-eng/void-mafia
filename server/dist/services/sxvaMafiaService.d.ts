@@ -1,6 +1,14 @@
-export type XmRole = 'don' | 'mafia' | 'sheriff' | 'citizen';
+/**
+ * The roles.
+ *
+ * The three optional ones are their own factions or their own problem:
+ *  • doctor — town, saves one person a night from whatever came for them
+ *  • maniac — nobody's friend, kills one person a night, wins alone
+ *  • cult   — converts a player a night; wins when the table is all cult
+ */
+export type XmRole = 'don' | 'mafia' | 'sheriff' | 'citizen' | 'doctor' | 'maniac' | 'cult';
 export type XmPhase = 'lobby' | 'assign' | 'mafia_meet' | 'night' | 'day_announce' | 'speech' | 'vote' | 'last_words' | 'finished';
-export type XmWinner = 'town' | 'mafia' | null;
+export type XmWinner = 'town' | 'mafia' | 'maniac' | 'cult' | null;
 export declare const XM_FOULS_TO_ELIMINATE = 4;
 export interface XmSeat {
     userId: string;
@@ -15,6 +23,14 @@ export interface XmSeat {
     eliminatedBy: 'vote' | 'mafia' | 'fouls' | null;
     lastCheck: string | null;
     cardIndex: number | null;
+    /**
+     * In the cult — the leader, or somebody they converted.
+     *
+     * Kept apart from `role` because a convert keeps the card they were dealt: a
+     * converted doctor still heals, they just win with the cult now. Mafia and the
+     * maniac cannot be converted, so this never overlaps those factions.
+     */
+    cult: boolean;
     /**
      * They left, or the host removed them.
      *
@@ -36,11 +52,28 @@ export interface XmNightState {
     donResult: boolean | null;
     sheriffCheck: string | null;
     sheriffResult: boolean | null;
+    /** The doctor's patient tonight. Immune to every kill that lands. */
+    doctorHeal: string | null;
+    /** The maniac's target tonight. */
+    maniacKill: string | null;
+    /** Who the cult leader tried to convert, and whether it took. */
+    cultConvert: string | null;
+    cultResult: 'converted' | 'immune' | null;
 }
 export interface XmAnnounce {
     round: number;
-    killedUserId: string | null;
-    killedName: string | null;
+    /**
+     * Everyone who died in the night.
+     *
+     * A list, not one name: with a maniac at the table two people can die in the
+     * same night, and an announcement that can only carry one of them is an
+     * announcement that lies.
+     */
+    killed: {
+        userId: string;
+        nickname: string;
+        seat: number;
+    }[];
 }
 export interface XmMatch {
     id: string;
@@ -69,6 +102,9 @@ export interface XmMatch {
         don: number;
         mafia: number;
         sheriff: number;
+        doctor: number;
+        maniac: number;
+        cult: number;
     } | null;
     deck: XmRole[];
     log: XmLogEntry[];
@@ -100,6 +136,10 @@ export interface XmMatch {
     } | null;
     lastWordsUserId: string | null;
     lastWordsEndsAt: number;
+    /** Farewells still owed — two can die in one night. */
+    lastWordsQueue: string[];
+    /** The doctor's previous patient: they may not heal the same person twice running. */
+    lastHeal: string | null;
     floorGrab: {
         userId: string;
         until: number;
@@ -128,6 +168,8 @@ export interface XmSafeSeat {
     role: XmRole | null;
     isSpeaking: boolean;
     isNominated: boolean;
+    /** In the cult — visible only to the cult, and to everyone at the reveal. */
+    cult: boolean;
     /**
      * They have raised their hand in this vote.
      *
@@ -162,6 +204,10 @@ export interface XmSafeState {
     myRole: XmRole | null;
     myAlive: boolean;
     myFouls: number;
+    /** Am I in the cult (leader or converted)? */
+    myCult: boolean;
+    /** The doctor may not repeat a patient; this is who is off limits tonight. */
+    healBlockedId: string | null;
     mateIds: string[];
     cards: {
         index: number;
@@ -230,21 +276,27 @@ export interface XmListItem {
     maxSeats: number;
     phase: XmPhase;
 }
-/** Role split for a given number of seated players (host excluded). */
-export declare function roleCounts(n: number): {
+export interface XmRoleCounts {
     don: number;
     mafia: number;
     sheriff: number;
+    doctor: number;
+    maniac: number;
+    cult: number;
     citizen: number;
-};
+}
+/**
+ * Role split for a given number of seated players (host excluded).
+ *
+ * The optional roles are off by default. They change the game a great deal —
+ * a maniac makes the mafia's parity meaningless, a cult can take the table from
+ * under everybody — so they are something a host turns on, not something that
+ * appears because enough people sat down.
+ */
+export declare function roleCounts(n: number): XmRoleCounts;
 /** The role counts actually used for the current seat count: the host's override
  * (clamped to a playable shape), or the automatic split when none is set. */
-export declare function effectiveCounts(m: XmMatch): {
-    don: number;
-    mafia: number;
-    sheriff: number;
-    citizen: number;
-};
+export declare function effectiveCounts(m: XmMatch): XmRoleCounts;
 export declare function createMatch(hostId: string, socketId: string, nickname: string, opts: {
     maxSeats?: number;
 }): XmMatch;
@@ -317,11 +369,32 @@ export declare function setRoleConfig(matchId: string, byUserId: string, cfg: {
     don: number;
     mafia: number;
     sheriff: number;
+    doctor?: number;
+    maniac?: number;
+    cult?: number;
 } | null): XmMatch | null;
 /** Host tweaks timers / floor control. Durations only editable before play starts. */
 export declare function setSettings(matchId: string, byUserId: string, patch: Partial<XmMatch['settings']>): XmMatch | null;
 /** Host re-deals the cards while still on the assign screen (everyone re-picks). */
 export declare function reshuffleRoles(matchId: string, byUserId: string): XmMatch | null;
+/**
+ * The doctor picks tonight's patient.
+ *
+ * Not the same person two nights running — otherwise one player is simply
+ * immortal and the mafia has nothing to aim at. Healing yourself is allowed;
+ * healing yourself every night is not, by the same rule.
+ */
+export declare function doctorHeal(matchId: string, byUserId: string, targetUserId: string): XmMatch | null;
+/** The maniac picks tonight's target. Nobody's friend, so anyone but themselves. */
+export declare function maniacKill(matchId: string, byUserId: string, targetUserId: string): XmMatch | null;
+/**
+ * The cult leader tries to convert somebody.
+ *
+ * Whether it takes is decided at resolution, not here: the leader finds out
+ * with everyone else's night, which is what makes trying it on a quiet player
+ * a real gamble rather than a free probe.
+ */
+export declare function cultConvert(matchId: string, byUserId: string, targetUserId: string): XmMatch | null;
 /** First night only: the mafia open their eyes and get to know each other. */
 export declare function beginMafiaMeet(matchId: string, byUserId: string): XmMatch | null;
 /** Host closes the acquaintance screen; the day-0 introduction circle begins —

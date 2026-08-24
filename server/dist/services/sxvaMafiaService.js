@@ -30,14 +30,21 @@ function shuffle(a) { const r = [...a]; for (let i = r.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [r[i], r[j]] = [r[j], r[i]];
 } return r; }
-/** Role split for a given number of seated players (host excluded). */
+/**
+ * Role split for a given number of seated players (host excluded).
+ *
+ * The optional roles are off by default. They change the game a great deal —
+ * a maniac makes the mafia's parity meaningless, a cult can take the table from
+ * under everybody — so they are something a host turns on, not something that
+ * appears because enough people sat down.
+ */
 export function roleCounts(n) {
     const mafiaTotal = n <= 6 ? 1 : n <= 8 ? 2 : n <= 11 ? 3 : 4; // includes the don
     const don = mafiaTotal >= 1 ? 1 : 0;
     const mafia = mafiaTotal - don;
     const sheriff = n >= 5 ? 1 : 0;
     const citizen = Math.max(0, n - don - mafia - sheriff);
-    return { don, mafia, sheriff, citizen };
+    return { don, mafia, sheriff, doctor: 0, maniac: 0, cult: 0, citizen };
 }
 /** The role counts actually used for the current seat count: the host's override
  * (clamped to a playable shape), or the automatic split when none is set. */
@@ -45,37 +52,49 @@ export function effectiveCounts(m) {
     const n = m.seats.length;
     if (!m.roleConfig)
         return roleCounts(n);
-    let don = Math.max(0, Math.min(2, Math.floor(m.roleConfig.don)));
-    let mafia = Math.max(0, Math.min(9, Math.floor(m.roleConfig.mafia)));
-    let sheriff = Math.max(0, Math.min(2, Math.floor(m.roleConfig.sheriff)));
-    // A mafia game needs at least one mafia-team member and at least one townsperson.
+    const cfg = m.roleConfig;
+    const clamp = (v, max) => Math.max(0, Math.min(max, Math.floor(v || 0)));
+    let don = clamp(cfg.don, 2);
+    let mafia = clamp(cfg.mafia, 9);
+    let sheriff = clamp(cfg.sheriff, 2);
+    let doctor = clamp(cfg.doctor, 2);
+    let maniac = clamp(cfg.maniac, 2);
+    let cult = clamp(cfg.cult, 1);
+    // A mafia game needs at least one mafia-team member.
     if (don + mafia === 0)
         mafia = 1;
-    // Trim specials that don't fit, then guarantee ≥1 town seat remains.
-    let specials = don + mafia + sheriff;
-    if (specials > n) {
-        const o = specials - n;
-        mafia = Math.max(0, mafia - o);
-    }
-    specials = don + mafia + sheriff;
-    if (specials > n) {
-        const o = specials - n;
-        sheriff = Math.max(0, sheriff - o);
-    }
-    specials = don + mafia + sheriff;
-    if (specials > n) {
-        const o = specials - n;
-        don = Math.max(0, don - o);
-    }
-    if (don + mafia === 0)
+    /*
+     * Trim what does not fit, worst-first.
+     *
+     * Order matters and it is a design decision: the specials a host added on
+     * purpose (cult, maniac, doctor) are the first to go when the table is too
+     * small, because losing one of them leaves a game that still works. Losing the
+     * mafia does not.
+     */
+    const total = () => don + mafia + sheriff + doctor + maniac + cult;
+    const trim = (take) => { while (total() > n)
+        take(); };
+    trim(() => {
+        if (cult > 0)
+            cult -= 1;
+        else if (maniac > 0)
+            maniac -= 1;
+        else if (doctor > 0)
+            doctor -= 1;
+        else if (sheriff > 0)
+            sheriff -= 1;
+        else if (mafia > 0)
+            mafia -= 1;
+        else if (don > 0)
+            don -= 1;
+        else
+            return;
+    });
+    if (don + mafia === 0 && n >= 2)
         mafia = 1;
-    // Keep at least one town seat: mafia team can be at most n-1.
-    while (don + mafia >= n && mafia > 0)
-        mafia -= 1;
-    while (don + mafia >= n && don > 0)
-        don -= 1;
-    const citizen = Math.max(0, n - don - mafia - sheriff);
-    return { don, mafia, sheriff, citizen };
+    // And always leave at least one plain townsperson, or the day has nobody in it.
+    const citizen = Math.max(0, n - total());
+    return { don, mafia, sheriff, doctor, maniac, cult, citizen };
 }
 export function createMatch(hostId, socketId, nickname, opts) {
     const id = randomBytes(8).toString('hex');
@@ -92,11 +111,11 @@ export function createMatch(hostId, socketId, nickname, opts) {
         round: 0,
         introRound: false,
         speechOrder: [], speechIdx: 0, speechEndsAt: 0, nominations: [], nominatedBy: {},
-        night: { mafiaVotes: {}, donCheck: null, donResult: null, sheriffCheck: null, sheriffResult: null },
+        night: emptyNight(),
         nightEndsAt: 0,
         announce: null,
         votes: {}, voteIdx: 0, voteEndsAt: 0, voteRevote: false, voteResult: null,
-        lastWordsUserId: null, lastWordsEndsAt: 0, floorGrab: null,
+        lastWordsUserId: null, lastWordsEndsAt: 0, lastWordsQueue: [], lastHeal: null, floorGrab: null,
         winner: null, reveal: null, dissolved: false, hostLeft: false, createdAt: Date.now(),
     };
     matches.set(id, m);
@@ -161,7 +180,7 @@ export function joinMatch(matchId, userId, socketId, nickname) {
         return { match: m, isNew: false };
     }
     if (m.phase === 'lobby' && m.seats.length < m.maxSeats) {
-        m.seats.push({ userId, socketId, nickname, seat: m.seats.length + 1, connected: true, role: null, alive: true, fouls: 0, eliminatedRound: null, eliminatedBy: null, lastCheck: null, cardIndex: null, left: false });
+        m.seats.push({ userId, socketId, nickname, seat: m.seats.length + 1, connected: true, role: null, alive: true, fouls: 0, eliminatedRound: null, eliminatedBy: null, lastCheck: null, cardIndex: null, left: false, cult: false });
         return { match: m, isNew: true };
     }
     m.spectators.push({ userId, socketId, nickname, connected: true });
@@ -184,7 +203,7 @@ export function joinMatchAsBot(matchId, botId, nickname) {
     m.seats.push({
         userId: botId, socketId: `nosocket_${botId}`, nickname,
         seat: m.seats.length + 1, connected: true, role: null, alive: true, fouls: 0,
-        eliminatedRound: null, eliminatedBy: null, lastCheck: null, cardIndex: null, left: false,
+        eliminatedRound: null, eliminatedBy: null, lastCheck: null, cardIndex: null, left: false, cult: false,
     });
     return m;
 }
@@ -361,7 +380,7 @@ export function transferHost(matchId, byUserId, targetUserId) {
     const oldHostSeat = {
         userId: m.hostId, socketId: m.hostSocketId, nickname: m.hostName, seat: target.seat,
         connected: m.hostConnected, role: null, alive: true, fouls: 0,
-        eliminatedRound: null, eliminatedBy: null, lastCheck: null, cardIndex: null, left: false,
+        eliminatedRound: null, eliminatedBy: null, lastCheck: null, cardIndex: null, left: false, cult: false,
     };
     m.seats = m.seats.map(s => (s.userId === targetUserId ? oldHostSeat : s));
     m.seats.forEach((s, i) => { s.seat = i + 1; });
@@ -377,11 +396,14 @@ export function transferHost(matchId, byUserId, targetUserId) {
  * hidden role becomes theirs. */
 export function dealCards(m) {
     const n = m.seats.length;
-    const { don, mafia, sheriff } = effectiveCounts(m);
+    const { don, mafia, sheriff, doctor, maniac, cult } = effectiveCounts(m);
     const pool = [
         ...Array(don).fill('don'),
         ...Array(mafia).fill('mafia'),
         ...Array(sheriff).fill('sheriff'),
+        ...Array(doctor).fill('doctor'),
+        ...Array(maniac).fill('maniac'),
+        ...Array(cult).fill('cult'),
     ];
     while (pool.length < n)
         pool.push('citizen');
@@ -389,6 +411,7 @@ export function dealCards(m) {
     m.seats.forEach(s => {
         s.role = null;
         s.cardIndex = null;
+        s.cult = false;
         s.alive = true;
         s.fouls = 0;
         s.eliminatedRound = null;
@@ -427,6 +450,9 @@ export function pickCard(matchId, byUserId, cardIndex) {
         return null; // already taken by someone
     seat.cardIndex = idx;
     seat.role = m.deck[idx];
+    // The cult leader starts the cult of one.
+    if (seat.role === 'cult')
+        seat.cult = true;
     return m;
 }
 /** Host configures the role composition (lobby or assign). Pass null to reset to auto. */
@@ -444,6 +470,9 @@ export function setRoleConfig(matchId, byUserId, cfg) {
             don: Math.max(0, Math.min(2, Math.floor(Number(cfg.don ?? 0)))),
             mafia: Math.max(0, Math.min(9, Math.floor(Number(cfg.mafia ?? 0)))),
             sheriff: Math.max(0, Math.min(2, Math.floor(Number(cfg.sheriff ?? 0)))),
+            doctor: Math.max(0, Math.min(2, Math.floor(Number(cfg.doctor ?? 0)))),
+            maniac: Math.max(0, Math.min(2, Math.floor(Number(cfg.maniac ?? 0)))),
+            cult: Math.max(0, Math.min(1, Math.floor(Number(cfg.cult ?? 0)))),
         };
     }
     if (m.phase === 'assign')
@@ -478,8 +507,14 @@ export function reshuffleRoles(matchId, byUserId) {
     return m;
 }
 // ── Phase transitions (host-driven) ─────────────────────────────────────────────
+function emptyNight() {
+    return {
+        mafiaVotes: {}, donCheck: null, donResult: null, sheriffCheck: null, sheriffResult: null,
+        doctorHeal: null, maniacKill: null, cultConvert: null, cultResult: null,
+    };
+}
 function resetNight(m) {
-    m.night = { mafiaVotes: {}, donCheck: null, donResult: null, sheriffCheck: null, sheriffResult: null };
+    m.night = emptyNight();
 }
 function seatLabel(s) { return `#${s.seat} ${s.nickname}`; }
 function pushLog(m, phase, text) {
@@ -491,9 +526,79 @@ function pushLog(m, phase, text) {
 function nightAllActed(m) {
     const mafia = aliveMafia(m);
     const allMafiaVoted = mafia.length === 0 || mafia.every(s => m.night.mafiaVotes[s.userId]);
-    const don = m.seats.find(s => s.alive && s.role === 'don');
-    const sheriff = m.seats.find(s => s.alive && s.role === 'sheriff');
-    return allMafiaVoted && (!don || m.night.donCheck !== null) && (!sheriff || m.night.sheriffCheck !== null);
+    const has = (role) => m.seats.some(s => s.alive && s.role === role);
+    return allMafiaVoted
+        && (!has('don') || m.night.donCheck !== null)
+        && (!has('sheriff') || m.night.sheriffCheck !== null)
+        && (!has('doctor') || m.night.doctorHeal !== null)
+        && (!has('maniac') || m.night.maniacKill !== null)
+        && (!has('cult') || m.night.cultConvert !== null);
+}
+// ── The optional roles' night actions ────────────────────────────────────────
+/**
+ * The doctor picks tonight's patient.
+ *
+ * Not the same person two nights running — otherwise one player is simply
+ * immortal and the mafia has nothing to aim at. Healing yourself is allowed;
+ * healing yourself every night is not, by the same rule.
+ */
+export function doctorHeal(matchId, byUserId, targetUserId) {
+    const m = matches.get(matchId);
+    if (!m || m.phase !== 'night')
+        return null;
+    const doc = findByUser(m, byUserId);
+    if (!doc || !doc.alive || doc.role !== 'doctor')
+        return null;
+    if (m.night.doctorHeal !== null)
+        return null; // one patient a night
+    const target = findByUser(m, targetUserId);
+    if (!target || !target.alive)
+        return null;
+    if (m.lastHeal === targetUserId)
+        return null; // not twice running
+    m.night.doctorHeal = targetUserId;
+    maybeAutoNight(m);
+    return m;
+}
+/** The maniac picks tonight's target. Nobody's friend, so anyone but themselves. */
+export function maniacKill(matchId, byUserId, targetUserId) {
+    const m = matches.get(matchId);
+    if (!m || m.phase !== 'night')
+        return null;
+    const maniac = findByUser(m, byUserId);
+    if (!maniac || !maniac.alive || maniac.role !== 'maniac')
+        return null;
+    if (m.night.maniacKill !== null)
+        return null;
+    const target = findByUser(m, targetUserId);
+    if (!target || !target.alive || target.userId === byUserId)
+        return null;
+    m.night.maniacKill = targetUserId;
+    maybeAutoNight(m);
+    return m;
+}
+/**
+ * The cult leader tries to convert somebody.
+ *
+ * Whether it takes is decided at resolution, not here: the leader finds out
+ * with everyone else's night, which is what makes trying it on a quiet player
+ * a real gamble rather than a free probe.
+ */
+export function cultConvert(matchId, byUserId, targetUserId) {
+    const m = matches.get(matchId);
+    if (!m || m.phase !== 'night')
+        return null;
+    const leader = findByUser(m, byUserId);
+    if (!leader || !leader.alive || leader.role !== 'cult')
+        return null;
+    if (m.night.cultConvert !== null)
+        return null;
+    const target = findByUser(m, targetUserId);
+    if (!target || !target.alive || target.userId === byUserId)
+        return null;
+    m.night.cultConvert = targetUserId;
+    maybeAutoNight(m);
+    return m;
 }
 function startNight(m) {
     resetNight(m);
@@ -624,19 +729,72 @@ function resolveKill(m) {
 function resolveNight(m) {
     if (m.phase !== 'night')
         return;
-    const victim = resolveKill(m);
-    if (victim) {
-        victim.alive = false;
-        victim.eliminatedRound = m.round;
-        victim.eliminatedBy = 'mafia';
+    /*
+     * Order is the rule here, not an implementation detail.
+     *
+     *   1. the cult converts — a convert can still be shot the same night
+     *   2. the mafia shoot
+     *   3. the maniac shoots
+     *   4. the doctor's patient survives whatever came for them
+     *
+     * The doctor is resolved last on purpose: one save covers every knife aimed
+     * at that person, so the mafia and the maniac picking the same target waste
+     * the night between them.
+     */
+    // 1. Conversion.
+    const convertId = m.night.cultConvert;
+    if (convertId) {
+        const leader = m.seats.find(x => x.alive && x.role === 'cult');
+        const target = findByUser(m, convertId);
+        const immune = !target || !target.alive || isMafiaRole(target.role) || target.role === 'maniac' || target.cult;
+        if (leader && target && !immune) {
+            target.cult = true;
+            m.night.cultResult = 'converted';
+            pushLog(m, 'night', `ღამე ${m.round}: კულტმა მოიმხრო ${seatLabel(target)}`);
+        }
+        else {
+            m.night.cultResult = 'immune';
+        }
     }
-    m.announce = { round: m.round, killedUserId: victim?.userId ?? null, killedName: victim?.nickname ?? null };
-    pushLog(m, 'night', victim ? `ღამე ${m.round}: მოკლეს ${seatLabel(victim)}` : `ღამე ${m.round}: მშვიდი ღამე — მსხვერპლი არ არის`);
+    // 2 & 3. The knives.
+    const saved = m.night.doctorHeal;
+    const doomed = new Map();
+    const mafiaVictim = resolveKill(m);
+    if (mafiaVictim && mafiaVictim.userId !== saved)
+        doomed.set(mafiaVictim.userId, 'mafia');
+    const maniacTargetId = m.night.maniacKill;
+    if (maniacTargetId && maniacTargetId !== saved) {
+        const maniac = m.seats.find(x => x.alive && x.role === 'maniac');
+        const target = findByUser(m, maniacTargetId);
+        if (maniac && target && target.alive)
+            doomed.set(target.userId, 'mafia');
+    }
+    // 4. Apply.
+    const killed = [];
+    for (const [userId, by] of doomed) {
+        const seat = findByUser(m, userId);
+        if (!seat || !seat.alive)
+            continue;
+        seat.alive = false;
+        seat.eliminatedRound = m.round;
+        seat.eliminatedBy = by;
+        killed.push({ userId: seat.userId, nickname: seat.nickname, seat: seat.seat });
+    }
+    killed.sort((a, b) => a.seat - b.seat);
+    m.night.doctorHeal = saved;
+    m.lastHeal = saved;
+    m.announce = { round: m.round, killed };
+    pushLog(m, 'night', killed.length
+        ? `ღამე ${m.round}: მოკლეს ${killed.map(k => `#${k.seat} ${k.nickname}`).join(', ')}`
+        : `ღამე ${m.round}: მშვიდი ღამე — მსხვერპლი არ არის`);
     m.phase = 'day_announce';
     if (checkWin(m))
         return;
-    if (victim)
-        startLastWords(m, victim.userId); // the freshly killed player gets a farewell
+    // Farewells, in seat order. Two can die in one night, and both get to speak.
+    m.lastWordsQueue = killed.map(k => k.userId);
+    const first = m.lastWordsQueue.shift();
+    if (first)
+        startLastWords(m, first);
 }
 /** Auto-close the night the moment every night role has acted. */
 function maybeAutoNight(m) {
@@ -959,6 +1117,12 @@ export function endLastWords(matchId, byUserId) {
     m.lastWordsUserId = null;
     if (checkWin(m))
         return m;
+    // Somebody else died in the same night and is still owed a farewell.
+    const next = m.lastWordsQueue.shift();
+    if (next) {
+        startLastWords(m, next);
+        return m;
+    }
     // A night victim's farewell → it's the morning, the host runs the day (announce
     // stands). A day elimination (vote/foul) → the day is over, so clear the announce;
     // day_announce with a null announce is the "night falls next" state.
@@ -972,19 +1136,39 @@ export function endLastWords(matchId, byUserId) {
     return m;
 }
 // ── Win detection ─────────────────────────────────────────────────────────────
+/**
+ * Who, if anybody, has won.
+ *
+ * The order of these checks is the ruleset. With four possible factions the
+ * same board can satisfy two of them, and which one is asked first decides the
+ * game — so they are asked in the order a table would settle them.
+ */
 function checkWin(m) {
-    const mafia = aliveMafia(m).length;
-    const town = aliveTown(m).length;
+    const alive = aliveSeats(m);
+    const mafia = alive.filter(s => isMafiaRole(s.role) && !s.cult);
+    const maniac = alive.filter(s => s.role === 'maniac');
+    const cult = alive.filter(s => s.cult);
     let winner = null;
-    if (mafia === 0)
+    // 1. Nobody hostile left.
+    if (mafia.length === 0 && maniac.length === 0 && cult.length === 0)
         winner = 'town';
-    else if (mafia >= town)
+    // 2. The maniac finishes the last one standing in the night, so two is over.
+    else if (maniac.length > 0 && alive.length <= 2)
+        winner = 'maniac';
+    // 3. The whole table is cult.
+    else if (cult.length > 0 && cult.length === alive.length)
+        winner = 'cult';
+    // 4. Mafia parity — but not while a maniac is still shooting at them too.
+    else if (mafia.length > 0 && maniac.length === 0 && mafia.length >= alive.length - mafia.length)
         winner = 'mafia';
     if (winner) {
         m.winner = winner;
         m.phase = 'finished';
         m.reveal = m.seats.map(s => ({ userId: s.userId, nickname: s.nickname, seat: s.seat, role: s.role }));
-        pushLog(m, 'game', winner === 'mafia' ? '🔫 მაფიამ გაიმარჯვა' : '🏙 ქალაქმა გაიმარჯვა');
+        pushLog(m, 'game', winner === 'mafia' ? '🔫 მაფიამ გაიმარჯვა'
+            : winner === 'maniac' ? '🔪 მანიაკმა გაიმარჯვა'
+                : winner === 'cult' ? '🕯 კულტმა გაიმარჯვა'
+                    : '🏙 ქალაქმა გაიმარჯვა');
         return true;
     }
     return false;
@@ -998,10 +1182,12 @@ export function rematch(matchId, byUserId) {
     for (const sp of m.spectators.filter(s => s.connected)) {
         if (keep.length >= m.maxSeats)
             break;
-        keep.push({ userId: sp.userId, socketId: sp.socketId, nickname: sp.nickname, seat: 0, connected: true, role: null, alive: true, fouls: 0, eliminatedRound: null, eliminatedBy: null, lastCheck: null, cardIndex: null, left: false });
+        keep.push({ userId: sp.userId, socketId: sp.socketId, nickname: sp.nickname, seat: 0, connected: true, role: null, alive: true, fouls: 0, eliminatedRound: null, eliminatedBy: null, lastCheck: null, cardIndex: null, left: false, cult: false });
     }
     m.seats = keep;
-    m.seats.forEach((s, i) => { s.seat = i + 1; s.role = null; s.alive = true; s.fouls = 0; s.eliminatedRound = null; s.eliminatedBy = null; s.lastCheck = null; s.cardIndex = null; });
+    m.seats.forEach((s, i) => { s.seat = i + 1; s.role = null; s.alive = true; s.fouls = 0; s.eliminatedRound = null; s.eliminatedBy = null; s.lastCheck = null; s.cardIndex = null; s.cult = false; });
+    m.lastHeal = null;
+    m.lastWordsQueue = [];
     m.deck = [];
     m.spectators = [];
     m.phase = 'lobby';
@@ -1054,10 +1240,20 @@ export function getSafeState(m, viewerUserId) {
         isSpeaking: s.userId === speakingUserId,
         isNominated: m.nominations.includes(s.userId),
         hasVoted: m.phase === 'vote' ? Boolean(m.votes[s.userId]) : false,
+        // Only the cult sees the cult. Everyone sees it once the game is over.
+        cult: (gameOver || Boolean(meSeat?.cult)) ? s.cult : false,
     }));
-    const mateIds = iAmMafia && !gameOver
-        ? m.seats.filter(s => isMafiaRole(s.role) && s.userId !== viewerUserId).map(s => s.userId)
-        : [];
+    /*
+     * Who you know.
+     *
+     * The mafia know each other. The cult knows itself — a convert is told they
+     * are in it and who else is, which is the whole point of a cult. Everybody
+     * else knows nobody.
+     */
+    const mateIds = gameOver ? []
+        : iAmMafia ? m.seats.filter(s => isMafiaRole(s.role) && s.userId !== viewerUserId).map(s => s.userId)
+            : meSeat?.cult ? m.seats.filter(s => s.cult && s.userId !== viewerUserId).map(s => s.userId)
+                : [];
     // Night private info + whether I already acted. The check result persists past
     // the night (via seat.lastCheck) so the investigator keeps their information
     // even when the night auto-resolves the instant they act.
@@ -1066,6 +1262,13 @@ export function getSafeState(m, viewerUserId) {
     if (meSeat && meSeat.alive && (meSeat.role === 'don' || meSeat.role === 'sheriff')) {
         nightPrivate = meSeat.lastCheck;
     }
+    // The cult leader learns whether last night's attempt took — and only they do.
+    if (meSeat && meSeat.alive && meSeat.role === 'cult' && m.night.cultResult) {
+        const t = m.night.cultConvert ? findByUser(m, m.night.cultConvert) : null;
+        nightPrivate = m.night.cultResult === 'converted'
+            ? `✅ ${t ? seatLabel(t) : 'ის'} შენს მხარესაა`
+            : `❌ ${t ? seatLabel(t) : 'ის'} ვერ მოიმხრე`;
+    }
     if (m.phase === 'night' && meSeat && meSeat.alive) {
         if (meSeat.role === 'don')
             iActedTonight = m.night.donCheck !== null && !!m.night.mafiaVotes[viewerUserId];
@@ -1073,6 +1276,12 @@ export function getSafeState(m, viewerUserId) {
             iActedTonight = !!m.night.mafiaVotes[viewerUserId];
         else if (meSeat.role === 'sheriff')
             iActedTonight = m.night.sheriffCheck !== null;
+        else if (meSeat.role === 'doctor')
+            iActedTonight = m.night.doctorHeal !== null;
+        else if (meSeat.role === 'maniac')
+            iActedTonight = m.night.maniacKill !== null;
+        else if (meSeat.role === 'cult')
+            iActedTonight = m.night.cultConvert !== null;
     }
     const lastWordsSeat = m.lastWordsUserId ? findByUser(m, m.lastWordsUserId) : null;
     // Mafia see each other's kill picks live (consensus building).
@@ -1097,6 +1306,8 @@ export function getSafeState(m, viewerUserId) {
         myRole,
         myAlive: meSeat?.alive ?? false,
         myFouls: meSeat?.fouls ?? 0,
+        myCult: Boolean(meSeat?.cult),
+        healBlockedId: meSeat?.role === 'doctor' ? m.lastHeal : null,
         mateIds,
         cards: m.phase === 'assign' ? m.deck.map((_, index) => {
             const holder = m.seats.find(s => s.cardIndex === index) ?? null;

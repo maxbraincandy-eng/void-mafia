@@ -15,6 +15,7 @@ import {
   createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch,
   dissolveMatch, transferHost, startMatch, reshuffleRoles, setRoleConfig, setSettings, pickCard, beginMafiaMeet, endMafiaMeet, beginNight, mafiaVote, donCheck, sheriffCheck,
   endNight, beginDay, nextSpeaker, advanceSpeakerAuto, extendSpeech, nominate, grabFloor,
+  doctorHeal, maniacKill, cultConvert,
   castVote, endVote, nextCandidate, giveFoul, endLastWords, rematch, disconnectSocket, getSafeState,
   kickPlayer, recipients, resumeForUser, joinMatchAsBot,
 } from './services/sxvaMafiaService.js';
@@ -410,6 +411,9 @@ export function registerSxvaMafiaHandlers(io: AppServer, socket: AppSocket): voi
   socket.on('xm:mafia_vote' as any, targetAction(mafiaVote, 'ვერ აირჩია სამიზნე'));
   socket.on('xm:don_check' as any, targetAction(donCheck, 'ვერ შეამოწმა'));
   socket.on('xm:sheriff_check' as any, targetAction(sheriffCheck, 'ვერ შეამოწმა'));
+  socket.on('xm:doctor_heal' as any, targetAction(doctorHeal, 'ვერ განკურნა'));
+  socket.on('xm:maniac_kill' as any, targetAction(maniacKill, 'ვერ აირჩია სამიზნე'));
+  socket.on('xm:cult_convert' as any, targetAction(cultConvert, 'ვერ მოიმხრო'));
   socket.on('xm:nominate' as any, targetAction(nominate, 'ვერ დაასახელა'));
   socket.on('xm:cast_vote' as any, targetAction(castVote, 'ვერ მისცა ხმა'));
 
