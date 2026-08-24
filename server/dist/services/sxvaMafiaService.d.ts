@@ -32,6 +32,15 @@ export interface XmSeat {
      */
     cult: boolean;
     /**
+     * Do they know yet?
+     *
+     * A convert belongs to the cult from the moment it happens — that is what
+     * decides who wins — but they are not told until the next night falls. Being
+     * told the same morning would hand them a day of certainty they did nothing
+     * to earn, and would let the table read the conversion off their face.
+     */
+    cultRevealed: boolean;
+    /**
      * They left, or the host removed them.
      *
      * Distinct from `connected: false`, which means a socket dropped and may come

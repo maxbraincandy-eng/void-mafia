@@ -24,6 +24,27 @@ import { GameInviteButton } from '@/components/social/GameInviteButton';
  */
 
 const RED = '#ff3b47';
+/** The cult's colour, used wherever a convert is marked. */
+const CULT = XM_TEAM_META.cult.color;
+
+/**
+ * Black or white on top of this colour, whichever can actually be read.
+ *
+ * The role palette runs from #ff3b47 to #7fe0a0 to #c084fc, and white text was
+ * hardcoded on all of it — washed out on the mint and the candlelight. This
+ * works out both contrast ratios the way WCAG defines them and takes the
+ * better one, rather than guessing at a luminance cutoff, so a role added
+ * later gets a readable button without anyone remembering to check.
+ */
+function ink(hex: string): string {
+  const h = hex.replace('#', '');
+  const [r, g, b] = [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16) / 255) as [number, number, number];
+  const lin = (c: number) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  const L = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+  const onWhite = 1.05 / (L + 0.05);
+  const onBlack = (L + 0.05) / 0.05;
+  return onBlack > onWhite ? '#0d0512' : '#fff';
+}
 // Tasteful per-seat avatar tints for when a webcam isn't showing.
 const AV = ['#7c5cff', '#3f8cff', '#2fb8a0', '#e0803c', '#d84f7a', '#5cbe6a', '#c78cff', '#4aa0d8', '#e0b23c', '#5c7cff'];
 // A fixed twinkling starfield for the night overlay (computed once).
@@ -117,7 +138,10 @@ const SeatTile = memo(function SeatTile({ seat, isHostTile, fill, match, myId, s
   const mate = !isHostTile && match.mateIds.includes(uid);
   const rm = seat?.role ? XM_ROLE_META[seat.role] : null;
   const conn = isHostTile ? match.hostConnected : seat!.connected;
-  const glow = turnSpeaking ? RED : grabbing ? '#ffcc33' : isSpeaking ? '#39d98a' : mate ? '#ff6b6b' : 'transparent';
+  // Your people are ringed — in your side's colour, so a convert's ring is the
+  // cult's candlelight rather than the mafia's red.
+  const mateColor = match.myCult ? CULT : '#ff6b6b';
+  const glow = turnSpeaking ? RED : grabbing ? '#ffcc33' : isSpeaking ? '#39d98a' : mate ? mateColor : 'transparent';
   const canFoul = isHost && foulMode && !isHostTile && seat!.alive;
   const avatarColor = isHostTile ? RED : AV[((seat?.seat ?? 0)) % AV.length]!;
 
@@ -323,6 +347,28 @@ export function SxvaMafiaGame() {
   // Auto-dismiss the cinematic overlay shortly after it appears.
   useEffect(() => { if (!cinematic) return; const t = setTimeout(() => setCinematic(null), 1700); return () => clearTimeout(t); }, [cinematic]);
 
+  /*
+   * "You are in the cult now."
+   *
+   * The server holds a convert's membership back until the next night falls, so
+   * the moment `myCult` turns true is the moment they are meant to find out —
+   * and it has to land like something happened to them, not appear as a quiet
+   * badge they might scroll past. It fires once per conversion: the flag only
+   * flips false→true when the reveal happens, and it flips back if the leader
+   * dies and the cult comes apart, so a second conversion would announce itself
+   * again, correctly.
+   *
+   * The leader is excluded — they have known since they took the card.
+   */
+  const [cultReveal, setCultReveal] = useState(false);
+  const prevMyCult = useRef(false);
+  useEffect(() => {
+    const now = Boolean(match?.myCult) && match?.myRole !== 'cult';
+    if (now && !prevMyCult.current) { setCultReveal(true); SFX.voteStart?.(); haptic('heavy'); }
+    prevMyCult.current = now;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [match?.myCult, match?.myRole]);
+
   // LiveKit video room (one per match). Floor control: with it on, only the
   // player who currently "holds the floor" (active speaker / last-words / host)
   // may talk; everyone else is muted. Dead players & spectators always listen.
@@ -403,6 +449,8 @@ export function SxvaMafiaGame() {
 
   const aliveSeats = match.seats.filter(s => s.alive);
   const nightRole = match.myRole;
+  /** Converted, and told. The leader has their own role for that. */
+  const iAmCult = match.myCult && match.myRole !== 'cult';
   const canActNight = match.phase === 'night' && match.myAlive && !match.amSpectator;
 
   // Stable tile factory — passes per-tile props to the module-level SeatTile so
@@ -532,6 +580,12 @@ export function SxvaMafiaGame() {
           {match.mafiaPicks.map(p => <p key={p.userId} className="font-mono text-[11px]" style={{ color: '#ff8a92' }}>{p.nickname} → {p.targetName}</p>)}
         </div>
       ) : null;
+      /* A converted sheriff or doctor keeps their night action — the reminder
+         of whose side it now serves rides along under it. */
+      const cultNote = iAmCult ? (
+        <p className="text-center font-mono text-[11px] mt-2 px-2 py-1 rounded-lg"
+          style={{ color: CULT, background: `${CULT}14`, border: `1px solid ${CULT}44` }}>🕯 შენ კულტში ხარ</p>
+      ) : null;
       if (nightRole === 'doctor') {
         const meta = XM_ROLE_META.doctor;
         return (<div>
@@ -544,6 +598,7 @@ export function SxvaMafiaGame() {
               ერთი და იმავე ადამიანს ზედიზედ ორჯერ ვერ გადაარჩენ
             </p>
           )}
+          {cultNote}
         </div>);
       }
       if (nightRole === 'maniac') {
@@ -567,7 +622,8 @@ export function SxvaMafiaGame() {
       if (nightRole === 'sheriff') {
         return (<div><p className="text-center font-mono text-[11px] mb-2" style={{ color: '#4fb8ff' }}>🔎 შეამოწმე ერთი მოთამაშე (მაფიაა თუ არა)</p>
           <Chips seats={aliveSeats.filter(s => s.userId !== myId)} onPick={store.sheriffCheck} />
-          {match.nightPrivate && <p className="text-center font-mono text-[13px] mt-2 text-white">{match.nightPrivate}</p>}</div>);
+          {match.nightPrivate && <p className="text-center font-mono text-[13px] mt-2 text-white">{match.nightPrivate}</p>}
+          {cultNote}</div>);
       }
       if (nightRole === 'don') {
         /*
@@ -607,7 +663,10 @@ export function SxvaMafiaGame() {
           {consensus}
           {match.iActedTonight && <p className="text-center font-mono text-[11px] mt-2 text-white/50">✅ არჩევანი გააკეთე</p>}</div>);
       }
-      return <p className="text-center font-mono text-[12px] text-white/40 animate-pulse">🌙 ღამეა — თვალები დახუჭე</p>;
+      return (<div>
+        <p className="text-center font-mono text-[12px] text-white/40 animate-pulse">🌙 ღამეა — თვალები დახუჭე</p>
+        {iAmCult && <p className="text-center font-mono text-[11px] mt-2" style={{ color: CULT }}>🕯 შენ კულტში ხარ</p>}
+      </div>);
     }
 
     if (match.phase === 'speech') {
@@ -845,7 +904,16 @@ export function SxvaMafiaGame() {
                 style={{ background: voice.cameraOn ? `${RED}22` : 'rgba(255,255,255,0.06)', border: `1px solid ${voice.cameraOn ? RED : 'rgba(255,255,255,0.15)'}` }}>{voice.cameraOn ? '📹' : '📷'}</button>
             )}
             {match.myRole && (
-              <button onClick={() => { SFX.click?.(); setRoleOpen(true); }} className="px-2 h-8 rounded-full flex items-center justify-center text-sm" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)' }}>{XM_ROLE_META[match.myRole].emoji}</button>
+              /* A convert's badge sits on their own role button, tinted and with
+                 the candle beside it — so the reveal card is not the only place
+                 they can ever see it, and they can reopen the details there. */
+              <button onClick={() => { SFX.click?.(); setRoleOpen(true); }} className="px-2 h-8 rounded-full flex items-center justify-center text-sm gap-0.5"
+                style={{
+                  background: iAmCult ? `${CULT}22` : 'rgba(255,255,255,0.06)',
+                  border: `1px solid ${iAmCult ? CULT : 'rgba(255,255,255,0.15)'}`,
+                }}>
+                {XM_ROLE_META[match.myRole].emoji}{iAmCult && <span className="text-[11px]">🕯</span>}
+              </button>
             )}
             <button onClick={() => setConfirmLeave(true)} className="w-8 h-8 rounded-full flex items-center justify-center" style={{ color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.15)' }}>✕</button>
           </div>
@@ -975,6 +1043,12 @@ export function SxvaMafiaGame() {
             <motion.div animate={{ y: [0, -7, 0], rotate: [0, 4, 0] }} transition={{ repeat: Infinity, duration: 5, ease: 'easeInOut' }} style={{ fontSize: 64, filter: 'drop-shadow(0 0 18px rgba(255,220,120,0.5))' }}>🌙</motion.div>
             <p className="font-display font-black text-white mt-3" style={{ fontSize: 22, letterSpacing: 1 }}>ქალაქს სძინავს</p>
             <p className="font-mono text-[12px] mt-1.5" style={{ color: 'rgba(180,200,255,0.6)' }}>დახუჭე თვალები — ღამე მოქმედებს…</p>
+            {/* A convert has no night action, so this sky is their whole night —
+                and without this line it would be the same sky as a citizen's. */}
+            {iAmCult && match.myAlive && (
+              <p className="font-mono text-[11px] mt-4 px-3 py-1.5 rounded-lg"
+                style={{ color: CULT, background: `${CULT}14`, border: `1px solid ${CULT}44` }}>🕯 შენ კულტში ხარ</p>
+            )}
             {!match.myAlive && <p className="font-mono text-[11px] mt-4 text-white/30">💀 შენ თამაშიდან გახვედი</p>}
           </div>
         ) : useRing ? (
@@ -1206,7 +1280,20 @@ export function SxvaMafiaGame() {
 
       {/* Role card */}
       <AnimatePresence>
-        {roleOpen && match.myRole && <RoleCard role={match.myRole} mates={match.seats.filter(s => match.mateIds.includes(s.userId))} note={match.nightPrivate} onClose={() => setRoleOpen(false)} />}
+        {roleOpen && match.myRole && (
+          <RoleCard
+            role={match.myRole}
+            cult={match.myCult}
+            mates={match.seats.filter(s => match.mateIds.includes(s.userId))}
+            note={match.nightPrivate}
+            onClose={() => setRoleOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* The night you find out. */}
+      <AnimatePresence>
+        {cultReveal && <CultRevealCard mates={match.seats.filter(s => match.mateIds.includes(s.userId))} onClose={() => setCultReveal(false)} />}
       </AnimatePresence>
 
       {/* Moderator: fouls and removals. Outside the toast's AnimatePresence,
@@ -1390,35 +1477,104 @@ function PlayerPanelReadonly({ match }: { match: XmSafeState }) {
   return null;
 }
 
-function RoleCard({ role, mates, note, onClose }: { role: XmRole; mates: XmSafeSeat[]; note?: string | null; onClose: () => void }) {
+/** What each role is told about itself, in one line. */
+const ROLE_BLURB: Record<XmRole, string> = {
+  don:     'მაფიის ლიდერი. ღამით ჯერ ამოწმებ — შერიფია თუ არა — და მერე ირჩევ მსხვერპლს.',
+  mafia:   'ღამით მაფიასთან ერთად ირჩევ მსხვერპლს. დღისით შენიღბე.',
+  sheriff: 'ღამით ამოწმებ ერთ მოთამაშეს — მაფიაა თუ არა. იპოვე მაფია.',
+  citizen: 'იპოვე მაფია საუბრით და კენჭისყრით. ხმა შენი იარაღია.',
+  doctor:  'ღამით ერთ ადამიანს გადაარჩენ. ერთსა და იმავეს ზედიზედ ორჯერ ვერ — შენი თავიც მათ შორისაა.',
+  maniac:  'მარტო ხარ ყველას წინააღმდეგ. ღამით კლავ, და იმარჯვებ, როცა მარტო შენ დარჩები.',
+  cult:    'ღამით ერთ ადამიანს იმხრობ — მაფია და მანიაკი ვერ. იმარჯვებ, როცა მთელი მაგიდა შენია.',
+};
+
+function RoleCard({ role, cult, mates, note, onClose }: { role: XmRole; cult?: boolean; mates: XmSafeSeat[]; note?: string | null; onClose: () => void }) {
   const rm = XM_ROLE_META[role];
+  /*
+   * A convert keeps their role and changes their side.
+   *
+   * The card shows both, because both are true and both matter: the doctor
+   * still heals every night, they just win with the cult now. Showing only the
+   * role would hide the conversion; showing only the cult would lose the night
+   * action they still have to take.
+   */
+  const converted = Boolean(cult) && role !== 'cult';
+  /** Converted or the leader themselves — either way the cult is your side. */
+  const onCultSide = converted || rm.team === 'cult';
+  const tm = XM_TEAM_META[converted ? 'cult' : rm.team];
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="fixed inset-0 z-[585] flex items-center justify-center px-8" style={{ background: 'rgba(4,4,10,0.85)' }} onClick={onClose}>
       <motion.div initial={{ scale: 0.85, rotateY: 20 }} animate={{ scale: 1, rotateY: 0 }} exit={{ scale: 0.85 }} onClick={e => e.stopPropagation()}
-        className="w-full max-w-xs rounded-2xl p-6 text-center" style={{ background: `linear-gradient(160deg, ${rm.color}22, rgba(16,10,14,0.99))`, border: `1.5px solid ${rm.color}` }}>
+        className="w-full max-w-xs rounded-2xl p-6 text-center" style={{ background: `linear-gradient(160deg, ${rm.color}22, rgba(16,10,14,0.99))`, border: `1.5px solid ${converted ? CULT : rm.color}` }}>
         <p className="text-5xl mb-2">{rm.emoji}</p>
         <p className="font-display font-black" style={{ fontSize: 24, color: rm.color }}>{rm.label}</p>
-        <p className="font-mono text-[11px] mt-1" style={{ color: 'rgba(255,255,255,0.5)' }}>{rm.team === 'mafia' ? 'მაფიის გუნდი' : 'ქალაქის გუნდი'}</p>
-        <p className="font-mono text-[12px] mt-3 leading-relaxed" style={{ color: 'rgba(255,255,255,0.75)' }}>
-          {role === 'don' && 'მაფიის ლიდერი. ღამით ირჩევ მსხვერპლს და ამოწმებ, ვინ არის შერიფი.'}
-          {role === 'mafia' && 'ღამით მაფიასთან ერთად ირჩევ მსხვერპლს. დღისით შენიღბე.'}
-          {role === 'sheriff' && 'ღამით ამოწმებ ერთ მოთამაშეს — მაფიაა თუ არა. იპოვე მაფია.'}
-          {role === 'citizen' && 'იპოვე მაფია საუბრით და კენჭისყრით. ხმა შენი იარაღია.'}
+        <p className="font-mono text-[11px] mt-1" style={{ color: onCultSide ? CULT : 'rgba(255,255,255,0.5)' }}>
+          {tm.emoji} {tm.of} {onCultSide ? 'მხარეს' : 'გუნდი'}
         </p>
+        <p className="font-mono text-[12px] mt-3 leading-relaxed" style={{ color: 'rgba(255,255,255,0.75)' }}>{ROLE_BLURB[role]}</p>
+        {converted && (
+          <p className="font-mono text-[11px] mt-2 leading-relaxed rounded-lg px-2.5 py-2"
+            style={{ color: CULT, background: `${CULT}14`, border: `1px solid ${CULT}44` }}>
+            🕯 შენ კულტში ხარ. ღამის მოქმედება იგივე გრჩება — მაგრამ იმარჯვებ კულტთან ერთად.
+          </p>
+        )}
         {mates.length > 0 && (
           <div className="mt-3 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-            <p className="font-mono text-[10px] text-white/40 mb-1">შენი გუნდი:</p>
-            <p className="font-mono text-[12px]" style={{ color: rm.color }}>{mates.map(m => `#${m.seat} ${m.nickname}`).join(', ')}</p>
+            <p className="font-mono text-[10px] text-white/40 mb-1">{onCultSide ? 'კულტი:' : 'შენი გუნდი:'}</p>
+            <p className="font-mono text-[12px]" style={{ color: onCultSide ? CULT : rm.color }}>{mates.map(m => `#${m.seat} ${m.nickname}`).join(', ')}</p>
           </div>
         )}
         {note && (
           <div className="mt-3 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-            <p className="font-mono text-[10px] text-white/40 mb-1">შენი ბოლო შემოწმება:</p>
+            {/* The leader's note is the result of a conversion, not a check —
+                calling it one would be the wrong word on the wrong card. */}
+            <p className="font-mono text-[10px] text-white/40 mb-1">{role === 'cult' ? 'გასული ღამე:' : 'შენი ბოლო შემოწმება:'}</p>
             <p className="font-mono text-[12px] text-white">{note}</p>
           </div>
         )}
-        <button onClick={onClose} className="mt-4 w-full py-2.5 rounded-xl font-display font-bold text-white text-[13px]" style={{ background: rm.color }}>დამალვა</button>
+        <button onClick={onClose} className="mt-4 w-full py-2.5 rounded-xl font-display font-bold text-[13px]" style={{ background: rm.color, color: ink(rm.color) }}>დამალვა</button>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+/**
+ * The night a convert finds out.
+ *
+ * It arrives a full day after the conversion, and it is the only notice they
+ * get, so it takes over the screen the way the role card did at the deal —
+ * anything smaller would be a badge appearing somewhere while the player was
+ * looking at somebody's video, and they would simply miss it.
+ *
+ * It also names who else is in the cult, because from this moment they are
+ * playing with those people, and a convert who does not know that plays their
+ * old game for another day.
+ */
+function CultRevealCard({ mates, onClose }: { mates: XmSafeSeat[]; onClose: () => void }) {
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[590] flex items-center justify-center px-8"
+      style={{ background: 'rgba(8,2,14,0.92)' }} onClick={onClose}>
+      <motion.div initial={{ scale: 0.8, y: 14 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0 }}
+        transition={{ type: 'spring', stiffness: 260, damping: 22 }} onClick={e => e.stopPropagation()}
+        className="w-full max-w-xs rounded-2xl p-6 text-center"
+        style={{ background: `linear-gradient(160deg, ${CULT}2e, rgba(14,6,20,0.99))`, border: `1.5px solid ${CULT}`, boxShadow: `0 0 44px ${CULT}44` }}>
+        <motion.p className="text-5xl mb-2"
+          animate={{ opacity: [0.55, 1, 0.55], scale: [1, 1.08, 1] }}
+          transition={{ repeat: Infinity, duration: 2.4, ease: 'easeInOut' }}>🕯</motion.p>
+        <p className="font-display font-black" style={{ fontSize: 23, color: CULT }}>შენ კულტში ხარ</p>
+        <p className="font-mono text-[12px] mt-3 leading-relaxed" style={{ color: 'rgba(255,255,255,0.78)' }}>
+          წინა ღამეს კულტის ლიდერმა მოგიმხრო. როლი და ღამის მოქმედება იგივე გრჩება — მაგრამ ახლა კულტთან ერთად იმარჯვებ.
+        </p>
+        {mates.length > 0 && (
+          <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${CULT}33` }}>
+            <p className="font-mono text-[10px] text-white/40 mb-1">შენი ძმობა:</p>
+            <p className="font-mono text-[12px]" style={{ color: CULT }}>{mates.map(m => `#${m.seat} ${m.nickname}`).join(', ')}</p>
+          </div>
+        )}
+        <p className="font-mono text-[10px] mt-3 text-white/35">ვერავინ გაიგებს — სანამ თვითონ არ გასცემ თავს</p>
+        <button onClick={onClose} className="mt-4 w-full py-2.5 rounded-xl font-display font-bold text-[13px]" style={{ background: CULT, color: ink(CULT) }}>გავიგე</button>
       </motion.div>
     </motion.div>
   );

@@ -11,7 +11,7 @@ import { strict as assert } from 'assert';
 
 import {
   createMatch, getMatch, joinMatchAsBot, setRoleConfig, startMatch, pickCard,
-  beginMafiaMeet, endMafiaMeet, beginNight, endNight,
+  beginMafiaMeet, endMafiaMeet, beginNight, endNight, leaveMatch, getSafeState,
   mafiaVote, donCheck, doctorHeal, maniacKill, cultConvert,
   effectiveCounts, type XmMatch, type XmRole,
 } from './services/sxvaMafiaService.js';
@@ -42,6 +42,7 @@ function table(roles: XmRole[]): XmMatch {
     pickCard(m.id, seat.userId, i);
     seat.role = roles[i]!;
     seat.cult = roles[i] === 'cult';
+    seat.cultRevealed = roles[i] === 'cult';
   });
 
   beginMafiaMeet(m.id, hostId);
@@ -214,6 +215,104 @@ test('a converted player keeps the card they were dealt', () => {
   const converted = getMatch(m.id)!.seats[1]!;
   assert.equal(converted.cult, true, 'they are in the cult');
   assert.equal(converted.role, 'doctor', 'and they can still heal — they just win with somebody else now');
+});
+
+test('a convert is not told until the next night falls', () => {
+  const m = table(['cult', 'citizen', 'citizen', 'citizen', 'citizen']);
+  const [leader, mark] = [bySeat(m, 0), bySeat(m, 1)];
+
+  cultConvert(m.id, leader.userId, mark.userId);
+  endNight(m.id, hostOf(m));
+
+  // Night one is over; it is morning, and they belong to the cult already —
+  // that is what will decide who wins — but nothing on their screen says so.
+  const converted = getMatch(m.id)!.seats[1]!;
+  assert.equal(converted.cult, true, 'they are in it from the moment it happened');
+  assert.equal(converted.cultRevealed, false, 'but they have not been told');
+
+  const morning = getSafeState(getMatch(m.id)!, mark.userId);
+  assert.equal(morning.myCult, false, 'so their own screen says nothing');
+  assert.deepEqual(morning.mateIds, [], 'and names nobody');
+  assert.ok(morning.seats.every(s => !s.cult), 'and marks nobody at the table');
+
+  // The leader, on the other hand, knew the same night — they did it.
+  assert.equal(getSafeState(getMatch(m.id)!, leader.userId).myCult, true);
+  assert.deepEqual(
+    getSafeState(getMatch(m.id)!, leader.userId).mateIds, [mark.userId],
+    'and can see who they took',
+  );
+
+  // Night two falls.
+  beginNight(m.id, hostOf(m));
+
+  const told = getSafeState(getMatch(m.id)!, mark.userId);
+  assert.equal(getMatch(m.id)!.seats[1]!.cultRevealed, true);
+  assert.equal(told.myCult, true, 'now they know');
+  assert.deepEqual(told.mateIds, [leader.userId], 'and who they are in it with');
+});
+
+test('the cult comes apart when its leader is shot', () => {
+  const m = table(['cult', 'don', 'doctor', 'citizen', 'citizen', 'citizen']);
+  const [leader, don, doc] = [bySeat(m, 0), bySeat(m, 1), bySeat(m, 2)];
+
+  // Night one: the leader takes the doctor. The mafia only look around, so the
+  // morning has no last words in it and the host can call the next night.
+  cultConvert(m.id, leader.userId, doc.userId);
+  donCheck(m.id, don.userId, bySeat(m, 3).userId);
+  endNight(m.id, hostOf(m));
+  assert.equal(getMatch(m.id)!.seats[2]!.cult, true, 'the doctor is theirs');
+
+  // Night two: the mafia shoot the leader.
+  beginNight(m.id, hostOf(m));
+  assert.equal(getMatch(m.id)!.seats[2]!.cultRevealed, true, 'the doctor was told at nightfall');
+  donCheck(m.id, don.userId, bySeat(m, 4).userId);
+  mafiaVote(m.id, don.userId, leader.userId);
+  endNight(m.id, hostOf(m));
+
+  const after = getMatch(m.id)!;
+  assert.equal(after.seats[0]!.alive, false, 'the leader is dead');
+  assert.equal(after.seats[2]!.cult, false, 'and the doctor is the town\'s doctor again');
+  assert.equal(after.seats[2]!.cultRevealed, false);
+  assert.equal(after.seats[2]!.role, 'doctor', 'they never stopped being one');
+  assert.equal(getSafeState(after, doc.userId).myCult, false, 'their screen agrees');
+});
+
+test('the cult comes apart when its leader walks out of the room', () => {
+  const m = table(['cult', 'don', 'citizen', 'citizen', 'citizen', 'citizen']);
+  const [leader, mark] = [bySeat(m, 0), bySeat(m, 2)];
+
+  cultConvert(m.id, leader.userId, mark.userId);
+  endNight(m.id, hostOf(m));
+  beginNight(m.id, hostOf(m));
+  assert.equal(getMatch(m.id)!.seats[2]!.cult, true);
+
+  // Leaving is not dying, so it is the one exit that does not pass a win check.
+  leaveMatch(m.id, leader.userId);
+
+  const after = getMatch(m.id)!;
+  assert.equal(after.seats[0]!.alive, true, 'they are alive — they just left');
+  assert.equal(after.seats[2]!.cult, false, 'and took the cult with them');
+  assert.equal(after.seats[2]!.cultRevealed, false);
+});
+
+test('a leaderless cult cannot win the game on its own', () => {
+  const m = table(['cult', 'don', 'citizen', 'citizen', 'citizen']);
+  const live = getMatch(m.id)!;
+
+  // Everyone alive is in the cult except the mafia — one shot from a cult win.
+  live.seats[2]!.cult = true; live.seats[2]!.cultRevealed = true;
+  live.seats[3]!.alive = false;
+  live.seats[4]!.alive = false;
+
+  // The mafia shoot the leader instead. Alive: one convert, one don.
+  donCheck(m.id, live.seats[1]!.userId, live.seats[2]!.userId);
+  mafiaVote(m.id, live.seats[1]!.userId, live.seats[0]!.userId);
+  endNight(m.id, hostOf(m));
+
+  const after = getMatch(m.id)!;
+  assert.notEqual(after.winner, 'cult', 'the cult died with the man who made it');
+  assert.equal(after.seats[2]!.cult, false, 'the convert is a citizen again');
+  assert.equal(after.winner, 'mafia', 'and one mafioso against one citizen is parity');
 });
 
 // ─── Win order ───────────────────────────────────────────────────────────────

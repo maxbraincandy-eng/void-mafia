@@ -57,6 +57,15 @@ export interface XmSeat {
    */
   cult: boolean;
   /**
+   * Do they know yet?
+   *
+   * A convert belongs to the cult from the moment it happens — that is what
+   * decides who wins — but they are not told until the next night falls. Being
+   * told the same morning would hand them a day of certainty they did nothing
+   * to earn, and would let the table read the conversion off their face.
+   */
+  cultRevealed: boolean;
+  /**
    * They left, or the host removed them.
    *
    * Distinct from `connected: false`, which means a socket dropped and may come
@@ -397,7 +406,7 @@ export function joinMatch(matchId: string, userId: string, socketId: string, nic
   const spec = m.spectators.find(s => s.userId === userId);
   if (spec) { spec.socketId = socketId; spec.connected = true; return { match: m, isNew: false }; }
   if (m.phase === 'lobby' && m.seats.length < m.maxSeats) {
-    m.seats.push({ userId, socketId, nickname, seat: m.seats.length + 1, connected: true, role: null, alive: true, fouls: 0, eliminatedRound: null, eliminatedBy: null, lastCheck: null, cardIndex: null, left: false, cult: false });
+    m.seats.push({ userId, socketId, nickname, seat: m.seats.length + 1, connected: true, role: null, alive: true, fouls: 0, eliminatedRound: null, eliminatedBy: null, lastCheck: null, cardIndex: null, left: false, cult: false, cultRevealed: false });
     return { match: m, isNew: true };
   }
   m.spectators.push({ userId, socketId, nickname, connected: true });
@@ -419,7 +428,7 @@ export function joinMatchAsBot(matchId: string, botId: string, nickname: string)
   m.seats.push({
     userId: botId, socketId: `nosocket_${botId}`, nickname,
     seat: m.seats.length + 1, connected: true, role: null, alive: true, fouls: 0,
-    eliminatedRound: null, eliminatedBy: null, lastCheck: null, cardIndex: null, left: false, cult: false,
+    eliminatedRound: null, eliminatedBy: null, lastCheck: null, cardIndex: null, left: false, cult: false, cultRevealed: false,
   });
   return m;
 }
@@ -440,7 +449,13 @@ export function leaveMatch(matchId: string, userId: string): XmMatch | null {
   // `left`, not just `connected: false` — they chose to go, so the room stops
   // pushing state at them. A dropped connection is a different thing and keeps
   // its seat warm.
-  if (seat) { seat.connected = false; seat.left = true; }
+  if (seat) {
+    seat.connected = false;
+    seat.left = true;
+    // Walking out is the one way to be gone without dying, so it is the one
+    // path that does not already pass through `checkWin`.
+    dissolveCultIfLeaderGone(m);
+  }
   m.spectators = m.spectators.filter(s => s.userId !== userId);
   return m;
 }
@@ -571,7 +586,7 @@ export function transferHost(matchId: string, byUserId: string, targetUserId: st
   const oldHostSeat: XmSeat = {
     userId: m.hostId, socketId: m.hostSocketId, nickname: m.hostName, seat: target.seat,
     connected: m.hostConnected, role: null, alive: true, fouls: 0,
-    eliminatedRound: null, eliminatedBy: null, lastCheck: null, cardIndex: null, left: false, cult: false,
+    eliminatedRound: null, eliminatedBy: null, lastCheck: null, cardIndex: null, left: false, cult: false, cultRevealed: false,
   };
   m.seats = m.seats.map(s => (s.userId === targetUserId ? oldHostSeat : s));
   m.seats.forEach((s, i) => { s.seat = i + 1; });
@@ -597,7 +612,7 @@ export function dealCards(m: XmMatch): void {
   while (pool.length < n) pool.push('citizen');
   m.deck = shuffle(pool);
   m.seats.forEach(s => {
-    s.role = null; s.cardIndex = null; s.cult = false;
+    s.role = null; s.cardIndex = null; s.cult = false; s.cultRevealed = false;
     s.alive = true; s.fouls = 0; s.eliminatedRound = null; s.eliminatedBy = null; s.lastCheck = null;
   });
 }
@@ -626,8 +641,8 @@ export function pickCard(matchId: string, byUserId: string, cardIndex: number): 
   if (m.seats.some(s => s.cardIndex === idx)) return null; // already taken by someone
   seat.cardIndex = idx;
   seat.role = m.deck[idx]!;
-  // The cult leader starts the cult of one.
-  if (seat.role === 'cult') seat.cult = true;
+  // The cult leader starts the cult of one, and knows it.
+  if (seat.role === 'cult') { seat.cult = true; seat.cultRevealed = true; }
   return m;
 }
 
@@ -764,6 +779,17 @@ export function cultConvert(matchId: string, byUserId: string, targetUserId: str
 }
 function startNight(m: XmMatch): void {
   resetNight(m);
+  /**
+   * Night falls, and last night's converts learn what they are.
+   *
+   * The delay is the point. A player converted on night one spends the whole of
+   * day one not knowing — they argue for the town in good faith, and the table
+   * has nothing to read on their face. Only when the next night comes do they
+   * open their eyes and find out whose side they are on.
+   */
+  for (const s of m.seats) {
+    if (s.cult && !s.cultRevealed) s.cultRevealed = true;
+  }
   m.floorGrab = null;
   m.phase = 'night';
   // Host-paced: the night ends when every role has acted (auto) or the host
@@ -1255,6 +1281,35 @@ export function endLastWords(matchId: string, byUserId: string | null): XmMatch 
   return m;
 }
 
+// ── The cult outlives nobody ──────────────────────────────────────────────────
+/**
+ * The leader is gone, so the cult is gone with them.
+ *
+ * A cult is one person's hold over other people, not a faction that recruits a
+ * successor. When the leader is shot, voted out, fouled out or simply walks out
+ * of the room, everyone they turned comes back to the side they were dealt —
+ * the doctor is the town's doctor again, the citizen is a citizen again, and
+ * they win or lose with their own colour.
+ *
+ * Two reasons it has to work this way rather than leaving the converts behind
+ * as a leaderless cult. Such a cult can never convert again, so it can only
+ * win by outliving everyone else — a faction with no play left, dragging the
+ * game out. And a convert who was never told (the leader died before the next
+ * night fell) would be quietly locked out of every win in the game without ever
+ * learning why.
+ *
+ * Called from `checkWin`, which every death already funnels through, and from
+ * `leaveMatch`, which is the one way out that is not a death.
+ */
+function dissolveCultIfLeaderGone(m: XmMatch): void {
+  const converts = m.seats.filter(s => s.cult && s.role !== 'cult');
+  if (converts.length === 0) return;
+  const leader = m.seats.find(s => s.role === 'cult' && s.alive && !s.left);
+  if (leader) return;
+  for (const s of converts) { s.cult = false; s.cultRevealed = false; }
+  pushLog(m, 'game', '🕯 კულტის ლიდერი აღარაა — მისი მიმდევრები დაუბრუნდნენ თავიანთ როლს');
+}
+
 // ── Win detection ─────────────────────────────────────────────────────────────
 /**
  * Who, if anybody, has won.
@@ -1264,6 +1319,9 @@ export function endLastWords(matchId: string, byUserId: string | null): XmMatch 
  * game — so they are asked in the order a table would settle them.
  */
 function checkWin(m: XmMatch): boolean {
+  // Before anyone is counted: if the leader has fallen, the cult is not a side
+  // any more, and its former members count for the colour they were dealt.
+  dissolveCultIfLeaderGone(m);
   const alive = aliveSeats(m);
   const mafia = alive.filter(s => isMafiaRole(s.role) && !s.cult);
   const maniac = alive.filter(s => s.role === 'maniac');
@@ -1310,10 +1368,10 @@ function resetToLobby(m: XmMatch): void {
   const keep = m.seats.filter(s => s.connected);
   for (const sp of m.spectators.filter(s => s.connected)) {
     if (keep.length >= m.maxSeats) break;
-    keep.push({ userId: sp.userId, socketId: sp.socketId, nickname: sp.nickname, seat: 0, connected: true, role: null, alive: true, fouls: 0, eliminatedRound: null, eliminatedBy: null, lastCheck: null, cardIndex: null, left: false, cult: false });
+    keep.push({ userId: sp.userId, socketId: sp.socketId, nickname: sp.nickname, seat: 0, connected: true, role: null, alive: true, fouls: 0, eliminatedRound: null, eliminatedBy: null, lastCheck: null, cardIndex: null, left: false, cult: false, cultRevealed: false });
   }
   m.seats = keep;
-  m.seats.forEach((s, i) => { s.seat = i + 1; s.role = null; s.alive = true; s.fouls = 0; s.eliminatedRound = null; s.eliminatedBy = null; s.lastCheck = null; s.cardIndex = null; s.cult = false; });
+  m.seats.forEach((s, i) => { s.seat = i + 1; s.role = null; s.alive = true; s.fouls = 0; s.eliminatedRound = null; s.eliminatedBy = null; s.lastCheck = null; s.cardIndex = null; s.cult = false; s.cultRevealed = false; });
   m.lastHeal = null;
   m.lastWordsQueue = [];
   m.deck = [];
@@ -1364,6 +1422,18 @@ export function getSafeState(m: XmMatch, viewerUserId: string): XmSafeState {
 
   const speakingUserId = m.phase === 'speech' ? (m.speechOrder[m.speechIdx] ?? null) : null;
 
+  /**
+   * Do I know I am in the cult?
+   *
+   * Belonging and knowing are two different things. A convert belongs from the
+   * moment the leader picks them — it is already what decides who wins — but
+   * they are told only when the next night falls. Every window into the cult
+   * (my own badge, who my brethren are, the mark on their tile) opens on this
+   * one flag, so there is no seam where a convert learns early through a side
+   * door. The leader is revealed to themselves the instant they take the card.
+   */
+  const iKnowCult = Boolean(meSeat?.cult && meSeat.cultRevealed);
+
   const seats: XmSafeSeat[] = m.seats.map(s => ({
     userId: s.userId, socketId: s.socketId, nickname: s.nickname, seat: s.seat, connected: s.connected,
     alive: s.alive, fouls: s.fouls, eliminatedBy: s.eliminatedBy,
@@ -1372,7 +1442,7 @@ export function getSafeState(m: XmMatch, viewerUserId: string): XmSafeState {
     isNominated: m.nominations.includes(s.userId),
     hasVoted: m.phase === 'vote' ? Boolean(m.votes[s.userId]) : false,
     // Only the cult sees the cult. Everyone sees it once the game is over.
-    cult: (gameOver || Boolean(meSeat?.cult)) ? s.cult : false,
+    cult: (gameOver || iKnowCult) ? s.cult : false,
   }));
 
   /*
@@ -1384,7 +1454,7 @@ export function getSafeState(m: XmMatch, viewerUserId: string): XmSafeState {
    */
   const mateIds = gameOver ? []
     : iAmMafia ? m.seats.filter(s => isMafiaRole(s.role) && s.userId !== viewerUserId).map(s => s.userId)
-    : meSeat?.cult ? m.seats.filter(s => s.cult && s.userId !== viewerUserId).map(s => s.userId)
+    : iKnowCult ? m.seats.filter(s => s.cult && s.userId !== viewerUserId).map(s => s.userId)
     : [];
 
   // Night private info + whether I already acted. The check result persists past
@@ -1436,7 +1506,7 @@ export function getSafeState(m: XmMatch, viewerUserId: string): XmSafeState {
     myRole,
     myAlive: meSeat?.alive ?? false,
     myFouls: meSeat?.fouls ?? 0,
-    myCult: Boolean(meSeat?.cult),
+    myCult: iKnowCult,
     healBlockedId: meSeat?.role === 'doctor' ? m.lastHeal : null,
     mateIds,
     cards: m.phase === 'assign' ? m.deck.map((_, index) => {

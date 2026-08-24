@@ -100,9 +100,17 @@ export const XM_ROLE_META: Record<XmRole, {
   cult:    { label: 'კულტის ლიდერი', emoji: '🕯', team: 'cult', color: '#c084fc', night: 'ვის მოიმხრობ?' },
 };
 
-export const XM_TEAM_META: Record<XmTeam, { label: string; emoji: string; color: string }> = {
-  town:   { label: 'ქალაქი',   emoji: '🏙', color: '#7fe0a0' },
-  mafia:  { label: 'მაფია',    emoji: '🔫', color: '#ff4d5e' },
-  maniac: { label: 'მანიაკი',  emoji: '🔪', color: '#ff9f1c' },
-  cult:   { label: 'კულტი',    emoji: '🕯', color: '#c084fc' },
+/**
+ * `of` is the genitive, and it is a separate field on purpose.
+ *
+ * Georgian does not build it by adding a suffix to the nominative — ქალაქი
+ * becomes ქალაქის, მაფია becomes მაფიის — so `label + 'ის'` produces ქალაქიის,
+ * which is not a word. Anywhere the team is possessive ("the city's side"),
+ * this is the string to use.
+ */
+export const XM_TEAM_META: Record<XmTeam, { label: string; of: string; emoji: string; color: string }> = {
+  town:   { label: 'ქალაქი',   of: 'ქალაქის',  emoji: '🏙', color: '#7fe0a0' },
+  mafia:  { label: 'მაფია',    of: 'მაფიის',   emoji: '🔫', color: '#ff4d5e' },
+  maniac: { label: 'მანიაკი',  of: 'მანიაკის', emoji: '🔪', color: '#ff9f1c' },
+  cult:   { label: 'კულტი',    of: 'კულტის',   emoji: '🕯', color: '#c084fc' },
 };
