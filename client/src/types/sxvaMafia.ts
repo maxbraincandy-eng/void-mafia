@@ -8,6 +8,7 @@ export interface XmSafeSeat {
   role: XmRole | null;
   isSpeaking: boolean;
   isNominated: boolean;
+  hasVoted: boolean;
 }
 
 export interface XmAnnounce {
@@ -59,6 +60,10 @@ export interface XmSafeState {
   announce: XmAnnounce | null;
   voteEndsAt: number;
   voteRevote: boolean;
+  voteCandidate: { userId: string; nickname: string; seat: number } | null;
+  voteIdx: number;
+  voteTotal: number;
+  voteIsLast: boolean;
   myVote: string | null;
   voteTally: Record<string, number>;
   voteResult: { eliminatedUserId: string | null; tally: Record<string, number> } | null;

@@ -394,3 +394,144 @@ test('a bot cannot be seated once the cards are out', async () => {
 
   host.close();
 });
+
+// ─── Sequential voting ───────────────────────────────────────────────────────
+
+/**
+ * Run a game up to the day's speeches.
+ *
+ * The day does not open on the speeches: if the mafia killed somebody the night
+ * before, it opens on the announcement and that player's last words. The first
+ * version of these tests assumed otherwise and found the game in `last_words`,
+ * wondering why it was not voting.
+ */
+async function toSpeech(matchId: string, hostId: string) {
+  const svc = await import('./services/sxvaMafiaService.js');
+  const { tick } = await import('./services/xmBotDriver.js');
+
+  svc.startMatch(matchId, hostId);
+  for (let i = 0; i < 40 && svc.getMatch(matchId)!.seats.some(s => s.cardIndex === null); i++) tick(matchId);
+  svc.beginMafiaMeet(matchId, hostId);
+  svc.endMafiaMeet(matchId, hostId);
+  svc.beginNight(matchId, hostId);
+  for (let i = 0; i < 40; i++) if (!tick(matchId)) break;
+  svc.endNight(matchId, hostId);
+  svc.beginDay(matchId, hostId);
+
+  for (let i = 0; i < 10; i++) {
+    const phase = svc.getMatch(matchId)!.phase;
+    if (phase === 'speech') break;
+    if (phase === 'last_words') { svc.endLastWords(matchId, hostId); continue; }
+    if (phase === 'day_announce') { svc.beginDay(matchId, hostId); continue; }
+    break;
+  }
+  // The intro circle has no vote; play through it to reach a real day.
+  if (svc.getMatch(matchId)!.introRound) {
+    for (let i = 0; i < 40 && svc.getMatch(matchId)!.phase === 'speech'; i++) svc.nextSpeaker(matchId, hostId);
+    svc.beginNight(matchId, hostId);
+    for (let i = 0; i < 40; i++) if (!tick(matchId)) break;
+    svc.endNight(matchId, hostId);
+    svc.beginDay(matchId, hostId);
+    for (let i = 0; i < 10; i++) {
+      const phase = svc.getMatch(matchId)!.phase;
+      if (phase === 'speech') break;
+      if (phase === 'last_words') { svc.endLastWords(matchId, hostId); continue; }
+      if (phase === 'day_announce') { svc.beginDay(matchId, hostId); continue; }
+      break;
+    }
+  }
+  return svc.getMatch(matchId)!;
+}
+
+/**
+ * The vote runs one candidate at a time, the way a moderator runs it out loud:
+ * this nominee, hands up, count, next. Everything here is about that order —
+ * you cannot vote ahead, you cannot vote twice, and silence all the way down
+ * the list is counted for the last name on it.
+ */
+test('the vote runs one candidate at a time, and hands are public', async () => {
+  const { getMatch, nominate, castVote, nextCandidate, nextSpeaker, getSafeState, joinMatchAsBot } =
+    await import('./services/sxvaMafiaService.js');
+
+  const host = await open('v1_host');
+  const created = await send(host, 'xm:create', { nickname: 'Host', maxSeats: 10 });
+  const match = (created as { data: any }).data;
+  for (let i = 0; i < 6; i++) joinMatchAsBot(match.id, `bot_v1_${i}`, `ბოტი ${i}`);
+
+  const m0 = await toSpeech(match.id, 'v1_host');
+  assert.equal(m0.phase, 'speech', 'the day reached the speeches');
+
+  /*
+   * Two names on the list, nominated as the floor comes to each speaker.
+   *
+   * A nomination only counts from whoever is speaking — which is the rule, and
+   * which is why nominating two people in the same breath quietly produced a
+   * one-name list the first time round.
+   */
+  const wanted = m0.seats.filter(s => s.alive).slice(0, 2).map(s => s.userId);
+  let put = 0;
+  for (let i = 0; i < 30 && getMatch(match.id)!.phase === 'speech'; i++) {
+    const live = getMatch(match.id)!;
+    const speaker = live.speechOrder[live.speechIdx]!;
+    const target = wanted.find(id => id !== speaker && !live.nominations.includes(id));
+    if (put < 2 && target && nominate(match.id, speaker, target)) put += 1;
+    nextSpeaker(match.id, 'v1_host');
+  }
+
+  const inVote = getMatch(match.id)!;
+  assert.equal(inVote.phase, 'vote', 'the day ends in a vote when somebody is up');
+  assert.equal(inVote.voteIdx, 0, 'starting with the first name on the list');
+  assert.equal(inVote.nominations.length, 2);
+
+  const first = inVote.nominations[0]!;
+  const next = inVote.nominations[1]!;
+  const voter = inVote.seats.find(s => s.alive && s.userId !== first && s.userId !== next)!;
+
+  assert.equal(castVote(match.id, voter.userId, next), null, 'no voting ahead down the list');
+  assert.ok(castVote(match.id, voter.userId, first), 'the candidate on the floor takes votes');
+  assert.equal(castVote(match.id, voter.userId, first), null, 'a raised hand cannot be raised twice');
+
+  const seen = getSafeState(getMatch(match.id)!, 'v1_host').seats.find(s => s.userId === voter.userId)!;
+  assert.equal(seen.hasVoted, true, 'and everyone can see it — that is the information in the game');
+
+  if (getMatch(match.id)!.phase === 'vote') {
+    nextCandidate(match.id, 'v1_host');
+    assert.equal(getMatch(match.id)!.voteIdx, 1, 'the next name comes up');
+  }
+
+  host.close();
+});
+
+test('silence all the way down the list is counted for the last candidate', async () => {
+  const { getMatch, nominate, nextSpeaker, nextCandidate, joinMatchAsBot } =
+    await import('./services/sxvaMafiaService.js');
+
+  const host = await open('v2_host');
+  const created = await send(host, 'xm:create', { nickname: 'Host', maxSeats: 10 });
+  const match = (created as { data: any }).data;
+  for (let i = 0; i < 6; i++) joinMatchAsBot(match.id, `bot_v2_${i}`, `ბოტი ${i}`);
+
+  const m0 = await toSpeech(match.id, 'v2_host');
+  assert.equal(m0.phase, 'speech');
+
+  const speaker = m0.speechOrder[m0.speechIdx]!;
+  const target = m0.seats.find(s => s.alive && s.userId !== speaker)!;
+  nominate(match.id, speaker, target.userId);
+  for (let i = 0; i < 30 && getMatch(match.id)!.phase === 'speech'; i++) nextSpeaker(match.id, 'v2_host');
+
+  const inVote = getMatch(match.id)!;
+  assert.equal(inVote.phase, 'vote');
+  assert.equal(inVote.nominations.length, 1, 'one name on the list');
+  assert.equal(Object.keys(inVote.votes).length, 0, 'and nobody has raised a hand');
+
+  nextCandidate(match.id, 'v2_host');
+
+  const after = getMatch(match.id)!;
+  assert.notEqual(after.phase, 'vote', 'the vote closed');
+  assert.equal(
+    after.seats.find(s => s.userId === target.userId)!.alive, false,
+    'abstaining your way out of every elimination is not an option',
+  );
+
+  host.close();
+});

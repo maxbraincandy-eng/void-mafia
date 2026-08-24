@@ -100,6 +100,15 @@ export interface XmMatch {
   announce: XmAnnounce | null;
   // vote
   votes: Record<string, string>; // voter userId -> nominee userId
+  /**
+   * Which nominee is on the floor.
+   *
+   * The vote is sequential, the way a moderator runs it out loud: one candidate
+   * at a time, hands up, count, next. A simultaneous secret ballot is a
+   * different game — half of table mafia is watching who raises their hand and
+   * when.
+   */
+  voteIdx: number;
   voteEndsAt: number;
   voteRevote: boolean;           // this vote is a tie-break re-vote
   voteResult: { eliminatedUserId: string | null; tally: Record<string, number> } | null;
@@ -124,6 +133,13 @@ export interface XmSafeSeat {
   role: XmRole | null;   // filled only when the viewer is allowed to know it
   isSpeaking: boolean;
   isNominated: boolean;
+  /**
+   * They have raised their hand in this vote.
+   *
+   * Public on purpose. A vote in table mafia happens with hands in the air —
+   * seeing who votes, and how quickly, is most of the information in the game.
+   */
+  hasVoted: boolean;
 }
 
 export interface XmSafeState {
@@ -167,6 +183,12 @@ export interface XmSafeState {
   // vote
   voteEndsAt: number;
   voteRevote: boolean;
+  /** The nominee on the floor right now, and where they sit in the list. */
+  voteCandidate: { userId: string; nickname: string; seat: number } | null;
+  voteIdx: number;
+  voteTotal: number;
+  /** True on the last candidate: everyone silent is counted for them. */
+  voteIsLast: boolean;
   myVote: string | null;
   voteTally: Record<string, number>;
   voteResult: XmMatch['voteResult'];
@@ -249,7 +271,7 @@ export function createMatch(hostId: string, socketId: string, nickname: string, 
     night: { mafiaVotes: {}, donCheck: null, donResult: null, sheriffCheck: null, sheriffResult: null },
     nightEndsAt: 0,
     announce: null,
-    votes: {}, voteEndsAt: 0, voteRevote: false, voteResult: null,
+    votes: {}, voteIdx: 0, voteEndsAt: 0, voteRevote: false, voteResult: null,
     lastWordsUserId: null, lastWordsEndsAt: 0, floorGrab: null,
     winner: null, reveal: null, dissolved: false, hostLeft: false, createdAt: Date.now(),
   };
@@ -835,19 +857,62 @@ function startVote(m: XmMatch): void {
   m.voteResult = null;
   m.voteRevote = false;
   m.phase = 'vote';
+  m.voteIdx = 0;
   m.voteEndsAt = Date.now() + m.settings.voteSeconds * 1000;
 }
 
+/**
+ * Vote for whoever is currently on the floor.
+ *
+ * One vote each, and it cannot be moved: a hand raised in a real game cannot be
+ * un-raised once the moderator has counted it. `nomineeUserId` is still checked
+ * against the candidate actually up, so a client cannot vote ahead for someone
+ * whose turn has not come.
+ */
 export function castVote(matchId: string, byUserId: string, nomineeUserId: string): XmMatch | null {
   const m = matches.get(matchId);
   if (!m || m.phase !== 'vote') return null;
   const voter = findByUser(m, byUserId);
   if (!voter || !voter.alive) return null;
-  if (!m.nominations.includes(nomineeUserId)) return null;
-  m.votes[byUserId] = nomineeUserId;
-  // Auto-resolve once every living player has voted.
-  const voters = aliveSeats(m);
-  if (voters.every(s => m.votes[s.userId])) resolveVote(m);
+  if (m.votes[byUserId]) return null;                       // already voted
+  const current = m.nominations[m.voteIdx];
+  if (!current || current !== nomineeUserId) return null;    // not the candidate on the floor
+  m.votes[byUserId] = current;
+
+  // Everyone has now voted — there is nothing left to ask.
+  if (aliveSeats(m).every(s => m.votes[s.userId])) resolveVote(m);
+  return m;
+}
+
+/** The candidate on the floor right now, if the vote is running. */
+export function currentCandidate(m: XmMatch): string | null {
+  return m.phase === 'vote' ? (m.nominations[m.voteIdx] ?? null) : null;
+}
+
+/**
+ * Move to the next candidate — or close the vote.
+ *
+ * Past the last candidate, everyone who has not voted is counted for that last
+ * one. That is the standing rule in table mafia: if you sat on your hands all
+ * the way down the list, your vote goes to the last name on it. Without it, a
+ * player can abstain their way out of every elimination.
+ */
+export function nextCandidate(matchId: string, byUserId: string): XmMatch | null {
+  const m = matches.get(matchId);
+  if (!m || m.phase !== 'vote' || m.hostId !== byUserId) return null;
+
+  if (m.voteIdx < m.nominations.length - 1) {
+    m.voteIdx += 1;
+    return m;
+  }
+
+  const last = m.nominations[m.nominations.length - 1];
+  if (last) {
+    for (const seat of aliveSeats(m)) {
+      if (!m.votes[seat.userId]) m.votes[seat.userId] = last;
+    }
+  }
+  resolveVote(m);
   return m;
 }
 
@@ -881,6 +946,7 @@ function resolveVote(m: XmMatch): void {
     m.voteResult = null;
     m.voteRevote = true;
     m.phase = 'vote';
+    m.voteIdx = 0;
     m.voteEndsAt = Date.now() + m.settings.voteSeconds * 1000;
     return;
   }
@@ -1017,6 +1083,7 @@ export function getSafeState(m: XmMatch, viewerUserId: string): XmSafeState {
     role: canSeeRole(s) ? s.role : null,
     isSpeaking: s.userId === speakingUserId,
     isNominated: m.nominations.includes(s.userId),
+    hasVoted: m.phase === 'vote' ? Boolean(m.votes[s.userId]) : false,
   }));
 
   const mateIds = iAmMafia && !gameOver
@@ -1092,6 +1159,15 @@ export function getSafeState(m: XmMatch, viewerUserId: string): XmSafeState {
     announce: (m.phase === 'day_announce' || m.phase === 'last_words') ? m.announce : null,
     voteEndsAt: m.phase === 'vote' ? m.voteEndsAt : 0,
     voteRevote: m.phase === 'vote' ? m.voteRevote : false,
+    voteCandidate: (() => {
+      const id = currentCandidate(m);
+      if (!id) return null;
+      const seat = findByUser(m, id);
+      return seat ? { userId: id, nickname: seat.nickname, seat: seat.seat } : null;
+    })(),
+    voteIdx: m.phase === 'vote' ? m.voteIdx : 0,
+    voteTotal: m.phase === 'vote' ? m.nominations.length : 0,
+    voteIsLast: m.phase === 'vote' && m.voteIdx >= m.nominations.length - 1,
     myVote: m.votes[viewerUserId] ?? null,
     voteTally: (() => { const t: Record<string, number> = {}; for (const nm of m.nominations) t[nm] = 0; for (const v of Object.values(m.votes)) t[v] = (t[v] ?? 0) + 1; return t; })(),
     voteResult: m.phase === 'vote' ? m.voteResult : null,

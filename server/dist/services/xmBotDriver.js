@@ -94,13 +94,17 @@ export function tick(matchId) {
     }
     // ── Vote ─────────────────────────────────────────────────────────────────
     if (m.phase === 'vote') {
-        const waiting = aliveBots(m).find(s => !m.votes[s.userId]);
-        if (!waiting || m.nominations.length === 0)
+        const candidate = m.nominations[m.voteIdx];
+        if (!candidate)
             return false;
-        const choice = pick(m.nominations.filter(id => id !== waiting.userId), salt + waiting.seat);
-        if (!choice)
+        const waiting = aliveBots(m).find(s => !m.votes[s.userId] && s.userId !== candidate);
+        if (!waiting)
             return false;
-        return Boolean(castVote(matchId, waiting.userId, choice));
+        // Not everyone votes for everyone: some hands stay down and are swept up by
+        // the auto-vote on the last candidate, which is what happens at a table.
+        if ((salt + waiting.seat) % 3 === 0)
+            return false;
+        return Boolean(castVote(matchId, waiting.userId, candidate));
     }
     return false;
 }

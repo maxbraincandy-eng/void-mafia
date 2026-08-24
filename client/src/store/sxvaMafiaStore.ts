@@ -31,6 +31,7 @@ interface XmStore {
   nextSpeaker: () => Promise<void>;
   extendSpeech: (seconds?: number) => Promise<void>;
   endVote: () => Promise<void>;
+  nextCandidate: () => Promise<void>;
   endLastWords: () => Promise<void>;
   giveFoul: (targetId: string, delta?: number) => Promise<void>;
   kick: (targetId: string) => Promise<void>;
@@ -116,6 +117,7 @@ export const useSxvaMafiaStore = create<XmStore>((set, get) => {
     nextSpeaker: hostEv('xm:next_speaker'),
     extendSpeech: async (seconds = 30) => { const id = mid(); if (!id) return; try { await emit('xm:extend_speech', { matchId: id, seconds }); } catch { /* ignore */ } },
     endVote: hostEv('xm:end_vote'),
+    nextCandidate: hostEv('xm:next_candidate'),
     endLastWords: hostEv('xm:end_last_words'),
     giveFoul: async (targetId, delta = 1) => { const id = mid(); if (!id) return; try { const r = await emit('xm:give_foul', { matchId: id, targetId, delta }); if (!r.ok) set({ error: r.error }); } catch (e: any) { set({ error: e.message }); } },
     kick: targetEv('xm:kick'),

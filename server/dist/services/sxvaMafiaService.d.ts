@@ -83,6 +83,15 @@ export interface XmMatch {
     nightEndsAt: number;
     announce: XmAnnounce | null;
     votes: Record<string, string>;
+    /**
+     * Which nominee is on the floor.
+     *
+     * The vote is sequential, the way a moderator runs it out loud: one candidate
+     * at a time, hands up, count, next. A simultaneous secret ballot is a
+     * different game — half of table mafia is watching who raises their hand and
+     * when.
+     */
+    voteIdx: number;
     voteEndsAt: number;
     voteRevote: boolean;
     voteResult: {
@@ -119,6 +128,13 @@ export interface XmSafeSeat {
     role: XmRole | null;
     isSpeaking: boolean;
     isNominated: boolean;
+    /**
+     * They have raised their hand in this vote.
+     *
+     * Public on purpose. A vote in table mafia happens with hands in the air —
+     * seeing who votes, and how quickly, is most of the information in the game.
+     */
+    hasVoted: boolean;
 }
 export interface XmSafeState {
     id: string;
@@ -182,6 +198,16 @@ export interface XmSafeState {
     announce: XmAnnounce | null;
     voteEndsAt: number;
     voteRevote: boolean;
+    /** The nominee on the floor right now, and where they sit in the list. */
+    voteCandidate: {
+        userId: string;
+        nickname: string;
+        seat: number;
+    } | null;
+    voteIdx: number;
+    voteTotal: number;
+    /** True on the last candidate: everyone silent is counted for them. */
+    voteIsLast: boolean;
     myVote: string | null;
     voteTally: Record<string, number>;
     voteResult: XmMatch['voteResult'];
@@ -317,7 +343,26 @@ export declare function advanceSpeakerAuto(matchId: string): XmMatch | null;
 export declare function extendSpeech(matchId: string, byUserId: string, seconds: number): XmMatch | null;
 /** The current speaker nominates one living player for the day's vote. */
 export declare function nominate(matchId: string, byUserId: string, targetUserId: string): XmMatch | null;
+/**
+ * Vote for whoever is currently on the floor.
+ *
+ * One vote each, and it cannot be moved: a hand raised in a real game cannot be
+ * un-raised once the moderator has counted it. `nomineeUserId` is still checked
+ * against the candidate actually up, so a client cannot vote ahead for someone
+ * whose turn has not come.
+ */
 export declare function castVote(matchId: string, byUserId: string, nomineeUserId: string): XmMatch | null;
+/** The candidate on the floor right now, if the vote is running. */
+export declare function currentCandidate(m: XmMatch): string | null;
+/**
+ * Move to the next candidate — or close the vote.
+ *
+ * Past the last candidate, everyone who has not voted is counted for that last
+ * one. That is the standing rule in table mafia: if you sat on your hands all
+ * the way down the list, your vote goes to the last name on it. Without it, a
+ * player can abstain their way out of every elimination.
+ */
+export declare function nextCandidate(matchId: string, byUserId: string): XmMatch | null;
 /** Host closes the vote early (timer or manual). */
 export declare function endVote(matchId: string, byUserId: string | null): XmMatch | null;
 export declare function giveFoul(matchId: string, byUserId: string, targetUserId: string, delta: number): XmMatch | null;

@@ -15,7 +15,7 @@ import {
   createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch,
   dissolveMatch, transferHost, startMatch, reshuffleRoles, setRoleConfig, setSettings, pickCard, beginMafiaMeet, endMafiaMeet, beginNight, mafiaVote, donCheck, sheriffCheck,
   endNight, beginDay, nextSpeaker, advanceSpeakerAuto, extendSpeech, nominate, grabFloor,
-  castVote, endVote, giveFoul, endLastWords, rematch, disconnectSocket, getSafeState,
+  castVote, endVote, nextCandidate, giveFoul, endLastWords, rematch, disconnectSocket, getSafeState,
   kickPlayer, recipients, resumeForUser, joinMatchAsBot,
 } from './services/sxvaMafiaService.js';
 import { botName, isBot, isOwner, newBotId } from './services/testBots.js';
@@ -242,6 +242,18 @@ export function registerSxvaMafiaHandlers(io: AppServer, socket: AppSocket): voi
       const m = extendSpeech(matchId, uid(), Number(data?.seconds ?? 30));
       if (!m) return cb(err('ვერ გაგრძელდა'));
       after(matchId);
+      cb(ok(null));
+    } catch (e: any) { cb(err(e.message)); }
+  });
+
+  // Host: put the next nominee on the floor, or close the vote.
+  socket.on('xm:next_candidate' as any, (data: { matchId: string }, cb: (r: any) => void) => {
+    try {
+      const matchId = String(data?.matchId);
+      const m = nextCandidate(matchId, uid());
+      if (!m) return cb(err('ვერ გადავიდა'));
+      after(matchId);
+      if (m.phase === 'finished') broadcastList(io);
       cb(ok(null));
     } catch (e: any) { cb(err(e.message)); }
   });

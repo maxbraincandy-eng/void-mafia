@@ -193,6 +193,35 @@ const SeatTile = memo(function SeatTile({ seat, isHostTile, fill, match, myId, s
           </span>
         </div>
       )}
+      {/*
+        The stamp.
+        A vote in table mafia is a hand in the air — public, and seen at the
+        moment it goes up. A tally somewhere else is not the same thing.
+      */}
+      {!isHostTile && seat!.hasVoted && !dead && (
+        <motion.div
+          initial={{ scale: 1.5, opacity: 0, rotate: -18 }}
+          animate={{ scale: 1, opacity: 1, rotate: -12 }}
+          transition={{ type: 'spring', stiffness: 320, damping: 16 }}
+          className="absolute inset-0 flex items-center justify-center pointer-events-none"
+        >
+          <div className="relative rounded-full"
+            style={{
+              width: '46%', aspectRatio: '1',
+              border: `3px solid ${RED}`, background: 'rgba(0,0,0,0.35)',
+              boxShadow: `0 0 18px ${RED}88, inset 0 0 18px ${RED}44`,
+            }}>
+            {/* SVG, not a glyph: the tick has to scale with the tile, and a
+                font-size in rem does not — at twelve seats it came out a speck. */}
+            <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full">
+              <path d="M26 54 L43 71 L75 35" fill="none" stroke={RED} strokeWidth="11"
+                strokeLinecap="round" strokeLinejoin="round" />
+              <text x="50" y="26" textAnchor="middle" fill={RED}
+                style={{ fontSize: 13, fontWeight: 900, letterSpacing: 1.5, fontFamily: 'monospace' }}>VOTED</text>
+            </svg>
+          </div>
+        </motion.div>
+      )}
       {canFoul && <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(255,204,51,0.16)', borderRadius: 14 }}><span className="font-display font-bold text-white text-sm px-2 py-1 rounded-lg" style={{ background: 'rgba(0,0,0,0.5)' }}>⚠️ ფაული</span></div>}
     </div>
   );
@@ -442,7 +471,17 @@ export function SxvaMafiaGame() {
         {match.phase === 'night' && btn('☀️ ღამის დასრულება', () => store.endNight(), true)}
         {match.phase === 'day_announce' && (match.announce ? btn('🗣 საუბრების დაწყება', () => store.beginDay(), true) : btn('🌙 ღამე', () => store.beginNight(), true))}
         {match.phase === 'speech' && <>{btn('⏭ შემდეგი', () => store.nextSpeaker(), true)}{btn('+30წ', () => store.extendSpeech(30))}</>}
-        {match.phase === 'vote' && btn('✅ ხმების დათვლა', () => store.endVote(), true)}
+        {/*
+          The moderator's control of the vote: next name, or stop and count.
+          On the last candidate "next" is what closes it, and everyone still
+          silent is counted for that name — so the button says so.
+        */}
+        {match.phase === 'vote' && match.voteCandidate && btn(
+          match.voteIsLast ? '⚖️ დათვლა (ავტო-ხმა)' : `➡️ შემდეგი (${match.voteIdx + 1}/${match.voteTotal})`,
+          () => store.nextCandidate(),
+          true,
+        )}
+        {match.phase === 'vote' && btn('✅ ხმების დათვლა', () => store.endVote())}
         {match.phase === 'last_words' && btn('➡️ გაგრძელება', () => store.endLastWords(), true)}
         {(match.phase === 'speech' || match.phase === 'night' || match.phase === 'day_announce') &&
           <button onClick={() => { SFX.click?.(); setFoulMode(f => !f); }} className="px-3 py-2 rounded-xl font-display font-bold text-[13px] whitespace-nowrap"
@@ -506,23 +545,45 @@ export function SxvaMafiaGame() {
           <p className="font-display font-bold text-[12px]" style={{ color: '#ffcc33' }}>{match.voteRevote ? '🔁 ხელახალი კენჭისყრა' : '⚖️ ვის გავრიცხავთ?'}</p>
           <span className="font-mono text-[11px] px-2 py-0.5 rounded" style={{ background: 'rgba(255,204,51,0.15)', color: '#ffcc33', fontVariantNumeric: 'tabular-nums' }}>{fmt(voteLeft)}</span>
         </div>
-        <div className="space-y-1.5 max-w-sm mx-auto">
-          {match.nominations.map(n => {
-            const v = match.voteTally[n.userId] ?? 0;
-            const picked = match.myVote === n.userId;
-            return (
-              <button key={n.userId} onClick={() => { SFX.click?.(); haptic('selection'); store.castVote(n.userId); }}
-                className="relative w-full overflow-hidden rounded-xl px-3 py-2.5 text-left transition-all active:scale-[0.99]"
-                style={{ border: `1.5px solid ${picked ? RED : 'rgba(255,255,255,0.14)'}`, background: 'rgba(255,255,255,0.03)' }}>
-                <div className="absolute inset-y-0 left-0" style={{ width: `${(v / total) * 100}%`, background: picked ? `${RED}30` : 'rgba(255,255,255,0.07)', transition: 'width 0.35s ease' }} />
-                <div className="relative flex items-center justify-between gap-2">
-                  <span className="font-mono text-[13px] text-white truncate">#{n.seat} {n.nickname}{picked && ' ✓'}</span>
-                  <span className="font-mono text-[14px] font-bold flex-shrink-0" style={{ color: picked ? RED : '#fff', fontVariantNumeric: 'tabular-nums' }}>{v}</span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+
+        {/*
+          One candidate at a time, the way a moderator runs it out loud.
+          The button says whose name is on the floor, because a vote you cast
+          without being sure who it was for is a vote you will regret.
+        */}
+        {match.voteCandidate ? (
+          <div className="max-w-sm mx-auto">
+            <p className="text-center font-mono text-[11px] text-white/45 mb-1.5">
+              კანდიდატი {match.voteIdx + 1}/{match.voteTotal}
+              {match.voteIsLast && ' · ბოლო — ვინც არ მისცემს, ავტომატურად ჩაეთვლება'}
+            </p>
+
+            <button
+              onClick={() => { SFX.click?.(); haptic('selection'); store.castVote(match.voteCandidate!.userId); }}
+              disabled={!!match.myVote || !match.myAlive || match.voteCandidate.userId === match.myUserId}
+              className="w-full rounded-2xl px-3 py-4 font-display font-bold text-[15px] transition-all active:scale-[0.98] disabled:opacity-45"
+              style={{
+                background: match.myVote === match.voteCandidate.userId ? RED : 'rgba(255,255,255,0.06)',
+                border: `1.5px solid ${match.myVote === match.voteCandidate.userId ? RED : 'rgba(255,255,255,0.18)'}`,
+                color: '#fff',
+              }}
+            >
+              {match.myVote === match.voteCandidate.userId
+                ? `✓ ხმა მიცემულია — #${match.voteCandidate.seat}`
+                : match.myVote
+                  ? 'შენ უკვე მიეცი ხმა'
+                  : match.voteCandidate.userId === match.myUserId
+                    ? 'შენს კანდიდატურაზეა კენჭისყრა'
+                    : `✋ ხმას ვაძლევ #${match.voteCandidate.seat} ${match.voteCandidate.nickname}`}
+            </button>
+
+            <p className="text-center font-mono text-[11px] text-white/35 mt-2">
+              ხმა მისცა: {match.seats.filter(x => x.hasVoted).length}/{match.seats.filter(x => x.alive).length}
+            </p>
+          </div>
+        ) : (
+          <p className="text-center font-mono text-[12px] text-white/40">კანდიდატები არ არიან</p>
+        )}
       </div>);
     }
 
@@ -596,6 +657,19 @@ export function SxvaMafiaGame() {
       <div className="relative text-center pt-2.5 px-3">
         <p className="font-mono text-[10px] tracking-[0.25em] text-white/45">რაუნდი {match.round}</p>
         <p className="font-display font-black text-white mt-0.5" style={{ fontSize: 19, textShadow: '0 2px 10px rgba(0,0,0,0.9)' }}>{phaseTitle}</p>
+
+        {match.phase === 'vote' && match.voteCandidate && (
+          <div className="flex items-center justify-center gap-1.5 mt-1.5 flex-wrap">
+            <span className="font-mono text-[12px] px-2.5 py-1 rounded-full"
+              style={{ background: `${RED}22`, border: `1px solid ${RED}88`, color: '#fff' }}>
+              #{match.voteCandidate.seat} {match.voteCandidate.nickname}
+            </span>
+            <span className="font-mono text-[11px] px-2 py-0.5 rounded-full"
+              style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.55)' }}>
+              {match.voteIdx + 1}/{match.voteTotal}{match.voteIsLast ? ' · ავტო-ხმა' : ''}
+            </span>
+          </div>
+        )}
 
         {(match.phase === 'speech' || match.nextSpeaker) && (
           <div className="flex items-center justify-center gap-1.5 mt-1.5 flex-wrap">
