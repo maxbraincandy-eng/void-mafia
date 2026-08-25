@@ -19,16 +19,28 @@ export function GifPicker({ onSelect, onClose }: Props) {
   const [query, setQuery] = useState('');
   const [gifs, setGifs] = useState<GifResult[]>([]);
   const [loading, setLoading] = useState(false);
+  /**
+   * Why there is nothing to show.
+   *
+   * "No results" and "the service is switched off" looked identical here, and
+   * that is how a dead endpoint sat in production reading as an empty search.
+   * The server now says which it is, and so does this.
+   */
+  const [problem, setProblem] = useState<'none' | 'not_configured' | 'failed'>('none');
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const search = async (q: string) => {
     setLoading(true);
     try {
-      // Server-side Tenor proxy — the API key never reaches the browser.
+      // Server-side proxy — the API key never reaches the browser.
       const res = await fetch(`/api/gif/search?q=${encodeURIComponent(q.trim())}&limit=24`);
       const data = await res.json();
-      setGifs(((data.gifs ?? []) as GifResult[]).filter(g => g.url));
-    } catch { setGifs([]); }
+      const found = ((data.gifs ?? []) as GifResult[]).filter(g => g.url);
+      setGifs(found);
+      setProblem(data.reason === 'not_configured' ? 'not_configured'
+        : data.ok === false ? 'failed'
+        : 'none');
+    } catch { setGifs([]); setProblem('failed'); }
     finally { setLoading(false); }
   };
 
@@ -72,10 +84,26 @@ export function GifPicker({ onSelect, onClose }: Props) {
           {loading && (
             <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontFamily: 'monospace', fontSize: 11, padding: '24px 0' }}>{t.commB.searching}</p>
           )}
-          {!loading && gifs.length === 0 && (
+          {!loading && gifs.length === 0 && problem === 'none' && (
             <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.25)', fontFamily: 'monospace', fontSize: 11, padding: '24px 0' }}>
               {query.trim() ? t.commB.gifNotFound : t.commB.loadingGifs}
             </p>
+          )}
+          {!loading && problem !== 'none' && (
+            <div style={{ textAlign: 'center', padding: '22px 14px' }}>
+              <p style={{ fontSize: 24, marginBottom: 8 }}>{problem === 'not_configured' ? '🔌' : '⚠️'}</p>
+              <p style={{ color: 'rgba(255,255,255,0.7)', fontFamily: 'monospace', fontSize: 12, lineHeight: 1.6 }}>
+                {problem === 'not_configured'
+                  ? 'GIF-ის ძებნა გამორთულია — გასაღები არ არის დაყენებული.'
+                  : 'GIF-ის ძებნა ვერ მოხერხდა. სცადე ხელახლა.'}
+              </p>
+              {problem === 'failed' && (
+                <button onClick={() => search(query)}
+                  style={{ marginTop: 12, background: 'rgba(0,229,255,0.1)', border: '1px solid rgba(0,229,255,0.3)', color: '#67e8f9', borderRadius: 10, padding: '7px 16px', fontFamily: 'monospace', fontSize: 12, cursor: 'pointer' }}>
+                  ხელახლა
+                </button>
+              )}
+            </div>
           )}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
             {gifs.map(gif => (
