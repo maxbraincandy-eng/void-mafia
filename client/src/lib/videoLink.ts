@@ -56,6 +56,8 @@ export interface VideoLink {
   label: string;
   /** Badge colour — each service's own. */
   color: string;
+  /** The service's own id for this video, where one is needed to address it. */
+  id?: string;
 }
 
 /**
@@ -163,16 +165,15 @@ export function parseVideoLink(text: string | null | undefined): VideoLink | nul
   const ig = url.match(INSTAGRAM);
   if (ig) {
     return {
-      platform: 'instagram', url,
+      platform: 'instagram', url, id: ig[1]!,
       /*
-       * Deliberately not embedded.
+       * Played inline, but not through the usual iframe.
        *
        * Instagram's only embed is the full card — white, with a header, a
        * follow button, a like row and a comment box — and none of it can be
-       * turned off. In a dark feed it reads as a page from another site pasted
-       * into the middle of a post. Its own tile, opening in Instagram, is the
-       * better of the two bad options until a Facebook app token lets us at
-       * least fetch the poster.
+       * turned off from out here. `InstagramPlayer` crops it down to the video;
+       * `embedUrl` stays null so nothing else tries to mount the card whole.
+       * `bare` is false because what comes back needs that surgery first.
        */
       embedUrl: null, bare: false, autoplayable: false,
       thumbUrl: null, portrait: true,
@@ -245,6 +246,18 @@ export function isPlayable(link: VideoLink | null): boolean {
  */
 export function isVideo(link: VideoLink | null): boolean {
   return Boolean(link && link.platform !== 'link');
+}
+
+/**
+ * Does this one need a player of its own?
+ *
+ * Instagram is the only service whose embed has to be cut down before it can go
+ * in the feed, so it is the only one that does not go through the plain iframe
+ * path. Asking by capability rather than by name keeps that branch honest if a
+ * second service ever needs the same treatment.
+ */
+export function needsCustomPlayer(link: VideoLink | null): boolean {
+  return link?.platform === 'instagram' && Boolean(link.id);
 }
 
 /**

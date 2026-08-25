@@ -9,7 +9,7 @@
 import { test } from 'node:test';
 import { strict as assert } from 'assert';
 
-import { parseVideoLink, isPlayable, isVideo, embedSrc, extractYouTubeId } from './videoLink.js';
+import { parseVideoLink, isPlayable, isVideo, needsCustomPlayer, embedSrc, extractYouTubeId } from './videoLink.js';
 
 // `twitchParent` reads window.location; under node there is no window, and the
 // fallback is what production uses anyway.
@@ -59,16 +59,31 @@ test('TikTok: a full link embeds, a share link opens instead', () => {
   assert.equal(isPlayable(short), false);
 });
 
-test('Instagram is recognised as a video but deliberately not embedded', () => {
-  // Instagram's only embed is its whole card — white, with a follow button and
-  // a comment box — and nothing turns that off. Dropping it into a dark feed
-  // reads as a broken page, so it gets a card of ours and opens in Instagram.
+test('Instagram plays here, but through a player of its own', () => {
+  // Its embed is the whole card — white, with a follow button and a comment
+  // box — and nothing turns that off from outside the frame. So it keeps a null
+  // embedUrl, which stops anything mounting the card whole, and is routed to
+  // InstagramPlayer instead, which crops it down to the video.
   for (const kind of ['p', 'reel', 'reels', 'tv']) {
     const link = parseVideoLink(`https://www.instagram.com/${kind}/CxYzAbC1234/`);
     assert.equal(link?.platform, 'instagram', kind);
     assert.equal(link!.embedUrl, null, kind);
     assert.equal(isPlayable(link), false, kind);
-    assert.equal(isVideo(link), true, `${kind}: still a video, so it gets a player-shaped card`);
+    assert.equal(isVideo(link), true, kind);
+    assert.equal(needsCustomPlayer(link), true, `${kind}: cropped, not opened elsewhere`);
+    assert.equal(link!.id, 'CxYzAbC1234', `${kind}: the embed is addressed by shortcode`);
+  }
+});
+
+test('no other service needs a player of its own', () => {
+  for (const u of [
+    'https://youtu.be/dQw4w9WgXcQ',
+    'https://www.tiktok.com/@a/video/7234567890123456789',
+    'https://vimeo.com/123456789',
+    'https://cdn.example.com/clip.mp4',
+    'https://example.com/an-article',
+  ]) {
+    assert.equal(needsCustomPlayer(parseVideoLink(u)), false, u);
   }
 });
 

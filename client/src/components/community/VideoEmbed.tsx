@@ -28,7 +28,8 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { parseVideoLink, embedSrc, type VideoLink } from '@/lib/videoLink';
+import { parseVideoLink, embedSrc, needsCustomPlayer, type VideoLink } from '@/lib/videoLink';
+import { InstagramPlayer } from '@/components/community/InstagramPlayer';
 import { registerAutoplay, claimPlayback } from '@/lib/videoAutoplay';
 
 interface Props {
@@ -170,7 +171,23 @@ export function VideoEmbed({ source, link: given, maxPortraitHeight = 560, autop
 
   if (!link) return null;
 
-  // Not playable here — an honest card that opens where it lives.
+  /*
+   * Instagram needs the card cut off it before it can go in the feed, which is
+   * more than a query parameter — see InstagramPlayer. It still plays here;
+   * it just does not go through the plain iframe below.
+   */
+  if (needsCustomPlayer(link)) {
+    return (
+      <InstagramPlayer
+        url={link.url}
+        code={link.id!}
+        maxHeight={maxPortraitHeight}
+        poster={<InstagramFacade link={link} />}
+      />
+    );
+  }
+
+  // Nothing to play — an honest card that opens where it lives.
   if (!link.embedUrl) return <VideoLinkChip link={link} />;
 
   const aspect = aspectOf(link, meta);
@@ -250,6 +267,32 @@ export function VideoEmbed({ source, link: given, maxPortraitHeight = 560, autop
         <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded font-mono text-[10px] font-bold text-white pointer-events-none"
           style={{ background: `${link.color}d9` }}>{link.label}</div>
       )}
+    </div>
+  );
+}
+
+/**
+ * What an Instagram post looks like before it is asked to load.
+ *
+ * The frame is not mounted until somebody taps, for the same reason no other
+ * player is: twenty posts in a feed must not be twenty third-party frames
+ * booting at once. Instagram gives us no poster to show in the meantime — its
+ * oEmbed wants a Facebook app token — so this is our own tile, in the shape a
+ * reel usually is.
+ */
+function InstagramFacade({ link }: { link: VideoLink }) {
+  return (
+    <div className="relative w-full rounded-xl overflow-hidden group"
+      style={{ background: '#000', aspectRatio: '4/5', maxWidth: 448, margin: '0 auto' }}>
+      <div className="absolute inset-0" style={{ background: `radial-gradient(ellipse at 50% 45%, ${link.color}30, #08060f 74%)` }} />
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="w-14 h-14 rounded-full flex items-center justify-center transition-transform group-active:scale-90"
+          style={{ background: link.color, boxShadow: `0 4px 26px ${link.color}80` }}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="#fff" style={{ marginLeft: 2 }}><path d="M8 5v14l11-7z" /></svg>
+        </div>
+      </div>
+      <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded font-mono text-[10px] font-bold text-white"
+        style={{ background: `${link.color}d9` }}>{link.label}</div>
     </div>
   );
 }
