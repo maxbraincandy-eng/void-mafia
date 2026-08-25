@@ -9,6 +9,46 @@ import { GifPicker } from '@/components/community/GifPicker';
 import { MemeBuilder } from '@/components/community/MemeBuilder';
 import { VoicePostRecorder } from '@/components/community/VoicePostRecorder';
 import { useMyLimits } from '@/store/vipStore';
+import { VideoEmbed } from '@/components/community/VideoEmbed';
+import { parseVideoLink, isPlayable } from '@/lib/videoLink';
+
+/**
+ * Paste a link, see the video.
+ *
+ * The field used to be a bare text input that accepted anything and told you
+ * nothing — you found out whether your link worked by posting it to everybody
+ * and looking. Now the same parser the feed uses runs on every keystroke, so
+ * the composer shows exactly what will appear: the real player for a link it
+ * recognises, and a plain warning for one it does not.
+ *
+ * The warning does not block posting. An unrecognised link still posts, as a
+ * chip that opens elsewhere — refusing it would mean a service we have not
+ * heard of yet cannot be shared at all.
+ */
+function VideoUrlField({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
+  const link = parseVideoLink(value);
+  const playable = isPlayable(link);
+  return (
+    <div className="space-y-2">
+      <TextInput value={value} onChange={onChange} placeholder={placeholder} />
+      {value.trim().length > 0 && (
+        playable ? (
+          <div>
+            <p className="font-mono text-[10px] mb-1.5" style={{ color: link!.color }}>✓ {link!.label} — ასე გამოჩნდება</p>
+            <VideoEmbed link={link} maxPortraitHeight={320} />
+          </div>
+        ) : (
+          <p className="font-mono text-[10px] leading-relaxed px-2.5 py-2 rounded-lg"
+            style={{ color: 'rgba(255,204,51,0.9)', background: 'rgba(255,204,51,0.08)', border: '1px solid rgba(255,204,51,0.25)' }}>
+            ⚠️ ამ ბმულს ვერ ვუკრავთ — დაიდება როგორც ბმული, რომელიც სხვაგან იხსნება.
+            <br />
+            იმუშავებს: YouTube · TikTok · Instagram · Vimeo · Twitch · Facebook · პირდაპირი .mp4
+          </p>
+        )
+      )}
+    </div>
+  );
+}
 
 const TYPE_ICONS: Record<PostType, string> = {
   text: '📝', image: '🖼', gif: '🎞', video: '🎬', poll: '📊', voice: '🎙',
@@ -422,9 +462,7 @@ export function PostComposerV2({ onClose }: { onClose: () => void }) {
               </div>
             </div>
           )}
-          {postType === 'video' && (
-            <TextInput value={videoUrl} onChange={setVideoUrl} placeholder={t.community.composer.videoUrlPh} />
-          )}
+          {postType === 'video' && <VideoUrlField value={videoUrl} onChange={setVideoUrl} placeholder={t.community.composer.videoUrlPh} />}
           {['movie_rec', 'series_rec', 'book_rec', 'music_rec'].includes(postType) && (
             <>
               <TextInput value={recTitle} onChange={setRecTitle} placeholder={t.community.composer.recTitlePh} maxLength={200} />

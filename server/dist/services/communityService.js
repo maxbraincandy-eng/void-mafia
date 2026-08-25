@@ -829,6 +829,32 @@ function parseImageUrls(raw, single) {
     }
     return single ? [single] : [];
 }
+/**
+ * A URL that is safe to hand back as an anchor or an iframe source.
+ *
+ * Anything that is not an ordinary http(s) address becomes null. That is the
+ * whole rule, and it is an allowlist on purpose: a blocklist of `javascript:`
+ * and `data:` has to be kept in step with every scheme a browser learns, and
+ * the answer to "is this a video link" was never going to be yes for any of
+ * them anyway.
+ *
+ * `new URL` also rejects the malformed strings a hand-typed field produces, so
+ * a post never carries a link that cannot be opened.
+ */
+function normalizeLinkUrl(raw) {
+    if (typeof raw !== 'string')
+        return null;
+    const s = raw.trim();
+    if (!s || s.length > 2000)
+        return null;
+    try {
+        const u = new URL(s);
+        return (u.protocol === 'http:' || u.protocol === 'https:') ? u.toString() : null;
+    }
+    catch {
+        return null;
+    }
+}
 // Create post V2
 export async function createPostV2(authorId, data) {
     const limits = await limitsFor(authorId);
@@ -867,6 +893,18 @@ export async function createPostV2(authorId, data) {
     const fxAllowed = KNOWN_FX.includes(claimedFx)
         || (VIP_FX.includes(claimedFx) && limits.vipVoices);
     data.audioFx = data.audioUrl && fxAllowed ? claimedFx : null;
+    /*
+     * A video is a link, and a link is only ever http(s).
+     *
+     * The column had no validation at all: whatever a client sent was stored and
+     * handed back to every reader to be rendered as an anchor. `javascript:` and
+     * `data:text/html` are the obvious ones, but the rule is simpler than a
+     * blocklist — a video lives at a web address, so anything that is not one is
+     * refused. The length cap is there because a URL is a hundred bytes and this
+     * column is not a place to smuggle a payload into.
+     */
+    data.videoUrl = normalizeLinkUrl(data.videoUrl);
+    data.gifUrl = normalizeLinkUrl(data.gifUrl);
     // The composer already stops at the tier's cap; this is the copy that holds
     // when the request does not come from the composer.
     data.content = String(data.content ?? '').slice(0, limits.postChars);

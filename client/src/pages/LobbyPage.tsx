@@ -12,7 +12,7 @@ import { ChatPanel } from '@/components/chat/ChatPanel';
 import { VoiceControls } from '@/components/game/VoiceControls';
 import { VoiceParticipants } from '@/components/game/VoiceParticipants';
 import { RolePickerPanel } from '@/components/lobby/RolePickerPanel';
-import { extractYouTubeId } from '@/components/community/YouTubeEmbed';
+import { extractYouTubeId } from '@/lib/videoLink';
 import { RoleInfoModal } from '@/components/ui/RoleInfoModal';
 import { RoomMoreMenu } from '@/components/ui/RoomMoreMenu';
 import { PlayerActionMenu } from '@/components/ui/PlayerActionMenu';

@@ -22,5 +22,9 @@
     }
   },
   "include": ["src"],
+  /* Tests import node:test and run under tsx, not in the browser. Type-checking
+     them here would need @types/node in the app's own type set, which is how a
+     browser bundle ends up believing it has `process` and `Buffer`. */
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

@@ -13,7 +13,8 @@ import type { CommunityProfileV2, CommunityPostV2, CommunityComment, PollResult,
 import { Avatar, BadgeRow, MrMaxGlow, Spinner, TextArea, timeAgo } from '@/components/community/shared';
 import { ProfileVisitors } from '@/components/community/ProfileVisitors';
 import { useMyLimits } from '@/store/vipStore';
-import { YouTubeEmbed, extractYouTubeId } from '@/components/community/YouTubeEmbed';
+import { VideoEmbed, VideoPoster } from '@/components/community/VideoEmbed';
+import { parseVideoLink, isPlayable } from '@/lib/videoLink';
 import { PollDisplay } from '@/components/community/PollDisplay';
 import { ImageStack } from '@/components/community/ImageStack';
 import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
@@ -72,8 +73,9 @@ function PostLightbox({
 
   const mediaUrl  = post.imageUrl ?? post.gifUrl ?? post.videoUrl;
   const isVideo   = !!post.videoUrl && !post.imageUrl && !post.gifUrl;
-  const ytIdMedia = isVideo && post.videoUrl ? extractYouTubeId(post.videoUrl) : null;
-  const ytIdText  = !ytIdMedia && post.content ? extractYouTubeId(post.content) : null;
+  // The video field first, then a link somebody pasted into the caption.
+  const vidMedia  = isVideo ? parseVideoLink(post.videoUrl) : null;
+  const vidText   = !isPlayable(vidMedia) ? parseVideoLink(post.content) : null;
 
   return createPortal(
     <motion.div
@@ -113,9 +115,9 @@ function PostLightbox({
 
         <div className="overflow-y-auto flex-1 overscroll-contain">
           {/* Media */}
-          {ytIdMedia ? (
+          {isPlayable(vidMedia) ? (
             <div className="w-full flex-shrink-0 px-4 pt-2">
-              <YouTubeEmbed videoId={ytIdMedia} />
+              <VideoEmbed link={vidMedia} maxPortraitHeight={560} />
             </div>
           ) : mediaUrl ? (
             <div className="w-full flex-shrink-0" style={{ background: '#000' }}>
@@ -131,10 +133,10 @@ function PostLightbox({
             </div>
           ) : null}
 
-          {/* YouTube embed from content text */}
-          {ytIdText && (
+          {/* A video linked from the caption rather than the video field. */}
+          {isPlayable(vidText) && (
             <div className="w-full flex-shrink-0 px-4 pt-2">
-              <YouTubeEmbed videoId={ytIdText} />
+              <VideoEmbed link={vidText} maxPortraitHeight={560} />
             </div>
           )}
 
@@ -287,7 +289,7 @@ function PostTextCard({ post: initialPost, readMoreLabel, onExpand }: {
 
   const icon    = POST_TYPE_ICONS[post.postType] ?? '';
   const isLong  = (post.content?.length ?? 0) > READ_MORE_THRESHOLD;
-  const ytId    = extractYouTubeId(post.videoUrl ?? '') ?? extractYouTubeId(post.content ?? '');
+  const vid     = parseVideoLink(post.videoUrl) ?? parseVideoLink(post.content);
 
   return (
     <div
@@ -314,15 +316,22 @@ function PostTextCard({ post: initialPost, readMoreLabel, onExpand }: {
           </p>
         )}
 
-        {/* YouTube thumbnail preview */}
-        {ytId && (
-          <div className="relative mt-2 rounded-xl overflow-hidden" style={{ aspectRatio: '16/9', background: '#000' }}>
-            <img src={`https://img.youtube.com/vi/${ytId}/hqdefault.jpg`} alt="" className="w-full h-full object-cover" />
+        {/* Video preview — a still where the service gives one, its own colour
+            where it does not. Tapping the card opens the post, which is where
+            the player lives; this is a poster, not a second player. */}
+        {isPlayable(vid) && (
+          <div className="relative mt-2 rounded-xl overflow-hidden"
+            style={{ aspectRatio: vid!.portrait ? '4/5' : '16/9', background: '#000' }}>
+            {vid!.thumbUrl
+              ? <img src={vid!.thumbUrl} alt="" className="w-full h-full object-cover" />
+              : <div className="absolute inset-0" style={{ background: `radial-gradient(ellipse at 50% 45%, ${vid!.color}26, #08060f 72%)` }} />}
             <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.3)' }}>
-              <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,0,0,0.9)' }}>
+              <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: vid!.color }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>
               </div>
             </div>
+            <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded font-mono text-[9px] font-bold text-white"
+              style={{ background: `${vid!.color}d9` }}>{vid!.label}</div>
           </div>
         )}
 
@@ -946,10 +955,7 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
                   <div className="grid grid-cols-3 lg:grid-cols-5" style={{ gap: 2 }}>
                     {mediaPosts.map(p => {
                       const isVideo = !!p.videoUrl && !p.imageUrl && !p.gifUrl;
-                      const ytId    = isVideo && p.videoUrl ? extractYouTubeId(p.videoUrl) : null;
-                      const thumb   = ytId
-                        ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`
-                        : (p.imageUrl ?? p.gifUrl ?? p.videoUrl!);
+                      const vid     = isVideo ? parseVideoLink(p.videoUrl) : null;
                       return (
                         <button
                           key={p.id}
@@ -957,11 +963,9 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
                           className="relative overflow-hidden transition-opacity active:opacity-70"
                           style={{ background: '#0d0a1a', aspectRatio: '1 / 1' }}
                         >
-                          {isVideo && !ytId ? (
-                            <video src={thumb} className="w-full h-full object-cover" muted preload="metadata" />
-                          ) : (
-                            <img src={thumb} alt="" className="w-full h-full object-cover" />
-                          )}
+                          {vid
+                            ? <VideoPoster link={vid} />
+                            : <img src={(p.imageUrl ?? p.gifUrl)!} alt="" className="w-full h-full object-cover" />}
                           {/* hover overlay (desktop) */}
                           <div
                             className="absolute inset-0 items-center justify-center gap-2 opacity-0 hover:opacity-100 transition-opacity hidden sm:flex"
@@ -972,7 +976,7 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
                           </div>
                           {isVideo && (
                             <div className="absolute top-1.5 right-1.5 rounded-full flex items-center justify-center"
-                              style={{ background: ytId ? 'rgba(255,0,0,0.85)' : 'rgba(0,0,0,0.55)', width: 20, height: 20 }}>
+                              style={{ background: vid ? `${vid.color}d9` : 'rgba(0,0,0,0.55)', width: 20, height: 20 }}>
                               <svg width="9" height="9" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>
                             </div>
                           )}
@@ -997,8 +1001,7 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
                 ) : (
                   <div className="grid grid-cols-3 lg:grid-cols-5" style={{ gap: 2 }}>
                     {videoPosts.map(p => {
-                      const ytId  = p.videoUrl ? extractYouTubeId(p.videoUrl) : null;
-                      const thumb = ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : (p.imageUrl ?? p.videoUrl!);
+                      const vid = parseVideoLink(p.videoUrl);
                       return (
                         <button
                           key={p.id}
@@ -1006,9 +1009,9 @@ export function CommunityProfilePage({ profileId, onBack, onNavigate }: Props) {
                           className="relative overflow-hidden transition-opacity active:opacity-70"
                           style={{ background: '#0d0a1a', aspectRatio: '1 / 1' }}
                         >
-                          {ytId || p.imageUrl
-                            ? <img src={thumb} alt="" className="w-full h-full object-cover" />
-                            : <video src={thumb} className="w-full h-full object-cover" muted preload="metadata" />}
+                          {vid?.thumbUrl || !p.imageUrl
+                            ? <VideoPoster link={vid} />
+                            : <img src={p.imageUrl} alt="" className="w-full h-full object-cover" />}
                           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                             <span className="rounded-full flex items-center justify-center"
                               style={{ background: 'rgba(0,0,0,0.45)', width: 30, height: 30 }}>

@@ -10,7 +10,8 @@ import { emitWithAck } from '@/lib/socket';
 import type { CommunityPostV2, CommunityComment, Res } from '@/types/index';
 import { Avatar, BadgeRow, MrMaxGlow, timeAgo, ModalShell, TextArea, TextInput, PillButton, Spinner } from '@/components/community/shared';
 import { PollDisplay } from '@/components/community/PollDisplay';
-import { YouTubeEmbed, extractYouTubeId } from '@/components/community/YouTubeEmbed';
+import { VideoEmbed, VideoLinkChip } from '@/components/community/VideoEmbed';
+import { parseVideoLink, isPlayable } from '@/lib/videoLink';
 import { ReactionPicker } from './ReactionPicker';
 import { PlayerName } from '@/components/ui/PlayerName';
 import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
@@ -639,10 +640,14 @@ export function PostCardV2({
         </p>
       )}
 
-      {/* YouTube embed — auto-detected from content or videoUrl */}
+      {/*
+        The video, from the video field or from a link pasted into the text.
+        The explicit field wins: somebody who filled it in meant that one, and a
+        caption may well mention a second link they did not mean to embed.
+      */}
       {(() => {
-        const ytId = extractYouTubeId(post.content) ?? (post.videoUrl ? extractYouTubeId(post.videoUrl) : null);
-        return ytId ? <YouTubeEmbed videoId={ytId} /> : null;
+        const link = parseVideoLink(post.videoUrl) ?? parseVideoLink(post.content);
+        return isPlayable(link) ? <VideoEmbed link={link} /> : null;
       })()}
 
       {/* Media — double-tap to ❤️ */}
@@ -669,12 +674,11 @@ export function PostCardV2({
           </AnimatePresence>
         </div>
       )}
-      {post.videoUrl && !extractYouTubeId(post.videoUrl) && (
-        <a href={post.videoUrl} target="_blank" rel="noopener noreferrer"
-          className="flex items-center gap-2 px-3 py-2 rounded-xl border border-white/10 font-mono text-xs text-white/50 hover:text-white/80 transition-colors">
-          🎬 {post.videoUrl}
-        </a>
-      )}
+      {/* A link we cannot play — a chip, not a wrapped line of query string. */}
+      {(() => {
+        const link = parseVideoLink(post.videoUrl);
+        return link && !isPlayable(link) ? <VideoLinkChip link={link} /> : null;
+      })()}
       {post.audioUrl && (
         <div style={{ marginTop: 8, borderRadius: 12, overflow: 'hidden' }}>
           <audio src={post.audioUrl} controls onPlay={preparePlayback} style={{ width: '100%', height: 36 }} />
