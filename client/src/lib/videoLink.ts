@@ -167,13 +167,22 @@ export function parseVideoLink(text: string | null | undefined): VideoLink | nul
     return {
       platform: 'instagram', url, id: ig[1]!,
       /*
-       * Played inline, but not through the usual iframe.
+       * Instagram cannot be played here by anybody, and this is why.
        *
-       * Instagram's only embed is the full card — white, with a header, a
-       * follow button, a like row and a comment box — and none of it can be
-       * turned off from out here. `InstagramPlayer` crops it down to the video;
-       * `embedUrl` stays null so nothing else tries to mount the card whole.
-       * `bare` is false because what comes back needs that surgery first.
+       * Their embed does not play video for a logged-out viewer any more — it
+       * renders the poster frame with "Watch on Instagram" over it and sends
+       * you to the app. So there is nothing to crop the card down to: a perfect
+       * crop would be a still that still leaves the app.
+       *
+       * Nor is there a way round it. The oEmbed endpoint wants a Facebook app
+       * token, the page behind /reel/…/embed/ is a login wall with no video URL
+       * in it, and instagram.com serves no OpenGraph tags to anything that is
+       * not signed in — checked, all three.
+       *
+       * Playing an Instagram video in this app needs a real key: the Graph API
+       * with a token for the account that owns the post. Until there is one,
+       * the honest thing is a card of ours that says where the video is, rather
+       * than a page of somebody else's website pasted into a dark feed.
        */
       embedUrl: null, bare: false, autoplayable: false,
       thumbUrl: null, portrait: true,
@@ -249,15 +258,15 @@ export function isVideo(link: VideoLink | null): boolean {
 }
 
 /**
- * Does this one need a player of its own?
+ * A real video that we are not allowed to play.
  *
- * Instagram is the only service whose embed has to be cut down before it can go
- * in the feed, so it is the only one that does not go through the plain iframe
- * path. Asking by capability rather than by name keeps that branch honest if a
- * second service ever needs the same treatment.
+ * Distinct from an unrecognised link, which is not a video at all, and from a
+ * playable one. This gets a player-shaped card with the service's mark on it —
+ * the most a viewer can be given when the service itself will not hand the
+ * video over.
  */
-export function needsCustomPlayer(link: VideoLink | null): boolean {
-  return link?.platform === 'instagram' && Boolean(link.id);
+export function opensElsewhere(link: VideoLink | null): boolean {
+  return isVideo(link) && !isPlayable(link);
 }
 
 /**
