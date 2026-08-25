@@ -10,8 +10,8 @@ import { emitWithAck } from '@/lib/socket';
 import type { CommunityPostV2, CommunityComment, Res } from '@/types/index';
 import { Avatar, BadgeRow, MrMaxGlow, timeAgo, ModalShell, TextArea, TextInput, PillButton, Spinner } from '@/components/community/shared';
 import { PollDisplay } from '@/components/community/PollDisplay';
-import { VideoEmbed, VideoLinkChip } from '@/components/community/VideoEmbed';
-import { parseVideoLink, isPlayable } from '@/lib/videoLink';
+import { VideoEmbed } from '@/components/community/VideoEmbed';
+import { parseVideoLink, isVideo } from '@/lib/videoLink';
 import { ReactionPicker } from './ReactionPicker';
 import { PlayerName } from '@/components/ui/PlayerName';
 import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
@@ -646,8 +646,14 @@ export function PostCardV2({
         caption may well mention a second link they did not mean to embed.
       */}
       {(() => {
-        const link = parseVideoLink(post.videoUrl) ?? parseVideoLink(post.content);
-        return isPlayable(link) ? <VideoEmbed link={link} /> : null;
+        const explicit = parseVideoLink(post.videoUrl);
+        // A link found in the caption only counts if it is a video. Any other
+        // URL somebody happens to mention is not an invitation to embed it.
+        const fromText = explicit ? null : parseVideoLink(post.content);
+        const link = explicit ?? (isVideo(fromText) ? fromText : null);
+        // VideoEmbed falls back to a card of its own when a service cannot be
+        // played here, so there is no second branch to keep in step.
+        return link ? <VideoEmbed link={link} /> : null;
       })()}
 
       {/* Media — double-tap to ❤️ */}
@@ -674,11 +680,7 @@ export function PostCardV2({
           </AnimatePresence>
         </div>
       )}
-      {/* A link we cannot play — a chip, not a wrapped line of query string. */}
-      {(() => {
-        const link = parseVideoLink(post.videoUrl);
-        return link && !isPlayable(link) ? <VideoLinkChip link={link} /> : null;
-      })()}
+
       {post.audioUrl && (
         <div style={{ marginTop: 8, borderRadius: 12, overflow: 'hidden' }}>
           <audio src={post.audioUrl} controls onPlay={preparePlayback} style={{ width: '100%', height: 36 }} />

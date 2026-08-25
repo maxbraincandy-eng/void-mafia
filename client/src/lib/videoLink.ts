@@ -37,12 +37,52 @@ export interface VideoLink {
   embedUrl: string | null;
   /** A poster to show before play, when the service exposes one without an API. */
   thumbUrl: string | null;
-  /** Player shape. Shorts, Reels and TikToks are filmed the other way up. */
+  /** Player shape, before oEmbed tells us the real one. */
   portrait: boolean;
+  /**
+   * Does this service give us the video and nothing else?
+   *
+   * The difference that matters in a dark feed. YouTube, Vimeo and a bare file
+   * hand over a player that is all video. Instagram hands over its whole card —
+   * white background, avatar, follow button, like row, comment box — and there
+   * is no parameter that turns any of it off. Dropping that into the feed looks
+   * like a bug, so a service that cannot be stripped is not played inline at
+   * all; it gets our own tile and opens in its own app.
+   */
+  bare: boolean;
+  /** Can we start it muted on scroll and drive it afterwards? */
+  autoplayable: boolean;
   /** Service name for the badge. */
   label: string;
   /** Badge colour — each service's own. */
   color: string;
+}
+
+/**
+ * The iframe source for a given moment.
+ *
+ * Autoplay is a parameter rather than baked into `embedUrl` because the same
+ * link is a still in the grid, a muted player scrolling past in the feed, and a
+ * player with sound once somebody taps it — and each of those is a different
+ * query string on the same video.
+ */
+export function embedSrc(link: VideoLink, opts: { autoplay?: boolean; muted?: boolean } = {}): string | null {
+  if (!link.embedUrl) return null;
+  const { autoplay = false, muted = true } = opts;
+  switch (link.platform) {
+    case 'youtube': {
+      // enablejsapi lets the feed pause a player that scrolls away without
+      // tearing the iframe down and re-buffering it on the way back.
+      const q = `autoplay=${autoplay ? 1 : 0}&mute=${muted ? 1 : 0}&rel=0&modestbranding=1&playsinline=1&iv_load_policy=3&enablejsapi=1`;
+      return `${link.embedUrl}?${q}`;
+    }
+    case 'vimeo':
+      return `${link.embedUrl}?autoplay=${autoplay ? 1 : 0}&muted=${muted ? 1 : 0}&playsinline=1&title=0&byline=0&portrait=0`;
+    case 'twitch':
+      return `${link.embedUrl}&autoplay=${autoplay ? 'true' : 'false'}&muted=${muted ? 'true' : 'false'}`;
+    default:
+      return link.embedUrl;
+  }
 }
 
 const YT = /(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:[^&\s]*&)*v=|shorts\/|embed\/|live\/))([a-zA-Z0-9_-]{11})/;
@@ -88,7 +128,8 @@ export function parseVideoLink(text: string | null | undefined): VideoLink | nul
     const id = yt[1]!;
     return {
       platform: 'youtube', url,
-      embedUrl: `https://www.youtube.com/embed/${id}?autoplay=1&rel=0&modestbranding=1&playsinline=1`,
+      embedUrl: `https://www.youtube.com/embed/${id}`,
+      bare: true, autoplayable: true,
       // maxresdefault 404s on a lot of videos and leaves a broken frame;
       // hqdefault exists for every one of them.
       thumbUrl: `https://img.youtube.com/vi/${id}/hqdefault.jpg`,
@@ -102,6 +143,10 @@ export function parseVideoLink(text: string | null | undefined): VideoLink | nul
     return {
       platform: 'tiktok', url,
       embedUrl: `https://www.tiktok.com/embed/v2/${tt[1]!}`,
+      // TikTok's embed carries a username and a caption, but it is dark and the
+      // video is most of it — worth playing inline, not worth autoplaying,
+      // since there is no way to drive it from outside the frame.
+      bare: false, autoplayable: false,
       thumbUrl: null, portrait: true,
       label: 'TikTok', color: '#25f4ee',
     };
@@ -112,14 +157,24 @@ export function parseVideoLink(text: string | null | undefined): VideoLink | nul
    * opens TikTok — which is what a viewer wants from a share link anyway.
    */
   if (TIKTOK_SHORT.test(url)) {
-    return { platform: 'tiktok', url, embedUrl: null, thumbUrl: null, portrait: true, label: 'TikTok', color: '#25f4ee' };
+    return { platform: 'tiktok', url, embedUrl: null, bare: false, autoplayable: false, thumbUrl: null, portrait: true, label: 'TikTok', color: '#25f4ee' };
   }
 
   const ig = url.match(INSTAGRAM);
   if (ig) {
     return {
       platform: 'instagram', url,
-      embedUrl: `https://www.instagram.com/p/${ig[1]!}/embed/captioned/`,
+      /*
+       * Deliberately not embedded.
+       *
+       * Instagram's only embed is the full card — white, with a header, a
+       * follow button, a like row and a comment box — and none of it can be
+       * turned off. In a dark feed it reads as a page from another site pasted
+       * into the middle of a post. Its own tile, opening in Instagram, is the
+       * better of the two bad options until a Facebook app token lets us at
+       * least fetch the poster.
+       */
+      embedUrl: null, bare: false, autoplayable: false,
       thumbUrl: null, portrait: true,
       label: 'Instagram', color: '#e1306c',
     };
@@ -129,7 +184,8 @@ export function parseVideoLink(text: string | null | undefined): VideoLink | nul
   if (vm) {
     return {
       platform: 'vimeo', url,
-      embedUrl: `https://player.vimeo.com/video/${vm[1]!}?autoplay=1&playsinline=1`,
+      embedUrl: `https://player.vimeo.com/video/${vm[1]!}`,
+      bare: true, autoplayable: true,
       thumbUrl: null, portrait: false,
       label: 'Vimeo', color: '#1ab7ea',
     };
@@ -139,7 +195,8 @@ export function parseVideoLink(text: string | null | undefined): VideoLink | nul
   if (tv) {
     return {
       platform: 'twitch', url,
-      embedUrl: `https://player.twitch.tv/?video=${tv[1]!}&parent=${twitchParent()}&autoplay=true`,
+      embedUrl: `https://player.twitch.tv/?video=${tv[1]!}&parent=${twitchParent()}`,
+      bare: true, autoplayable: true,
       thumbUrl: null, portrait: false,
       label: 'Twitch', color: '#9146ff',
     };
@@ -148,31 +205,46 @@ export function parseVideoLink(text: string | null | undefined): VideoLink | nul
   if (tc) {
     return {
       platform: 'twitch', url,
-      embedUrl: `https://clips.twitch.tv/embed?clip=${tc[1]!}&parent=${twitchParent()}&autoplay=true`,
+      embedUrl: `https://clips.twitch.tv/embed?clip=${tc[1]!}&parent=${twitchParent()}`,
+      bare: true, autoplayable: true,
       thumbUrl: null, portrait: false,
       label: 'Twitch', color: '#9146ff',
     };
   }
 
   if (FILE.test(url)) {
-    return { platform: 'file', url, embedUrl: url, thumbUrl: null, portrait: false, label: 'ვიდეო', color: '#a855f7' };
+    return { platform: 'file', url, embedUrl: url, bare: true, autoplayable: true, thumbUrl: null, portrait: false, label: 'ვიდეო', color: '#a855f7' };
   }
 
   if (FACEBOOK.test(url)) {
     return {
       platform: 'facebook', url,
       embedUrl: `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(url)}&show_text=false`,
+      bare: false, autoplayable: false,
       thumbUrl: null, portrait: false,
       label: 'Facebook', color: '#1877f2',
     };
   }
 
-  return { platform: 'link', url, embedUrl: null, thumbUrl: null, portrait: false, label: 'ბმული', color: '#8b8b9e' };
+  return { platform: 'link', url, embedUrl: null, bare: false, autoplayable: false, thumbUrl: null, portrait: false, label: 'ბმული', color: '#8b8b9e' };
 }
 
-/** Is this something we can actually play in the feed? */
+/** Can we mount a player for this, here, in the page? */
 export function isPlayable(link: VideoLink | null): boolean {
   return Boolean(link && link.embedUrl && link.platform !== 'link');
+}
+
+/**
+ * Is this a video at all?
+ *
+ * Separate from `isPlayable` because Instagram is both: a real video from a
+ * real service, and one we will not embed. A post carrying one still deserves a
+ * player-shaped card rather than being treated as an ordinary link — while an
+ * ordinary link pasted into a caption deserves nothing at all, which is the
+ * other half of what this decides.
+ */
+export function isVideo(link: VideoLink | null): boolean {
+  return Boolean(link && link.platform !== 'link');
 }
 
 /**

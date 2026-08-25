@@ -10,7 +10,7 @@ import { MemeBuilder } from '@/components/community/MemeBuilder';
 import { VoicePostRecorder } from '@/components/community/VoicePostRecorder';
 import { useMyLimits } from '@/store/vipStore';
 import { VideoEmbed } from '@/components/community/VideoEmbed';
-import { parseVideoLink, isPlayable } from '@/lib/videoLink';
+import { parseVideoLink, isVideo } from '@/lib/videoLink';
 
 /**
  * Paste a link, see the video.
@@ -27,20 +27,25 @@ import { parseVideoLink, isPlayable } from '@/lib/videoLink';
  */
 function VideoUrlField({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
   const link = parseVideoLink(value);
-  const playable = isPlayable(link);
+  const known = isVideo(link);
   return (
     <div className="space-y-2">
       <TextInput value={value} onChange={onChange} placeholder={placeholder} />
       {value.trim().length > 0 && (
-        playable ? (
+        known ? (
           <div>
-            <p className="font-mono text-[10px] mb-1.5" style={{ color: link!.color }}>✓ {link!.label} — ასე გამოჩნდება</p>
-            <VideoEmbed link={link} maxPortraitHeight={320} />
+            <p className="font-mono text-[10px] mb-1.5" style={{ color: link!.color }}>
+              ✓ {link!.label} — ასე გამოჩნდება{link!.bare ? ' · ავტომატურად ჩაირთვება' : ''}
+            </p>
+            {/* Not autoplaying: this is a preview of one video in a modal, not
+                a feed, and a video that starts talking while you are still
+                typing the caption is not helpful. */}
+            <VideoEmbed link={link} maxPortraitHeight={300} autoplay={false} />
           </div>
         ) : (
           <p className="font-mono text-[10px] leading-relaxed px-2.5 py-2 rounded-lg"
             style={{ color: 'rgba(255,204,51,0.9)', background: 'rgba(255,204,51,0.08)', border: '1px solid rgba(255,204,51,0.25)' }}>
-            ⚠️ ამ ბმულს ვერ ვუკრავთ — დაიდება როგორც ბმული, რომელიც სხვაგან იხსნება.
+            ⚠️ ამ ბმულს ვერ ვცნობ — დაიდება როგორც ბმული, რომელიც სხვაგან იხსნება.
             <br />
             იმუშავებს: YouTube · TikTok · Instagram · Vimeo · Twitch · Facebook · პირდაპირი .mp4
           </p>

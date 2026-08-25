@@ -9,7 +9,7 @@
 import { test } from 'node:test';
 import { strict as assert } from 'assert';
 
-import { parseVideoLink, isPlayable, extractYouTubeId } from './videoLink.js';
+import { parseVideoLink, isPlayable, isVideo, embedSrc, extractYouTubeId } from './videoLink.js';
 
 // `twitchParent` reads window.location; under node there is no window, and the
 // fallback is what production uses anyway.
@@ -59,12 +59,50 @@ test('TikTok: a full link embeds, a share link opens instead', () => {
   assert.equal(isPlayable(short), false);
 });
 
-test('Instagram posts, reels and TV all embed', () => {
+test('Instagram is recognised as a video but deliberately not embedded', () => {
+  // Instagram's only embed is its whole card — white, with a follow button and
+  // a comment box — and nothing turns that off. Dropping it into a dark feed
+  // reads as a broken page, so it gets a card of ours and opens in Instagram.
   for (const kind of ['p', 'reel', 'reels', 'tv']) {
     const link = parseVideoLink(`https://www.instagram.com/${kind}/CxYzAbC1234/`);
     assert.equal(link?.platform, 'instagram', kind);
-    assert.ok(link!.embedUrl!.includes('CxYzAbC1234'), kind);
+    assert.equal(link!.embedUrl, null, kind);
+    assert.equal(isPlayable(link), false, kind);
+    assert.equal(isVideo(link), true, `${kind}: still a video, so it gets a player-shaped card`);
   }
+});
+
+test('only a bare player is ever autoplayed', () => {
+  // Muted autoplay needs a player we can drive from outside its frame. YouTube
+  // and Vimeo answer postMessage; TikTok's embed does not, and Instagram is not
+  // embedded at all.
+  const auto = (u: string) => parseVideoLink(u)!.autoplayable;
+  assert.equal(auto('https://youtu.be/dQw4w9WgXcQ'), true);
+  assert.equal(auto('https://vimeo.com/123456789'), true);
+  assert.equal(auto('https://cdn.example.com/clip.mp4'), true);
+  assert.equal(auto('https://www.tiktok.com/@a/video/7234567890123456789'), false);
+  assert.equal(auto('https://www.instagram.com/reel/CxYzAbC1234/'), false);
+});
+
+test('autoplay and sound are query parameters, not a second link', () => {
+  const yt = parseVideoLink('https://youtu.be/dQw4w9WgXcQ')!;
+  const still = embedSrc(yt, { autoplay: false });
+  const rolling = embedSrc(yt, { autoplay: true, muted: true });
+  const loud = embedSrc(yt, { autoplay: true, muted: false });
+  assert.ok(still!.includes('autoplay=0'));
+  assert.ok(rolling!.includes('autoplay=1') && rolling!.includes('mute=1'));
+  assert.ok(loud!.includes('mute=0'));
+  // Without enablejsapi the feed could not pause a player that scrolled away
+  // without tearing the iframe down and re-buffering it.
+  assert.ok(rolling!.includes('enablejsapi=1'));
+
+  const vi = parseVideoLink('https://vimeo.com/123456789')!;
+  assert.ok(embedSrc(vi, { autoplay: true })!.includes('autoplay=1'));
+});
+
+test('an ordinary link is not a video, so nothing embeds it', () => {
+  assert.equal(isVideo(parseVideoLink('https://example.com/an-article')), false);
+  assert.equal(isVideo(parseVideoLink('https://youtu.be/dQw4w9WgXcQ')), true);
 });
 
 test('Vimeo, Twitch and a bare mp4', () => {

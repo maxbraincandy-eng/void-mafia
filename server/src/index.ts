@@ -31,6 +31,7 @@ import { computeTrending, settleWeeklyLeaderboard } from './services/communitySe
 import { createHermesRouter } from './routes/hermes.js';
 import { createLiveKitRouter } from './routes/livekitRoutes.js';
 import { createGifRouter } from './routes/gifRoutes.js';
+import { createOEmbedRouter } from './routes/oembedRoutes.js';
 
 // ── Stripe setup ──────────────────────────────────────────────────────
 const STRIPE_SECRET = process.env.STRIPE_SECRET_KEY ?? '';
@@ -61,7 +62,7 @@ const PORT = Number(process.env.PORT ?? 3000);
 const CLIENT_URL = process.env.CLIENT_URL ?? 'http://localhost:5173';
 const IS_PROD = process.env.NODE_ENV === 'production';
 
-const CLIENT_BUILD = '2026-07-28-v643';
+const CLIENT_BUILD = '2026-07-28-v644';
 console.log('[Startup] Void Mafia server starting');
 console.log(`[Startup] Client build: ${CLIENT_BUILD}`);
 console.log(`[Startup] NODE_ENV=${process.env.NODE_ENV ?? 'development'}`);
@@ -132,6 +133,7 @@ app.use(express.json());
 app.use('/api/hermes', createHermesRouter());
 app.use('/livekit', createLiveKitRouter());
 app.use('/api/gif', createGifRouter());
+app.use('/api/oembed', createOEmbedRouter());
 
 // ── Lightweight health endpoint (no DB dependency) ────────────────────
 // Railway healthcheck hits this — must always respond 200 instantly.

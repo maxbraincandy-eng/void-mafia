@@ -14,7 +14,7 @@ import { Avatar, BadgeRow, MrMaxGlow, Spinner, TextArea, timeAgo } from '@/compo
 import { ProfileVisitors } from '@/components/community/ProfileVisitors';
 import { useMyLimits } from '@/store/vipStore';
 import { VideoEmbed, VideoPoster } from '@/components/community/VideoEmbed';
-import { parseVideoLink, isPlayable } from '@/lib/videoLink';
+import { parseVideoLink, isVideo as isVideoLink } from '@/lib/videoLink';
 import { PollDisplay } from '@/components/community/PollDisplay';
 import { ImageStack } from '@/components/community/ImageStack';
 import { VerifiedBadge } from '@/components/ui/VerifiedBadge';
@@ -75,7 +75,8 @@ function PostLightbox({
   const isVideo   = !!post.videoUrl && !post.imageUrl && !post.gifUrl;
   // The video field first, then a link somebody pasted into the caption.
   const vidMedia  = isVideo ? parseVideoLink(post.videoUrl) : null;
-  const vidText   = !isPlayable(vidMedia) ? parseVideoLink(post.content) : null;
+  const fromText  = !isVideoLink(vidMedia) ? parseVideoLink(post.content) : null;
+  const vidText   = isVideoLink(fromText) ? fromText : null;
 
   return createPortal(
     <motion.div
@@ -115,9 +116,11 @@ function PostLightbox({
 
         <div className="overflow-y-auto flex-1 overscroll-contain">
           {/* Media */}
-          {isPlayable(vidMedia) ? (
+          {isVideoLink(vidMedia) ? (
             <div className="w-full flex-shrink-0 px-4 pt-2">
-              <VideoEmbed link={vidMedia} maxPortraitHeight={560} />
+              {/* The lightbox shows one video on purpose, so it waits for a tap
+                  rather than starting the moment the sheet opens. */}
+              <VideoEmbed link={vidMedia} maxPortraitHeight={560} autoplay={false} />
             </div>
           ) : mediaUrl ? (
             <div className="w-full flex-shrink-0" style={{ background: '#000' }}>
@@ -134,9 +137,9 @@ function PostLightbox({
           ) : null}
 
           {/* A video linked from the caption rather than the video field. */}
-          {isPlayable(vidText) && (
+          {vidText && (
             <div className="w-full flex-shrink-0 px-4 pt-2">
-              <VideoEmbed link={vidText} maxPortraitHeight={560} />
+              <VideoEmbed link={vidText} maxPortraitHeight={560} autoplay={false} />
             </div>
           )}
 
@@ -319,7 +322,7 @@ function PostTextCard({ post: initialPost, readMoreLabel, onExpand }: {
         {/* Video preview — a still where the service gives one, its own colour
             where it does not. Tapping the card opens the post, which is where
             the player lives; this is a poster, not a second player. */}
-        {isPlayable(vid) && (
+        {isVideoLink(vid) && (
           <div className="relative mt-2 rounded-xl overflow-hidden"
             style={{ aspectRatio: vid!.portrait ? '4/5' : '16/9', background: '#000' }}>
             {vid!.thumbUrl
