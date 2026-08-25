@@ -309,6 +309,16 @@ export interface XmRoleCounts {
  * a maniac makes the mafia's parity meaningless, a cult can take the table from
  * under everybody — so they are something a host turns on, not something that
  * appears because enough people sat down.
+ *
+ * THE DON IS THE SECOND MAFIOSO, NOT THE FIRST
+ * ────────────────────────────────────────────
+ * A small table gets one mafioso, and that one used to be the don — which
+ * handed a six-player game a nightly sheriff check nobody asked for, and made
+ * "no don" something a host had to go and turn off. The don is the mafia's
+ * leader, and a leader of one is not a rank, it is a solitary player with an
+ * extra power. So the plain mafia fills first: the don appears at seven
+ * players, when there is somebody for them to lead. A host who wants one
+ * sooner still adds it in the setup panel.
  */
 export declare function roleCounts(n: number): XmRoleCounts;
 /** The role counts actually used for the current seat count: the host's override

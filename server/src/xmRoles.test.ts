@@ -13,7 +13,7 @@ import {
   createMatch, getMatch, joinMatchAsBot, setRoleConfig, startMatch, pickCard,
   beginMafiaMeet, endMafiaMeet, beginNight, endNight, leaveMatch, getSafeState,
   mafiaVote, donCheck, doctorHeal, maniacKill, cultConvert,
-  effectiveCounts, type XmMatch, type XmRole,
+  effectiveCounts, roleCounts, type XmMatch, type XmRole,
 } from './services/sxvaMafiaService.js';
 
 let n = 0;
@@ -63,6 +63,36 @@ test('the optional roles are off unless the host asks for them', () => {
   assert.equal(counts.doctor, 0);
   assert.equal(counts.maniac, 0);
   assert.equal(counts.cult, 0, 'a cult must never appear because enough people sat down');
+});
+
+test('a small table gets a plain mafioso, and the don only once there are two', () => {
+  // The don is the mafia's leader, and a leader of one is not a rank — it is a
+  // solitary player with a sheriff check attached. So the plain mafia fills
+  // first and the don arrives when somebody is there to be led.
+  for (const n of [4, 5, 6]) {
+    const c = roleCounts(n);
+    assert.equal(c.don, 0, `${n} players: no don by default`);
+    assert.equal(c.mafia, 1, `${n} players: one plain mafioso`);
+  }
+  for (const [n, mafia] of [[7, 1], [8, 1], [9, 2], [12, 3]] as const) {
+    const c = roleCounts(n);
+    assert.equal(c.don, 1, `${n} players: now there is a don`);
+    assert.equal(c.mafia, mafia, `${n} players: and ${mafia} to lead`);
+  }
+});
+
+test('when the mafia must lose a seat, the don goes before the last mafioso', () => {
+  // The host asked for four mafia-team members at a three-player table. Once
+  // the specials and the sheriff are gone the trim has to cut into the mafia
+  // itself, and the rank is what is expendable — somebody still has to shoot.
+  const hostId = nextId();
+  const m = createMatch(hostId, 'sock', 'Host', { maxSeats: 12 });
+  for (let i = 0; i < 3; i++) joinMatchAsBot(m.id, `bot_tiny_${i}`, `P${i}`);
+  setRoleConfig(m.id, hostId, { don: 1, mafia: 3, sheriff: 0, doctor: 0, maniac: 0, cult: 0 });
+
+  const counts = effectiveCounts(getMatch(m.id)!);
+  assert.equal(counts.don, 0, 'the rank is what is expendable');
+  assert.equal(counts.mafia, 3, 'the shooters stay');
 });
 
 test('a table too small to hold every special loses the extras, not the mafia', () => {

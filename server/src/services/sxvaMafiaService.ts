@@ -287,10 +287,20 @@ export interface XmRoleCounts {
  * a maniac makes the mafia's parity meaningless, a cult can take the table from
  * under everybody — so they are something a host turns on, not something that
  * appears because enough people sat down.
+ *
+ * THE DON IS THE SECOND MAFIOSO, NOT THE FIRST
+ * ────────────────────────────────────────────
+ * A small table gets one mafioso, and that one used to be the don — which
+ * handed a six-player game a nightly sheriff check nobody asked for, and made
+ * "no don" something a host had to go and turn off. The don is the mafia's
+ * leader, and a leader of one is not a rank, it is a solitary player with an
+ * extra power. So the plain mafia fills first: the don appears at seven
+ * players, when there is somebody for them to lead. A host who wants one
+ * sooner still adds it in the setup panel.
  */
 export function roleCounts(n: number): XmRoleCounts {
   const mafiaTotal = n <= 6 ? 1 : n <= 8 ? 2 : n <= 11 ? 3 : 4; // includes the don
-  const don = mafiaTotal >= 1 ? 1 : 0;
+  const don = mafiaTotal >= 2 ? 1 : 0;
   const mafia = mafiaTotal - don;
   const sheriff = n >= 5 ? 1 : 0;
   const citizen = Math.max(0, n - don - mafia - sheriff);
@@ -322,11 +332,16 @@ export function effectiveCounts(m: XmMatch): XmRoleCounts {
    * purpose (cult, maniac, doctor) are the first to go when the table is too
    * small, because losing one of them leaves a game that still works. Losing the
    * mafia does not.
+   *
+   * The don goes before the last plain mafioso, for the same reason the
+   * automatic split fills the mafia first: a don with nobody to lead is just a
+   * lone player with a sheriff check attached.
    */
   const total = () => don + mafia + sheriff + doctor + maniac + cult;
   const trim = (take: () => void) => { while (total() > n) take(); };
   trim(() => { if (cult > 0) cult -= 1; else if (maniac > 0) maniac -= 1; else if (doctor > 0) doctor -= 1;
-               else if (sheriff > 0) sheriff -= 1; else if (mafia > 0) mafia -= 1; else if (don > 0) don -= 1; else return; });
+               else if (sheriff > 0) sheriff -= 1; else if (don > 0 && mafia > 0) don -= 1;
+               else if (mafia > 0) mafia -= 1; else if (don > 0) don -= 1; else return; });
 
   if (don + mafia === 0 && n >= 2) mafia = 1;
 
