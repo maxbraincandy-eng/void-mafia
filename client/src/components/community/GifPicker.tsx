@@ -27,6 +27,14 @@ export function GifPicker({ onSelect, onClose }: Props) {
    * The server now says which it is, and so does this.
    */
   const [problem, setProblem] = useState<'none' | 'not_configured' | 'failed'>('none');
+  /** The paste-a-link way in, for when search cannot answer. */
+  const [pasted, setPasted] = useState('');
+  /*
+   * Only an http(s) address is offered — the same rule the server enforces on
+   * the way in, applied here so the button is dead rather than the post being
+   * refused after you have written the caption.
+   */
+  const pastedOk = /^https?:\/\/\S+$/i.test(pasted.trim());
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const search = async (q: string) => {
@@ -90,12 +98,12 @@ export function GifPicker({ onSelect, onClose }: Props) {
             </p>
           )}
           {!loading && problem !== 'none' && (
-            <div style={{ textAlign: 'center', padding: '22px 14px' }}>
+            <div style={{ textAlign: 'center', padding: '18px 14px' }}>
               <p style={{ fontSize: 24, marginBottom: 8 }}>{problem === 'not_configured' ? '🔌' : '⚠️'}</p>
               <p style={{ color: 'rgba(255,255,255,0.7)', fontFamily: 'monospace', fontSize: 12, lineHeight: 1.6 }}>
                 {problem === 'not_configured'
-                  ? 'GIF-ის ძებნა გამორთულია — გასაღები არ არის დაყენებული.'
-                  : 'GIF-ის ძებნა ვერ მოხერხდა. სცადე ხელახლა.'}
+                  ? 'GIF-ის ძებნა გამორთულია.'
+                  : 'GIF-ის ძებნა ვერ მოხერხდა.'}
               </p>
               {problem === 'failed' && (
                 <button onClick={() => search(query)}
@@ -103,6 +111,34 @@ export function GifPicker({ onSelect, onClose }: Props) {
                   ხელახლა
                 </button>
               )}
+
+              {/*
+                Search is not the only way to get a GIF into a post.
+                Posting one has always been a URL, and a GIF anybody finds
+                anywhere has one — so when search cannot answer, the picker asks
+                for the link instead of being a dead end.
+              */}
+              <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                <p style={{ color: 'rgba(255,255,255,0.4)', fontFamily: 'monospace', fontSize: 11, marginBottom: 8 }}>
+                  ჩასვი GIF-ის ბმული
+                </p>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input
+                    value={pasted} onChange={e => setPasted(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && pastedOk) { onSelect(pasted.trim()); onClose(); } }}
+                    placeholder="https://…/something.gif"
+                    style={{ flex: 1, minWidth: 0, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '8px 10px', color: 'white', fontFamily: 'monospace', fontSize: 11, outline: 'none' }}
+                  />
+                  <button
+                    onClick={() => { if (pastedOk) { onSelect(pasted.trim()); onClose(); } }}
+                    disabled={!pastedOk}
+                    style={{ background: pastedOk ? 'rgba(0,229,255,0.14)' : 'rgba(255,255,255,0.04)', border: `1px solid ${pastedOk ? 'rgba(0,229,255,0.35)' : 'rgba(255,255,255,0.08)'}`, color: pastedOk ? '#67e8f9' : 'rgba(255,255,255,0.25)', borderRadius: 10, padding: '8px 14px', fontFamily: 'monospace', fontSize: 11, cursor: pastedOk ? 'pointer' : 'default', flexShrink: 0 }}
+                  >დადება</button>
+                </div>
+                {pasted.trim() && pastedOk && (
+                  <img src={pasted.trim()} alt="" style={{ marginTop: 10, maxWidth: '100%', maxHeight: 160, borderRadius: 10, display: 'block', marginLeft: 'auto', marginRight: 'auto' }} />
+                )}
+              </div>
             </div>
           )}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
