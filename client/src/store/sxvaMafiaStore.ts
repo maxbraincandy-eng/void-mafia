@@ -150,9 +150,24 @@ export const useSxvaMafiaStore = create<XmStore>((set, get) => {
       try { const r = await emit('xm:tribunal_vote', { matchId: id, verdict }); if (!r.ok) set({ error: r.error }); }
       catch (e: any) { set({ error: e.message }); }
     },
-    // Close the table for everybody. Distinct from endGame, which keeps the
-    // room and sends everyone back to the lobby.
-    dissolve: hostEv('xm:dissolve'),
+    /*
+     * Close the table for everybody. Distinct from endGame, which keeps the
+     * room and sends everyone back to the lobby.
+     *
+     * The host has to close their OWN screen locally, exactly the way leaving
+     * does — and for the same reason. Dissolving sets `hostLeft`, and
+     * `recipients` deliberately excludes a host who has left, so the one person
+     * who pressed the button is the one person the server will never tell. Left
+     * to `hostEv`, which only reports failures, the host's screen simply kept
+     * the last state it had and froze there while everybody else was let out.
+     */
+    dissolve: async () => {
+      const id = mid();
+      if (!id) return;
+      departed.add(id);
+      set({ match: null, error: null, kicked: false });
+      try { await emit('xm:dissolve', { matchId: id }); } catch { /* the room is closing regardless */ }
+    },
 
     mafiaVote: targetEv('xm:mafia_vote'),
     donCheck: targetEv('xm:don_check'),

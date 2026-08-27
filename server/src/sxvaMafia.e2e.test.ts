@@ -572,6 +572,39 @@ test('the host can close the table, and everyone in it is told', async () => {
   host.close(); player.close();
 });
 
+test('the host is never sent the dissolve, so their client must close itself', async () => {
+  /*
+   * `dissolveMatch` sets `hostLeft`, and `recipients` excludes a host who has
+   * left — that is what stopped the closed room reopening on the host's screen
+   * and looping. The consequence is that the one person who pressed the button
+   * is the one person the server will never tell, so the client has to close
+   * locally on the acknowledgement.
+   *
+   * It froze exactly here: the host's screen kept the last state it had while
+   * everybody else was let out.
+   */
+  const host = await open('dzh_host');
+  const created = await send(host, 'xm:create', { nickname: 'Host', maxSeats: 10 });
+  const match = (created as { data: any }).data;
+
+  const player = await open('dzh_p1');
+  await send(player, 'xm:join', { code: match.code, nickname: 'Player' });
+
+  const hostSeen = states(host);
+  const playerSeen = states(player);
+  await settle();
+  const hostBefore = hostSeen.length;
+
+  const res = await send(host, 'xm:dissolve', { matchId: match.id });
+  await settle();
+
+  assert.equal(res.ok, true, 'the acknowledgement is the host\'s only signal');
+  assert.equal(hostSeen.length, hostBefore, 'and no state ever reaches them');
+  assert.equal(playerSeen[playerSeen.length - 1].dissolved, true, 'while everyone else is told');
+
+  host.close(); player.close();
+});
+
 test('only the host closes the table', async () => {
   const host = await open('dz2_host');
   const created = await send(host, 'xm:create', { nickname: 'Host', maxSeats: 10 });

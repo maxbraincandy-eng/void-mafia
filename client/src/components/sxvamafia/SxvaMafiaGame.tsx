@@ -1609,7 +1609,7 @@ export function SxvaMafiaGame() {
                   style={{ color: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.15)' }}>
                   არა
                 </button>
-                <button onClick={() => { SFX.click?.(); haptic('heavy'); setConfirmEnd(false); store.dissolve(); }}
+                <button onClick={() => { SFX.click?.(); haptic('heavy'); setConfirmEnd(false); voice.leave(); store.dissolve(); }}
                   className="flex-1 py-2.5 rounded-xl font-mono text-[12px] text-white"
                   style={{ background: RED }}>
                   დიახ, დახურე
