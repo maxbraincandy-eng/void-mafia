@@ -9,7 +9,12 @@ jobs:
     runs-on: ubuntu-latest
     # Without --detach the CLI streams the build; this stops a hung stream from
     # holding a runner for the default six hours.
-    timeout-minutes: 25
+    #
+    # Raised from 25: `railway up` now takes about ten minutes per service even
+    # when it decides to skip, so two services plus a verify pass did not fit
+    # and the verify step was being cancelled mid-poll — which reads as "the
+    # deploy is still going" when it has in fact already failed.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -37,14 +42,49 @@ jobs:
       # just pushed. Without this a "successful" deploy that quietly rolled back
       # still looks like a win.
       - name: Verify the live build matches this commit
+        id: verify
+        continue-on-error: true
         run: |
           EXPECTED=$(grep -oE "2026-[0-9]{2}-[0-9]{2}-v[0-9]+" server/src/index.ts | head -1)
-          echo "expecting build: $EXPECTED"
-          for i in $(seq 1 30); do
-            LIVE=$(curl -s --max-time 10 https://voidmafia.one/api/version | grep -oE "2026-[0-9]{2}-[0-9]{2}-v[0-9]+" || true)
-            echo "  attempt $i: live=$LIVE"
-            if [ "$LIVE" = "$EXPECTED" ]; then echo "✓ live build matches"; exit 0; fi
-            sleep 20
-          done
-          echo "✗ live build never became $EXPECTED — the deploy did not land"
-          exit 1
+          echo "expected=$EXPECTED" >> "$GITHUB_OUTPUT"
+          ./.github/scripts/wait-for-build.sh "$EXPECTED" 15
+
+      # ── The skip ────────────────────────────────────────────────────────
+      #
+      # Railway decides for itself whether an upload changed anything, and when
+      # it decides not it answers `no changes detected in watch paths, build
+      # will skip`, leaves the old container running, and `railway up` still
+      # exits 0. That is what happened to v592 and again to v656, where the
+      # server skipped and production stayed on v655 for an hour while every
+      # step reported success.
+      #
+      # `railway.toml` sets `watchPatterns = ["**"]` to stop exactly this, and
+      # it did not — Railway now warns on every deploy that config-as-code is
+      # deprecated, so the file can no longer be relied on to carry it.
+      #
+      # A retry is worth one attempt: a second `railway up` uploads again, and
+      # a skip decided against a stale comparison sometimes does not repeat.
+      # What it cannot do is force a build Railway has decided not to run —
+      # `railway redeploy` would only restart the image already there, which in
+      # a skip is the OLD one. So this tries, and then tells the truth.
+      - name: Upload again if the build did not land
+        if: steps.verify.outcome == 'failure'
+        run: |
+          echo "::warning::the upload did not become live — Railway most likely skipped the build"
+          railway up --service 226d60e0-8aee-42f4-83b3-2151ee30dced
+          railway up --service 958a7cd3-adc4-49ad-a955-27c6df5794d8
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: 08c2a0d2-1c54-4c07-8497-8130c7baa696
+
+      # The step allowed to fail the job. If it does, the cause is on Railway's
+      # side and the fix is in its dashboard, so say so here rather than leaving
+      # somebody to find this file.
+      - name: Confirm the live build
+        run: |
+          ./.github/scripts/wait-for-build.sh "${{ steps.verify.outputs.expected }}" 20 || {
+            echo "::error::The deploy did not land. Railway skipped the build — clear the"
+            echo "::error::service's Watch Paths in the dashboard (Settings → Build), or set"
+            echo "::error::them to ** so every push deploys. railway.toml no longer carries it."
+            exit 1
+          }
