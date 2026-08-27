@@ -22,7 +22,7 @@ import { socket } from '@/lib/socket';
 import { useAuthStore } from '@/store/authStore';
 import { useLivekitRoomVoice, useLiveKitGate } from '@/hooks/useLivekitVoice';
 import { getLiveKitRemoteVideo } from '@/services/livekitVoice';
-import type { LiveSession } from '@/types/live';
+import { liveRoomFor, type LiveSession } from '@/types/live';
 import { LiveStage, LiveComments, HeartBurst, LiveStat } from './LiveStage';
 import { useLiveRoom } from './useLiveRoom';
 import { LiveGiftPicker, LiveGiftBurst, GiftButton, useGiftPicker } from './LiveGiftUI';
@@ -79,10 +79,20 @@ export function LiveViewer({ sessionId, onClose }: { sessionId: string; onClose:
     return () => { socket.emit('live:leave' as any, { sessionId }, () => {}); };
   }, [sessionId]);
 
+  /*
+   * The media starts connecting on the first frame, not after the join.
+   *
+   * It used to wait for `live:join` to come back and hand over `session.room`
+   * — a socket round trip, a couple of database queries, and only then a token
+   * fetch and an ICE negotiation, all in a row, in front of a black screen.
+   * The room name is `live_<sessionId>` and the session id is what was tapped,
+   * so none of that waiting bought anything. Now the two run side by side and
+   * the picture arrives about as soon as the connection can carry it.
+   */
   const voice = useLivekitRoomVoice({
-    roomId: session ? session.room : null,
+    roomId: liveRoomFor(sessionId),
     identity: myId || null,
-    active: lkEnabled && !!session && !room.ended,
+    active: lkEnabled && !error && !room.ended,
     // A viewer listens. The host is the only publisher in the room.
     listenOnly: true,
   });
@@ -98,8 +108,19 @@ export function LiveViewer({ sessionId, onClose }: { sessionId: string; onClose:
    */
   const [stream, setStream] = useState<MediaStream | null>(null);
   useEffect(() => {
-    if (!session) { setStream(null); return; }
-    setStream(getLiveKitRemoteVideo().get(session.hostId) ?? null);
+    const map = getLiveKitRemoteVideo();
+    /*
+     * By host id when we know it — and by "the only one there" when we do not.
+     *
+     * Now that the connection starts before the join comes back, the track can
+     * arrive before `hostId` does. A broadcast room has exactly one publisher,
+     * so falling back to the single entry is not a guess; it is the definition
+     * of the room. Without it the first frame would sit unclaimed until the
+     * join landed, which is the delay this was meant to remove.
+     */
+    const byHost = session ? map.get(session.hostId) : undefined;
+    const only = map.size === 1 ? [...map.values()][0] : undefined;
+    setStream(byHost ?? only ?? null);
   }, [session?.hostId, voice.rev]);
 
   /*

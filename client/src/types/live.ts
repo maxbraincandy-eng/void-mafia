@@ -79,3 +79,16 @@ export interface LiveGifter {
 
 /** How often the host tells the server it is still there. */
 export const LIVE_BEAT_MS = 15_000;
+
+/**
+ * The LiveKit room a session broadcasts in.
+ *
+ * Mirrors `roomFor` in `server/src/services/liveService.ts`, where it is
+ * derived from the id and never stored — one less thing to desync. Derived
+ * here for the same reason plus one more: it means a viewer can start opening
+ * the media connection the instant they tap, instead of waiting for a socket
+ * round trip to hand back a string it could have computed itself.
+ */
+export function liveRoomFor(sessionId: string): string {
+  return `live_${sessionId}`;
+}

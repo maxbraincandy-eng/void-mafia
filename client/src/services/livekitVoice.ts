@@ -16,6 +16,7 @@ import {
   Room, RoomEvent, Track, ConnectionState,
   type RemoteTrack, type RemoteTrackPublication, type RemoteParticipant,
 } from 'livekit-client';
+import { roomOptionsFor } from '@/lib/livekitRoomOptions';
 import { tNow } from '@/store/langStore';
 import { applyVoiceMask, resetVoiceMask, type VoiceMaskPreset } from '@/lib/voiceMask';
 import { prepareCapture, setCaptureLive } from '@/lib/voiceCapture';
@@ -335,7 +336,7 @@ export async function joinLiveKitVoice(identity: string, roomId: string, opts: J
     const { token, url } = await fetchToken(identity, roomId, alive);
     if (seq !== joinSeq) return; // a newer join/leave superseded us
 
-    const r = new Room({ adaptiveStream: true, dynacast: true });
+    const r = new Room(roomOptionsFor(roomId));
     wireRoom(r);
     await r.connect(url, token);
     if (seq !== joinSeq) { r.disconnect(); return; }
