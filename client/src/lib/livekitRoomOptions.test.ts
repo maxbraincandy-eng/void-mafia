@@ -1,14 +1,18 @@
 /**
  * Room options, by room kind.
  *
- * This exists because the bug it guards against was invisible from the host's
- * side and impossible to spot in the code. Every room shared one config, that
- * config was tuned for a grid of stamp-sized voice tiles, and a full-screen
- * broadcast inherited it — so viewers got the 360p layer while the host's own
- * self-view, which is the raw camera with no encoder in it, looked perfect.
+ * Two things worth asserting, both of which were invisible in the code:
  *
- * Nothing about that produces an error, a warning or a failing test unless
- * something asserts the intent. This asserts the intent.
+ * Adaptive stream is off everywhere, because this app never registers a video
+ * element with LiveKit — it wraps `mediaStreamTrack` itself — so adaptive
+ * stream had nothing to observe and computed "not visible" on the first
+ * `document.visibilitychange`, disabling remote video for the rest of the
+ * session. Turning it back on without also attaching elements re-arms that.
+ *
+ * A broadcast publishes above the 720p default, because the complaint that
+ * started this was viewers seeing a softer picture than the host — whose own
+ * self-view is the raw camera with no encoder in it and therefore cannot look
+ * worse.
  *
  *   npx tsx --test src/lib/livekitRoomOptions.test.ts
  */
@@ -28,46 +32,52 @@ test('a broadcast room is recognised by the name the server derives', () => {
   assert.equal(isBroadcastRoom(''), false);
 });
 
-test('a voice room keeps adaptive stream, because a tile grid needs it', () => {
-  // Twenty faces the size of a stamp. Sending each of them the top layer would
-  // melt the phone, and this is the setting that stops it.
-  const o = roomOptionsFor('ABCD');
-  assert.equal(o.adaptiveStream, true);
-  assert.equal(o.dynacast, true);
-  assert.equal(o.videoCaptureDefaults, undefined, 'and no broadcast-grade capture');
-  assert.equal(o.publishDefaults, undefined);
+test('adaptive stream is off, in every kind of room', () => {
+  /*
+   * Not a preference — a correctness requirement, for as long as remote video
+   * is handed to React as a hand-rolled MediaStream instead of through
+   * `track.attach(el)`.
+   *
+   * With no element registered, `RemoteVideoTrack.updateVisibility` reduces to
+   * `[].some(...)`, which is false, and the first visibilitychange event tells
+   * the SFU to stop sending. Nothing turns it back on: there are no elements
+   * left to become visible. Switch apps once and the video is gone.
+   */
+  assert.equal(roomOptionsFor('ABCD').adaptiveStream, false, 'voice room');
+  assert.equal(roomOptionsFor('live_x').adaptiveStream, false, 'broadcast');
 });
 
-test('a broadcast does not size its video to the element', () => {
-  // The whole bug. Adaptive stream matches the layer to the rendered element
-  // and climbs to it from below; a broadcast is one video filling the screen
-  // and wants the top layer from the first frame.
-  const o = roomOptionsFor('live_live_mtb1_ab12cd34');
-  assert.equal(o.adaptiveStream, false);
-});
-
-test('a broadcast still pauses layers nobody is watching', () => {
-  // Dynacast is the reason a host with no viewers is not encoding three
-  // resolutions into an empty room off their battery. Turning it off would be
-  // the lazy way to "fix" quality and would cost every host their phone.
+test('dynacast stays on, in every kind of room', () => {
+  // It pauses layers nobody is subscribed to, so a host with no viewers is not
+  // encoding three resolutions into an empty room off their battery. Turning it
+  // off would be the lazy way to "fix" quality and would cost every host their
+  // phone.
+  assert.equal(roomOptionsFor('ABCD').dynacast, true);
   assert.equal(roomOptionsFor('live_x').dynacast, true);
+});
+
+test('a voice tile does not get broadcast-grade capture', () => {
+  // Twenty faces the size of a stamp, sharing one phone's encoder. LiveKit's
+  // defaults are already more than that needs.
+  const o = roomOptionsFor('ABCD');
+  assert.equal(o.videoCaptureDefaults, undefined);
+  assert.equal(o.publishDefaults, undefined);
 });
 
 test('a broadcast publishes above the 720p default', () => {
   const o = roomOptionsFor('live_x');
   const res = o.videoCaptureDefaults?.resolution as any;
   assert.ok(res, 'a capture default is set at all');
-  assert.equal(res.height, 1080, 'the ceiling the top layer was capped at');
+  assert.equal(res.height, 1080, 'the ceiling the encode was running at');
   assert.ok((o.publishDefaults?.videoEncoding?.maxBitrate ?? 0) >= 3_000_000);
 });
 
 test('a broadcast keeps rungs below the top one', () => {
   // Somebody on a train has to get a picture — just not this picture. A single
   // 1080p layer would give them a stall instead.
-  const layers = roomOptionsFor('live_x').publishDefaults?.videoSimulcastLayers ?? [];
-  assert.equal(roomOptionsFor('live_x').publishDefaults?.simulcast, true);
-  assert.ok(layers.length >= 2, `only ${layers.length} fallback layer(s)`);
-  const heights = layers.map(l => l.height).sort((a, b) => a - b);
+  const pd = roomOptionsFor('live_x').publishDefaults;
+  assert.equal(pd?.simulcast, true);
+  const heights = (pd?.videoSimulcastLayers ?? []).map(l => l.height).sort((a, b) => a - b);
   assert.deepEqual(heights, [360, 720]);
 });
 
@@ -78,10 +88,11 @@ test('a broadcast drops frames rather than resolution', () => {
 });
 
 test('the two kinds of room do not share an object', () => {
-  // They are built fresh each call. A shared literal would let one room's
-  // mutation follow the next one into a different kind of room.
+  // Built fresh each call. A shared literal would let one room's mutation
+  // follow the next one into a different kind of room.
   const a = roomOptionsFor('live_x');
   const b = roomOptionsFor('live_y');
   assert.notEqual(a, b);
   assert.notEqual(a.publishDefaults, b.publishDefaults);
+  assert.notEqual(roomOptionsFor('ABCD'), roomOptionsFor('EFGH'));
 });
