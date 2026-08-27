@@ -11,6 +11,7 @@ import {
   getLiveKitRemoteVideo, getLiveKitLocalVideo, getLiveKitSpeaking, setLiveKitCamera,
 } from '@/services/livekitVoice';
 import { SeatEmblem, assignEmblems } from './SeatEmblem';
+import { ringShape } from './ringShape';
 import { VoidCardBack } from './VoidCardBack';
 import { XM_ROLE_META, XM_TEAM_META, type XmSafeSeat, type XmSafeState, type XmRole } from '@/types/sxvaMafia';
 import { GameInviteButton } from '@/components/social/GameInviteButton';
@@ -58,26 +59,6 @@ function useWide(bp = 760): boolean {
   useEffect(() => { const on = () => setW(window.innerWidth >= bp); window.addEventListener('resize', on); return () => window.removeEventListener('resize', on); }, [bp]);
   return w;
 }
-/** Grid dimensions whose perimeter can seat `n` players around a central stage. */
-function ringDims(n: number): { cols: number; rows: number; P: number } {
-  let best: { cols: number; rows: number; P: number; waste: number } | null = null;
-  for (let cols = 4; cols <= 6; cols++) for (let rows = 4; rows <= 6; rows++) {
-    const P = 2 * cols + 2 * (rows - 2);
-    if (P < n) continue;
-    const waste = P - n;
-    if (!best || waste < best.waste || (waste === best.waste && cols + rows < best.cols + best.rows)) best = { cols, rows, P, waste };
-  }
-  return best ? { cols: best.cols, rows: best.rows, P: best.P } : { cols: 5, rows: 5, P: 16 };
-}
-/** Perimeter cells of a cols×rows grid, clockwise from the top-left corner. */
-function ringCells(cols: number, rows: number): { row: number; col: number }[] {
-  const cells: { row: number; col: number }[] = [];
-  for (let c = 1; c <= cols; c++) cells.push({ row: 1, col: c });
-  for (let r = 2; r <= rows - 1; r++) cells.push({ row: r, col: cols });
-  for (let c = cols; c >= 1; c--) cells.push({ row: rows, col: c });
-  for (let r = rows - 1; r >= 2; r--) cells.push({ row: r, col: 1 });
-  return cells;
-}
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 
 /** ± stepper for one role count in the host's lobby composition panel. */
@@ -94,16 +75,6 @@ function RoleStepper({ emoji, label, value, min, max, onChange }: { emoji: strin
   );
 }
 
-/** Spread `n` seats as evenly as possible over `P` perimeter slots. */
-function distribute(n: number, P: number): number[] {
-  const used = new Set<number>(); const out: number[] = [];
-  for (let i = 0; i < n; i++) {
-    let idx = Math.round((i * P) / n) % P;
-    while (used.has(idx)) idx = (idx + 1) % P;
-    used.add(idx); out.push(idx);
-  }
-  return out;
-}
 
 const PHASE_LABEL: Record<XmSafeState['phase'], string> = {
   lobby: 'მოლოდინი', assign: 'როლების დარიგება', mafia_meet: 'პირველი ღამე', night: 'ღამე', day_announce: 'დილა',
@@ -874,9 +845,7 @@ export function SxvaMafiaGame() {
   const useRing = wide && inPlay && match.phase !== 'mafia_meet' && match.seats.length >= 8;
   const amMafia = match.myRole === 'mafia' || match.myRole === 'don';
   const mafiaTeam = match.seats.filter(s => s.role === 'mafia' || s.role === 'don');
-  const dims = ringDims(match.seats.length);
-  const cells = ringCells(dims.cols, dims.rows);
-  const place = distribute(match.seats.length, cells.length);
+  const ring = ringShape(match.seats.length);
 
   const stageIcon = intro ? '🤝' : match.phase === 'night' ? '🌙' : match.phase === 'vote' ? '⚖️'
     : match.phase === 'last_words' ? '🎤' : match.phase === 'day_announce' ? ((match.announce?.killed.length ?? 0) > 0 ? '💀' : '🌅')
@@ -1174,19 +1143,59 @@ export function SxvaMafiaGame() {
             const GAP = 10;
             const availW = Math.max(320, stageBox.w);
             const availH = Math.max(280, stageBox.h);
+
+            /*
+             * Size the tile from whichever axis runs out first.
+             *
+             * The widest row sets the width; the two end rows plus however many
+             * seats stack down a side set the height. Tiles are 16:9 because
+             * that is the shape of a webcam, so the height follows from the
+             * width and both limits have to be checked against the same number.
+             */
+            const across = Math.max(ring.top, ring.bottom);
             const tileW = Math.min(
-              (availW - GAP * (dims.cols - 1)) / dims.cols,
-              ((availH - GAP * (dims.rows - 1)) / dims.rows) * (16 / 9),
+              (availW - GAP * (across - 1)) / across,
+              ((availH - GAP * (ring.side + 1)) / (ring.side + 2)) * (16 / 9),
             );
             const tileH = tileW * (9 / 16);
-            const gridW = tileW * dims.cols + GAP * (dims.cols - 1);
-            const gridH = tileH * dims.rows + GAP * (dims.rows - 1);
+            const boardW = tileW * across + GAP * (across - 1);
+            const midH = tileH * ring.side + GAP * (ring.side - 1);
+
+            /*
+             * Seats run clockwise from the top-left, the way they are numbered:
+             * across the top, down the right, back along the bottom, up the
+             * left. Slicing rather than placing by index keeps that order a
+             * property of the list instead of arithmetic at every cell.
+             */
+            const seats = match.seats;
+            const topSeats = seats.slice(0, ring.top);
+            const rightSeats = seats.slice(ring.top, ring.top + ring.side);
+            const bottomSeats = seats.slice(ring.top + ring.side, ring.top + ring.side + ring.bottom).reverse();
+            const leftSeats = seats.slice(ring.top + ring.side + ring.bottom).reverse();
+
+            const row = (list: typeof seats) => (
+              <div style={{ display: 'flex', gap: GAP, justifyContent: 'center' }}>
+                {list.map(s => <div key={s.userId} style={{ width: tileW, height: tileH }}>{renderSeat(s, { fill: true })}</div>)}
+              </div>
+            );
+            const column = (list: typeof seats) => (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: GAP, justifyContent: 'center', width: tileW }}>
+                {list.map(s => <div key={s.userId} style={{ width: tileW, height: tileH }}>{renderSeat(s, { fill: true })}</div>)}
+              </div>
+            );
 
             return (
           <div ref={stageRef} className="flex-1 min-h-0 flex items-center justify-center">
-            <div style={{ width: gridW, height: gridH, display: 'grid', gridTemplateColumns: `repeat(${dims.cols}, 1fr)`, gridTemplateRows: `repeat(${dims.rows}, 1fr)`, gap: GAP }}>
-              <div style={{ gridColumn: `2 / ${dims.cols}`, gridRow: `2 / ${dims.rows}` }}>{StageCard}</div>
-              {match.seats.map((s, i) => { const cell = cells[place[i]]!; return <div key={s.userId} style={{ gridColumn: cell.col, gridRow: cell.row }}>{renderSeat(s, { fill: true })}</div>; })}
+            <div style={{ width: boardW, display: 'flex', flexDirection: 'column', gap: GAP }}>
+              {row(topSeats)}
+              {/* The stage takes whatever the side columns leave, so it is
+                  centred by construction rather than by a magic width. */}
+              <div style={{ display: 'flex', gap: GAP, height: midH, alignItems: 'stretch' }}>
+                {column(leftSeats)}
+                <div style={{ flex: 1, minWidth: 0 }}>{StageCard}</div>
+                {column(rightSeats)}
+              </div>
+              {row(bottomSeats)}
             </div>
           </div>
             );
