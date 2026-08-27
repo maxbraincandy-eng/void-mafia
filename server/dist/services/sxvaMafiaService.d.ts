@@ -7,7 +7,7 @@
  *  • cult   — converts a player a night; wins when the table is all cult
  */
 export type XmRole = 'don' | 'mafia' | 'sheriff' | 'citizen' | 'doctor' | 'maniac' | 'cult';
-export type XmPhase = 'lobby' | 'assign' | 'mafia_meet' | 'night' | 'day_announce' | 'speech' | 'vote' | 'last_words' | 'finished';
+export type XmPhase = 'lobby' | 'assign' | 'mafia_meet' | 'night' | 'day_announce' | 'speech' | 'vote' | 'last_words' | 'finished' | 'plan_night' | 'tribunal_defense' | 'tribunal_vote';
 export type XmWinner = 'town' | 'mafia' | 'maniac' | 'cult' | null;
 export declare const XM_FOULS_TO_ELIMINATE = 4;
 export interface XmSeat {
@@ -107,6 +107,33 @@ export interface XmMatch {
         lastWordsSeconds: number;
         floorControl: boolean;
     };
+    /**
+     * Playing the tournament ruleset.
+     *
+     * Decided once, at the deal, and never afterwards — a match cannot change
+     * which game it is halfway through. See `sportMafiaRules.ts` for what it
+     * changes and why.
+     */
+    sport: boolean;
+    /** Host's request for sport, set in the lobby. Only honoured at ten seats. */
+    sportRequested: boolean;
+    /**
+     * The tribunal in progress.
+     *
+     * `onTrial` is the tied players in speaking order, `defenseIdx` whose turn it
+     * is, and `votes` the town's verdicts once the defences are done. Null
+     * between tribunals rather than a set of empty fields, so "is there a
+     * tribunal" is one question with one answer.
+     */
+    tribunal: {
+        onTrial: string[];
+        defenseIdx: number;
+        defenseEndsAt: number;
+        votes: Record<string, 'punish' | 'free'>;
+        endsAt: number;
+        /** Set once decided, so the result screen can say what happened. */
+        verdict: 'punish' | 'free' | null;
+    } | null;
     roleConfig: {
         don: number;
         mafia: number;
@@ -258,6 +285,40 @@ export interface XmSafeState {
         targetId: string;
         targetName: string;
     }[];
+    /** Playing the tournament ruleset — see sportMafiaRules.ts. */
+    sport: boolean;
+    /** Host asked for sport in the lobby; only honoured at ten seats. */
+    sportRequested: boolean;
+    /** Why sport cannot start yet, for the lobby. Null when it can. */
+    sportBlockedReason: string | null;
+    /**
+     * The tribunal, as this viewer may see it.
+     *
+     * `myVerdict` is the viewer's own, and the tally is only sent once the
+     * tribunal is over — a running count would let the last few voters see
+     * exactly how many more are needed, which turns a verdict into arithmetic.
+     */
+    tribunal: {
+        onTrial: {
+            userId: string;
+            nickname: string;
+            seat: number;
+        }[];
+        defenseIdx: number;
+        defenseEndsAt: number;
+        speakingUserId: string | null;
+        endsAt: number;
+        iAmOnTrial: boolean;
+        canVote: boolean;
+        myVerdict: 'punish' | 'free' | null;
+        votesCast: number;
+        votesTotal: number;
+        verdict: 'punish' | 'free' | null;
+        tally: {
+            punish: number;
+            free: number;
+        } | null;
+    } | null;
     announce: XmAnnounce | null;
     voteEndsAt: number;
     voteRevote: boolean;
@@ -434,7 +495,9 @@ export declare function setRoleConfig(matchId: string, byUserId: string, cfg: {
     cult?: number;
 } | null): XmMatch | null;
 /** Host tweaks timers / floor control. Durations only editable before play starts. */
-export declare function setSettings(matchId: string, byUserId: string, patch: Partial<XmMatch['settings']>): XmMatch | null;
+export declare function setSettings(matchId: string, byUserId: string, patch: Partial<XmMatch['settings']> & {
+    sport?: boolean;
+}): XmMatch | null;
 /** Host re-deals the cards while still on the assign screen (everyone re-picks). */
 export declare function reshuffleRoles(matchId: string, byUserId: string): XmMatch | null;
 /**
@@ -460,6 +523,14 @@ export declare function beginMafiaMeet(matchId: string, byUserId: string): XmMat
 /** Host closes the acquaintance screen; the day-0 introduction circle begins —
  * everyone speaks in turn, no nominations, then the first night falls. */
 export declare function endMafiaMeet(matchId: string, byUserId: string): XmMatch | null;
+/**
+ * Sport: the planning night ends and the first day begins.
+ *
+ * Straight into real speeches — no acquaintance circle. The casual rules open
+ * with a round where nobody may nominate, which is a gentle way to start;
+ * sport's first day counts, and the very first speaker may put somebody up.
+ */
+export declare function endPlanNight(matchId: string, byUserId: string): XmMatch | null;
 export declare function beginNight(matchId: string, byUserId: string): XmMatch | null;
 /** Mafia member picks the kill target for tonight. */
 /**
@@ -507,6 +578,23 @@ export declare function currentCandidate(m: XmMatch): string | null;
  * player can abstain their way out of every elimination.
  */
 export declare function nextCandidate(matchId: string, byUserId: string): XmMatch | null;
+/**
+ * Next defence, or open the vote once they have all spoken.
+ *
+ * Host-driven like every other clock in hosted mafia: the timer is a guide for
+ * the room, and the moderator decides when somebody has finished.
+ */
+export declare function nextTribunalDefense(matchId: string, byUserId: string): XmMatch | null;
+/**
+ * One town member's verdict.
+ *
+ * Not the players on trial: their fate is the question. Letting them answer it
+ * turns "should we lose both?" into arithmetic about how many of the rest are
+ * needed, which is not what a tribunal is for.
+ */
+export declare function tribunalVote(matchId: string, byUserId: string, verdict: 'punish' | 'free'): XmMatch | null;
+/** Host closes the tribunal early, or its clock runs out. */
+export declare function endTribunalVote(matchId: string, byUserId: string | null): XmMatch | null;
 /** Host closes the vote early (timer or manual). */
 export declare function endVote(matchId: string, byUserId: string | null): XmMatch | null;
 export declare function giveFoul(matchId: string, byUserId: string, targetUserId: string, delta: number): XmMatch | null;

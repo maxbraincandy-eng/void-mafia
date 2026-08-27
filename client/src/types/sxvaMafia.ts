@@ -1,5 +1,11 @@
 export type XmRole = 'don' | 'mafia' | 'sheriff' | 'citizen' | 'doctor' | 'maniac' | 'cult';
-export type XmPhase = 'lobby' | 'assign' | 'mafia_meet' | 'night' | 'day_announce' | 'speech' | 'vote' | 'last_words' | 'finished';
+export type XmPhase =
+  | 'lobby' | 'assign' | 'mafia_meet' | 'night' | 'day_announce' | 'speech'
+  | 'vote' | 'last_words' | 'finished'
+  /* სპორტული მაფია only */
+  | 'plan_night'         // the opening night: the mafia agree an order, nobody dies
+  | 'tribunal_defense'   // a tied player defends themselves
+  | 'tribunal_vote';     // the rest of the town decides: both, or neither
 export type XmWinner = 'town' | 'mafia' | 'maniac' | 'cult' | null;
 
 export interface XmSafeSeat {
@@ -80,6 +86,31 @@ export interface XmSafeState {
   reveal: { userId: string; nickname: string; seat: number; role: XmRole }[] | null;
   dissolved: boolean;
   myUserId: string;
+
+  // ── სპორტული მაფია ────────────────────────────────────────────────────────
+  /** Playing the tournament ruleset: blind shooting, a clean don, tribunals. */
+  sport: boolean;
+  /** Host asked for it in the lobby; only honoured at ten seats. */
+  sportRequested: boolean;
+  /** Why it cannot start yet, in Georgian. Null when it can. */
+  sportBlockedReason: string | null;
+  tribunal: XmTribunal | null;
+}
+
+export interface XmTribunal {
+  onTrial: { userId: string; nickname: string; seat: number }[];
+  defenseIdx: number;
+  defenseEndsAt: number;
+  speakingUserId: string | null;
+  endsAt: number;
+  iAmOnTrial: boolean;
+  canVote: boolean;
+  myVerdict: 'punish' | 'free' | null;
+  votesCast: number;
+  votesTotal: number;
+  verdict: 'punish' | 'free' | null;
+  /** Only once it is over — a live count would turn a verdict into arithmetic. */
+  tally: { punish: number; free: number } | null;
 }
 
 export interface XmListItem {

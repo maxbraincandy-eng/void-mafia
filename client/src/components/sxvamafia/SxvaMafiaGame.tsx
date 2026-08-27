@@ -108,6 +108,8 @@ function distribute(n: number, P: number): number[] {
 const PHASE_LABEL: Record<XmSafeState['phase'], string> = {
   lobby: 'მოლოდინი', assign: 'როლების დარიგება', mafia_meet: 'პირველი ღამე', night: 'ღამე', day_announce: 'დილა',
   speech: 'დღე — საუბრები', vote: 'კენჭისყრა', last_words: 'გამომშვიდობების სიტყვა', finished: 'დასასრული',
+  // სპორტული მაფია
+  plan_night: 'დაგეგმვის ღამე', tribunal_defense: 'ტრიბუნალი — თავის მართლება', tribunal_vote: 'ტრიბუნალის განაჩენი',
 };
 
 // ── Live <video> bound to a MediaStream (self is muted + mirrored) ─────────────
@@ -558,6 +560,17 @@ export function SxvaMafiaGame() {
         )}
         {match.phase === 'vote' && btn('✅ ხმების დათვლა', () => store.endVote())}
         {match.phase === 'last_words' && btn('➡️ გაგრძელება', () => store.endLastWords(), true)}
+
+        {/* ── სპორტული მაფია ─────────────────────────────────────────────── */}
+        {match.phase === 'plan_night' && btn('🌅 დაგეგმვა დასრულდა — დღე', () => store.endPlanNight(), true)}
+        {match.phase === 'tribunal_defense' && match.tribunal && btn(
+          match.tribunal.defenseIdx < match.tribunal.onTrial.length - 1
+            ? `➡️ შემდეგი (${match.tribunal.defenseIdx + 1}/${match.tribunal.onTrial.length})`
+            : '⚖️ განაჩენზე გადასვლა',
+          () => store.nextDefense(),
+          true,
+        )}
+        {match.phase === 'tribunal_vote' && btn('⚖️ განაჩენის დათვლა', () => store.endTribunal(), true)}
         {/* Ending a game and closing the room both live behind ✕ — they are
             ways out, not phase controls, and the bar is for running the game. */}
         {(match.phase === 'speech' || match.phase === 'night' || match.phase === 'day_announce') &&
@@ -727,6 +740,101 @@ export function SxvaMafiaGame() {
         ) : (
           <p className="text-center font-mono text-[12px] text-white/40">კანდიდატები არ არიან</p>
         )}
+      </div>);
+    }
+
+    /*
+      სპორტული მაფია — the planning night.
+
+      The mafia see each other and agree an order; everyone else waits. This is
+      the only coordination the team gets all game, which is worth saying on the
+      screen rather than assuming they have read the rules.
+    */
+    if (match.phase === 'plan_night') {
+      if (amMafia) {
+        return (<div>
+          <p className="text-center font-mono text-[11px] mb-2" style={{ color: RED }}>
+            🌑 დაგეგმვის ღამე — შეათანხმეთ თანმიმდევრობა
+          </p>
+          <p className="text-center font-mono text-[10.5px] leading-relaxed text-white/45">
+            ამ ღამეს არავინ კვდება. შემდეგი ღამიდან <b style={{ color: '#ffcc33' }}>ერთმანეთის არჩევანს ვერ ნახავთ</b> —
+            ქილი მხოლოდ მაშინ შედგება, თუ სამივე ერთსა და იმავე მოთამაშეს დააჭერს.
+          </p>
+          {match.mateIds.length > 0 && (
+            <p className="text-center font-mono text-[12px] mt-2.5" style={{ color: '#ff8a92' }}>
+              შენი გუნდი: {match.seats.filter(x => match.mateIds.includes(x.userId)).map(x => `#${x.seat} ${x.nickname}`).join(', ')}
+            </p>
+          )}
+        </div>);
+      }
+      return <p className="text-center font-mono text-[12px] text-white/40 animate-pulse">🌑 დაგეგმვის ღამე — თვალები დახუჭე</p>;
+    }
+
+    /* სპორტული მაფია — a tied vote goes to trial. */
+    if (match.phase === 'tribunal_defense' && match.tribunal) {
+      const t = match.tribunal;
+      const speaking = t.onTrial[t.defenseIdx];
+      const isMe = speaking?.userId === myId;
+      return (<div>
+        <p className="text-center font-display font-bold text-[13px] mb-1" style={{ color: '#ffcc33' }}>⚖️ ტრიბუნალი</p>
+        <p className="text-center font-mono text-[12px]" style={{ color: isMe ? RED : 'rgba(255,255,255,0.6)' }}>
+          {isMe
+            ? `🎤 შენი თავის მართლება (${fmt(Math.round((t.defenseEndsAt - now) / 1000))})`
+            : `🎤 თავს იმართლებს #${speaking?.seat} ${speaking?.nickname}`}
+        </p>
+        <p className="text-center font-mono text-[10.5px] text-white/35 mt-1.5">
+          {t.defenseIdx + 1}/{t.onTrial.length} · შემდეგ ქალაქი გადაწყვეტს
+        </p>
+      </div>);
+    }
+
+    /*
+      The verdict.
+
+      Both, or neither — the vote already failed to separate them, so asking
+      "which one" again would be asking the room to change its mind with no new
+      information. The accused do not get a button: their fate is the question.
+    */
+    if (match.phase === 'tribunal_vote' && match.tribunal) {
+      const t = match.tribunal;
+      const names = t.onTrial.map(x => `#${x.seat} ${x.nickname}`).join(' და ');
+      if (t.iAmOnTrial) {
+        return (<div>
+          <p className="text-center font-display font-bold text-[13px]" style={{ color: '#ffcc33' }}>⚖️ ქალაქი წყვეტს</p>
+          <p className="text-center font-mono text-[11px] text-white/45 mt-1.5">
+            შენს ბედზე სხვები ხმას აძლევენ — შენ ვერ მონაწილეობ
+          </p>
+          <p className="text-center font-mono text-[10.5px] text-white/30 mt-2">
+            {t.votesCast}/{t.votesTotal} უკვე გადაწყვიტა
+          </p>
+        </div>);
+      }
+      if (!t.canVote) {
+        return <p className="text-center font-mono text-[12px] text-white/40">⚖️ ტრიბუნალი — {names}</p>;
+      }
+      const choice = (verdict: 'punish' | 'free', label: string, color: string) => (
+        <button
+          onClick={() => { SFX.click?.(); haptic('selection'); store.tribunalVote(verdict); }}
+          disabled={t.myVerdict !== null}
+          className="flex-1 rounded-2xl px-3 py-3.5 font-display font-bold text-[14px] transition-all active:scale-[0.98] disabled:opacity-45"
+          style={{
+            background: t.myVerdict === verdict ? color : 'rgba(255,255,255,0.06)',
+            border: `1.5px solid ${t.myVerdict === verdict ? color : 'rgba(255,255,255,0.18)'}`,
+            color: '#fff',
+          }}>
+          {label}
+        </button>
+      );
+      return (<div className="max-w-sm mx-auto">
+        <p className="text-center font-display font-bold text-[13px]" style={{ color: '#ffcc33' }}>⚖️ ორივე დავსაჯოთ?</p>
+        <p className="text-center font-mono text-[11px] text-white/50 mt-1 mb-3">{names}</p>
+        <div className="flex gap-2">
+          {choice('punish', '⚔️ დასჯა', RED)}
+          {choice('free', '🕊 გათავისუფლება', '#39d98a')}
+        </div>
+        <p className="text-center font-mono text-[10.5px] text-white/30 mt-2.5">
+          {t.myVerdict ? 'ხმა მიცემულია · ' : ''}{t.votesCast}/{t.votesTotal}
+        </p>
       </div>);
     }
 
@@ -1034,7 +1142,7 @@ export function SxvaMafiaGame() {
               </motion.div>
             )}
           </div>
-        ) : match.phase === 'night' && (match.amSpectator || !match.myAlive || match.myRole === 'citizen') ? (
+        ) : (match.phase === 'night' || match.phase === 'plan_night') && (match.amSpectator || !match.myAlive || (match.myRole === 'citizen' && match.phase === 'night') || (match.phase === 'plan_night' && !amMafia)) ? (
           // ── Night for townsfolk: a starry sky while the special roles act ─────
           <div className="min-h-full flex flex-col items-center justify-center relative overflow-hidden" style={{ background: 'radial-gradient(ellipse at 50% 20%, #0e1638, #05060f 75%)' }}>
             {STARS.map((st, i) => (
@@ -1124,8 +1232,70 @@ export function SxvaMafiaGame() {
                     whoever is already listening. */}
                 <div className="flex justify-center mt-3"><GameInviteButton game="sxvamafia" code={match.code} /></div>
 
+                {/*
+                  სპორტული მაფია — the tournament ruleset.
+
+                  Its own card above the composition, because turning it on
+                  takes the composition away: sport is ten players, one don, two
+                  mafia, one sheriff, and a host who does not get to adjust
+                  that. A toggle buried among the steppers would look like one
+                  more thing to tune.
+                */}
+                <div className="mt-4 max-w-sm mx-auto rounded-2xl p-4"
+                  style={{
+                    background: match.sportRequested ? 'rgba(255,204,51,0.06)' : 'rgba(255,255,255,0.03)',
+                    border: `1px solid ${match.sportRequested ? 'rgba(255,204,51,0.4)' : 'rgba(255,255,255,0.08)'}`,
+                  }}>
+                  <button
+                    onClick={() => { if (isHost) { SFX.click?.(); store.setSport(!match.sportRequested); } }}
+                    disabled={!isHost}
+                    className="w-full flex items-center gap-3 text-left"
+                    style={{ background: 'none', border: 'none', padding: 0, cursor: isHost ? 'pointer' : 'default' }}>
+                    <span style={{ fontSize: 22 }}>🏆</span>
+                    <span className="flex-1 min-w-0">
+                      <span className="block font-display font-bold text-[13px]" style={{ color: match.sportRequested ? '#ffcc33' : '#fff' }}>
+                        სპორტული მაფია
+                      </span>
+                      <span className="block font-mono text-[10px] text-white/40 mt-0.5">
+                        10 მოთამაშე · 1 დონი · 2 მაფია · 1 შერიფი
+                      </span>
+                    </span>
+                    {/* A switch, not a checkbox: it changes the whole ruleset. */}
+                    <span style={{
+                      width: 40, height: 22, borderRadius: 999, flexShrink: 0, position: 'relative',
+                      background: match.sportRequested ? '#ffcc33' : 'rgba(255,255,255,0.12)',
+                      transition: 'background 160ms',
+                    }}>
+                      <span style={{
+                        position: 'absolute', top: 3, left: match.sportRequested ? 21 : 3,
+                        width: 16, height: 16, borderRadius: '50%', background: '#140f22',
+                        transition: 'left 160ms',
+                      }} />
+                    </span>
+                  </button>
+
+                  {match.sportRequested && (
+                    <div className="mt-3 pt-3" style={{ borderTop: '1px solid rgba(255,204,51,0.2)' }}>
+                      <p className="font-mono text-[10px] leading-relaxed text-white/50">
+                        • მაფია ერთმანეთის არჩევანს <b style={{ color: '#ffcc33' }}>ვერ ხედავს</b> — სამივემ ერთსა და იმავეს უნდა დააჭიროს<br />
+                        • შერიფისთვის <b style={{ color: '#ffcc33' }}>დონი მშვიდობიანია</b><br />
+                        • ხმების გაყოფისას — <b style={{ color: '#ffcc33' }}>ტრიბუნალი</b>, და არა ხელახალი კენჭისყრა<br />
+                        • თამაში იწყება დაგეგმვის ღამით
+                      </p>
+                      {/* Says which half is missing rather than leaving the host
+                          to work out why the start button will not fire. */}
+                      {match.sportBlockedReason && (
+                        <p className="font-mono text-[10.5px] mt-2.5 px-2.5 py-2 rounded-lg"
+                          style={{ color: '#ff8a92', background: 'rgba(255,60,80,0.1)', border: '1px solid rgba(255,60,80,0.3)' }}>
+                          ⚠️ {match.sportBlockedReason}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 {/* Role composition (host configurable, others read-only) */}
-                <div className="mt-4 max-w-sm mx-auto rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${RED}22` }}>
+                <div className="mt-4 max-w-sm mx-auto rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${RED}22`, opacity: match.sportRequested ? 0.45 : 1, pointerEvents: match.sportRequested ? 'none' : 'auto' }}>
                   <div className="flex items-center justify-between mb-2.5">
                     <p className="font-display font-bold text-white text-[13px]">🎭 როლების შემადგენლობა</p>
                     <span className="font-mono text-[10px] px-2 py-0.5 rounded" style={{ background: match.roleConfigCustom ? `${RED}22` : 'rgba(255,255,255,0.06)', color: match.roleConfigCustom ? RED : 'rgba(255,255,255,0.5)' }}>{match.roleConfigCustom ? 'მორგებული' : 'ავტო'}</span>

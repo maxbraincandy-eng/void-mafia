@@ -1,5 +1,5 @@
 import { ok, err, } from './types/index.js';
-import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch, dissolveMatch, transferHost, startMatch, reshuffleRoles, setRoleConfig, setSettings, pickCard, beginMafiaMeet, endMafiaMeet, beginNight, mafiaVote, donCheck, sheriffCheck, endNight, beginDay, nextSpeaker, advanceSpeakerAuto, extendSpeech, nominate, grabFloor, doctorHeal, maniacKill, cultConvert, castVote, endVote, nextCandidate, giveFoul, endLastWords, rematch, endGame, disconnectSocket, getSafeState, kickPlayer, recipients, resumeForUser, joinMatchAsBot, } from './services/sxvaMafiaService.js';
+import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch, dissolveMatch, transferHost, startMatch, reshuffleRoles, setRoleConfig, setSettings, pickCard, beginMafiaMeet, endMafiaMeet, beginNight, mafiaVote, donCheck, sheriffCheck, endPlanNight, nextTribunalDefense, tribunalVote, endTribunalVote, endNight, beginDay, nextSpeaker, advanceSpeakerAuto, extendSpeech, nominate, grabFloor, doctorHeal, maniacKill, cultConvert, castVote, endVote, nextCandidate, giveFoul, endLastWords, rematch, endGame, disconnectSocket, getSafeState, kickPlayer, recipients, resumeForUser, joinMatchAsBot, } from './services/sxvaMafiaService.js';
 import { botName, isBot, isOwner, newBotId } from './services/testBots.js';
 import { tick as botTick, hasBots } from './services/xmBotDriver.js';
 const ROOM = (id) => `xm:${id}`;
@@ -84,6 +84,18 @@ function syncTimer(io, matchId) {
     else if (m.phase === 'last_words' && m.lastWordsEndsAt) {
         deadline = m.lastWordsEndsAt;
         fire = () => { endLastWords(matchId, null); };
+    }
+    else if (m.phase === 'tribunal_vote' && m.tribunal?.endsAt) {
+        /*
+         * The tribunal's clock is the one sport phase that closes itself.
+         *
+         * A defence is host-paced like every other speech — the moderator decides
+         * when somebody has finished. The verdict is not: a town that will not
+         * answer must not be able to stall the game, and "nobody voted" already has
+         * a defined outcome, which is that both go free.
+         */
+        deadline = m.tribunal.endsAt;
+        fire = () => { endTribunalVote(matchId, null); };
     }
     // Night is host-paced (auto-advances when all roles act, or host closes it) — no timer.
     if (!fire || !deadline)
@@ -285,6 +297,40 @@ export function registerSxvaMafiaHandlers(io, socket) {
     });
     socket.on('xm:begin_meet', hostAction(beginMafiaMeet, 'ვერ დაიწყო'));
     socket.on('xm:end_meet', hostAction(endMafiaMeet, 'ვერ დასრულდა'));
+    // Sport: close the planning night and open the first real day.
+    socket.on('xm:end_plan_night', hostAction(endPlanNight, 'ვერ დასრულდა დაგეგმვის ღამე'));
+    // Sport: next player's defence, or open the verdict once they have all spoken.
+    socket.on('xm:next_defense', hostAction(nextTribunalDefense, 'ვერ გადავიდა'));
+    socket.on('xm:end_tribunal', (data, cb) => {
+        try {
+            const matchId = String(data?.matchId);
+            const m = endTribunalVote(matchId, uid());
+            if (!m)
+                return cb(err('ვერ დასრულდა ტრიბუნალი'));
+            after(matchId);
+            if (m.phase === 'finished')
+                broadcastList(io);
+            cb(ok(null));
+        }
+        catch (e) {
+            cb(err(e.message));
+        }
+    });
+    socket.on('xm:tribunal_vote', (data, cb) => {
+        try {
+            const matchId = String(data?.matchId);
+            const m = tribunalVote(matchId, uid(), data?.verdict);
+            if (!m)
+                return cb(err('ხმა ვერ ჩაითვალა'));
+            after(matchId);
+            if (m.phase === 'finished')
+                broadcastList(io);
+            cb(ok(null));
+        }
+        catch (e) {
+            cb(err(e.message));
+        }
+    });
     socket.on('xm:begin_night', hostAction(beginNight, 'ვერ დაიწყო ღამე'));
     socket.on('xm:end_night', hostAction(endNight, 'ვერ დასრულდა ღამე'));
     socket.on('xm:begin_day', hostAction(beginDay, 'ვერ დაიწყო დღე'));

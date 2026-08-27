@@ -19,6 +19,7 @@
  * layer, exactly like the other match games.
  */
 import { randomBytes } from 'crypto';
+import { SPORT_ROLES, SPORT_TIMES, canStartSport, sheriffSees, agreedTarget, teamHasActed, tribunalElectorate, tribunalVerdict, } from './sportMafiaRules.js';
 import { limitsForSync } from './vipService.js';
 export const XM_FOULS_TO_ELIMINATE = 4;
 const matches = new Map();
@@ -133,6 +134,7 @@ export function createMatch(hostId, socketId, nickname, opts) {
         votes: {}, voteIdx: 0, voteEndsAt: 0, voteRevote: false, voteResult: null,
         lastWordsUserId: null, lastWordsEndsAt: 0, lastWordsQueue: [], lastHeal: null, floorGrab: null,
         winner: null, reveal: null, dissolved: false, hostLeft: false, createdAt: Date.now(),
+        sport: false, sportRequested: false, tribunal: null,
     };
     matches.set(id, m);
     // unref: a three-hour cleanup timer must not be the reason a process refuses
@@ -466,6 +468,28 @@ export function startMatch(matchId, byUserId) {
         return null;
     if (m.seats.length < 4)
         return null;
+    /*
+     * Which game is this? Answered once, here, and never again.
+     *
+     * The host asks for sport in the lobby; the table has to be ten-handed. If
+     * both hold, the composition is forced to the tournament split — the host
+     * does not get to adjust it, because a table anybody can tune is a house
+     * rule and sport's premise is that every table is the same table.
+     *
+     * If sport was asked for and the table does not qualify, the match refuses
+     * to start rather than quietly dealing the casual rules under the sport
+     * name. `startSportError` is what tells the host which half is missing.
+     */
+    if (m.sportRequested) {
+        if (!canStartSport(m.seats.length, true).ok)
+            return null;
+        m.sport = true;
+        m.roleConfig = { ...SPORT_ROLES };
+    }
+    else {
+        m.sport = false;
+    }
+    m.tribunal = null;
     dealCards(m);
     m.round = 0;
     m.phase = 'assign';
@@ -529,6 +553,23 @@ export function setSettings(matchId, byUserId, patch) {
         return null;
     if (typeof patch.floorControl === 'boolean')
         m.settings.floorControl = patch.floorControl; // any time
+    /*
+     * Sport is asked for in the lobby and nowhere else.
+     *
+     * The timings are the tournament's, not the host's, so turning it on
+     * overwrites them — a table where the speeches are ninety seconds is not the
+     * tournament ruleset with a tweak, it is a different game. Turning it back
+     * off leaves them where sport put them rather than guessing at what they
+     * were, which is honest: the host can set them again.
+     */
+    if (typeof patch.sport === 'boolean' && m.phase === 'lobby') {
+        m.sportRequested = patch.sport;
+        if (patch.sport) {
+            m.settings.speechSeconds = SPORT_TIMES.speech;
+            m.settings.lastWordsSeconds = SPORT_TIMES.lastWords;
+            m.roleConfig = { ...SPORT_ROLES };
+        }
+    }
     if (m.phase === 'lobby') {
         if (patch.speechSeconds != null)
             m.settings.speechSeconds = Math.max(20, Math.min(180, Math.floor(patch.speechSeconds)));
@@ -568,7 +609,16 @@ function pushLog(m, phase, text) {
 /** True once everyone who has a night action tonight has submitted it. */
 function nightAllActed(m) {
     const mafia = aliveMafia(m);
-    const allMafiaVoted = mafia.length === 0 || mafia.every(s => m.night.mafiaVotes[s.userId]);
+    /*
+     * Having acted is not the same as having agreed.
+     *
+     * In sport a team that all pressed different names is finished — they have
+     * simply wasted the night — and the night has to close on that, or a
+     * disagreeing team would hang the game waiting for a consensus the rules do
+     * not require.
+     */
+    const allMafiaVoted = mafia.length === 0
+        || (m.sport ? teamHasActed(mafia, m.night.mafiaVotes) : mafia.every(s => m.night.mafiaVotes[s.userId]));
     const has = (role) => m.seats.some(s => s.alive && s.role === role);
     return allMafiaVoted
         && (!has('don') || m.night.donCheck !== null)
@@ -673,6 +723,21 @@ export function beginMafiaMeet(matchId, byUserId) {
         return null; // wait until everyone took a card
     resetNight(m);
     m.round = 1;
+    /*
+     * Sport opens on a night with no killing in it.
+     *
+     * The mafia meet, see each other, and agree the order they mean to shoot in.
+     * That plan is the only coordination they get all game — from the next night
+     * on they shoot blind — so the phase is a minute of planning rather than the
+     * casual rules' acquaintance screen, and it is the reason the rest of the
+     * mode works at all.
+     */
+    if (m.sport) {
+        m.phase = 'plan_night';
+        m.nightEndsAt = Date.now() + SPORT_TIMES.planNight * 1000;
+        pushLog(m, 'night', 'დაგეგმვის ღამე — მაფია ერთმანეთს ცნობს და გეგმავს');
+        return m;
+    }
     m.phase = 'mafia_meet';
     return m;
 }
@@ -684,6 +749,27 @@ export function endMafiaMeet(matchId, byUserId) {
         return null;
     m.introRound = true;
     m.floorGrab = null;
+    m.nominations = [];
+    m.nominatedBy = {};
+    buildSpeechOrder(m);
+    m.phase = 'speech';
+    startSpeechClock(m);
+    return m;
+}
+/**
+ * Sport: the planning night ends and the first day begins.
+ *
+ * Straight into real speeches — no acquaintance circle. The casual rules open
+ * with a round where nobody may nominate, which is a gentle way to start;
+ * sport's first day counts, and the very first speaker may put somebody up.
+ */
+export function endPlanNight(matchId, byUserId) {
+    const m = matches.get(matchId);
+    if (!m || m.hostId !== byUserId || m.phase !== 'plan_night')
+        return null;
+    m.introRound = false;
+    m.floorGrab = null;
+    m.nightEndsAt = 0;
     m.nominations = [];
     m.nominatedBy = {};
     buildSpeechOrder(m);
@@ -760,7 +846,10 @@ export function sheriffCheck(matchId, byUserId, targetUserId) {
     if (!target || !target.alive)
         return null;
     m.night.sheriffCheck = targetUserId;
-    m.night.sheriffResult = isMafiaRole(target.role);
+    // In sport the don is the mafia's insurance: the sheriff's check on them
+    // comes back clean. Everywhere else `isMafiaRole` answers, and the don is
+    // caught like anyone else.
+    m.night.sheriffResult = m.sport ? sheriffSees(target.role) : isMafiaRole(target.role);
     actor.lastCheck = m.night.sheriffResult
         ? `🔎 ${seatLabel(target)} — მაფიაა ❌`
         : `🔎 ${seatLabel(target)} — მშვიდობიანია ✅`;
@@ -768,6 +857,21 @@ export function sheriffCheck(matchId, byUserId, targetUserId) {
     return m;
 }
 function resolveKill(m) {
+    /*
+     * Sport: everybody, or nobody.
+     *
+     * No plurality and no don tiebreak. Every living member of the team has to
+     * have pressed, and all of them the same name — one absence or one
+     * disagreement and the night is quiet. Blind coordination is the mechanic
+     * the mode is built on; a tiebreak would hand it straight back.
+     */
+    if (m.sport) {
+        const target = agreedTarget(aliveMafia(m), m.night.mafiaVotes);
+        if (!target)
+            return null;
+        const victim = findByUser(m, target);
+        return victim && victim.alive && !isMafiaRole(victim.role) ? victim : null;
+    }
     const votes = Object.entries(m.night.mafiaVotes).filter(([voter]) => {
         const s = findByUser(m, voter);
         return s && s.alive && isMafiaRole(s.role);
@@ -1074,6 +1178,147 @@ export function nextCandidate(matchId, byUserId) {
     resolveVote(m);
     return m;
 }
+// ── Tribunal (sport only) ─────────────────────────────────────────────────────
+/**
+ * The vote could not separate them, so they answer for themselves.
+ *
+ * Each tied player gets half a minute, in seat order so nobody can argue about
+ * who spoke when. Only after all of them have spoken does the town vote, and
+ * the question it is asked is not "which one" — that has already failed — but
+ * whether to lose both or neither.
+ */
+function startTribunal(m, tied) {
+    // Seat order, so the running order is a fact about the table rather than a
+    // by-product of how the tally happened to iterate.
+    const onTrial = m.seats
+        .filter(s => tied.includes(s.userId) && s.alive)
+        .sort((a, b) => a.seat - b.seat)
+        .map(s => s.userId);
+    if (onTrial.length < 2) {
+        // Everyone tied but one is already gone. Nothing to try.
+        m.tribunal = null;
+        m.phase = 'day_announce';
+        m.announce = null;
+        return;
+    }
+    m.tribunal = {
+        onTrial,
+        defenseIdx: 0,
+        defenseEndsAt: Date.now() + SPORT_TIMES.tribunalDefense * 1000,
+        votes: {},
+        endsAt: 0,
+        verdict: null,
+    };
+    m.phase = 'tribunal_defense';
+    pushLog(m, 'day', `დღე ${m.round}: ტრიბუნალი — ${onTrial.length} მოთამაშე`);
+}
+/**
+ * Next defence, or open the vote once they have all spoken.
+ *
+ * Host-driven like every other clock in hosted mafia: the timer is a guide for
+ * the room, and the moderator decides when somebody has finished.
+ */
+export function nextTribunalDefense(matchId, byUserId) {
+    const m = matches.get(matchId);
+    if (!m || m.phase !== 'tribunal_defense' || m.hostId !== byUserId || !m.tribunal)
+        return null;
+    if (m.tribunal.defenseIdx < m.tribunal.onTrial.length - 1) {
+        m.tribunal.defenseIdx += 1;
+        m.tribunal.defenseEndsAt = Date.now() + SPORT_TIMES.tribunalDefense * 1000;
+        return m;
+    }
+    m.phase = 'tribunal_vote';
+    m.tribunal.endsAt = Date.now() + SPORT_TIMES.tribunalVote * 1000;
+    return m;
+}
+/**
+ * One town member's verdict.
+ *
+ * Not the players on trial: their fate is the question. Letting them answer it
+ * turns "should we lose both?" into arithmetic about how many of the rest are
+ * needed, which is not what a tribunal is for.
+ */
+export function tribunalVote(matchId, byUserId, verdict) {
+    const m = matches.get(matchId);
+    if (!m || m.phase !== 'tribunal_vote' || !m.tribunal)
+        return null;
+    if (verdict !== 'punish' && verdict !== 'free')
+        return null;
+    const voter = findByUser(m, byUserId);
+    if (!voter || !voter.alive)
+        return null;
+    if (m.tribunal.onTrial.includes(byUserId))
+        return null;
+    if (m.tribunal.votes[byUserId])
+        return null; // one verdict each, no changing it
+    m.tribunal.votes[byUserId] = verdict;
+    // Everyone entitled to a say has had one; there is nothing left to wait for.
+    const electorate = tribunalElectorate(m.seats, m.tribunal.onTrial);
+    if (electorate.every(s => m.tribunal.votes[s.userId]))
+        resolveTribunal(m);
+    return m;
+}
+/** Host closes the tribunal early, or its clock runs out. */
+export function endTribunalVote(matchId, byUserId) {
+    const m = matches.get(matchId);
+    if (!m || m.phase !== 'tribunal_vote' || !m.tribunal)
+        return null;
+    if (byUserId !== null && m.hostId !== byUserId)
+        return null;
+    resolveTribunal(m);
+    return m;
+}
+/**
+ * Both, or neither.
+ *
+ * A strict majority of those who actually voted is needed to punish; a tie, an
+ * empty room and a silent one all free them. Taking two players out of a
+ * ten-hand game is the heavier outcome and the burden belongs on the side
+ * asking for it.
+ *
+ * The order at the end matters: the win check runs before the farewells, so a
+ * tribunal that ends the game does not queue up last words for a match that is
+ * already over.
+ */
+function resolveTribunal(m) {
+    const t = m.tribunal;
+    if (!t)
+        return;
+    let punish = 0, free = 0;
+    for (const v of Object.values(t.votes))
+        (v === 'punish' ? punish++ : free++);
+    const verdict = tribunalVerdict(punish, free);
+    t.verdict = verdict;
+    if (verdict === 'free') {
+        pushLog(m, 'day', `დღე ${m.round}: ტრიბუნალმა გაათავისუფლა (${punish}/${free})`);
+        m.tribunal = null;
+        m.phase = 'day_announce';
+        m.announce = null;
+        return;
+    }
+    const doomed = [];
+    for (const id of t.onTrial) {
+        const s = findByUser(m, id);
+        if (!s || !s.alive)
+            continue;
+        s.alive = false;
+        s.eliminatedRound = m.round;
+        s.eliminatedBy = 'vote';
+        doomed.push(id);
+        pushLog(m, 'day', `დღე ${m.round}: ტრიბუნალით გაირიცხა ${seatLabel(s)}`);
+    }
+    m.tribunal = null;
+    if (checkWin(m))
+        return;
+    // Each of them gets their minute, in the order they stood trial.
+    if (doomed.length > 0) {
+        startLastWords(m, doomed[0]);
+        m.lastWordsQueue.push(...doomed.slice(1));
+        return;
+    }
+    m.phase = 'day_announce';
+    m.announce = null;
+}
 function resolveVote(m) {
     const tally = {};
     for (const nominee of m.nominations)
@@ -1110,6 +1355,19 @@ function resolveVote(m) {
         if (checkWin(m))
             return;
         startLastWords(m, elim);
+        return;
+    }
+    /*
+     * Sport: a tie goes to tribunal, not to a re-vote.
+     *
+     * The tied players defend themselves, and if the town still cannot separate
+     * them it answers a different question — lose both, or neither. Re-running
+     * the same vote asks the room to change its mind with no new information;
+     * the defence is the new information.
+     */
+    if (m.sport) {
+        m.voteResult = { eliminatedUserId: null, tally };
+        startTribunal(m, tied);
         return;
     }
     // Tie → one re-vote ("lift") between the tied candidates; a second tie spares everyone.
@@ -1427,15 +1685,55 @@ export function getSafeState(m, viewerUserId) {
             iActedTonight = m.night.cultConvert !== null;
     }
     const lastWordsSeat = m.lastWordsUserId ? findByUser(m, m.lastWordsUserId) : null;
-    // Mafia see each other's kill picks live (consensus building).
-    const mafiaPicks = (iAmMafia && m.phase === 'night')
+    /*
+     * Mafia see each other's kill picks live (consensus building) — except in
+     * sport, where they shoot blind.
+     *
+     * This projection IS the rule, not a display of it. Sending the picks and
+     * hiding them in the UI would leave them one devtools panel away, and the
+     * whole mode rests on nobody being able to see them.
+     */
+    const mafiaPicks = (iAmMafia && !m.sport && m.phase === 'night')
         ? aliveMafia(m).filter(s => m.night.mafiaVotes[s.userId]).map(s => {
             const t = findByUser(m, m.night.mafiaVotes[s.userId]);
             return { userId: s.userId, nickname: s.nickname, targetId: m.night.mafiaVotes[s.userId], targetName: t?.nickname ?? '?' };
         })
         : [];
+    /*
+     * The tribunal, projected.
+     *
+     * The running tally is withheld until it is over. Sending it live would let
+     * the last voters count exactly how many more are needed, and the point of
+     * asking the town at all is that each of them answers for themselves.
+     */
+    const t = m.tribunal;
+    const tribunal = t ? {
+        onTrial: t.onTrial.map(id => {
+            const s = findByUser(m, id);
+            return { userId: id, nickname: s?.nickname ?? '?', seat: s?.seat ?? 0 };
+        }),
+        defenseIdx: t.defenseIdx,
+        defenseEndsAt: t.defenseEndsAt,
+        speakingUserId: m.phase === 'tribunal_defense' ? (t.onTrial[t.defenseIdx] ?? null) : null,
+        endsAt: t.endsAt,
+        iAmOnTrial: t.onTrial.includes(viewerUserId),
+        canVote: Boolean(meSeat?.alive) && !t.onTrial.includes(viewerUserId),
+        myVerdict: t.votes[viewerUserId] ?? null,
+        votesCast: Object.keys(t.votes).length,
+        votesTotal: tribunalElectorate(m.seats, t.onTrial).length,
+        verdict: t.verdict,
+        tally: t.verdict
+            ? Object.values(t.votes).reduce((acc, v) => (v === 'punish' ? { ...acc, punish: acc.punish + 1 } : { ...acc, free: acc.free + 1 }), { punish: 0, free: 0 })
+            : null,
+    } : null;
     return {
         id: m.id, code: m.code, phase: m.phase,
+        sport: m.sport,
+        sportRequested: m.sportRequested,
+        sportBlockedReason: m.sportRequested && m.phase === 'lobby'
+            ? canStartSport(m.seats.length, true).reason
+            : null,
+        tribunal,
         hostId: m.hostId, hostName: m.hostName, hostSocketId: m.hostSocketId, hostConnected: m.hostConnected,
         maxSeats: m.maxSeats,
         seats,

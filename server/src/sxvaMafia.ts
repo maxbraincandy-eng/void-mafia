@@ -14,6 +14,7 @@ import {
 import {
   createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch,
   dissolveMatch, transferHost, startMatch, reshuffleRoles, setRoleConfig, setSettings, pickCard, beginMafiaMeet, endMafiaMeet, beginNight, mafiaVote, donCheck, sheriffCheck,
+  endPlanNight, nextTribunalDefense, tribunalVote, endTribunalVote,
   endNight, beginDay, nextSpeaker, advanceSpeakerAuto, extendSpeech, nominate, grabFloor,
   doctorHeal, maniacKill, cultConvert,
   castVote, endVote, nextCandidate, giveFoul, endLastWords, rematch, endGame, disconnectSocket, getSafeState,
@@ -95,6 +96,17 @@ function syncTimer(io: AppServer, matchId: string): void {
   } else if (m.phase === 'last_words' && m.lastWordsEndsAt) {
     deadline = m.lastWordsEndsAt;
     fire = () => { endLastWords(matchId, null); };
+  } else if (m.phase === 'tribunal_vote' && m.tribunal?.endsAt) {
+    /*
+     * The tribunal's clock is the one sport phase that closes itself.
+     *
+     * A defence is host-paced like every other speech — the moderator decides
+     * when somebody has finished. The verdict is not: a town that will not
+     * answer must not be able to stall the game, and "nobody voted" already has
+     * a defined outcome, which is that both go free.
+     */
+    deadline = m.tribunal.endsAt;
+    fire = () => { endTribunalVote(matchId, null); };
   }
   // Night is host-paced (auto-advances when all roles act, or host closes it) — no timer.
   if (!fire || !deadline) return;
@@ -263,6 +275,30 @@ export function registerSxvaMafiaHandlers(io: AppServer, socket: AppSocket): voi
   });
   socket.on('xm:begin_meet' as any, hostAction(beginMafiaMeet, 'ვერ დაიწყო'));
   socket.on('xm:end_meet' as any, hostAction(endMafiaMeet, 'ვერ დასრულდა'));
+  // Sport: close the planning night and open the first real day.
+  socket.on('xm:end_plan_night' as any, hostAction(endPlanNight, 'ვერ დასრულდა დაგეგმვის ღამე'));
+  // Sport: next player's defence, or open the verdict once they have all spoken.
+  socket.on('xm:next_defense' as any, hostAction(nextTribunalDefense, 'ვერ გადავიდა'));
+  socket.on('xm:end_tribunal' as any, (data: { matchId: string }, cb: (r: any) => void) => {
+    try {
+      const matchId = String(data?.matchId);
+      const m = endTribunalVote(matchId, uid());
+      if (!m) return cb(err('ვერ დასრულდა ტრიბუნალი'));
+      after(matchId);
+      if (m.phase === 'finished') broadcastList(io);
+      cb(ok(null));
+    } catch (e: any) { cb(err(e.message)); }
+  });
+  socket.on('xm:tribunal_vote' as any, (data: { matchId: string; verdict: 'punish' | 'free' }, cb: (r: any) => void) => {
+    try {
+      const matchId = String(data?.matchId);
+      const m = tribunalVote(matchId, uid(), data?.verdict);
+      if (!m) return cb(err('ხმა ვერ ჩაითვალა'));
+      after(matchId);
+      if (m.phase === 'finished') broadcastList(io);
+      cb(ok(null));
+    } catch (e: any) { cb(err(e.message)); }
+  });
   socket.on('xm:begin_night' as any, hostAction(beginNight, 'ვერ დაიწყო ღამე'));
   socket.on('xm:end_night' as any, hostAction(endNight, 'ვერ დასრულდა ღამე'));
   socket.on('xm:begin_day' as any, hostAction(beginDay, 'ვერ დაიწყო დღე'));

@@ -41,6 +41,12 @@ interface XmStore {
   grabFloor: () => Promise<void>;
   rematch: () => Promise<void>;
   endGame: () => Promise<void>;
+  // ── სპორტული მაფია ──────────────────────────────────────────────────────
+  setSport: (on: boolean) => Promise<void>;
+  endPlanNight: () => Promise<void>;
+  nextDefense: () => Promise<void>;
+  endTribunal: () => Promise<void>;
+  tribunalVote: (verdict: 'punish' | 'free') => Promise<void>;
   dissolve: () => Promise<void>;
 
   // player
@@ -131,6 +137,19 @@ export const useSxvaMafiaStore = create<XmStore>((set, get) => {
     grabFloor: hostEv('xm:grab_floor'),
     rematch: hostEv('xm:rematch'),
     endGame: hostEv('xm:end_game'),
+    setSport: async on => {
+      const id = mid(); if (!id) return;
+      try { const r = await emit('xm:set_settings', { matchId: id, patch: { sport: on } }); if (!r.ok) set({ error: r.error }); }
+      catch (e: any) { set({ error: e.message }); }
+    },
+    endPlanNight: hostEv('xm:end_plan_night'),
+    nextDefense: hostEv('xm:next_defense'),
+    endTribunal: hostEv('xm:end_tribunal'),
+    tribunalVote: async verdict => {
+      const id = mid(); if (!id) return;
+      try { const r = await emit('xm:tribunal_vote', { matchId: id, verdict }); if (!r.ok) set({ error: r.error }); }
+      catch (e: any) { set({ error: e.message }); }
+    },
     // Close the table for everybody. Distinct from endGame, which keeps the
     // room and sends everyone back to the lobby.
     dissolve: hostEv('xm:dissolve'),
