@@ -25,8 +25,10 @@ import { getLiveKitRemoteVideo } from '@/services/livekitVoice';
 import type { LiveSession } from '@/types/live';
 import { LiveStage, LiveComments, HeartBurst, LiveStat } from './LiveStage';
 import { useLiveRoom } from './useLiveRoom';
+import { LiveGiftPicker, LiveGiftBurst, GiftButton, useGiftPicker } from './LiveGiftUI';
 
 const RED = '#ff2d55';
+const GOLD = '#ffcc33';
 
 export function LiveViewer({ sessionId, onClose }: { sessionId: string; onClose: () => void }) {
   const profile = useAuthStore(s => s.profile);
@@ -42,8 +44,31 @@ export function LiveViewer({ sessionId, onClose }: { sessionId: string; onClose:
     sessionId,
     hostId: session?.hostId ?? null,
     myId,
-    initial: { viewers: session?.viewers, hearts: session?.totalHearts },
+    initial: {
+      viewers: session?.viewers, hearts: session?.totalHearts,
+      giftCoins: session?.giftCoins, giftCount: session?.giftCount,
+    },
   });
+
+  const gifts = useGiftPicker(room.sendGift);
+
+  /*
+   * What this account can spend.
+   *
+   * Kept here rather than read from a global store because the picker greys out
+   * what you cannot afford, and being told "not enough coins" by the server
+   * after tapping feels like a broken app even when it is being exactly right.
+   * `coins:updated` lands after every gift, so it stays true while sending.
+   */
+  const [balance, setBalance] = useState<number | null>(null);
+  useEffect(() => {
+    socket.emit('coins:balance' as any, (res: any) => {
+      if (typeof res?.data?.coins === 'number') setBalance(res.data.coins);
+    });
+    const onCoins = (d: any) => { if (typeof d?.coins === 'number') setBalance(d.coins); };
+    socket.on('coins:updated' as any, onCoins);
+    return () => { socket.off('coins:updated' as any, onCoins); };
+  }, []);
 
   // Join once, and tell the server when we go.
   useEffect(() => {
@@ -106,6 +131,7 @@ export function LiveViewer({ sessionId, onClose }: { sessionId: string; onClose:
           <span className="px-2 py-1 rounded-lg font-mono font-bold text-[11px] text-white flex-shrink-0" style={{ background: RED }}>LIVE</span>
           <LiveStat icon="👁" value={room.viewers} />
           {room.hearts > 0 && <LiveStat icon="❤️" value={room.hearts} tint={`${RED}55`} />}
+          {room.giftCoins > 0 && <LiveStat icon="🎁" value={room.giftCoins} tint={`${GOLD}66`} />}
           <span className="flex-1 min-w-0">
             <span className="block font-display font-bold text-white text-[13px] truncate">{session?.hostName ?? ''}</span>
             <span className="block font-mono text-[10.5px] text-white/50 truncate">{session?.title ?? ''}</span>
@@ -161,6 +187,7 @@ export function LiveViewer({ sessionId, onClose }: { sessionId: string; onClose:
                 <SendMark dim={!draft.trim() || !canType} />
               </button>
             </div>
+            <GiftButton onClick={gifts.show} disabled={room.ended} />
             <button onClick={room.sendHeart} disabled={room.ended} aria-label="გული"
               className="w-11 h-11 rounded-full flex items-center justify-center text-[19px] flex-shrink-0 transition-transform active:scale-90 disabled:opacity-40"
               style={{ background: 'rgba(0,0,0,0.5)', border: `1px solid ${RED}66` }}>❤️</button>
@@ -169,6 +196,17 @@ export function LiveViewer({ sessionId, onClose }: { sessionId: string; onClose:
 
         <HeartBurst hearts={room.heartAnim} />
       </div>
+
+      {/* A gift crosses the middle at size, because it cost somebody coins and
+          the entire point of sending one is that the host notices. */}
+      <LiveGiftBurst gifts={room.giftAnim} />
+
+      <AnimatePresence>
+        {gifts.open && (
+          <LiveGiftPicker balance={balance} busy={gifts.busy} error={gifts.error}
+            onPick={g => gifts.pick(g)} onClose={gifts.hide} />
+        )}
+      </AnimatePresence>
 
       {/* The host stopped. Say so rather than leaving a frozen last frame. */}
       <AnimatePresence>

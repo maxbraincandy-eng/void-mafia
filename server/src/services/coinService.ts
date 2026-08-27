@@ -467,6 +467,69 @@ export async function sendGift(
   return { newSenderBalance, giftEntry };
 }
 
+// ── Live gifts ────────────────────────────────────────────────────────
+/*
+ * The money side of a gift sent mid-broadcast.
+ *
+ * Two halves that deliberately do not happen together: the sender pays the
+ * instant they tap, and the host is paid when the stream ends. Deferring the
+ * charge would let somebody send two hundred coins of gifts holding three;
+ * paying the host per tap would be a write per tap and a balance that jitters
+ * while they are trying to talk to a camera.
+ *
+ * Both write a `coin_transactions` row, so the ledger reconciles: every coin
+ * that leaves a viewer is one that arrives at a host, and the two rows name
+ * each other through `related_user_id`.
+ */
+
+/** Charge the sender. Throws — in Georgian — when they cannot afford it. */
+export async function spendOnLiveGift(
+  senderId: string,
+  hostId: string,
+  gift: { id: string; name: string; price: number },
+  sessionId: string,
+): Promise<{ balance: number; sender: { name: string; avatar: string; avatarUrl: string | null } }> {
+  const [row] = await sql`
+    SELECT coins, username, avatar, avatar_url FROM players WHERE id = ${senderId}
+  ` as any[];
+  if (!row) throw new Error('Sender not found.');
+
+  const have = Number(row.coins ?? 0);
+  if (have < gift.price) {
+    throw new Error(`არ გყოფნის ქოინები — საჭიროა ${gift.price}, გაქვს ${have}`);
+  }
+
+  const { balanceAfter } = await recordTransaction(
+    senderId, 'gift_sent', -gift.price,
+    `ეთერის საჩუქარი: ${gift.name}`,
+    { relatedUserId: hostId, relatedGiftId: `live:${sessionId}:${gift.id}` },
+  );
+  return {
+    balance: balanceAfter,
+    sender: { name: row.username ?? '', avatar: row.avatar ?? '', avatarUrl: row.avatar_url ?? null },
+  };
+}
+
+/**
+ * Pay the host the evening's gifts.
+ *
+ * Called once per session — the caller holds the idempotency, through a
+ * conditional UPDATE on `live_sessions.gifts_paid_at`, because that is where
+ * the racing ends live and this function has no way to know it is the second
+ * one. It does what it is told and records that it did.
+ */
+export async function creditLiveGifts(
+  hostId: string, coins: number, sessionId: string,
+): Promise<number> {
+  if (!Number.isInteger(coins) || coins <= 0) return getCoins(hostId);
+  const { balanceAfter } = await recordTransaction(
+    hostId, 'gift_received', coins,
+    `ეთერის საჩუქრები (${coins} ქოინი)`,
+    { relatedGiftId: `live:${sessionId}` },
+  );
+  return balanceAfter;
+}
+
 export async function getPlayerGifts(recipientId: string): Promise<PlayerGift[]> {
   const rows = await sql`
     SELECT

@@ -108,6 +108,8 @@ beforeEach(async () => {
 
 async function clean(): Promise<void> {
   await db.sql`DELETE FROM live_viewers WHERE user_id LIKE 'lve\\_%' OR session_id IN (SELECT id FROM live_sessions WHERE host_id LIKE 'lve\\_%')`;
+  await db.sql`DELETE FROM live_gifts WHERE host_id LIKE 'lve\\_%' OR sender_id LIKE 'lve\\_%'`;
+  await db.sql`DELETE FROM coin_transactions WHERE player_id LIKE 'lve\\_%'`;
   await db.sql`DELETE FROM legacy_xp_events WHERE user_id LIKE 'lve\\_%'`;
   await db.sql`DELETE FROM legacy_xp_grants WHERE user_id LIKE 'lve\\_%'`;
   await db.sql`DELETE FROM live_sessions WHERE host_id LIKE 'lve\\_%'`;
@@ -573,6 +575,131 @@ test('a real broadcast earns Legacy XP, once', { skip }, async () => {
   assert.equal(again.length, 1, 'paid once, however many ends arrive');
 
   phone.close(); laptop.close();
+});
+
+// ── Gifts, over the wire ─────────────────────────────────────────────────────
+
+test('a gift reaches the host, and everybody else in the room', { skip }, async () => {
+  const phone = await open(HOST);
+  const a = await open(VIEWER);
+  const b = await open(VIEWER2);
+  const started = await send(phone, 'live:start', {});
+  await send(a, 'live:join', { sessionId: started.data.id });
+  await send(b, 'live:join', { sessionId: started.data.id });
+  await db.sql`UPDATE players SET coins = 50 WHERE id = ${VIEWER}`;
+
+  const atHost = collect(phone, 'live:gifted');
+  const atOther = collect(b, 'live:gifted');
+  await settle();
+
+  const res = await send(a, 'live:gift', { sessionId: started.data.id, giftId: 'red_rose' });
+  await settle();
+
+  assert.equal(res.ok, true);
+  assert.equal(res.data.balance, 45, 'the sender is told their new balance');
+  // A gift is a moment everybody in the room shares — a rose only the host sees
+  // is a private message with a price on it.
+  assert.equal(atHost.length, 1);
+  assert.equal(atHost[0].giftId, 'red_rose');
+  assert.equal(atHost[0].coins, 5);
+  assert.equal(atHost[0].senderName, 'Viewer', 'with a name to thank');
+  assert.equal(atHost[0].giftCoins, 5, 'and the running total, so nothing has to ask again');
+  assert.equal(atOther.length, 1);
+
+  phone.close(); a.close(); b.close();
+});
+
+test('the price is the catalog\'s, whatever the client says', { skip }, async () => {
+  const phone = await open(HOST);
+  const a = await open(VIEWER);
+  const started = await send(phone, 'live:start', {});
+  await send(a, 'live:join', { sessionId: started.data.id });
+  await db.sql`UPDATE players SET coins = 50 WHERE id = ${VIEWER}`;
+
+  // A modified client asking for a crown at nothing. Asking for a crown costs
+  // what a crown costs; there is no wire format in which a price arrives.
+  const res = await send(a, 'live:gift', { sessionId: started.data.id, giftId: 'crown', coins: 0, price: 0 });
+  assert.equal(res.ok, true);
+  assert.equal(res.data.balance, 40);
+
+  phone.close(); a.close();
+});
+
+test('a gift that cannot be paid for says why', { skip }, async () => {
+  const phone = await open(HOST);
+  const a = await open(VIEWER);
+  const started = await send(phone, 'live:start', {});
+  await send(a, 'live:join', { sessionId: started.data.id });
+  await db.sql`UPDATE players SET coins = 2 WHERE id = ${VIEWER}`;
+
+  const seen = collect(phone, 'live:gifted');
+  // Hearts and comments are dropped silently, because a lost heart costs
+  // nobody anything. This one has to answer.
+  const res = await send(a, 'live:gift', { sessionId: started.data.id, giftId: 'crown' });
+  await settle();
+
+  assert.equal(res.ok, false);
+  assert.match(res.error, /ქოინები/);
+  assert.equal(seen.length, 0, 'and nothing is drawn for a gift that did not happen');
+
+  phone.close(); a.close();
+});
+
+test('an unknown gift id buys nothing', { skip }, async () => {
+  const phone = await open(HOST);
+  const a = await open(VIEWER);
+  const started = await send(phone, 'live:start', {});
+  await db.sql`UPDATE players SET coins = 50 WHERE id = ${VIEWER}`;
+
+  const res = await send(a, 'live:gift', { sessionId: started.data.id, giftId: 'ferrari' });
+  assert.equal(res.ok, false);
+  const [row] = await db.sql`SELECT coins FROM players WHERE id = ${VIEWER}` as any[];
+  assert.equal(Number(row.coins), 50);
+
+  phone.close(); a.close();
+});
+
+test('the coins land on the host when the stream ends', { skip }, async () => {
+  const phone = await open(HOST);
+  const a = await open(VIEWER);
+  const started = await send(phone, 'live:start', {});
+  await send(a, 'live:join', { sessionId: started.data.id });
+  await db.sql`UPDATE players SET coins = 50 WHERE id = ${VIEWER}`;
+  await db.sql`UPDATE players SET coins = 0 WHERE id = ${HOST}`;
+
+  await send(a, 'live:gift', { sessionId: started.data.id, giftId: 'champagne' });
+  await send(a, 'live:gift', { sessionId: started.data.id, giftId: 'white_rose' });
+
+  const balances = collect(phone, 'coins:updated');
+  const summary = (await send(phone, 'live:end')).data;
+  await settle();
+
+  assert.equal(summary.giftCoins, 9);
+  assert.equal(summary.giftCount, 2);
+  const [row] = await db.sql`SELECT coins FROM players WHERE id = ${HOST}` as any[];
+  assert.equal(Number(row.coins), 9);
+  // A coin counter that is stale about money is worse than one that is missing.
+  assert.equal(balances[balances.length - 1].coins, 9);
+
+  phone.close(); a.close();
+});
+
+test('the host can see who sent what', { skip }, async () => {
+  const phone = await open(HOST);
+  const a = await open(VIEWER);
+  const b = await open(VIEWER2);
+  const started = await send(phone, 'live:start', {});
+  await db.sql`UPDATE players SET coins = 50 WHERE id IN (${VIEWER}, ${VIEWER2})`;
+
+  await send(a, 'live:gift', { sessionId: started.data.id, giftId: 'white_rose' });
+  await send(b, 'live:gift', { sessionId: started.data.id, giftId: 'crown' });
+
+  const top = (await send(phone, 'live:gifters', { sessionId: started.data.id })).data;
+  assert.equal(top[0].userId, VIEWER2, 'most coins first, not most taps');
+  assert.equal(top[0].coins, 10);
+  assert.equal(top[1].coins, 1);
+
+  phone.close(); a.close(); b.close();
 });
 
 test('a stream that lasted seconds earns nothing', { skip }, async () => {

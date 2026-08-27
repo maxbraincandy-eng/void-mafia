@@ -24,7 +24,7 @@ import type { Server, Socket } from 'socket.io';
 import { type LiveSession } from './services/liveService.js';
 /** Anything with `.emit`, `.to` and `.socketsLeave` — the real io, or a test's. */
 type AnyServer = Pick<Server, 'emit' | 'to' | 'socketsLeave'>;
-type AnySocket = Pick<Socket, 'join' | 'leave' | 'on' | 'id'> & {
+type AnySocket = Pick<Socket, 'join' | 'leave' | 'on' | 'emit' | 'id'> & {
     data: any;
 };
 export interface LiveHandlerDeps {

@@ -154,6 +154,28 @@ export declare function sendGift(senderId: string, recipientId: string, giftId: 
     newSenderBalance: number;
     giftEntry: PlayerGift;
 }>;
+/** Charge the sender. Throws — in Georgian — when they cannot afford it. */
+export declare function spendOnLiveGift(senderId: string, hostId: string, gift: {
+    id: string;
+    name: string;
+    price: number;
+}, sessionId: string): Promise<{
+    balance: number;
+    sender: {
+        name: string;
+        avatar: string;
+        avatarUrl: string | null;
+    };
+}>;
+/**
+ * Pay the host the evening's gifts.
+ *
+ * Called once per session — the caller holds the idempotency, through a
+ * conditional UPDATE on `live_sessions.gifts_paid_at`, because that is where
+ * the racing ends live and this function has no way to know it is the second
+ * one. It does what it is told and records that it did.
+ */
+export declare function creditLiveGifts(hostId: string, coins: number, sessionId: string): Promise<number>;
 export declare function getPlayerGifts(recipientId: string): Promise<PlayerGift[]>;
 export declare function getGiftDetail(giftId: string, recipientId: string): Promise<GiftDetail | null>;
 export declare function getGiftsSent(senderId: string, limit?: number): Promise<PlayerGift[]>;

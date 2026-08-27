@@ -1816,6 +1816,52 @@ export async function initializeDatabase(): Promise<void> {
   await sql`CREATE INDEX IF NOT EXISTS idx_live_viewers_session ON live_viewers(session_id)`;
 
   /*
+   * Gifts sent during a broadcast.
+   *
+   * A row per tap, not an aggregate, because the interesting question is "who"
+   * — the host wants to thank the person who just sent a crown by name, and a
+   * counter cannot answer that. The taps are naturally throttled by costing
+   * money: you cannot spam what you have to pay for.
+   *
+   * Deliberately NOT `player_gifts`. That table is a profile keepsake — rarity,
+   * season, pinning, a wall that lasts forever. A live gift is a one-to-ten-coin
+   * impulse that is off the screen in two seconds, and two hundred of them from
+   * one evening would bury a real gift wall.
+   *
+   * `coins` is copied in rather than read back from the catalog, because a price
+   * that changes next month must not rewrite what somebody paid last month.
+   */
+  await sql`
+    CREATE TABLE IF NOT EXISTS live_gifts (
+      id         TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      host_id    TEXT NOT NULL,
+      sender_id  TEXT NOT NULL,
+      gift_id    TEXT NOT NULL,
+      coins      INTEGER NOT NULL,
+      created_at BIGINT NOT NULL
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_live_gifts_session ON live_gifts(session_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_live_gifts_sender ON live_gifts(sender_id, created_at DESC)`;
+
+  /*
+   * What the broadcast earned, and whether it has been paid.
+   *
+   * The sender is charged the instant they tap — anything else lets somebody
+   * send gifts they cannot afford. The host is paid when the stream ends, which
+   * is what the coins are doing on the session in between.
+   *
+   * `gifts_paid_at` is the idempotency key for that payout. An end arrives from
+   * the button, from the reaper and from starting a second broadcast, and any
+   * two of them can race; paying twice is the one bug in this feature nobody
+   * would report.
+   */
+  await sql`ALTER TABLE live_sessions ADD COLUMN IF NOT EXISTS gift_coins INTEGER NOT NULL DEFAULT 0`;
+  await sql`ALTER TABLE live_sessions ADD COLUMN IF NOT EXISTS gift_count INTEGER NOT NULL DEFAULT 0`;
+  await sql`ALTER TABLE live_sessions ADD COLUMN IF NOT EXISTS gifts_paid_at BIGINT`;
+
+  /*
    * Where every point of XP came from.
    *
    * `players.xp` and `players.level` already existed and were already shared by

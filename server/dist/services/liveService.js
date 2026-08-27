@@ -28,6 +28,7 @@
  */
 import { randomBytes } from 'crypto';
 import { sql } from '../db.js';
+import { liveGift } from './liveGifts.js';
 /** Longer than the client's beat, short enough that a dead stream clears fast. */
 export const BEAT_TIMEOUT_MS = 45000;
 /** What the client should aim for. Three misses inside the timeout. */
@@ -68,6 +69,8 @@ function rowToSession(r) {
         peakViewers: Number(r.peak_viewers ?? 0),
         totalViewers: Number(r.total_viewers ?? 0),
         totalHearts: Number(r.total_hearts ?? 0),
+        giftCoins: Number(r.gift_coins ?? 0),
+        giftCount: Number(r.gift_count ?? 0),
         room: roomFor(r.id),
     };
 }
@@ -124,8 +127,45 @@ async function endSession(sessionId, _reason) {
   `;
     await sql `UPDATE live_viewers SET left_at = ${now} WHERE session_id = ${sessionId} AND left_at IS NULL`;
     watching.delete(sessionId);
+    /*
+     * The gifts become coins here, and only here.
+     *
+     * Every way a broadcast can end goes through this function — the button, the
+     * reaper coming for a host whose battery died, starting a second stream. Put
+     * the payout in the button's handler and a host who loses signal loses the
+     * evening's earnings, which is the worst possible bug to have in this
+     * feature and the one nobody would ever report as a bug.
+     */
+    await payoutGifts(sessionId);
     const [row] = await sql `${SELECT_SESSION} WHERE s.id = ${sessionId}`;
     return row ? rowToSession(row) : null;
+}
+/**
+ * Pay the host what their viewers sent, once.
+ *
+ * The claim is the `gifts_paid_at IS NULL` in the WHERE clause: two ends racing
+ * both run this, and exactly one of them updates a row. The other gets nothing
+ * back and pays nothing out. Reading first and then writing would let both
+ * through — this is the same shape as the rest of the ending logic for the same
+ * reason.
+ *
+ * Returns what was paid, so a caller can tell the host about it.
+ */
+export async function payoutGifts(sessionId) {
+    const rows = await sql `
+    UPDATE live_sessions SET gifts_paid_at = ${Date.now()}
+    WHERE id = ${sessionId} AND gifts_paid_at IS NULL AND gift_coins > 0
+    RETURNING host_id, gift_coins
+  `;
+    if (rows.length === 0)
+        return null;
+    const hostId = String(rows[0].host_id);
+    const coins = Number(rows[0].gift_coins);
+    // Imported here rather than at the top: coinService is a heavy module and
+    // this is the one path in the live service that needs it.
+    const { creditLiveGifts } = await import('./coinService.js');
+    await creditLiveGifts(hostId, coins, sessionId);
+    return { hostId, coins };
 }
 /**
  * "Still here."
@@ -264,6 +304,91 @@ export async function addHearts(sessionId, n = 1) {
     RETURNING total_hearts
   `;
     return rows.length > 0 ? Number(rows[0].total_hearts) : 0;
+}
+/**
+ * Send a gift to whoever is broadcasting.
+ *
+ * THE SENDER PAYS NOW
+ * ───────────────────
+ * Not at the end, not on a tab. Deferring the charge means somebody can send
+ * two hundred coins of gifts with a balance of three, and the only place to
+ * discover that is a reconciliation nobody wrote.
+ *
+ * THE PRICE IS NOT AN ARGUMENT
+ * ────────────────────────────
+ * It comes from the catalog, keyed on the id the client sent. There is no
+ * signature to forge because there is nothing to forge: a modified client can
+ * ask for a crown, and asking for a crown costs what a crown costs.
+ *
+ * Everything that can go wrong throws with something a person can read, because
+ * every one of these is a thing a real viewer will hit: a stream that just
+ * ended, and a balance that just ran out.
+ */
+export async function sendLiveGift(sessionId, senderId, giftId) {
+    const gift = liveGift(giftId);
+    if (!gift)
+        throw new Error('ასეთი საჩუქარი არ არსებობს');
+    const [session] = await sql `
+    SELECT id, host_id FROM live_sessions WHERE id = ${sessionId} AND status = 'live'
+  `;
+    if (!session)
+        throw new Error('ეთერი დასრულებულია');
+    const hostId = String(session.host_id);
+    /*
+     * You cannot gift your own stream.
+     *
+     * It nets to zero coins, so it is not an exploit in the money — but it is a
+     * free way to sit at the top of your own gift list, and a leaderboard anyone
+     * can climb by paying themselves is not a leaderboard.
+     */
+    if (hostId === senderId)
+        throw new Error('საკუთარ ეთერს ვერ გაუგზავნი');
+    const { spendOnLiveGift } = await import('./coinService.js');
+    const { balance, sender } = await spendOnLiveGift(senderId, hostId, gift, sessionId);
+    const id = `lg_${Date.now().toString(36)}_${randomBytes(4).toString('hex')}`;
+    await sql `
+    INSERT INTO live_gifts (id, session_id, host_id, sender_id, gift_id, coins, created_at)
+    VALUES (${id}, ${sessionId}, ${hostId}, ${senderId}, ${gift.id}, ${gift.price}, ${Date.now()})
+  `;
+    const [totals] = await sql `
+    UPDATE live_sessions
+    SET gift_coins = gift_coins + ${gift.price}, gift_count = gift_count + 1
+    WHERE id = ${sessionId}
+    RETURNING gift_coins, gift_count
+  `;
+    return {
+        id, sessionId, giftId: gift.id, coins: gift.price,
+        senderId, senderName: sender.name, senderAvatar: sender.avatar, senderAvatarUrl: sender.avatarUrl,
+        giftCoins: Number(totals?.gift_coins ?? gift.price),
+        giftCount: Number(totals?.gift_count ?? 1),
+        senderBalance: balance,
+    };
+}
+/**
+ * Who sent the most, this broadcast.
+ *
+ * By coins rather than by count, because that is what the host is actually
+ * being asked to notice — ten white roses and one crown are the same number of
+ * taps and not the same gesture.
+ */
+export async function topGifters(sessionId, limit = 20) {
+    const rows = await sql `
+    SELECT g.sender_id, SUM(g.coins)::int AS coins, COUNT(*)::int AS gifts,
+           p.username, p.avatar, p.avatar_url
+    FROM live_gifts g LEFT JOIN players p ON p.id = g.sender_id
+    WHERE g.session_id = ${sessionId}
+    GROUP BY g.sender_id, p.username, p.avatar, p.avatar_url
+    ORDER BY coins DESC, gifts DESC
+    LIMIT ${Math.min(50, limit)}
+  `;
+    return rows.map(r => ({
+        userId: String(r.sender_id),
+        name: r.username ?? '',
+        avatar: r.avatar ?? '',
+        avatarUrl: r.avatar_url ?? null,
+        coins: Number(r.coins),
+        gifts: Number(r.gifts),
+    }));
 }
 // ── Reading ───────────────────────────────────────────────────────────────────
 export async function getSession(sessionId) {

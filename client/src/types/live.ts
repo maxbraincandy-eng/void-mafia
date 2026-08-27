@@ -24,6 +24,9 @@ export interface LiveSession {
   peakViewers: number;
   totalViewers: number;
   totalHearts: number;
+  /** Coins sent as gifts, paid to the host when the broadcast ends. */
+  giftCoins: number;
+  giftCount: number;
   /** The LiveKit room to join — derived server-side from the id. */
   room: string;
 }
@@ -49,6 +52,29 @@ export interface LiveViewer {
   name: string;
   avatar: string;
   avatarUrl: string | null;
+}
+
+/** A gift arriving, as everybody in the room is told about it. */
+export interface LiveGiftEvent {
+  giftId: string;
+  coins: number;
+  senderId: string;
+  senderName: string;
+  senderAvatar: string;
+  senderAvatarUrl: string | null;
+  /** The session's running totals, so nothing has to ask again. */
+  giftCoins: number;
+  giftCount: number;
+}
+
+/** Who sent the most this broadcast — by coins, not by taps. */
+export interface LiveGifter {
+  userId: string;
+  name: string;
+  avatar: string;
+  avatarUrl: string | null;
+  coins: number;
+  gifts: number;
 }
 
 /** How often the host tells the server it is still there. */

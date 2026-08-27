@@ -49,6 +49,10 @@ export interface LiveSession {
     peakViewers: number;
     totalViewers: number;
     totalHearts: number;
+    /** Coins sent as gifts, paid to the host when the broadcast ends. */
+    giftCoins: number;
+    /** How many gifts, which is a different story from how many coins. */
+    giftCount: number;
     /** The LiveKit room to join. Derived, never stored — one less thing to desync. */
     room: string;
 }
@@ -77,6 +81,21 @@ export declare function startLive(hostId: string, opts: {
 export declare function endLive(hostId: string, opts?: {
     reason?: string;
 }): Promise<LiveSession | null>;
+/**
+ * Pay the host what their viewers sent, once.
+ *
+ * The claim is the `gifts_paid_at IS NULL` in the WHERE clause: two ends racing
+ * both run this, and exactly one of them updates a row. The other gets nothing
+ * back and pays nothing out. Reading first and then writing would let both
+ * through — this is the same shape as the rest of the ending logic for the same
+ * reason.
+ *
+ * Returns what was paid, so a caller can tell the host about it.
+ */
+export declare function payoutGifts(sessionId: string): Promise<{
+    hostId: string;
+    coins: number;
+} | null>;
 /**
  * "Still here."
  *
@@ -145,6 +164,57 @@ export interface LiveViewer {
  * quantity: two hundred hearts and twenty look the same at a glance.
  */
 export declare function addHearts(sessionId: string, n?: number): Promise<number>;
+export interface SentLiveGift {
+    id: string;
+    sessionId: string;
+    giftId: string;
+    coins: number;
+    senderId: string;
+    senderName: string;
+    senderAvatar: string;
+    senderAvatarUrl: string | null;
+    /** The session's running totals, so nobody has to ask a second time. */
+    giftCoins: number;
+    giftCount: number;
+    /** The sender's balance after paying. */
+    senderBalance: number;
+}
+/**
+ * Send a gift to whoever is broadcasting.
+ *
+ * THE SENDER PAYS NOW
+ * ───────────────────
+ * Not at the end, not on a tab. Deferring the charge means somebody can send
+ * two hundred coins of gifts with a balance of three, and the only place to
+ * discover that is a reconciliation nobody wrote.
+ *
+ * THE PRICE IS NOT AN ARGUMENT
+ * ────────────────────────────
+ * It comes from the catalog, keyed on the id the client sent. There is no
+ * signature to forge because there is nothing to forge: a modified client can
+ * ask for a crown, and asking for a crown costs what a crown costs.
+ *
+ * Everything that can go wrong throws with something a person can read, because
+ * every one of these is a thing a real viewer will hit: a stream that just
+ * ended, and a balance that just ran out.
+ */
+export declare function sendLiveGift(sessionId: string, senderId: string, giftId: string): Promise<SentLiveGift>;
+export interface LiveGifter {
+    userId: string;
+    name: string;
+    avatar: string;
+    avatarUrl: string | null;
+    coins: number;
+    gifts: number;
+}
+/**
+ * Who sent the most, this broadcast.
+ *
+ * By coins rather than by count, because that is what the host is actually
+ * being asked to notice — ten white roses and one crown are the same number of
+ * taps and not the same gesture.
+ */
+export declare function topGifters(sessionId: string, limit?: number): Promise<LiveGifter[]>;
 export declare function getSession(sessionId: string): Promise<LiveSession | null>;
 /** Everybody broadcasting right now, newest first. */
 export declare function listLive(limit?: number): Promise<LiveSession[]>;

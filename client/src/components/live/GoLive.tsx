@@ -37,11 +37,13 @@ import { socket } from '@/lib/socket';
 import { useAuthStore } from '@/store/authStore';
 import { useLivekitRoomVoice, useLiveKitGate } from '@/hooks/useLivekitVoice';
 import { setLiveKitCamera, setLiveKitMic, getLiveKitLocalVideo } from '@/services/livekitVoice';
-import { LIVE_BEAT_MS, type LiveSession, type LiveVisibility, type LiveViewer } from '@/types/live';
+import { LIVE_BEAT_MS, type LiveSession, type LiveVisibility, type LiveViewer, type LiveGifter } from '@/types/live';
 import { LiveStage, LiveComments, HeartBurst, LiveStat } from './LiveStage';
 import { useLiveRoom } from './useLiveRoom';
+import { LiveGiftBurst, GifterList } from './LiveGiftUI';
 
 const RED = '#ff2d55';
+const GOLD = '#ffcc33';
 
 type Phase = 'setup' | 'onair' | 'summary';
 
@@ -68,7 +70,10 @@ export function GoLive({ onClose, gameContext }: { onClose: () => void; gameCont
     sessionId: session?.id ?? null,
     hostId: myId,
     myId,
-    initial: { viewers: session?.viewers, hearts: session?.totalHearts },
+    initial: {
+      viewers: session?.viewers, hearts: session?.totalHearts,
+      giftCoins: session?.giftCoins, giftCount: session?.giftCount,
+    },
   });
 
   /*
@@ -205,13 +210,23 @@ export function GoLive({ onClose, gameContext }: { onClose: () => void; gameCont
     });
   }, [starting, title, visibility, gameContext]);
 
+  /** Who sent gifts, for the summary. Asked for once, after it can't change. */
+  const [gifters, setGifters] = useState<LiveGifter[]>([]);
+
   const finish = useCallback(() => {
+    const id = session?.id ?? null;
     socket.emit('live:end' as any, {}, (res: any) => {
       if (res?.ok && res.data) setSummary(res.data);
       setPhase('summary');
       setSession(null);
+      // After the end rather than before: a gift landing between the two would
+      // be paid out and missing from the list, which is the confusing half of
+      // being wrong.
+      if (id) socket.emit('live:gifters' as any, { sessionId: id }, (r: any) => {
+        if (r?.ok) setGifters(r.data ?? []);
+      });
     });
-  }, []);
+  }, [session?.id]);
 
   const [confirmEnd, setConfirmEnd] = useState(false);
 
@@ -301,6 +316,12 @@ export function GoLive({ onClose, gameContext }: { onClose: () => void; gameCont
                 are the same glance, and only one of them had an answer. */}
             <LiveStat icon="👁" value={room.viewers} onClick={() => setShowViewers(true)} />
             {room.hearts > 0 && <LiveStat icon="❤️" value={room.hearts} tint={`${RED}55`} />}
+            {/* What the evening has earned so far. It lands on the balance when
+                the stream ends, and a host watching it climb is the whole
+                reason to have put a price on a rose. */}
+            {room.giftCoins > 0 && (
+              <LiveStat icon="🎁" value={room.giftCoins} tint={`${GOLD}66`} onClick={() => setShowViewers(true)} />
+            )}
             <span className="flex-1 min-w-0 font-mono text-[11px] text-white/60 truncate">{session.title}</span>
             <button onClick={() => setConfirmEnd(true)}
               className="px-3 py-1.5 rounded-xl font-mono text-[11px] text-white flex-shrink-0"
@@ -369,6 +390,7 @@ export function GoLive({ onClose, gameContext }: { onClose: () => void; gameCont
           </div>
 
           <HeartBurst hearts={room.heartAnim} />
+          <LiveGiftBurst gifts={room.giftAnim} />
         </div>
       )}
 
@@ -394,6 +416,26 @@ export function GoLive({ onClose, gameContext }: { onClose: () => void; gameCont
                   </div>
                 ))}
               </div>
+              {/*
+                * The coins, said plainly and separately.
+                *
+                * They are already on the balance by the time this renders — the
+                * payout happens when the session ends, on the server, through
+                * every ending path. This is the receipt, not the promise, and
+                * that is why it is in the past tense.
+                */}
+              {summary.giftCoins > 0 && (
+                <div className="mt-5 w-full max-w-xs rounded-2xl px-4 py-3.5"
+                  style={{ background: `${GOLD}14`, border: `1px solid ${GOLD}55` }}>
+                  <p className="font-display font-black" style={{ color: GOLD, fontSize: 22 }}>
+                    +{summary.giftCoins} 🪙
+                  </p>
+                  <p className="font-mono text-[10.5px] text-white/45 mt-0.5">
+                    {summary.giftCount} საჩუქარი · ბალანსზე ჩაირიცხა
+                  </p>
+                </div>
+              )}
+
               <p className="font-mono text-[11px] text-white/35 mt-4">
                 ხანგრძლივობა {fmtDuration((summary.endedAt ?? Date.now()) - summary.startedAt)}
               </p>
@@ -403,6 +445,15 @@ export function GoLive({ onClose, gameContext }: { onClose: () => void; gameCont
                 <p className="font-mono text-[11px] mt-2" style={{ color: '#ff9fb4' }}>
                   +{liveXP(summary)} XP · ეთერი
                 </p>
+              )}
+
+              {/* Who to thank. A number is a result; a list is a reason to go
+                  live again tomorrow. */}
+              {gifters.length > 0 && (
+                <div className="mt-5 w-full max-w-xs text-left">
+                  <p className="font-mono text-[10.5px] text-white/35 mb-1">ვინ გამოგიგზავნა</p>
+                  <GifterList gifters={gifters.slice(0, 5)} />
+                </div>
               )}
             </>
           )}
@@ -457,12 +508,19 @@ export function GoLive({ onClose, gameContext }: { onClose: () => void; gameCont
  * closed sheet current is traffic for a screen nobody is looking at.
  */
 function ViewerSheet({ sessionId, onClose }: { sessionId: string; onClose: () => void }) {
+  const [tab, setTab] = useState<'watching' | 'gifts'>('watching');
   const [list, setList] = useState<LiveViewer[] | null>(null);
+  const [gifters, setGifters] = useState<LiveGifter[] | null>(null);
 
   useEffect(() => {
-    const load = () => socket.emit('live:viewer_list' as any, { sessionId }, (res: any) => {
-      if (res?.ok) setList(res.data ?? []);
-    });
+    const load = () => {
+      socket.emit('live:viewer_list' as any, { sessionId }, (res: any) => {
+        if (res?.ok) setList(res.data ?? []);
+      });
+      socket.emit('live:gifters' as any, { sessionId }, (res: any) => {
+        if (res?.ok) setGifters(res.data ?? []);
+      });
+    };
     load();
     const t = setInterval(load, 8_000);        // open and stale is its own kind of wrong
     return () => clearInterval(t);
@@ -476,31 +534,48 @@ function ViewerSheet({ sessionId, onClose }: { sessionId: string; onClose: () =>
         className="w-full rounded-t-3xl px-5 pt-4 pb-8"
         style={{ background: 'rgba(16,9,20,0.99)', border: '1px solid rgba(255,255,255,0.1)', maxHeight: '62dvh', overflowY: 'auto' }}>
         <div className="w-10 h-1 rounded-full mx-auto mb-4" style={{ background: 'rgba(255,255,255,0.2)' }} />
-        <p className="font-display font-bold text-white text-[15px] mb-3">
-          მაყურებლები {list ? `· ${list.length}` : ''}
-        </p>
 
-        {list === null && <p className="font-mono text-[11.5px] text-white/35 py-4 text-center">…</p>}
-        {list?.length === 0 && (
-          <p className="font-mono text-[11.5px] text-white/35 py-6 text-center">
-            ჯერ არავინ უყურებს — გააზიარე ეთერი
-          </p>
+        {/* Two questions a host asks about the same room: who is here, and who
+            sent something. One sheet, because they are one glance apart. */}
+        <div className="flex gap-2 mb-3">
+          {([['watching', `მაყურებლები${list ? ` · ${list.length}` : ''}`],
+             ['gifts', `საჩუქრები${gifters?.length ? ` · ${gifters.length}` : ''}`]] as const).map(([id, label]) => (
+            <button key={id} onClick={() => setTab(id)}
+              className="flex-1 py-2 rounded-xl font-mono text-[11.5px] transition-all"
+              style={{
+                background: tab === id ? 'rgba(255,255,255,0.09)' : 'transparent',
+                border: `1px solid ${tab === id ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.08)'}`,
+                color: tab === id ? '#fff' : 'rgba(255,255,255,0.45)',
+              }}>{label}</button>
+          ))}
+        </div>
+
+        {tab === 'watching' ? (
+          <>
+            {list === null && <p className="font-mono text-[11.5px] text-white/35 py-4 text-center">…</p>}
+            {list?.length === 0 && (
+              <p className="font-mono text-[11.5px] text-white/35 py-6 text-center">
+                ჯერ არავინ უყურებს — გააზიარე ეთერი
+              </p>
+            )}
+            {list?.map(v => (
+              <div key={v.userId} className="flex items-center gap-3 py-2">
+                <span style={{
+                  width: 34, height: 34, borderRadius: '50%', overflow: 'hidden', flexShrink: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17,
+                  background: 'linear-gradient(135deg, #9b00ff, #00f5ff)',
+                }}>
+                  {v.avatarUrl
+                    ? <img src={v.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    : v.avatar}
+                </span>
+                <span className="font-mono text-[12.5px] text-white/85 truncate">{v.name}</span>
+              </div>
+            ))}
+          </>
+        ) : (
+          <GifterList gifters={gifters ?? []} />
         )}
-
-        {list?.map(v => (
-          <div key={v.userId} className="flex items-center gap-3 py-2">
-            <span style={{
-              width: 34, height: 34, borderRadius: '50%', overflow: 'hidden', flexShrink: 0,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17,
-              background: 'linear-gradient(135deg, #9b00ff, #00f5ff)',
-            }}>
-              {v.avatarUrl
-                ? <img src={v.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                : v.avatar}
-            </span>
-            <span className="font-mono text-[12.5px] text-white/85 truncate">{v.name}</span>
-          </div>
-        ))}
       </motion.div>
     </motion.div>
   );

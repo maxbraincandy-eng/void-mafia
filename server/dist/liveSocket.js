@@ -20,7 +20,7 @@
  * publisher. This owns the room membership, the counts, the chat relay and the
  * announcements: everything LiveKit does not know about.
  */
-import { startLive, endLive, beat as liveBeat, joinLive, leaveLive, addHearts, getSession, listLive, liveMap, myLive, roomFor, viewersOf, } from './services/liveService.js';
+import { startLive, endLive, beat as liveBeat, joinLive, leaveLive, addHearts, getSession, listLive, liveMap, myLive, roomFor, viewersOf, sendLiveGift, topGifters, } from './services/liveService.js';
 import { getPlayer, findSocketByProfile } from './services/playerService.js';
 import { createNotification, getFollowerIds } from './services/communityService.js';
 import { isInvisible } from './services/friendService.js';
@@ -81,6 +81,13 @@ export function registerLiveHandlers(io, socket, deps) {
                 // leftover membership is a heart or a comment delivered into the dark.
                 io.socketsLeave(roomFor(summary.id));
                 awardLiveXP(io, summary).catch(() => { });
+                /*
+                 * `endLive` already paid the gifts out — it happens inside `endSession`
+                 * so that the reaper pays a host whose battery died too. What is left
+                 * is telling this socket its balance changed, because a coin counter
+                 * that is stale about money is worse than one that is missing.
+                 */
+                notifyGiftPayout(socket, host, summary).catch(() => { });
             }
             ack(ok(summary));
         }
@@ -179,6 +186,63 @@ export function registerLiveHandlers(io, socket, deps) {
             return;
         try {
             cb(ok(await viewersOf(String(data?.sessionId ?? ''))));
+        }
+        catch (e) {
+            cb(err(e?.message ?? 'Failed.'));
+        }
+    });
+    /*
+     * ── Gifts ─────────────────────────────────────────────────────────────
+     *
+     * The one thing on this screen that moves real money, so it is the one thing
+     * that is not fire-and-forget. Hearts and comments are dropped silently when
+     * they fail, because a lost heart costs nobody anything. A gift that failed
+     * has to say why: the two things that will actually go wrong are a stream
+     * that just ended and a balance that just ran out, and both are answerable.
+     */
+    socket.on('live:gift', async (data, cb) => {
+        const ack = typeof cb === 'function' ? cb : null;
+        try {
+            const from = me();
+            const sessionId = String(data?.sessionId ?? '');
+            if (!from) {
+                ack?.(err('Not authenticated.'));
+                return;
+            }
+            /*
+             * Two a second. Generous for a thumb, and the real throttle is the price
+             * — you cannot spam what you have to pay for. This is here for the
+             * modified client that would otherwise drain its own balance in a loop
+             * and take the database with it.
+             */
+            if (!rateOk(`livegift_${socket.id}`, 2)) {
+                ack?.(err('ცოტა მოითმინე'));
+                return;
+            }
+            // The price is NOT read from `data`. It comes from the catalog, keyed on
+            // the id — there is no wire format in which a client states a cost.
+            const sent = await sendLiveGift(sessionId, from, String(data?.giftId ?? ''));
+            io.to(roomFor(sessionId)).emit('live:gifted', {
+                sessionId, giftId: sent.giftId, coins: sent.coins,
+                senderId: sent.senderId, senderName: sent.senderName,
+                senderAvatar: sent.senderAvatar, senderAvatarUrl: sent.senderAvatarUrl,
+                giftCoins: sent.giftCoins, giftCount: sent.giftCount,
+            });
+            // Their own balance moved, and a number on screen that is wrong about
+            // money is worse than one that is missing.
+            socket.emit('coins:updated', { coins: sent.senderBalance });
+            ack?.(ok({ balance: sent.senderBalance }));
+        }
+        catch (e) {
+            ack?.(err(e?.message ?? 'ვერ გაიგზავნა'));
+        }
+    });
+    /** Who sent the most this broadcast — for the host, and for the summary. */
+    socket.on('live:gifters', async (data, cb) => {
+        if (typeof cb !== 'function')
+            return;
+        try {
+            cb(ok(await topGifters(String(data?.sessionId ?? ''))));
         }
         catch (e) {
             cb(err(e?.message ?? 'Failed.'));
@@ -339,6 +403,20 @@ async function notifyFollowersOfLive(io, hostId, sessionId, title) {
         }
     }
     catch { /* best-effort — a missed announcement is not a failed broadcast */ }
+}
+/**
+ * The host's balance, after the gifts landed.
+ *
+ * The payout itself is in `endSession`, where every ending path goes through
+ * it. This is only the telling — and it reads the balance rather than adding
+ * the payout to a cached one, because between the two the host may have spent
+ * something, and arithmetic on a stale number is how a balance drifts.
+ */
+async function notifyGiftPayout(socket, hostId, summary) {
+    if (summary.giftCoins <= 0)
+        return;
+    const { getCoins } = await import('./services/coinService.js');
+    socket.emit('coins:updated', { coins: await getCoins(hostId) });
 }
 /*
  * XP for the broadcast that just ended.
