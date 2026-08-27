@@ -49,7 +49,7 @@ export function LiveViewer({ sessionId, onClose }: { sessionId: string; onClose:
     return () => { socket.emit('live:leave' as any, { sessionId }, () => {}); };
   }, [sessionId]);
 
-  useLivekitRoomVoice({
+  const voice = useLivekitRoomVoice({
     roomId: session ? session.room : null,
     identity: myId || null,
     active: lkEnabled && !!session && !ended,
@@ -57,15 +57,20 @@ export function LiveViewer({ sessionId, onClose }: { sessionId: string; onClose:
     listenOnly: true,
   });
 
-  // The host's video, out of the LiveKit subscription map.
+  /*
+   * The host's video, out of the LiveKit subscription map.
+   *
+   * Keyed on `voice.rev`, which bumps the moment a remote track is subscribed
+   * or dropped — so the picture appears as soon as it arrives rather than up to
+   * half a second later, and disappears the moment the host stops rather than
+   * freezing on a last frame. The map is keyed by LiveKit identity, which is
+   * the profile id, which is what `hostId` is.
+   */
   const [stream, setStream] = useState<MediaStream | null>(null);
   useEffect(() => {
-    if (!session) return;
-    const tick = setInterval(() => {
-      setStream(getLiveKitRemoteVideo().get(session.hostId) ?? null);
-    }, 500);
-    return () => clearInterval(tick);
-  }, [session?.hostId]);
+    if (!session) { setStream(null); return; }
+    setStream(getLiveKitRemoteVideo().get(session.hostId) ?? null);
+  }, [session?.hostId, voice.rev]);
 
   useEffect(() => {
     const onViewers = (d: any) => { if (d?.sessionId === sessionId) setViewers(d.viewers ?? 0); };
@@ -119,6 +124,14 @@ export function LiveViewer({ sessionId, onClose }: { sessionId: string; onClose:
         </div>
 
         {error && <p className="mx-auto mt-6 font-mono text-[12px]" style={{ color: '#ff8a92' }}>{error}</p>}
+
+        {/* Connecting and connected-but-no-picture are different problems, and
+            "კამერა…" forever is the unhelpful version of both. */}
+        {!error && !ended && !stream && (
+          <p className="mx-auto mt-6 font-mono text-[11.5px] text-white/40">
+            {voice.connected ? 'ჰოსტის კამერას ველოდებით…' : 'ვუერთდებით ეთერს…'}
+          </p>
+        )}
 
         <div className="mt-auto">
           <LiveComments comments={comments} />

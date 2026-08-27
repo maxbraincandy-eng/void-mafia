@@ -63,29 +63,55 @@ export function GoLive({ onClose, gameContext }: { onClose: () => void; gameCont
    * session does not exist until "start" is pressed. Joining the LiveKit room
    * only once live is what makes that true rather than a promise.
    */
-  useLivekitRoomVoice({
+  const voice = useLivekitRoomVoice({
     roomId: session ? session.room : null,
     identity: myId || null,
     active: lkEnabled && phase === 'onair' && !!session,
   });
 
-  // Local preview, on from the moment this opens.
+  /*
+   * The preview owns the camera on the setup screen, and hands it over.
+   *
+   * A phone gives the camera to one capture at a time. Leaving this stream open
+   * meant LiveKit's own `getUserMedia` could not get it, so the host published
+   * nothing — while still seeing themselves, because the self-view was falling
+   * back to the very preview that was blocking the publish. Everything looked
+   * right on the host's screen and every viewer got a black rectangle.
+   *
+   * So the preview is stopped the moment we go on air, before LiveKit asks.
+   */
   const [preview, setPreview] = useState<MediaStream | null>(null);
   useEffect(() => {
+    if (phase !== 'setup') return;
     let cancelled = false;
-    if (phase === 'summary') { setLiveKitCamera(false).catch(() => {}); return; }
+    let got: MediaStream | null = null;
     navigator.mediaDevices?.getUserMedia({ video: { facingMode: 'user' }, audio: false })
-      .then(s => { if (cancelled) s.getTracks().forEach(t => t.stop()); else setPreview(s); })
+      .then(s => { got = s; if (cancelled) s.getTracks().forEach(t => t.stop()); else setPreview(s); })
       .catch(() => setError('კამერაზე წვდომა ვერ მოხერხდა'));
-    return () => { cancelled = true; };
-  }, [phase === 'summary']);
+    return () => { cancelled = true; got?.getTracks().forEach(t => t.stop()); };
+  }, [phase]);
 
-  // Hand the preview back when this screen goes away, or the light stays on.
+  // Whatever is left of it when this screen closes, or the light stays on.
   useEffect(() => () => { preview?.getTracks().forEach(t => t.stop()); }, [preview]);
 
+  /*
+   * Turn the camera on once the room is actually connected.
+   *
+   * `setLiveKitCamera` returns silently when there is no room yet, and joining
+   * takes a moment — so keying this on the phase change meant it usually ran
+   * before the connection existed and never ran again. Nothing retried, and
+   * nothing said so.
+   */
   useEffect(() => {
-    if (phase === 'onair') setLiveKitCamera(true).catch(() => {});
-  }, [phase]);
+    if (phase !== 'onair' || !voice.connected) return;
+    // Release the preview first: one capture at a time.
+    preview?.getTracks().forEach(t => t.stop());
+    setPreview(null);
+    setLiveKitCamera(true).catch(() => setError('კამერა ვერ ჩაირთო'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, voice.connected]);
+
+  useEffect(() => { if (phase === 'summary') setLiveKitCamera(false).catch(() => {}); }, [phase]);
 
   // ── Live room events ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -162,7 +188,14 @@ export function GoLive({ onClose, gameContext }: { onClose: () => void; gameCont
 
       {/* The camera, behind everything, from setup to air. */}
       {phase !== 'summary' && (
-        <LiveStage stream={phase === 'onair' ? (getLiveKitLocalVideo() ?? preview) : preview} mirror />
+        // `voice.rev` bumps when a track is published or dropped, which is what
+        // makes the self-view swap from the preview to the track that is
+        // actually going out. Reading it without that is a stale null.
+        <LiveStage
+          key={`stage_${phase}`}
+          stream={phase === 'onair' ? (pickLocal(voice.rev) ?? preview) : preview}
+          mirror
+        />
       )}
 
       {/* ── Setup ──────────────────────────────────────────────────────────── */}
@@ -307,6 +340,11 @@ export function GoLive({ onClose, gameContext }: { onClose: () => void; gameCont
     </motion.div>,
     document.body,
   );
+}
+
+/** Reads the published local track. The argument is only there to re-run it. */
+function pickLocal(_rev: unknown): MediaStream | null {
+  return getLiveKitLocalVideo();
 }
 
 function fmtDuration(ms: number): string {
