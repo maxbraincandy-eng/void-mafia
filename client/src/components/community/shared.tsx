@@ -2,7 +2,8 @@
  * Shared visual primitives for the Community Hub.
  * Purple/cyan neon theme — visually distinct from Mafia game-room red/danger styling.
  */
-import { ReactNode } from 'react';
+import { ReactNode, useEffect } from 'react';
+import { useLiveStore } from '@/store/liveStore';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 
@@ -102,14 +103,63 @@ export function ModalShell({
   );
 }
 
+/**
+ * A person, wherever they appear.
+ *
+ * WHY THE STATUS LIVES HERE
+ * ─────────────────────────
+ * Twenty-one screens render this. A live ring added to each of them is
+ * twenty-one places to add it, twenty-one to get the z-order wrong in, and
+ * twenty-one to forget when the next status arrives. Passing `userId` instead
+ * means one change reaches every surface — the feed, the friend list, a lobby,
+ * chat, search — which is what "everywhere their avatar renders" has to mean to
+ * be worth anything.
+ *
+ * IT ASKS FOR ITSELF
+ * ──────────────────
+ * A caller should be able to keep passing what it already passes. So the avatar
+ * asks the live store, and the store turns one screenful of asks into a single
+ * request — see `liveStore`. Without `userId` it behaves exactly as it did.
+ *
+ * BADGES THAT DO NOT FIGHT
+ * ────────────────────────
+ * Three things can want the same corner: the live ring, the story ring, and
+ * whatever the caller stacks on top. They are given separate ground:
+ *
+ *   ring    — outside the frame, so a story ring and a live ring can nest
+ *   pill    — bottom centre, overlapping the lower edge
+ *   corner  — top right, left free for the caller's own badge
+ *
+ * The live ring is red and animated where the online state is a static green
+ * dot: live has to be the thing your eye goes to, and two similar rings would
+ * be two things to squint at.
+ */
 export function Avatar({
-  avatar, avatarUrl, size = 36,
+  avatar, avatarUrl, size = 36, userId, story, onLiveClick,
 }: {
   avatar: string;
   avatarUrl: string | null;
   size?: number;
+  /** Give this and the avatar shows the person's live status by itself. */
+  userId?: string;
+  /** An unwatched story ring, drawn outside the live ring. */
+  story?: boolean;
+  /** Overrides the default, which is to ask the store to open the stream. */
+  onLiveClick?: (sessionId: string) => void;
 }) {
-  return (
+  const live = useLiveStore(s => (userId ? s.live[userId] : null));
+  const ensure = useLiveStore(s => s.ensure);
+  const requestWatch = useLiveStore(s => s.requestWatch);
+  useEffect(() => { if (userId) ensure([userId]); }, [userId, ensure]);
+
+  const isLive = Boolean(live);
+  // The ring sits outside the frame, so the picture never shrinks when
+  // somebody goes live — a face that changes size as a ring appears is the
+  // layout jumping under the reader.
+  const ringPad = isLive || story ? Math.max(2, Math.round(size * 0.07)) : 0;
+  const outer = size + ringPad * 2;
+
+  const face = (
     <div
       className="rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden font-display font-bold text-white"
       style={{
@@ -119,6 +169,70 @@ export function Avatar({
     >
       {avatarUrl ? <img src={avatarUrl} alt="" className="w-full h-full object-cover" /> : avatar}
     </div>
+  );
+
+  if (!isLive && !story) return face;
+
+  return (
+    <span
+      style={{
+        position: 'relative', display: 'inline-flex', flexShrink: 0,
+        width: outer, height: outer, alignItems: 'center', justifyContent: 'center',
+        borderRadius: '50%',
+        padding: ringPad,
+        // Live outranks a story: one is happening now and the other is not.
+        background: isLive
+          ? 'conic-gradient(from 210deg, #ff2d55, #ff6b6b, #ff2d55)'
+          : 'conic-gradient(from 210deg, #9b00ff, #00f5ff, #9b00ff)',
+        animation: isLive ? 'liveRingPulse 1.8s ease-in-out infinite' : undefined,
+        cursor: isLive ? 'pointer' : undefined,
+      }}
+      // Straight into the stream, not the profile — the spec is explicit, and
+      // it is also what a red ring promises.
+      onClick={isLive && live
+        ? e => { e.stopPropagation(); (onLiveClick ?? requestWatch)(live.sessionId); }
+        : undefined}
+      title={isLive ? (live!.title || 'პირდაპირი ეთერი') : undefined}
+    >
+      {/* A gap between the ring and the face, so the ring reads as a ring
+          rather than as a thick coloured border on the picture. */}
+      <span style={{ borderRadius: '50%', padding: 1.5, background: '#0d0a1a', display: 'inline-flex' }}>
+        {face}
+      </span>
+
+      {/* The pill overlaps the lower edge, which is where a viewer's eye
+          already is after reading the face — and leaves the top corners for
+          whatever the caller stacks there. */}
+      {isLive && size >= 30 && (
+        <span style={{
+          position: 'absolute', bottom: -Math.round(size * 0.06), left: '50%', transform: 'translateX(-50%)',
+          background: '#ff2d55', color: '#fff',
+          fontFamily: 'monospace', fontWeight: 700, letterSpacing: 0.4,
+          fontSize: Math.max(7, Math.round(size * 0.2)),
+          lineHeight: 1, padding: `${Math.max(1.5, size * 0.035)}px ${Math.max(3, size * 0.1)}px`,
+          borderRadius: 999, border: '1px solid rgba(0,0,0,0.45)',
+          whiteSpace: 'nowrap', pointerEvents: 'none',
+        }}>LIVE</span>
+      )}
+    </span>
+  );
+}
+
+/**
+ * The one animation the live ring needs.
+ *
+ * Mounted by whatever renders avatars rather than added to globals.css: this is
+ * the only thing that uses it, and a rule in the global sheet for one component
+ * is a rule nobody can find later.
+ */
+export function AvatarStatusStyles() {
+  return (
+    <style>{`
+      @keyframes liveRingPulse {
+        0%, 100% { filter: brightness(1);    box-shadow: 0 0 0 0 rgba(255,45,85,0.5); }
+        50%      { filter: brightness(1.18); box-shadow: 0 0 0 4px rgba(255,45,85,0); }
+      }
+    `}</style>
   );
 }
 

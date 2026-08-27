@@ -52,7 +52,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 3000);
 const CLIENT_URL = process.env.CLIENT_URL ?? 'http://localhost:5173';
 const IS_PROD = process.env.NODE_ENV === 'production';
-const CLIENT_BUILD = '2026-07-28-v653';
+const CLIENT_BUILD = '2026-07-28-v654';
 console.log('[Startup] Void Mafia server starting');
 console.log(`[Startup] Client build: ${CLIENT_BUILD}`);
 console.log(`[Startup] NODE_ENV=${process.env.NODE_ENV ?? 'development'}`);
@@ -683,6 +683,25 @@ async function tryInitDb(attempt = 1) {
             .then(m => m.startVipSnapshotRefresh())
             .catch(e => console.warn('[vip] snapshot start failed:', e.message));
         setInterval(() => { computeTrending().catch(e => console.error('[Trending] compute failed:', e)); }, 10 * 60 * 1000);
+        /*
+         * Reap broadcasts that stopped beating.
+         *
+         * A host whose battery dies never sends an end. Without this their avatar
+         * wears a LIVE ring until somebody files a bug, and tapping it opens an
+         * empty room — which is the worst version of this feature failing, because
+         * it looks like the app lying rather than like a stream ending.
+         *
+         * Runs on startup too: after a restart nobody is connected to anything, so
+         * every session that survived the restart is stale by definition.
+         */
+        import('./services/liveService.js').then(live => {
+            const reap = () => live.reapStale()
+                .then(n => { if (n > 0)
+                console.log(`[Live] reaped ${n} stale session(s)`); })
+                .catch(e => console.error('[Live] reap failed:', e.message));
+            reap();
+            setInterval(reap, 20 * 1000).unref();
+        }).catch(e => console.warn('[Live] reaper not started:', e.message));
         // Weekly leaderboard payout (top 3: 500/400/300). Runs on startup (back-pays
         // a missed week) and hourly (settles as soon as a new week begins). Idempotent.
         const runSettle = () => settleWeeklyLeaderboard((pid, amt, desc) => grantCoins('system', pid, amt, desc).then(() => { }))

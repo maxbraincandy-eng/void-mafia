@@ -1295,6 +1295,38 @@ export interface ClientToServerEvents {
         level: number;
         aura: string | null;
     }>>) => void;
+    'live:start': (data: {
+        title?: string;
+        visibility?: string;
+        gameContext?: string | null;
+    }, cb: Cb<unknown>) => void;
+    'live:end': (data: unknown | Cb<unknown>, cb?: Cb<unknown>) => void;
+    'live:beat': (data: unknown | Cb<boolean>, cb?: Cb<boolean>) => void;
+    'live:join': (data: {
+        sessionId: string;
+    }, cb: Cb<unknown>) => void;
+    'live:leave': (data: {
+        sessionId: string;
+    }, cb?: Cb<null>) => void;
+    'live:heart': (data: {
+        sessionId: string;
+    }) => void;
+    'live:comment': (data: {
+        sessionId: string;
+        text: string;
+    }) => void;
+    'live:list': (data: unknown | Cb<unknown>, cb?: Cb<unknown>) => void;
+    'live:session': (data: {
+        sessionId: string;
+    }, cb: Cb<unknown>) => void;
+    'live:mine': (data: unknown | Cb<unknown>, cb?: Cb<unknown>) => void;
+    'live:who': (data: {
+        userIds: string[];
+    }, cb: Cb<Record<string, {
+        sessionId: string;
+        title: string;
+        viewers: number;
+    }>>) => void;
     'player:auth': (data: {
         uid: string;
         username: string;

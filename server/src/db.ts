@@ -1768,6 +1768,54 @@ export async function initializeDatabase(): Promise<void> {
   await sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS country TEXT`;
 
   /*
+   * Going live.
+   *
+   * One row per broadcast, kept after it ends: the end-of-live summary reads
+   * from it, and "who was live yesterday" is a question worth being able to
+   * answer. `status` is not derived from `ended_at` being null — a session
+   * whose host's connection died has no end time and is not still live, and the
+   * heartbeat is what tells the difference.
+   */
+  await sql`
+    CREATE TABLE IF NOT EXISTS live_sessions (
+      id            TEXT PRIMARY KEY,
+      host_id       TEXT NOT NULL,
+      title         TEXT NOT NULL DEFAULT '',
+      visibility    TEXT NOT NULL DEFAULT 'public',
+      game_context  TEXT,
+      status        TEXT NOT NULL DEFAULT 'live',
+      started_at    BIGINT NOT NULL,
+      ended_at      BIGINT,
+      last_beat_at  BIGINT NOT NULL,
+      peak_viewers  INTEGER NOT NULL DEFAULT 0,
+      total_viewers INTEGER NOT NULL DEFAULT 0,
+      total_hearts  INTEGER NOT NULL DEFAULT 0
+    )
+  `;
+  // "Is this person live right now" is asked for every avatar on every screen,
+  // so it has to be an index hit on the host rather than a scan.
+  await sql`CREATE INDEX IF NOT EXISTS idx_live_host_status ON live_sessions(host_id, status)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_live_status_started ON live_sessions(status, started_at DESC)`;
+
+  /*
+   * Who watched, and when.
+   *
+   * Peak concurrency cannot be recovered from a counter — it has to be observed
+   * while it is happening — so `peak_viewers` is kept on the session and this
+   * table is the record behind the total and the summary.
+   */
+  await sql`
+    CREATE TABLE IF NOT EXISTS live_viewers (
+      session_id TEXT NOT NULL,
+      user_id    TEXT NOT NULL,
+      joined_at  BIGINT NOT NULL,
+      left_at    BIGINT,
+      PRIMARY KEY (session_id, user_id, joined_at)
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_live_viewers_session ON live_viewers(session_id)`;
+
+  /*
    * Where every point of XP came from.
    *
    * `players.xp` and `players.level` already existed and were already shared by

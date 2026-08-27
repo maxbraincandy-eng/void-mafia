@@ -7,6 +7,10 @@ import type { FeedCategory } from '@/types/index';
 import { Spinner, EmptyState } from '@/components/community/shared';
 import { PostCardV2 } from '@/components/community/PostCardV2';
 import { PostComposerV2 } from '@/components/community/PostComposerV2';
+import { GoLive } from '@/components/live/GoLive';
+import { LiveViewer } from '@/components/live/LiveViewer';
+import { AvatarStatusStyles } from '@/components/community/shared';
+import { useLiveStore } from '@/store/liveStore';
 import { FriendsPresenceStrip } from '@/components/community/FriendsPresenceStrip';
 import { StoriesStrip } from '@/components/community/Stories';
 import { SkeletonPost } from '@/components/ui/Skeleton';
@@ -21,6 +25,16 @@ export function FeedTabV2({ onOpenProfile, onOpenMyProfile }: { onOpenProfile: (
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [showComposer, setShowComposer] = useState(false);
+  const [showGoLive, setShowGoLive] = useState(false);
+  /*
+   * A session id when watching somebody.
+   *
+   * Set by tapping any live avatar anywhere in the feed — the avatar asks the
+   * store rather than being handed a callback through every card and comment
+   * row that renders one.
+   */
+  const watchingLive = useLiveStore(s => s.watchRequest);
+  const clearWatchRequest = useLiveStore(s => s.clearWatchRequest);
 
   // Track cached length without making it a useCallback dep (avoids infinite reload loop)
   const cachedLenRef = useRef(feedV2Posts.length);
@@ -184,8 +198,25 @@ export function FeedTabV2({ onOpenProfile, onOpenMyProfile }: { onOpenProfile: (
 
   return (
     <div className="space-y-4">
+      {/* The keyframes the live ring uses, mounted once for the whole feed. */}
+      <AvatarStatusStyles />
       <div className="flex items-center justify-between mb-1">
         <h2 className="font-display font-bold text-white text-lg">{t.community.feed.title}</h2>
+        {/*
+          Going live sits beside posting, not inside it.
+
+          The spec offers either a Post/Story/Live selector inside the composer
+          or a button of its own. Its own, because the other two open a form and
+          this opens a camera — burying "the camera turns on now" one level
+          inside a sheet that otherwise writes text is how somebody goes live by
+          accident.
+        */}
+        <button
+          onClick={() => setShowGoLive(true)}
+          className="w-9 h-9 rounded-full flex items-center justify-center text-[15px] transition-all active:scale-90 mr-2"
+          style={{ background: 'rgba(255,45,85,0.16)', border: '1px solid rgba(255,45,85,0.5)' }}
+          title="პირდაპირი ეთერი"
+        >📡</button>
         <button
           onClick={() => setShowComposer(true)}
           className="w-9 h-9 rounded-full flex items-center justify-center text-lg transition-all active:scale-90"
@@ -288,6 +319,8 @@ export function FeedTabV2({ onOpenProfile, onOpenMyProfile }: { onOpenProfile: (
 
       <AnimatePresence>
         {showComposer && <PostComposerV2 onClose={() => setShowComposer(false)} />}
+        {showGoLive && <GoLive onClose={() => setShowGoLive(false)} />}
+        {watchingLive && <LiveViewer sessionId={watchingLive} onClose={clearWatchRequest} />}
       </AnimatePresence>
     </div>
   );

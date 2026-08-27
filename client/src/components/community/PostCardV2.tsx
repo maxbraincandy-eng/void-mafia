@@ -536,7 +536,7 @@ export function PostCardV2({
       {/* Author row */}
       <div className="flex items-start justify-between gap-2">
         <button onClick={() => onOpenProfile(post.authorId)} className="flex items-center gap-2 min-w-0 active:scale-95 transition-transform">
-          <Avatar avatar={post.authorAvatar} avatarUrl={post.authorAvatarUrl} size={36} />
+          <Avatar avatar={post.authorAvatar} avatarUrl={post.authorAvatarUrl} size={36} userId={post.authorId || undefined} />
           <div className="text-left min-w-0">
             <div className="flex items-center gap-1.5 flex-wrap">
               {isMrMax ? (
