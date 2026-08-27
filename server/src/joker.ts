@@ -13,7 +13,8 @@ import {
   forbiddenBid, bidTension, KHISHTI_PENALTIES, getJokerRoundPlan, computePulkaIds,
   type JokerMatch, type JokerPlayer, type JokerSettings, type Card, type PlayedCard, type Suit,
 } from './services/jokerService.js';
-import { addXP, getPlayer } from './services/playerService.js';
+import { getPlayer } from './services/playerService.js';
+import { award } from './services/legacyService.js';
 import {
   voiceJoin as jokerVoiceJoin,
   voiceLeave as jokerVoiceLeave,
@@ -210,8 +211,8 @@ function executePlayCard(
             const winnerPlayer = sortedPlayers[0];
             for (const p of match.players) {
               if (p.profileId) {
-                const xp = p.id === winnerPlayer.id ? 30 : 5;
-                addXP(p.profileId, xp).catch(() => {});
+                const won = p.id === winnerPlayer.id;
+                award({ userId: p.profileId, source: 'joker', amount: won ? 30 : 5, reason: won ? 'win' : 'played' });
               }
             }
             io.emit('joker:list_update' as any, getOpenMatches().map(toListItem));

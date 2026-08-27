@@ -1767,6 +1767,52 @@ export async function initializeDatabase(): Promise<void> {
   // Country is needed for the national board; nullable, set by the player.
   await sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS country TEXT`;
 
+  /*
+   * Where every point of XP came from.
+   *
+   * `players.xp` and `players.level` already existed and were already shared by
+   * every game — one pool, one level, one set of cosmetics. What was missing was
+   * provenance: `addXP(id, 20)` recorded a number and nothing else, so nobody
+   * could say how much of a player's level came from mafia and how much from
+   * ludo, and there was no way to audit a backfill or undo a bad award.
+   *
+   * This is that ledger, and it is append-only. The rollups the profile shows
+   * are GROUP BY over it rather than counters kept alongside — a counter and a
+   * ledger disagree eventually, and then neither can be trusted.
+   *
+   * `source` is deliberately not an enum. A game is only one kind of thing that
+   * can earn XP; posting, going live and referring a friend are others, and the
+   * point of the ledger is that adding one costs a string, not a migration.
+   */
+  await sql`
+    CREATE TABLE IF NOT EXISTS legacy_xp_events (
+      id         BIGSERIAL PRIMARY KEY,
+      user_id    TEXT NOT NULL,
+      source     TEXT NOT NULL,
+      amount     INTEGER NOT NULL,
+      reason     TEXT NOT NULL DEFAULT '',
+      created_at BIGINT NOT NULL
+    )
+  `;
+  // The profile's breakdown groups one player's events by source; the timeline
+  // reads them newest first. Both start from user_id, so it leads.
+  await sql`CREATE INDEX IF NOT EXISTS idx_legacy_xp_user ON legacy_xp_events(user_id, created_at DESC)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_legacy_xp_user_source ON legacy_xp_events(user_id, source)`;
+  /*
+   * One row per (player, source, ref) for anything that must never be counted
+   * twice — a backfill above all, which by definition runs over history that is
+   * already there. Without it, running the migration twice doubles everybody.
+   */
+  await sql`
+    CREATE TABLE IF NOT EXISTS legacy_xp_grants (
+      user_id    TEXT NOT NULL,
+      source     TEXT NOT NULL,
+      ref        TEXT NOT NULL,
+      granted_at BIGINT NOT NULL,
+      PRIMARY KEY (user_id, source, ref)
+    )
+  `;
+
   // Verify connection
   const [{ cnt }] = await sql`SELECT COUNT(*) as cnt FROM players` as any[];
   console.log(`[Database] connected successfully`);

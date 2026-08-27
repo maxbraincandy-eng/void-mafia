@@ -1274,6 +1274,18 @@ export interface ServerToClientEvents {
     } | null) => void;
 }
 export interface ClientToServerEvents {
+    'legacy:character': (data: {
+        userId?: string;
+    } | Cb<unknown>, cb?: Cb<unknown>) => void;
+    'legacy:leaderboard': (data: {
+        limit?: number;
+    } | Cb<unknown>, cb?: Cb<unknown>) => void;
+    'legacy:badges': (data: {
+        userIds: string[];
+    }, cb: Cb<Record<string, {
+        level: number;
+        aura: string | null;
+    }>>) => void;
     'player:auth': (data: {
         uid: string;
         username: string;

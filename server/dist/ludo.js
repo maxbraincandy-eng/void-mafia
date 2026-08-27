@@ -1,6 +1,6 @@
 import { ok, err, } from './types/index.js';
 import { createMatch, getMatch, getMatchByCode, getMatchForSocket, getOpenMatches, joinMatch, doRoll, doMove, doResign, doRematch, doLeave, addChat, cleanupSocket, startMatch, PLAYER_ORDER, } from './services/ludoService.js';
-import { addXP } from './services/playerService.js';
+import { award } from './services/legacyService.js';
 import { voiceJoin as ludoVoiceJoin, voiceLeave as ludoVoiceLeave, voiceGetMatchId as ludoVoiceGetMatchId, } from './services/ludoVoiceService.js';
 import { buildIceConfig } from './lib/iceConfig.js';
 const LUDO_ROOM = (id) => `ld:${id}`;
@@ -147,7 +147,7 @@ export function registerLudoHandlers(io, socket) {
                     if (!side)
                         continue;
                     if (side.profileId) {
-                        addXP(side.profileId, color === result.winnerColor ? 25 : 8).catch(() => { });
+                        award({ userId: side.profileId, source: 'ludo', amount: color === result.winnerColor ? 25 : 8, reason: color === result.winnerColor ? 'win' : 'played' });
                     }
                 }
                 broadcastList(io);
@@ -169,7 +169,7 @@ export function registerLudoHandlers(io, socket) {
                 for (const color of PLAYER_ORDER) {
                     const side = match.players[color];
                     if (side?.profileId) {
-                        addXP(side.profileId, color === winnerColor ? 25 : 8).catch(() => { });
+                        award({ userId: side.profileId, source: 'ludo', amount: color === winnerColor ? 25 : 8, reason: color === winnerColor ? 'win' : 'played' });
                     }
                 }
             }

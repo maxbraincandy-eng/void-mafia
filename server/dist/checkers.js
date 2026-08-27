@@ -1,6 +1,6 @@
 import { ok, err, } from './types/index.js';
 import { createMatch, getMatch, getMatchByCode, getMatchForSocket, getOpenMatches, applyMove, finishMatch, } from './services/checkersService.js';
-import { addXP } from './services/playerService.js';
+import { award } from './services/legacyService.js';
 import { buildIceConfig } from './lib/iceConfig.js';
 import { voiceJoin, voiceLeave, voiceGetMatchId } from './services/checkersVoiceService.js';
 const CHECKERS_ROOM = (id) => `ck:${id}`;
@@ -163,10 +163,12 @@ export function registerCheckersHandlers(io, socket) {
                 finishMatch(match, result.winnerColor);
                 const winner = result.winnerColor === 'red' ? match.red : match.black;
                 const loser = result.winnerColor === 'red' ? match.black : match.red;
+                // Through the legacy funnel so the profile can say this level came
+                // from checkers. `award` never throws — see legacyService.
                 if (winner?.profileId)
-                    addXP(winner.profileId, 20).catch(() => { });
+                    award({ userId: winner.profileId, source: 'checkers', amount: 20, reason: 'win' });
                 if (loser?.profileId)
-                    addXP(loser.profileId, 5).catch(() => { });
+                    award({ userId: loser.profileId, source: 'checkers', amount: 5, reason: 'loss' });
             }
             else if (result.draw) {
                 finishMatch(match, null);
@@ -202,9 +204,9 @@ export function registerCheckersHandlers(io, socket) {
             const winnerPart = winner === 'red' ? match.red : match.black;
             const loserPart = loserColor === 'red' ? match.red : match.black;
             if (winnerPart?.profileId)
-                addXP(winnerPart.profileId, 20).catch(() => { });
+                award({ userId: winnerPart.profileId, source: 'checkers', amount: 20, reason: 'win' });
             if (loserPart?.profileId)
-                addXP(loserPart.profileId, 5).catch(() => { });
+                award({ userId: loserPart.profileId, source: 'checkers', amount: 5, reason: 'forfeit' });
             broadcastState(io, match);
             cb(ok(null));
         }

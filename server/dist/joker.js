@@ -1,6 +1,7 @@
 import { ok, err, } from './types/index.js';
 import { createMatch, getMatch, getMatchByCode, getMatchForSocket, getOpenMatches, dealRound, validateCardPlay, resolveTrick, applyRoundScores, finishMatch, forbiddenBid, bidTension, KHISHTI_PENALTIES, getJokerRoundPlan, computePulkaIds, } from './services/jokerService.js';
-import { addXP, getPlayer } from './services/playerService.js';
+import { getPlayer } from './services/playerService.js';
+import { award } from './services/legacyService.js';
 import { voiceJoin as jokerVoiceJoin, voiceLeave as jokerVoiceLeave, voiceGetMatchId as jokerVoiceGetMatchId, } from './services/jokerVoiceService.js';
 import { buildIceConfig } from './lib/iceConfig.js';
 const JOKER_ROOM = (id) => `jk:${id}`;
@@ -167,8 +168,8 @@ function executePlayCard(io, match, player, card, jokerTarget) {
                         const winnerPlayer = sortedPlayers[0];
                         for (const p of match.players) {
                             if (p.profileId) {
-                                const xp = p.id === winnerPlayer.id ? 30 : 5;
-                                addXP(p.profileId, xp).catch(() => { });
+                                const won = p.id === winnerPlayer.id;
+                                award({ userId: p.profileId, source: 'joker', amount: won ? 30 : 5, reason: won ? 'win' : 'played' });
                             }
                         }
                         io.emit('joker:list_update', getOpenMatches().map(toListItem));

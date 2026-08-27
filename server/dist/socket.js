@@ -26,7 +26,7 @@ import { registerMaxPuzzleHandlers } from './maxpuzzle.js';
 import { addCrown as ganabAddCrown, listCrowned as ganabListCrowned } from './services/ganabService.js';
 import { timerService } from './services/timerService.js';
 import { getRole } from './services/roleService.js';
-import { getOrCreatePlayer, getPlayer, toPublicProfile, addGameResult, getActiveBan, getActiveMute, findSocketByProfile, registerWithEmail, authenticateWithEmail, addXP, getCosmetics, equipCosmetic, getNameColors, grantStarterCosmetics, incrementSpaceKnockouts, getKnockoutLeaderboard, getWinsLeaderboard, getLevelLeaderboard, getLeaderboard, getPlayerByFriendCode, setGrantedModLevel, updateAvatarUrl, updateUsername, } from './services/playerService.js';
+import { getOrCreatePlayer, getPlayer, toPublicProfile, addGameResult, getActiveBan, getActiveMute, findSocketByProfile, registerWithEmail, authenticateWithEmail, getCosmetics, equipCosmetic, getNameColors, grantStarterCosmetics, incrementSpaceKnockouts, getKnockoutLeaderboard, getWinsLeaderboard, getLevelLeaderboard, getLeaderboard, getPlayerByFriendCode, setGrantedModLevel, updateAvatarUrl, updateUsername, } from './services/playerService.js';
 import { markOnline, markOffline, sendFriendRequest, acceptFriend, declineFriend, removeFriend, getFriends, getInvitablePeople, getPendingRequests, getOnlineCount, getFriendshipStatus, isOnline, getSpectatingCount, setLoungePresence, clearLoungePresence, getFriendIds, getPlayerStatus, setInvisible, isInvisible, setGhost, isGhost, getPeakOnline, getOnlineCountRaw, getFriendSuggestions, getPeopleToInvite, } from './services/friendService.js';
 import { checkAndAwardChallenges, getDailyQuestsForPlayer, } from './services/challengeService.js';
 import { checkAchievements, getPlayerAchievements } from './services/achievementService.js';
@@ -121,6 +121,7 @@ import { join as loungeJoin, leave as loungeLeave, getMembers as loungeGetMember
 // ── TURN / ICE server config ──────────────────────────────────────────
 // Centralised in server/src/lib/iceConfig.ts.  Reads Railway env vars:
 // TURN_URL, TURN_USERNAME, TURN_CREDENTIAL, FORCE_TURN_RELAY, STUN_URL.
+import { award, getCharacter, legacyLeaderboard, legacyBadges } from './services/legacyService.js';
 import { buildIceConfig } from './lib/iceConfig.js';
 // ── Rate limiting ─────────────────────────────────────────────────────
 const rateLimits = new Map();
@@ -1528,7 +1529,10 @@ async function emitGameOver(io, room) {
                 catch { /* non-fatal */ }
                 if (xpBoosted)
                     xpAmount *= 2;
-                const xpResult = await addXP(p.profileId, xpAmount);
+                const xpResult = await award({
+                    userId: p.profileId, source: 'mafia', amount: xpAmount,
+                    reason: xpBoosted ? 'game+boost' : 'game',
+                });
                 if (p.socketId) {
                     io.to(p.socketId).emit('xp:gained', {
                         amount: xpAmount,
@@ -1673,10 +1677,8 @@ async function emitGameOver(io, room) {
           WHERE id = ${pred.id}
         `;
                 if (correct && pred.player_id) {
-                    try {
-                        await addXP(pred.player_id, xpEarned);
-                    }
-                    catch { /* non-fatal */ }
+                    // A prediction is its own source: it is watching, not playing.
+                    await award({ userId: pred.player_id, source: 'predict', amount: xpEarned, reason: 'correct' });
                 }
                 const spectator = [...room.players.values()].find(p => p.profileId === pred.player_id);
                 if (spectator?.socketId) {
@@ -8473,6 +8475,62 @@ export function attachSocketHandlers(io) {
             }
             catch (e) {
                 cb(err(e.message));
+            }
+        });
+        /*
+         * ── Legacy character ──────────────────────────────────────────────────
+         *
+         * Read-only. There is deliberately no socket event that grants XP: XP is
+         * earned by the server watching a game end, never by a client asking for
+         * it, and an endpoint that awards on request is an endpoint that awards on
+         * a modified client's request.
+         */
+        /** One player's whole Legacy identity. Own profile if no id is given. */
+        socket.on('legacy:character', async (payload, cb) => {
+            const ack = typeof payload === 'function' ? payload : cb;
+            if (typeof ack !== 'function')
+                return;
+            try {
+                const target = (typeof payload === 'object' && payload?.userId) || socket.data.profileId;
+                if (!target) {
+                    ack(err('Not authenticated.'));
+                    return;
+                }
+                const character = await getCharacter(String(target));
+                ack(character ? ok(character) : err('No such player.'));
+            }
+            catch (e) {
+                ack(err(e?.message ?? 'Failed.'));
+            }
+        });
+        /** Everybody, by the one total. Separate from the per-game boards. */
+        socket.on('legacy:leaderboard', async (payload, cb) => {
+            const ack = typeof payload === 'function' ? payload : cb;
+            if (typeof ack !== 'function')
+                return;
+            try {
+                ack(ok(await legacyLeaderboard(Number(payload?.limit) || 50)));
+            }
+            catch (e) {
+                ack(err(e?.message ?? 'Failed.'));
+            }
+        });
+        /*
+         * Level and aura for a screenful of names at once.
+         *
+         * A lobby of twelve and a feed page of twenty each need this for every name
+         * on screen; asking per name is how a list gets slow.
+         */
+        socket.on('legacy:badges', async (payload, cb) => {
+            const ack = typeof payload === 'function' ? payload : cb;
+            if (typeof ack !== 'function')
+                return;
+            try {
+                const ids = Array.isArray(payload?.userIds) ? payload.userIds.map(String) : [];
+                ack(ok(await legacyBadges(ids)));
+            }
+            catch (e) {
+                ack(err(e?.message ?? 'Failed.'));
             }
         });
         socket.on('community:post_create_v2', async (data, cb) => {

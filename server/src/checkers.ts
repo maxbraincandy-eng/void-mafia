@@ -12,7 +12,7 @@ import {
   applyMove, finishMatch,
   type CheckersMatch, type PieceColor, type CheckersChatMsg,
 } from './services/checkersService.js';
-import { addXP } from './services/playerService.js';
+import { award } from './services/legacyService.js';
 import { buildIceConfig } from './lib/iceConfig.js';
 import { voiceJoin, voiceLeave, voiceGetMatchId } from './services/checkersVoiceService.js';
 
@@ -183,8 +183,10 @@ export function registerCheckersHandlers(io: AppServer, socket: AppSocket): void
         finishMatch(match, result.winnerColor);
         const winner = result.winnerColor === 'red' ? match.red : match.black;
         const loser  = result.winnerColor === 'red' ? match.black : match.red;
-        if (winner?.profileId) addXP(winner.profileId, 20).catch(() => {});
-        if (loser?.profileId)  addXP(loser.profileId, 5).catch(() => {});
+        // Through the legacy funnel so the profile can say this level came
+        // from checkers. `award` never throws — see legacyService.
+        if (winner?.profileId) award({ userId: winner.profileId, source: 'checkers', amount: 20, reason: 'win' });
+        if (loser?.profileId)  award({ userId: loser.profileId,  source: 'checkers', amount: 5,  reason: 'loss' });
       } else if (result.draw) {
         finishMatch(match, null);
       } else if (!result.mustContinueFrom) {
@@ -213,8 +215,8 @@ export function registerCheckersHandlers(io: AppServer, socket: AppSocket): void
       const loserColor: PieceColor = winner === 'red' ? 'black' : 'red';
       const winnerPart = winner === 'red' ? match.red : match.black;
       const loserPart  = loserColor === 'red' ? match.red : match.black;
-      if (winnerPart?.profileId) addXP(winnerPart.profileId, 20).catch(() => {});
-      if (loserPart?.profileId)  addXP(loserPart.profileId, 5).catch(() => {});
+      if (winnerPart?.profileId) award({ userId: winnerPart.profileId, source: 'checkers', amount: 20, reason: 'win' });
+      if (loserPart?.profileId)  award({ userId: loserPart.profileId,  source: 'checkers', amount: 5,  reason: 'forfeit' });
 
       broadcastState(io, match);
       cb(ok(null));

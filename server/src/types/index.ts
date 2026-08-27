@@ -1067,6 +1067,11 @@ export interface ServerToClientEvents {
 }
 
 export interface ClientToServerEvents {
+  /* Legacy character — read-only by design. Nothing here grants XP: XP is
+     earned by the server watching a game end, never by a client asking. */
+  'legacy:character':   (data: { userId?: string } | Cb<unknown>, cb?: Cb<unknown>) => void;
+  'legacy:leaderboard': (data: { limit?: number } | Cb<unknown>, cb?: Cb<unknown>) => void;
+  'legacy:badges':      (data: { userIds: string[] }, cb: Cb<Record<string, { level: number; aura: string | null }>>) => void;
   'player:auth':        (data: { uid: string; username: string; referralCode?: string }, cb: Cb<PlayerProfilePublic>) => void;
   'profile:referral_count': (cb: Cb<number>) => void;
   'player:register':    (data: { email: string; password: string; username: string }, cb: Cb<{ uid: string; profile: PlayerProfilePublic }>) => void;

@@ -49,7 +49,7 @@ import {
   getOrCreatePlayer, getPlayer, getAllPlayers, toPublicProfile, addGameResult,
   getActiveBan, getActiveMute, findSocketByProfile,
   registerWithEmail, authenticateWithEmail,
-  addXP, getCosmetics, equipCosmetic, getNameColors, grantStarterCosmetics,
+  getCosmetics, equipCosmetic, getNameColors, grantStarterCosmetics,
   incrementSpaceKnockouts, getKnockoutLeaderboard, getWinsLeaderboard, getLevelLeaderboard,
   getLeaderboard, getPlayersFast,
   getPlayerByFriendCode, setGrantedModLevel,
@@ -264,6 +264,7 @@ type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerE
 // ── TURN / ICE server config ──────────────────────────────────────────
 // Centralised in server/src/lib/iceConfig.ts.  Reads Railway env vars:
 // TURN_URL, TURN_USERNAME, TURN_CREDENTIAL, FORCE_TURN_RELAY, STUN_URL.
+import { award, getCharacter, legacyLeaderboard, legacyBadges } from './services/legacyService.js';
 import { buildIceConfig } from './lib/iceConfig.js';
 
 // ── Rate limiting ─────────────────────────────────────────────────────
@@ -1635,7 +1636,10 @@ async function emitGameOver(io: AppServer, room: Room): Promise<void> {
         try { xpBoosted = await consumeXpBoost(p.profileId); } catch { /* non-fatal */ }
         if (xpBoosted) xpAmount *= 2;
 
-        const xpResult = await addXP(p.profileId, xpAmount);
+        const xpResult = await award({
+          userId: p.profileId, source: 'mafia', amount: xpAmount,
+          reason: xpBoosted ? 'game+boost' : 'game',
+        });
 
         if (p.socketId) {
           io.to(p.socketId).emit('xp:gained', {
@@ -1781,7 +1785,8 @@ async function emitGameOver(io: AppServer, room: Room): Promise<void> {
           WHERE id = ${pred.id}
         `;
         if (correct && pred.player_id) {
-          try { await addXP(pred.player_id, xpEarned); } catch { /* non-fatal */ }
+          // A prediction is its own source: it is watching, not playing.
+          await award({ userId: pred.player_id, source: 'predict', amount: xpEarned, reason: 'correct' });
         }
         const spectator = [...room.players.values()].find(p => p.profileId === pred.player_id);
         if (spectator?.socketId) {
@@ -7580,6 +7585,51 @@ export function attachSocketHandlers(io: AppServer): void {
         await deleteStory(id, profileId, !!player?.isModerator);
         cb(ok(null));
       } catch (e: any) { cb(err(e.message)); }
+    });
+
+    /*
+     * ── Legacy character ──────────────────────────────────────────────────
+     *
+     * Read-only. There is deliberately no socket event that grants XP: XP is
+     * earned by the server watching a game end, never by a client asking for
+     * it, and an endpoint that awards on request is an endpoint that awards on
+     * a modified client's request.
+     */
+
+    /** One player's whole Legacy identity. Own profile if no id is given. */
+    socket.on('legacy:character', async (payload: any, cb: any) => {
+      const ack = typeof payload === 'function' ? payload : cb;
+      if (typeof ack !== 'function') return;
+      try {
+        const target = (typeof payload === 'object' && payload?.userId) || socket.data.profileId;
+        if (!target) { ack(err('Not authenticated.')); return; }
+        const character = await getCharacter(String(target));
+        ack(character ? ok(character) : err('No such player.'));
+      } catch (e: any) { ack(err(e?.message ?? 'Failed.')); }
+    });
+
+    /** Everybody, by the one total. Separate from the per-game boards. */
+    socket.on('legacy:leaderboard', async (payload: any, cb: any) => {
+      const ack = typeof payload === 'function' ? payload : cb;
+      if (typeof ack !== 'function') return;
+      try {
+        ack(ok(await legacyLeaderboard(Number((payload as any)?.limit) || 50)));
+      } catch (e: any) { ack(err(e?.message ?? 'Failed.')); }
+    });
+
+    /*
+     * Level and aura for a screenful of names at once.
+     *
+     * A lobby of twelve and a feed page of twenty each need this for every name
+     * on screen; asking per name is how a list gets slow.
+     */
+    socket.on('legacy:badges', async (payload: any, cb: any) => {
+      const ack = typeof payload === 'function' ? payload : cb;
+      if (typeof ack !== 'function') return;
+      try {
+        const ids = Array.isArray(payload?.userIds) ? payload.userIds.map(String) : [];
+        ack(ok(await legacyBadges(ids)));
+      } catch (e: any) { ack(err(e?.message ?? 'Failed.')); }
     });
 
     socket.on('community:post_create_v2', async (data, cb) => {
