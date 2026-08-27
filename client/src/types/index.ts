@@ -623,6 +623,14 @@ export interface LiveRoomPlayer {
 export interface LiveRoomInfo {
   id: string;
   code: string;
+  /**
+   * Which game this table belongs to.
+   *
+   * Hosted mafia is run by a person sitting outside the game, so the classic
+   * controls (pause the timer, force a phase) have nothing to act on. The panel
+   * needs to know which it is looking at rather than offering dead buttons.
+   */
+  kind: 'classic' | 'hosted';
   phase: Phase;
   day: number;
   timer: number;

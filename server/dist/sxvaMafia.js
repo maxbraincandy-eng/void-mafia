@@ -224,6 +224,39 @@ export function registerSxvaMafiaHandlers(io, socket) {
     // Stop the game and go back to the lobby — the room, the seats and the code
     // all survive. Distinct from closing the room, which ends it for everyone.
     socket.on('xm:end_game', hostAction(endGame, 'ვერ დასრულდა'));
+    /*
+     * Close the table for everybody.
+     *
+     * This event did not exist. The host menu had a "მაგიდის გაუქმება" button
+     * that set a confirmation flag the UI never rendered, so pressing it did
+     * nothing at all — and the only way a room could actually dissolve was the
+     * host leaving, which is a side effect rather than a decision.
+     *
+     * Not `hostAction`: that broadcasts through `after`, and a dissolved match
+     * must be told to everyone INCLUDING the seats, then have its own host left
+     * out — which is what `dissolveMatch` sets `hostLeft` for. The list has to be
+     * rebroadcast too, or the closed table sits in the browser until something
+     * else happens to refresh it.
+     */
+    socket.on('xm:dissolve', (data, cb) => {
+        try {
+            const matchId = String(data?.matchId);
+            const m = getMatch(matchId);
+            if (!m)
+                return cb(err('ოთახი ვერ მოიძებნა'));
+            if (m.hostId !== uid())
+                return cb(err('მხოლოდ ჰოსტს შეუძლია'));
+            if (!dissolveMatch(matchId, uid()))
+                return cb(err('ვერ დაიშალა'));
+            broadcastState(io, matchId);
+            syncTimer(io, matchId);
+            broadcastList(io);
+            cb(ok(null));
+        }
+        catch (e) {
+            cb(err(e.message));
+        }
+    });
     socket.on('xm:set_roles', (data, cb) => {
         try {
             const matchId = String(data?.matchId);
@@ -495,4 +528,13 @@ export function handleSxvaMafiaDisconnect(io, socketId) {
     broadcastList(io);
 }
 export { dissolveMatch };
+/**
+ * Broadcast hooks for the moderation panel.
+ *
+ * A moderator closing a hosted table is outside this module, so it cannot reach
+ * the broadcast helpers — and a dissolve nobody is told about leaves the room
+ * open on every screen that is in it.
+ */
+export function broadcastHostedState(io, matchId) { broadcastState(io, matchId); }
+export function broadcastHostedList(io) { broadcastList(io); }
 //# sourceMappingURL=sxvaMafia.js.map

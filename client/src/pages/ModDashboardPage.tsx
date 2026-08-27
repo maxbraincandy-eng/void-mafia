@@ -743,6 +743,12 @@ export function ModPanel({ open, onClose }: { open: boolean; onClose: () => void
                   <div className="flex-1 cursor-pointer">
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-neon-cyan text-sm font-bold">{r.code}</span>
+                      {/* Which game this table is. Without it a hosted room and
+                          a classic one look identical, and the controls below
+                          differ. */}
+                      {r.kind === 'hosted' && (
+                        <span className="text-[12px] font-mono text-neon-pink border border-neon-pink/40 rounded px-1">🎬 HOST</span>
+                      )}
                       {r.isPrivate && <span className="text-[12px] font-mono text-white/30 border border-white/10 rounded px-1">PVT</span>}
                       {r.isPaused && <span className="text-[12px] font-mono text-yellow-400 border border-yellow-400/30 rounded px-1">PAUSED</span>}
                       <span className={`text-xs font-mono ${PHASE_COLORS[r.phase] ?? 'text-white/40'}`}>{r.phase}</span>
@@ -754,7 +760,7 @@ export function ModPanel({ open, onClose }: { open: boolean; onClose: () => void
 
                 {/* Room actions */}
                 <div className="px-3 pb-2 flex flex-wrap gap-1">
-                  {r.phase !== 'lobby' && r.phase !== 'game_over' && (
+                  {r.kind === 'classic' && r.phase !== 'lobby' && r.phase !== 'game_over' && (
                     <>
                       {r.isPaused ? (
                         <button onClick={() => {
@@ -797,6 +803,14 @@ export function ModPanel({ open, onClose }: { open: boolean; onClose: () => void
                         🔇 Voice
                       </button>
                     </>
+                  )}
+                  {/*
+                    A hosted table is run by a person, not by the engine: there
+                    is no timer to pause and no phase to force, because the host
+                    is both. Closing it still works — it dissolves the table.
+                  */}
+                  {r.kind === 'hosted' && (
+                    <span className="px-2 py-1 text-[12px] font-mono text-white/25">ჰოსტი მართავს</span>
                   )}
                   {can(2) && (
                     <button onClick={() => openAction('close_room', r.id, `Room ${r.code}`)}

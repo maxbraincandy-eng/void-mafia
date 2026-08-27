@@ -395,6 +395,53 @@ export function listMatches(): XmListItem[] {
   }));
 }
 
+/**
+ * Every live hosted table, for the moderation panel.
+ *
+ * Hosted mafia keeps its matches in this module's own map, and the mod panel
+ * only ever asked `getAllRooms()` — which is classic mafia's. So a hosted table
+ * with nine people in it was invisible to moderation: not in the room list, not
+ * in the "active rooms" count, and not closable. It was simply added after the
+ * panel was built and nobody joined the two up.
+ *
+ * Roles are deliberately absent. A moderator watching a live game must not be
+ * able to read who the mafia are — that is the same rule classic mafia's live
+ * view already follows, and it matters more here, because the hosted table's
+ * whole premise is a human moderator sitting outside the game.
+ */
+export interface XmModRoom {
+  id: string;
+  code: string;
+  phase: XmPhase;
+  round: number;
+  playerCount: number;
+  hostName: string;
+  players: { id: string; name: string; seat: number; isAlive: boolean; isConnected: boolean; profileId: string | null }[];
+}
+
+export function listMatchesForMod(): XmModRoom[] {
+  return [...matches.values()]
+    .filter(m => m.phase !== 'finished' && !m.dissolved)
+    .map(m => ({
+      id: m.id,
+      code: m.code,
+      phase: m.phase,
+      round: m.round,
+      playerCount: m.seats.filter(s => !s.left).length,
+      hostName: m.hostName,
+      players: m.seats.filter(s => !s.left).map(s => ({
+        id: s.userId, name: s.nickname, seat: s.seat,
+        isAlive: s.alive, isConnected: s.connected, profileId: s.userId,
+        // role and team intentionally omitted — never expose a live game
+      })),
+    }));
+}
+
+/** Is this id a hosted table? Lets the shared mod actions route correctly. */
+export function isHostedMatch(id: string): boolean {
+  return matches.has(id);
+}
+
 function findByUser(m: XmMatch, userId: string): XmSeat | null { return m.seats.find(s => s.userId === userId) ?? null; }
 function aliveSeats(m: XmMatch): XmSeat[] { return m.seats.filter(s => s.alive); }
 function isMafiaRole(r: XmRole | null): boolean { return r === 'mafia' || r === 'don'; }

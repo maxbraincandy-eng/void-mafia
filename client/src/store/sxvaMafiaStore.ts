@@ -41,6 +41,7 @@ interface XmStore {
   grabFloor: () => Promise<void>;
   rematch: () => Promise<void>;
   endGame: () => Promise<void>;
+  dissolve: () => Promise<void>;
 
   // player
   mafiaVote: (targetId: string) => Promise<void>;
@@ -130,6 +131,9 @@ export const useSxvaMafiaStore = create<XmStore>((set, get) => {
     grabFloor: hostEv('xm:grab_floor'),
     rematch: hostEv('xm:rematch'),
     endGame: hostEv('xm:end_game'),
+    // Close the table for everybody. Distinct from endGame, which keeps the
+    // room and sends everyone back to the lobby.
+    dissolve: hostEv('xm:dissolve'),
 
     mafiaVote: targetEv('xm:mafia_vote'),
     donCheck: targetEv('xm:don_check'),

@@ -19,6 +19,9 @@ import { Server } from 'socket.io';
 import { io as connect, type Socket as ClientSocket } from 'socket.io-client';
 
 import { registerSxvaMafiaHandlers } from './sxvaMafia.js';
+import {
+  getMatch, joinMatchAsBot, listMatchesForMod, isHostedMatch,
+} from './services/sxvaMafiaService.js';
 
 let http: HttpServer;
 let server: Server;
@@ -38,7 +41,17 @@ before(async () => {
 });
 
 after(async () => {
+  /*
+   * Force the sockets down before closing.
+   *
+   * `http.close()` waits for open connections, and a test that fails an assert
+   * never reaches its own `socket.close()` — so one failure used to hang the
+   * whole run instead of reporting, which is far worse to debug than the
+   * failure itself. Disconnecting everything here makes a failing test fail.
+   */
+  server.disconnectSockets(true);
   server.close();
+  http.closeAllConnections?.();
   await new Promise<void>(resolve => http.close(() => resolve()));
 });
 
@@ -297,7 +310,7 @@ test('resume offers nothing to somebody who was removed or never joined', async 
  * what actually decides whether a game with bots can be played through.
  */
 test('a game of bots deals, runs a night, and votes — driven by the host alone', async () => {
-  const { joinMatchAsBot, getMatch, startMatch, beginMafiaMeet, endMafiaMeet,
+  const { startMatch, beginMafiaMeet, endMafiaMeet,
           beginNight, endNight, beginDay, nextSpeaker, endVote } =
     await import('./services/sxvaMafiaService.js');
   const { tick } = await import('./services/xmBotDriver.js');
@@ -532,6 +545,100 @@ test('silence all the way down the list is counted for the last candidate', asyn
     after.seats.find(s => s.userId === target.userId)!.alive, false,
     'abstaining your way out of every elimination is not an option',
   );
+
+  host.close();
+});
+
+// ─── Closing the table ───────────────────────────────────────────────────────
+
+test('the host can close the table, and everyone in it is told', async () => {
+  const host = await open('dz_host');
+  const created = await send(host, 'xm:create', { nickname: 'Host', maxSeats: 10 });
+  const match = (created as { data: any }).data;
+
+  const player = await open('dz_p1');
+  await send(player, 'xm:join', { code: match.code, nickname: 'Player' });
+  const seen = states(player);
+  await settle();
+
+  const res = await send(host, 'xm:dissolve', { matchId: match.id });
+  assert.equal(res.ok, true, 'the event exists — it did not, which is why the button did nothing');
+  await settle();
+
+  const last = seen[seen.length - 1];
+  assert.equal(last.dissolved, true, 'the player is told the table closed');
+  assert.equal(last.phase, 'finished');
+
+  host.close(); player.close();
+});
+
+test('only the host closes the table', async () => {
+  const host = await open('dz2_host');
+  const created = await send(host, 'xm:create', { nickname: 'Host', maxSeats: 10 });
+  const match = (created as { data: any }).data;
+
+  const player = await open('dz2_p1');
+  await send(player, 'xm:join', { code: match.code, nickname: 'Player' });
+
+  const res = await send(player, 'xm:dissolve', { matchId: match.id });
+  assert.equal(res.ok, false, 'a seated player cannot close the room out from under everyone');
+  assert.equal(getMatch(match.id)!.dissolved, false);
+
+  host.close(); player.close();
+});
+
+test('a closed table leaves the public list', async () => {
+  const host = await open('dz3_host');
+  const created = await send(host, 'xm:create', { nickname: 'Host', maxSeats: 10 });
+  const match = (created as { data: any }).data;
+
+  const before = await send(host, 'xm:list', {});
+  assert.ok((before as any).data.some((r: any) => r.id === match.id), 'it is listed while open');
+
+  await send(host, 'xm:dissolve', { matchId: match.id });
+  const after = await send(host, 'xm:list', {});
+  assert.ok(!(after as any).data.some((r: any) => r.id === match.id), 'and gone once closed');
+
+  host.close();
+});
+
+// ─── Visible to moderation ───────────────────────────────────────────────────
+
+test('a hosted table is visible to the moderation panel', async () => {
+  // It was not: the panel only ever asked classic mafia's room map, so a hosted
+  // table with nine people in it counted as zero active rooms and could not be
+  // closed.
+  const host = await open('mod_host');
+  const created = await send(host, 'xm:create', { nickname: 'Moderator', maxSeats: 10 });
+  const match = (created as { data: any }).data;
+  joinMatchAsBot(match.id, 'bot_mod_1', 'ბოტი ერთი');
+  joinMatchAsBot(match.id, 'bot_mod_2', 'ბოტი ორი');
+
+  const rooms = listMatchesForMod();
+  const mine = rooms.find(r => r.id === match.id);
+  assert.ok(mine, 'the table is in the moderation list');
+  assert.equal(mine!.code, match.code);
+  assert.equal(mine!.hostName, 'Moderator');
+  assert.equal(mine!.playerCount, 2, 'the seats, not the host');
+  assert.ok(isHostedMatch(match.id), 'and it is routable as a hosted table');
+
+  // No roles, ever. A moderator watching a live game must not be able to read
+  // who the mafia are.
+  const leaked = JSON.stringify(mine);
+  assert.ok(!leaked.includes('"role"'), 'no roles in the moderation view');
+  assert.ok(!leaked.includes('"team"'), 'and no teams');
+
+  host.close();
+});
+
+test('a closed table disappears from moderation too', async () => {
+  const host = await open('mod2_host');
+  const created = await send(host, 'xm:create', { nickname: 'Host', maxSeats: 10 });
+  const match = (created as { data: any }).data;
+  assert.ok(listMatchesForMod().some(r => r.id === match.id));
+
+  await send(host, 'xm:dissolve', { matchId: match.id });
+  assert.ok(!listMatchesForMod().some(r => r.id === match.id), 'a closed table is not an active room');
 
   host.close();
 });

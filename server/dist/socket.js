@@ -122,6 +122,8 @@ import { join as loungeJoin, leave as loungeLeave, getMembers as loungeGetMember
 // Centralised in server/src/lib/iceConfig.ts.  Reads Railway env vars:
 // TURN_URL, TURN_USERNAME, TURN_CREDENTIAL, FORCE_TURN_RELAY, STUN_URL.
 import { award, getCharacter, legacyLeaderboard, legacyBadges } from './services/legacyService.js';
+import { listMatchesForMod, isHostedMatch, dissolveMatch as dissolveHostedMatch } from './services/sxvaMafiaService.js';
+import { broadcastHostedState, broadcastHostedList } from './sxvaMafia.js';
 import { buildIceConfig } from './lib/iceConfig.js';
 // ── Rate limiting ─────────────────────────────────────────────────────
 const rateLimits = new Map();
@@ -4048,6 +4050,27 @@ export function attachSocketHandlers(io) {
                 const mod = await getPlayer(modProfileId);
                 if (!mod || !canDo(mod, 'ban_long'))
                     throw new Error('Insufficient permissions. Admin+ required.');
+                /*
+                 * A hosted table closes differently.
+                 *
+                 * It is not in `getRoom` — it lives in the hosted-mafia service — and
+                 * dissolving it is what "close" means there. Without this branch the
+                 * panel could list a hosted table and then refuse to close it with
+                 * "Room not found", which is worse than not listing it at all.
+                 */
+                if (isHostedMatch(roomId)) {
+                    const hosted = listMatchesForMod().find(h => h.id === roomId);
+                    const m = dissolveHostedMatch(roomId, modProfileId);
+                    if (!m)
+                        throw new Error('Room not found.');
+                    broadcastHostedState(io, roomId);
+                    broadcastHostedList(io);
+                    const names = hosted?.players.map(p => p.name).join(', ') ?? '';
+                    await logKick(modProfileId, mod.username, roomId, m.code, roomId, `Closed hosted table: ${reason || 'No reason given'}`);
+                    await notifyMods(io, 'mod_kick', `${mod.username} closed hosted table ${m.code} (${names})`, m.code);
+                    cb(ok(null));
+                    return;
+                }
                 const room = getRoom(roomId);
                 if (!room)
                     throw new Error('Room not found.');
@@ -4070,14 +4093,18 @@ export function attachSocketHandlers(io) {
                 if (!mod || !canDo(mod, 'view_reports'))
                     throw new Error('Insufficient permissions.');
                 const { openReports, recentBans, newUsersToday, avgMatchSeconds } = await getDashboardDbStats();
+                // Both kinds of table. `getAllRooms` is classic mafia's map only, and
+                // hosted mafia keeps its own — which is why a hosted table with nine
+                // people in it counted as zero active rooms.
                 const rooms = getAllRooms();
+                const hosted = listMatchesForMod();
                 let voiceUsers = 0;
                 for (const [, voices] of _spaceVoice)
                     voiceUsers += voices.size;
                 cb(ok({
                     onlinePlayers: getOnlineCountRaw(), // mod dashboard shows true online (incl. invisible owners)
                     spectatingPlayers: getSpectatingCount(),
-                    activeRooms: rooms.length,
+                    activeRooms: rooms.length + hosted.length,
                     openReports,
                     recentBans,
                     peakOnline: getPeakOnline(),
@@ -4123,8 +4150,37 @@ export function attachSocketHandlers(io) {
                         isPrivate: room.settings.isPrivate,
                         isPaused: room.isPaused,
                         players,
+                        kind: 'classic',
                     };
                 });
+                /*
+                 * Hosted tables, shown beside the classic ones.
+                 *
+                 * Mapped into the same shape rather than given a list of their own: a
+                 * moderator wants one place that answers "what is running right now",
+                 * and two lists is two places to forget to look. The fields that do not
+                 * translate are filled honestly — a hosted table has no engine timer,
+                 * because a human is the timer.
+                 */
+                for (const h of listMatchesForMod()) {
+                    result.push({
+                        id: h.id,
+                        code: h.code,
+                        phase: h.phase,
+                        day: h.round,
+                        timer: 0,
+                        maxTimer: 0,
+                        playerCount: h.playerCount,
+                        hostName: h.hostName,
+                        isPrivate: false,
+                        isPaused: false,
+                        players: h.players.map((p) => ({
+                            id: p.id, name: p.name, seat: p.seat,
+                            isAlive: p.isAlive, isConnected: p.isConnected, profileId: p.profileId,
+                        })),
+                        kind: 'hosted',
+                    });
+                }
                 cb(ok(result));
             }
             catch (e) {

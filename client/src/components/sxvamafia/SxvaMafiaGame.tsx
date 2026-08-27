@@ -1404,6 +1404,43 @@ export function SxvaMafiaGame() {
         )}
       </AnimatePresence>
 
+      {/*
+        Closing the table — the second step, and the reason the first one used
+        to do nothing.
+
+        The button that opens this set `confirmEnd` and nothing rendered it, so
+        pressing "მაგიდის გაუქმება" flipped a boolean no one was reading. It is
+        two steps on purpose: ending a hand is recoverable and closing a room is
+        not, so the irreversible one asks again.
+      */}
+      <AnimatePresence>
+        {confirmEnd && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[595] flex items-center justify-center px-8" style={{ background: 'rgba(4,4,10,0.9)' }} onClick={() => setConfirmEnd(false)}>
+            <motion.div initial={{ scale: 0.92 }} animate={{ scale: 1 }} exit={{ scale: 0.92 }} onClick={e => e.stopPropagation()}
+              className="w-full max-w-xs rounded-2xl p-5 text-center" style={{ background: 'rgba(20,10,14,0.99)', border: `1px solid ${RED}66` }}>
+              <p className="text-3xl mb-2">🗑</p>
+              <p className="font-display font-bold text-white text-[15px]">მაგიდის გაუქმება?</p>
+              <p className="font-mono text-[11px] text-white/50 mt-2 leading-relaxed">
+                ოთახი დაიხურება ყველასთვის და კოდი {match.code} აღარ იმუშავებს. ამის დაბრუნება არ შეიძლება.
+              </p>
+              <div className="mt-4 flex gap-2">
+                <button onClick={() => setConfirmEnd(false)}
+                  className="flex-1 py-2.5 rounded-xl font-mono text-[12px]"
+                  style={{ color: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.15)' }}>
+                  არა
+                </button>
+                <button onClick={() => { SFX.click?.(); haptic('heavy'); setConfirmEnd(false); store.dissolve(); }}
+                  className="flex-1 py-2.5 rounded-xl font-mono text-[12px] text-white"
+                  style={{ background: RED }}>
+                  დიახ, დახურე
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Leave confirm */}
       <AnimatePresence>
         {confirmLeave && (

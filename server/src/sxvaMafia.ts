@@ -214,6 +214,34 @@ export function registerSxvaMafiaHandlers(io: AppServer, socket: AppSocket): voi
   // all survive. Distinct from closing the room, which ends it for everyone.
   socket.on('xm:end_game' as any, hostAction(endGame, 'ვერ დასრულდა'));
 
+  /*
+   * Close the table for everybody.
+   *
+   * This event did not exist. The host menu had a "მაგიდის გაუქმება" button
+   * that set a confirmation flag the UI never rendered, so pressing it did
+   * nothing at all — and the only way a room could actually dissolve was the
+   * host leaving, which is a side effect rather than a decision.
+   *
+   * Not `hostAction`: that broadcasts through `after`, and a dissolved match
+   * must be told to everyone INCLUDING the seats, then have its own host left
+   * out — which is what `dissolveMatch` sets `hostLeft` for. The list has to be
+   * rebroadcast too, or the closed table sits in the browser until something
+   * else happens to refresh it.
+   */
+  socket.on('xm:dissolve' as any, (data: { matchId: string }, cb: (r: any) => void) => {
+    try {
+      const matchId = String(data?.matchId);
+      const m = getMatch(matchId);
+      if (!m) return cb(err('ოთახი ვერ მოიძებნა'));
+      if (m.hostId !== uid()) return cb(err('მხოლოდ ჰოსტს შეუძლია'));
+      if (!dissolveMatch(matchId, uid())) return cb(err('ვერ დაიშალა'));
+      broadcastState(io, matchId);
+      syncTimer(io, matchId);
+      broadcastList(io);
+      cb(ok(null));
+    } catch (e: any) { cb(err(e.message)); }
+  });
+
   socket.on('xm:set_roles' as any, (data: { matchId: string; config: { don: number; mafia: number; sheriff: number } | null }, cb: (r: any) => void) => {
     try {
       const matchId = String(data?.matchId);
@@ -436,3 +464,13 @@ export function handleSxvaMafiaDisconnect(io: AppServer, socketId: string): void
 }
 
 export { dissolveMatch };
+
+/**
+ * Broadcast hooks for the moderation panel.
+ *
+ * A moderator closing a hosted table is outside this module, so it cannot reach
+ * the broadcast helpers — and a dissolve nobody is told about leaves the room
+ * open on every screen that is in it.
+ */
+export function broadcastHostedState(io: AppServer, matchId: string): void { broadcastState(io, matchId); }
+export function broadcastHostedList(io: AppServer): void { broadcastList(io); }

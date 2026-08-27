@@ -160,6 +160,27 @@ export function listMatches() {
         id: m.id, code: m.code, hostName: m.hostName, seatCount: m.seats.length, maxSeats: m.maxSeats, phase: m.phase,
     }));
 }
+export function listMatchesForMod() {
+    return [...matches.values()]
+        .filter(m => m.phase !== 'finished' && !m.dissolved)
+        .map(m => ({
+        id: m.id,
+        code: m.code,
+        phase: m.phase,
+        round: m.round,
+        playerCount: m.seats.filter(s => !s.left).length,
+        hostName: m.hostName,
+        players: m.seats.filter(s => !s.left).map(s => ({
+            id: s.userId, name: s.nickname, seat: s.seat,
+            isAlive: s.alive, isConnected: s.connected, profileId: s.userId,
+            // role and team intentionally omitted — never expose a live game
+        })),
+    }));
+}
+/** Is this id a hosted table? Lets the shared mod actions route correctly. */
+export function isHostedMatch(id) {
+    return matches.has(id);
+}
 function findByUser(m, userId) { return m.seats.find(s => s.userId === userId) ?? null; }
 function aliveSeats(m) { return m.seats.filter(s => s.alive); }
 function isMafiaRole(r) { return r === 'mafia' || r === 'don'; }
