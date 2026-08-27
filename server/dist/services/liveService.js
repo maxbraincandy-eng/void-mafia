@@ -130,8 +130,15 @@ async function endSession(sessionId, _reason) {
 /**
  * "Still here."
  *
- * Returns false when the session is gone, which is the client's signal to stop
- * showing a broadcast screen for a stream that no longer exists.
+ * Returns the session id, or null when the session is gone — which is the
+ * client's signal to stop showing a broadcast screen for a stream that no
+ * longer exists.
+ *
+ * The id is returned rather than a bare `true` because the socket layer uses
+ * the beat to re-join the host to their own broadcast room. A host whose phone
+ * changed networks gets a new socket, and a new socket is in no rooms — without
+ * something that re-joins on a schedule, they carry on broadcasting to a room
+ * they are no longer listening to, and their viewer count freezes.
  */
 export async function beat(hostId) {
     const rows = await sql `
@@ -139,7 +146,7 @@ export async function beat(hostId) {
     WHERE host_id = ${hostId} AND status = 'live'
     RETURNING id
   `;
-    return rows.length > 0;
+    return rows.length > 0 ? String(rows[0].id) : null;
 }
 /**
  * End every session that has stopped beating.
@@ -201,14 +208,42 @@ export async function leaveLive(sessionId, userId) {
   `;
     return viewerCount(sessionId);
 }
-/** Somebody left the app entirely — drop them from whatever they were watching. */
+/**
+ * Somebody left the app entirely — drop them from whatever they were watching.
+ *
+ * The remaining count comes back with each session because the caller has to
+ * broadcast it, and it has no other way to know. The first version returned
+ * only the ids and the socket layer then announced `viewers: 0` for each — so
+ * one person of thirty closing a tab emptied the room on everybody's screen.
+ */
 export function forgetViewer(userId) {
     const touched = [];
     for (const [sessionId, set] of watching) {
         if (set.delete(userId))
-            touched.push(sessionId);
+            touched.push({ sessionId, viewers: set.size });
     }
     return touched;
+}
+/**
+ * Who is in the room right now, with enough to draw them.
+ *
+ * The count alone answers "is anyone there"; a host talking to a camera wants
+ * the other half of that — which is why every product that ships a count also
+ * ships the list behind it.
+ */
+export async function viewersOf(sessionId) {
+    const ids = [...(watching.get(sessionId) ?? [])];
+    if (ids.length === 0)
+        return [];
+    const rows = await sql `
+    SELECT id, username, avatar, avatar_url FROM players WHERE id = ANY(${ids})
+  `;
+    return rows.map(r => ({
+        userId: String(r.id),
+        name: r.username ?? '',
+        avatar: r.avatar ?? '',
+        avatarUrl: r.avatar_url ?? null,
+    }));
 }
 /**
  * A heart.
@@ -216,13 +251,19 @@ export function forgetViewer(userId) {
  * Counted, not stored. At a few taps a second per viewer the individual
  * reactions are worth nothing an hour later and a great deal of write traffic
  * now — the burst is the point, and the burst is broadcast, not persisted.
+ *
+ * The running total comes back so it can ride along on the broadcast. A host
+ * only ever saw hearts as animations flying past, which is unreadable as a
+ * quantity: two hundred hearts and twenty look the same at a glance.
  */
 export async function addHearts(sessionId, n = 1) {
     const count = Math.max(1, Math.min(20, Math.floor(n)));
-    await sql `
+    const rows = await sql `
     UPDATE live_sessions SET total_hearts = total_hearts + ${count}
     WHERE id = ${sessionId} AND status = 'live'
+    RETURNING total_hearts
   `;
+    return rows.length > 0 ? Number(rows[0].total_hearts) : 0;
 }
 // ── Reading ───────────────────────────────────────────────────────────────────
 export async function getSession(sessionId) {

@@ -136,8 +136,35 @@ test('closing the app drops you from whatever you were watching', { skip }, asyn
   await L.joinLive(s.id, V2);
 
   const touched = L.forgetViewer(V1);
-  assert.deepEqual(touched, [s.id]);
+  // The remaining count comes back with the id because the caller has to
+  // broadcast it and has no other way to know. Announcing a flat zero here
+  // emptied a roomful of thirty the moment one of them closed a tab.
+  assert.deepEqual(touched, [{ sessionId: s.id, viewers: 1 }]);
   assert.equal((await L.getSession(s.id))!.viewers, 1, 'a count that only goes up is worse than none');
+});
+
+test('a heart comes back with the running total', { skip }, async () => {
+  const s = await L.startLive(HOST, {});
+  assert.equal(await L.addHearts(s.id, 1), 1);
+  assert.equal(await L.addHearts(s.id, 4), 5);
+  // Nothing to add to, and nothing to report — an ended stream is not an error.
+  await L.endLive(HOST);
+  assert.equal(await L.addHearts(s.id, 1), 0);
+});
+
+test('who is in the room, with enough to draw them', { skip }, async () => {
+  const s = await L.startLive(HOST, {});
+  assert.deepEqual(await L.viewersOf(s.id), [], 'nobody yet, and it says so');
+  await L.joinLive(s.id, V1);
+  await L.joinLive(s.id, V2);
+
+  const list = await L.viewersOf(s.id);
+  assert.deepEqual(list.map(v => v.userId).sort(), [V1, V2].sort());
+  assert.equal(list.find(v => v.userId === V1)!.name, 'One');
+  assert.equal(list.find(v => v.userId === V1)!.avatar, '🎩');
+
+  await L.leaveLive(s.id, V1);
+  assert.deepEqual((await L.viewersOf(s.id)).map(v => v.userId), [V2]);
 });
 
 test('an ended broadcast cannot be joined', { skip }, async () => {
@@ -185,12 +212,12 @@ test('everyone still watching is marked as having left', { skip }, async () => {
 // ── The heartbeat ─────────────────────────────────────────────────────────────
 
 test('a beat keeps a session alive, and says so', { skip }, async () => {
-  await L.startLive(HOST, {});
-  assert.equal(await L.beat(HOST), true);
+  const s = await L.startLive(HOST, {});
+  assert.equal(await L.beat(HOST), s.id);
   await L.endLive(HOST);
-  // False is the client's signal to stop showing a broadcast screen for a
-  // stream that no longer exists.
-  assert.equal(await L.beat(HOST), false);
+  // Null is the client's signal to stop showing a broadcast screen for a stream
+  // that no longer exists.
+  assert.equal(await L.beat(HOST), null);
 });
 
 test('a broadcast that stops beating is reaped', { skip }, async () => {

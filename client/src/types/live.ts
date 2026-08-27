@@ -33,8 +33,22 @@ export interface LiveComment {
   id: string;
   userId: string;
   name: string;
+  avatar?: string;
+  avatarUrl?: string | null;
   text: string;
   at: number;
+  /** Drawn differently: the host answering is the thread of the conversation. */
+  isHost?: boolean;
+  /** Shown at once and reconciled when the server echoes it back. */
+  pending?: boolean;
+}
+
+/** Somebody in the room, as the host's viewer list draws them. */
+export interface LiveViewer {
+  userId: string;
+  name: string;
+  avatar: string;
+  avatarUrl: string | null;
 }
 
 /** How often the host tells the server it is still there. */

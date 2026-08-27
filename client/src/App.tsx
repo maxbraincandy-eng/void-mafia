@@ -34,6 +34,7 @@ import { FriendRequestOverlay } from '@/components/social/FriendRequestOverlay';
 import { GameInviteOverlay } from '@/components/social/GameInviteOverlay';
 import { SystemAnnounce } from '@/components/ui/SystemAnnounce';
 import { FriendActiveToast } from '@/components/social/FriendActiveToast';
+import { LiveOverlay } from '@/components/live/LiveOverlay';
 import { GiftReceivedAnimation } from '@/components/ui/GiftReceivedAnimation';
 import { CoinShopModal } from '@/components/ui/CoinShopModal';
 import { ShopSuccessModal } from '@/components/ui/ShopSuccessModal';
@@ -982,6 +983,9 @@ export default function App() {
       <FriendActiveToast />
       <DmToastNotification />
       <RoomInviteToast />
+      {/* The LIVE ring is on avatars everywhere; the screen that answers a tap
+          on one was mounted inside the feed, so anywhere else it did nothing. */}
+      <LiveOverlay />
       <ModAlertPanel />
       <GiftReceivedAnimation notification={giftNotif} onDismiss={() => setGiftNotif(null)} />
       <CoinShopModal open={shopOpen} onClose={() => setShopOpen(false)} profileId={profile?.id ?? ''} />

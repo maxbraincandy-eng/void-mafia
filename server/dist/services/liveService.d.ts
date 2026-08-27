@@ -80,10 +80,17 @@ export declare function endLive(hostId: string, opts?: {
 /**
  * "Still here."
  *
- * Returns false when the session is gone, which is the client's signal to stop
- * showing a broadcast screen for a stream that no longer exists.
+ * Returns the session id, or null when the session is gone — which is the
+ * client's signal to stop showing a broadcast screen for a stream that no
+ * longer exists.
+ *
+ * The id is returned rather than a bare `true` because the socket layer uses
+ * the beat to re-join the host to their own broadcast room. A host whose phone
+ * changed networks gets a new socket, and a new socket is in no rooms — without
+ * something that re-joins on a schedule, they carry on broadcasting to a room
+ * they are no longer listening to, and their viewer count freezes.
  */
-export declare function beat(hostId: string): Promise<boolean>;
+export declare function beat(hostId: string): Promise<string | null>;
 /**
  * End every session that has stopped beating.
  *
@@ -100,16 +107,44 @@ export declare function reapStale(): Promise<number>;
  */
 export declare function joinLive(sessionId: string, userId: string): Promise<LiveSession | null>;
 export declare function leaveLive(sessionId: string, userId: string): Promise<number>;
-/** Somebody left the app entirely — drop them from whatever they were watching. */
-export declare function forgetViewer(userId: string): string[];
+/**
+ * Somebody left the app entirely — drop them from whatever they were watching.
+ *
+ * The remaining count comes back with each session because the caller has to
+ * broadcast it, and it has no other way to know. The first version returned
+ * only the ids and the socket layer then announced `viewers: 0` for each — so
+ * one person of thirty closing a tab emptied the room on everybody's screen.
+ */
+export declare function forgetViewer(userId: string): {
+    sessionId: string;
+    viewers: number;
+}[];
+/**
+ * Who is in the room right now, with enough to draw them.
+ *
+ * The count alone answers "is anyone there"; a host talking to a camera wants
+ * the other half of that — which is why every product that ships a count also
+ * ships the list behind it.
+ */
+export declare function viewersOf(sessionId: string): Promise<LiveViewer[]>;
+export interface LiveViewer {
+    userId: string;
+    name: string;
+    avatar: string;
+    avatarUrl: string | null;
+}
 /**
  * A heart.
  *
  * Counted, not stored. At a few taps a second per viewer the individual
  * reactions are worth nothing an hour later and a great deal of write traffic
  * now — the burst is the point, and the burst is broadcast, not persisted.
+ *
+ * The running total comes back so it can ride along on the broadcast. A host
+ * only ever saw hearts as animations flying past, which is unreadable as a
+ * quantity: two hundred hearts and twenty look the same at a glance.
  */
-export declare function addHearts(sessionId: string, n?: number): Promise<void>;
+export declare function addHearts(sessionId: string, n?: number): Promise<number>;
 export declare function getSession(sessionId: string): Promise<LiveSession | null>;
 /** Everybody broadcasting right now, newest first. */
 export declare function listLive(limit?: number): Promise<LiveSession[]>;

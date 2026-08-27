@@ -9,7 +9,6 @@ import { PostCardV2 } from '@/components/community/PostCardV2';
 import { PostComposerV2 } from '@/components/community/PostComposerV2';
 import { GoLive } from '@/components/live/GoLive';
 import { LiveStrip, LiveDot } from '@/components/live/LiveStrip';
-import { LiveViewer } from '@/components/live/LiveViewer';
 import { AvatarStatusStyles } from '@/components/community/shared';
 import { useLiveStore } from '@/store/liveStore';
 import { FriendsPresenceStrip } from '@/components/community/FriendsPresenceStrip';
@@ -27,15 +26,6 @@ export function FeedTabV2({ onOpenProfile, onOpenMyProfile }: { onOpenProfile: (
   const [loadingMore, setLoadingMore] = useState(false);
   const [showComposer, setShowComposer] = useState(false);
   const [showGoLive, setShowGoLive] = useState(false);
-  /*
-   * A session id when watching somebody.
-   *
-   * Set by tapping any live avatar anywhere in the feed — the avatar asks the
-   * store rather than being handed a callback through every card and comment
-   * row that renders one.
-   */
-  const watchingLive = useLiveStore(s => s.watchRequest);
-  const clearWatchRequest = useLiveStore(s => s.clearWatchRequest);
   /*
    * Am I live?
    *
@@ -346,8 +336,10 @@ export function FeedTabV2({ onOpenProfile, onOpenMyProfile }: { onOpenProfile: (
 
       <AnimatePresence>
         {showComposer && <PostComposerV2 onClose={() => setShowComposer(false)} />}
+        {/* The viewer itself is a global overlay in `App.tsx` — tapping a live
+            avatar has to work from a lobby and a profile too, and mounting it
+            here as well would join and leave the room twice. */}
         {showGoLive && <GoLive onClose={() => setShowGoLive(false)} />}
-        {watchingLive && <LiveViewer sessionId={watchingLive} onClose={clearWatchRequest} />}
       </AnimatePresence>
     </div>
   );

@@ -474,11 +474,23 @@ export async function toggleLiveKitMic(): Promise<void> {
   await setLiveKitMic(!state.micEnabled);
 }
 
-/** Enable/disable the local camera (publishes video to the room). */
-export async function setLiveKitCamera(enabled: boolean): Promise<void> {
+/**
+ * Enable/disable the local camera (publishes video to the room).
+ *
+ * `facingMode` re-acquires from the other lens, which is what a flip is: there
+ * is no way to turn a published front-camera track around, so the capture is
+ * replaced. Calling it while already on is how a host switches mid-broadcast.
+ */
+export async function setLiveKitCamera(
+  enabled: boolean,
+  opts?: { facingMode?: 'user' | 'environment' },
+): Promise<void> {
   if (!room) return;
   try {
-    await room.localParticipant.setCameraEnabled(enabled);
+    await room.localParticipant.setCameraEnabled(
+      enabled,
+      opts?.facingMode ? { facingMode: opts.facingMode } : undefined,
+    );
   } catch (e: any) {
     patch({ error: friendlyLiveKitError(e), rev: ++_rev });
     return;

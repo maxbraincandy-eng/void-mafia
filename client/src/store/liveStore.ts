@@ -29,6 +29,14 @@ export interface LiveInfo {
   viewers: number;
 }
 
+/** "Somebody you follow just went live" — shown once, then gone. */
+export interface LiveInvite {
+  hostId: string;
+  hostName: string;
+  sessionId: string;
+  title: string;
+}
+
 /** Long enough to be a cache, short enough that a dead ring clears itself. */
 const TTL_MS = 30_000;
 
@@ -53,6 +61,17 @@ interface LiveState {
   watchRequest: string | null;
   requestWatch: (sessionId: string) => void;
   clearWatchRequest: () => void;
+
+  /**
+   * The announcement, waiting for a screen to draw it.
+   *
+   * A broadcast nobody is watching is the failure mode of the whole feature,
+   * and the strip only catches whoever happens to be looking at the feed. This
+   * is the server telling somebody who follows the host, wherever they are in
+   * the app.
+   */
+  invite: LiveInvite | null;
+  clearInvite: () => void;
 }
 
 let pending = new Set<string>();
@@ -113,6 +132,9 @@ export const useLiveStore = create<LiveState>((set, get) => ({
   watchRequest: null,
   requestWatch: sessionId => set({ watchRequest: sessionId }),
   clearWatchRequest: () => set({ watchRequest: null }),
+
+  invite: null,
+  clearInvite: () => set({ invite: null }),
 }));
 
 /**
@@ -126,5 +148,18 @@ socket.on('live:started' as any, (d: any) => {
   if (d?.hostId) useLiveStore.getState().setLive(d.hostId, { sessionId: d.sessionId, title: d.title ?? '', viewers: 0 });
 });
 socket.on('live:stopped' as any, (d: any) => {
-  if (d?.hostId) useLiveStore.getState().setLive(d.hostId, null);
+  if (!d?.hostId) return;
+  const s = useLiveStore.getState();
+  s.setLive(d.hostId, null);
+  // An invitation to a stream that has already ended is worse than none — it is
+  // a tap that lands on "ეთერი დასრულდა".
+  if (s.invite?.hostId === d.hostId) s.clearInvite();
+});
+
+/** Somebody this account follows went live. Only the server decides who. */
+socket.on('live:invite' as any, (d: any) => {
+  if (!d?.sessionId || !d?.hostId) return;
+  useLiveStore.setState({
+    invite: { hostId: d.hostId, hostName: d.hostName ?? '', sessionId: d.sessionId, title: d.title ?? '' },
+  });
 });

@@ -215,7 +215,7 @@ import {
   listFeed, createPost, deletePost, toggleLike, getComments, addComment, deleteComment, reportPost,
   toggleCommentLike, toggleCommentReaction, editPost, notifyMentions,
   listCommunityReports, resolveCommunityReport,
-  follow, unfollow, getCommunityProfile,
+  follow, unfollow, getCommunityProfile, getFollowerIds,
   listEvents, createEvent, joinEvent, leaveEvent,
   createNotification, notifyFollowers, notifyAllPlayers,
   listNotifications, getUnreadNotificationCount, markNotificationsRead,
@@ -268,10 +268,9 @@ import { award, getCharacter, legacyLeaderboard, legacyBadges } from './services
 import { listMatchesForMod, isHostedMatch, dissolveMatch as dissolveHostedMatch } from './services/sxvaMafiaService.js';
 import { broadcastHostedState, broadcastHostedList } from './sxvaMafia.js';
 import {
-  startLive, endLive, beat as liveBeat, joinLive, leaveLive, forgetViewer,
-  addHearts, getSession, listLive, liveMap, myLive, reapStale, roomFor,
-  BEAT_INTERVAL_MS,
+  forgetViewer, reapStale, roomFor, BEAT_INTERVAL_MS,
 } from './services/liveService.js';
+import { registerLiveHandlers } from './liveSocket.js';
 import { buildIceConfig } from './lib/iceConfig.js';
 
 // ── Rate limiting ─────────────────────────────────────────────────────
@@ -1335,6 +1334,7 @@ function assertInviteAllowance(fromId: string, toId: string, context: string): v
   _invitePairs.set(pair, now);
   if (_invitePairs.size > 5000) for (const [k, t] of _invitePairs) if (now - t > INVITE_PAIR_COOLDOWN) _invitePairs.delete(k);
 }
+
 
 // ── Smart presence notifications ──────────────────────────────────────
 // Tell a player's friends when they start something worth joining (created a
@@ -7652,157 +7652,14 @@ export function attachSocketHandlers(io: AppServer): void {
     /*
      * ── Going live ────────────────────────────────────────────────────────
      *
-     * The media is LiveKit's — a broadcast is a room like any other, and the
-     * viewer gets a token for it the same way a voice room does. What lives
-     * here is everything LiveKit does not know: who is live, what they called
-     * it, how many are watching and what the peak was.
+     * The handlers live in `liveSocket.ts`. Not for tidiness: the socket tests
+     * could not import this file — it drags in every game in the app — so they
+     * re-implemented the live handlers standalone, agreed with their own copy,
+     * and passed while the real one was missing the line that put a host into
+     * their own broadcast room. Both sides call the same function now.
      */
+    registerLiveHandlers(io, socket as any, { rateOk, ok, err });
 
-    socket.on('live:start' as any, async (data: any, cb: any) => {
-      try {
-        const me = socket.data.profileId;
-        if (!me) { cb(err('Not authenticated.')); return; }
-        const session = await startLive(me, {
-          title: data?.title,
-          visibility: data?.visibility === 'friends' ? 'friends' : 'public',
-          gameContext: data?.gameContext ?? null,
-        });
-        // Everybody's avatars need to learn about this, so it goes out wide
-        // rather than to a room nobody has joined yet.
-        io.emit('live:started' as any, { hostId: me, sessionId: session.id, title: session.title });
-        cb(ok(session));
-      } catch (e: any) { cb(err(e?.message ?? 'ვერ დაიწყო')); }
-    });
-
-    socket.on('live:end' as any, async (payload: any, cb: any) => {
-      const ack = typeof payload === 'function' ? payload : cb;
-      if (typeof ack !== 'function') return;
-      try {
-        const me = socket.data.profileId;
-        if (!me) { ack(err('Not authenticated.')); return; }
-        const summary = await endLive(me);
-        if (summary) {
-          io.to(roomFor(summary.id)).emit('live:ended' as any, { sessionId: summary.id });
-          io.emit('live:stopped' as any, { hostId: me, sessionId: summary.id });
-        }
-        ack(ok(summary));
-      } catch (e: any) { ack(err(e?.message ?? 'ვერ დასრულდა')); }
-    });
-
-    /*
-     * "Still here."
-     *
-     * A host whose phone dies never sends an end, and without this their avatar
-     * would wear a LIVE ring until somebody noticed. `false` back means the
-     * session is gone and the client should stop showing a broadcast screen for
-     * a stream that no longer exists.
-     */
-    socket.on('live:beat' as any, async (payload: any, cb: any) => {
-      const ack = typeof payload === 'function' ? payload : cb;
-      if (typeof ack !== 'function') return;
-      try {
-        const me = socket.data.profileId;
-        ack(ok(me ? await liveBeat(me) : false));
-      } catch { ack(ok(false)); }
-    });
-
-    socket.on('live:join' as any, async (data: any, cb: any) => {
-      try {
-        const me = socket.data.profileId;
-        if (!me) { cb(err('Not authenticated.')); return; }
-        const sessionId = String(data?.sessionId ?? '');
-        const session = await joinLive(sessionId, me);
-        if (!session) { cb(err('ეთერი დასრულებულია')); return; }
-        socket.join(roomFor(sessionId));
-        const who = await getPlayer(me);
-        // Everyone in the room, including the host, sees the count move and the
-        // "somebody joined" toast.
-        io.to(roomFor(sessionId)).emit('live:viewers' as any, {
-          sessionId, viewers: session.viewers,
-          joined: { userId: me, name: who?.username ?? '' },
-        });
-        cb(ok(session));
-      } catch (e: any) { cb(err(e?.message ?? 'ვერ შეუერთდა')); }
-    });
-
-    socket.on('live:leave' as any, async (data: any, cb: any) => {
-      try {
-        const me = socket.data.profileId;
-        const sessionId = String(data?.sessionId ?? '');
-        if (!me || !sessionId) { if (typeof cb === 'function') cb(ok(null)); return; }
-        const viewers = await leaveLive(sessionId, me);
-        socket.leave(roomFor(sessionId));
-        io.to(roomFor(sessionId)).emit('live:viewers' as any, { sessionId, viewers });
-        if (typeof cb === 'function') cb(ok(null));
-      } catch { if (typeof cb === 'function') cb(ok(null)); }
-    });
-
-    /*
-     * Hearts.
-     *
-     * Broadcast, and counted in aggregate — never stored one by one. At a few
-     * taps a second per viewer the individual reactions are worth nothing an
-     * hour later and a great deal of write traffic now.
-     */
-    socket.on('live:heart' as any, async (data: any) => {
-      try {
-        const me = socket.data.profileId;
-        const sessionId = String(data?.sessionId ?? '');
-        if (!me || !sessionId) return;
-        if (!rateOk(`heart_${socket.id}`, 12)) return;
-        await addHearts(sessionId, 1);
-        socket.to(roomFor(sessionId)).emit('live:hearted' as any, { sessionId, userId: me });
-      } catch { /* a dropped heart is not worth an error */ }
-    });
-
-    /*
-     * A comment during a broadcast.
-     *
-     * Relayed and never stored. A live chat is the moment it happens in — a
-     * transcript nobody can scroll back through is not worth the writes, and
-     * the overlay only ever shows the last handful anyway.
-     */
-    socket.on('live:comment' as any, async (data: any) => {
-      try {
-        const me = socket.data.profileId;
-        const sessionId = String(data?.sessionId ?? '');
-        const text = String(data?.text ?? '').trim().slice(0, 200);
-        if (!me || !sessionId || !text) return;
-        if (!rateOk(`livechat_${socket.id}`, 10)) return;
-        const who = await getPlayer(me);
-        io.to(roomFor(sessionId)).emit('live:comment' as any, {
-          sessionId, userId: me, name: who?.username ?? '', text, at: Date.now(),
-        });
-      } catch { /* a dropped comment is not worth an error */ }
-    });
-
-    socket.on('live:list' as any, async (payload: any, cb: any) => {
-      const ack = typeof payload === 'function' ? payload : cb;
-      if (typeof ack !== 'function') return;
-      try { ack(ok(await listLive(50))); } catch (e: any) { ack(err(e?.message ?? 'Failed.')); }
-    });
-
-    socket.on('live:session' as any, async (data: any, cb: any) => {
-      try { cb(ok(await getSession(String(data?.sessionId ?? '')))); }
-      catch (e: any) { cb(err(e?.message ?? 'Failed.')); }
-    });
-
-    socket.on('live:mine' as any, async (payload: any, cb: any) => {
-      const ack = typeof payload === 'function' ? payload : cb;
-      if (typeof ack !== 'function') return;
-      try {
-        const me = socket.data.profileId;
-        ack(ok(me ? await myLive(me) : null));
-      } catch (e: any) { ack(err(e?.message ?? 'Failed.')); }
-    });
-
-    /** Which of these people are live — one question for a screenful of avatars. */
-    socket.on('live:who' as any, async (data: any, cb: any) => {
-      try {
-        const ids = Array.isArray(data?.userIds) ? data.userIds.map(String) : [];
-        cb(ok(await liveMap(ids)));
-      } catch (e: any) { cb(err(e?.message ?? 'Failed.')); }
-    });
 
     /*
      * ── Legacy character ──────────────────────────────────────────────────
@@ -10002,8 +9859,11 @@ export function attachSocketHandlers(io: AppServer): void {
       {
         const gone = socket.data.profileId;
         if (gone) {
-          for (const sessionId of forgetViewer(gone)) {
-            io.to(roomFor(sessionId)).emit('live:viewers' as any, { sessionId, viewers: 0 });
+          // The remaining count, not zero. Announcing zero for every session the
+          // leaver touched emptied a roomful of thirty on everybody's screen the
+          // moment one of them closed a tab.
+          for (const { sessionId, viewers } of forgetViewer(gone)) {
+            io.to(roomFor(sessionId)).emit('live:viewers' as any, { sessionId, viewers, left: { userId: gone } });
           }
         }
       }
