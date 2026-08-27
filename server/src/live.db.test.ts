@@ -51,10 +51,15 @@ beforeEach(async () => {
   }
 });
 
+/*
+ * `_` is a single-character wildcard in LIKE, so an unescaped 'lv_%' also
+ * matches 'lve_host' — which is how this file's cleanup started deleting the
+ * socket test's fixtures the first time the two ran in one process.
+ */
 async function clean(): Promise<void> {
-  await db.sql`DELETE FROM live_viewers WHERE user_id LIKE 'lv_%' OR session_id IN (SELECT id FROM live_sessions WHERE host_id LIKE 'lv_%')`;
-  await db.sql`DELETE FROM live_sessions WHERE host_id LIKE 'lv_%'`;
-  await db.sql`DELETE FROM players WHERE id LIKE 'lv_%'`;
+  await db.sql`DELETE FROM live_viewers WHERE user_id LIKE 'lv\\_%' OR session_id IN (SELECT id FROM live_sessions WHERE host_id LIKE 'lv\\_%')`;
+  await db.sql`DELETE FROM live_sessions WHERE host_id LIKE 'lv\\_%'`;
+  await db.sql`DELETE FROM players WHERE id LIKE 'lv\\_%'`;
   // The viewer sets are module state; drop anybody these tests put in them.
   L?.forgetViewer(V1); L?.forgetViewer(V2); L?.forgetViewer(HOST);
 }

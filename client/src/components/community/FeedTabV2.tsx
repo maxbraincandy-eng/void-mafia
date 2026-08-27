@@ -8,6 +8,7 @@ import { Spinner, EmptyState } from '@/components/community/shared';
 import { PostCardV2 } from '@/components/community/PostCardV2';
 import { PostComposerV2 } from '@/components/community/PostComposerV2';
 import { GoLive } from '@/components/live/GoLive';
+import { LiveStrip, LiveDot } from '@/components/live/LiveStrip';
 import { LiveViewer } from '@/components/live/LiveViewer';
 import { AvatarStatusStyles } from '@/components/community/shared';
 import { useLiveStore } from '@/store/liveStore';
@@ -35,6 +36,15 @@ export function FeedTabV2({ onOpenProfile, onOpenMyProfile }: { onOpenProfile: (
    */
   const watchingLive = useLiveStore(s => s.watchRequest);
   const clearWatchRequest = useLiveStore(s => s.clearWatchRequest);
+  /*
+   * Am I live?
+   *
+   * Read from the same store the strip fills, so going live on a phone shows
+   * on a laptop — the one thing a host most needs to be able to check, and it
+   * had no answer anywhere in the app.
+   */
+  const myProfileId = useAuthStore(s => s.profile?.id) ?? '';
+  const iAmLive = useLiveStore(s => Boolean(myProfileId && s.live[myProfileId]));
 
   // Track cached length without making it a useCallback dep (avoids infinite reload loop)
   const cachedLenRef = useRef(feedV2Posts.length);
@@ -203,20 +213,29 @@ export function FeedTabV2({ onOpenProfile, onOpenMyProfile }: { onOpenProfile: (
       <div className="flex items-center justify-between mb-1">
         <h2 className="font-display font-bold text-white text-lg">{t.community.feed.title}</h2>
         {/*
-          Going live sits beside posting, not inside it.
+          The two actions are one group, on the right.
 
-          The spec offers either a Post/Story/Live selector inside the composer
-          or a button of its own. Its own, because the other two open a form and
-          this opens a camera — burying "the camera turns on now" one level
-          inside a sheet that otherwise writes text is how somebody goes live by
-          accident.
+          They were three children of a `justify-between` row, so the browser
+          spread them evenly and put a hand's width of nothing between "go live"
+          and "post" — the header read as three unrelated things rather than a
+          title and its actions.
+
+          Going live is its own button rather than a tab inside the composer:
+          the other two open a form and this opens a camera, and burying "the
+          camera turns on now" inside a sheet that otherwise writes text is how
+          somebody goes live by accident.
         */}
+        <div className="flex items-center gap-2">
         <button
           onClick={() => setShowGoLive(true)}
-          className="w-9 h-9 rounded-full flex items-center justify-center text-[15px] transition-all active:scale-90 mr-2"
-          style={{ background: 'rgba(255,45,85,0.16)', border: '1px solid rgba(255,45,85,0.5)' }}
-          title="პირდაპირი ეთერი"
-        >📡</button>
+          className="w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-90"
+          style={{
+            background: iAmLive ? 'rgba(255,45,85,0.9)' : 'rgba(255,45,85,0.14)',
+            border: `1px solid ${iAmLive ? '#ff2d55' : 'rgba(255,45,85,0.45)'}`,
+            animation: iAmLive ? 'liveRingPulse 1.8s ease-in-out infinite' : undefined,
+          }}
+          title={iAmLive ? 'შენ ეთერში ხარ' : 'პირდაპირი ეთერი'}
+        ><LiveDot size={15} color={iAmLive ? '#fff' : '#ff5c7a'} /></button>
         <button
           onClick={() => setShowComposer(true)}
           className="w-9 h-9 rounded-full flex items-center justify-center text-lg transition-all active:scale-90"
@@ -224,7 +243,15 @@ export function FeedTabV2({ onOpenProfile, onOpenMyProfile }: { onOpenProfile: (
         >
           +
         </button>
+        </div>
       </div>
+
+      {/* Who is on air, above the stories row: a broadcast is happening now and
+          a story happened earlier. */}
+      <LiveStrip
+        onWatch={id => useLiveStore.getState().requestWatch(id)}
+        onResume={() => setShowGoLive(true)}
+      />
 
       {/* Active hashtag */}
       {activeHashtag && (
