@@ -101,6 +101,8 @@ interface Result {
   provisional: boolean;
   /** Ordinary crop-and-resize from the same source, for the benchmark pane. */
   plain: Pixels | null;
+  /** The zoom the shot was actually taken at. */
+  shotZoom: number;
 }
 
 export function CameraSpace({ onClose }: { onClose: () => void }) {
@@ -283,7 +285,7 @@ export function CameraSpace({ onClose }: { onClose: () => void }) {
           enhanced: frames[sharpest.index], original: frames[sharpest.index],
           source: shot.source === 'photo' ? 'სენსორი' : 'ვიდეო',
           merged: 1, agreement: 1, reconstructed: 0, rejected: picked.rejected.length,
-          provisional: true, plain: null,
+          provisional: true, plain: null, shotZoom: zoom,
         });
         setPhase('result');
       });
@@ -325,6 +327,7 @@ export function CameraSpace({ onClose }: { onClose: () => void }) {
          * have produced from the identical frame, and this is that image.
          */
         plain: digitallyZoomed ? plainDigitalZoom(shot.frames[refIdx] ?? shot.frames[0], zoom, facing === 'user', enhanced.width) : null,
+        shotZoom: zoom,
       });
       setShowOriginal(false);
       setSaved(null);
@@ -586,7 +589,14 @@ export function CameraSpace({ onClose }: { onClose: () => void }) {
 
       <AnimatePresence>
         {inspect && result && (
-          <PixelInspector onClose={() => setInspect(false)} panes={[
+          <PixelInspector onClose={() => setInspect(false)}
+            note={
+              result.plain
+                ? `${result.shotZoom}× ზუმი · ${result.merged} კადრი` +
+                  (result.reconstructed > 1 ? ` · ${result.reconstructed}× აღდგენა` : ' · აღდგენის გარეშე')
+                : `1× — ზუმი არ გამოყენებულა, ეს მარჯვნივ ორიგინალია და არა ციფრული ზუმი`
+            }
+            panes={[
             { label: 'გამოთვლითი ზუმი', src: pixelsToDataUrl(result.enhanced, 0.98) },
             /*
              * The benchmark. At 1× there is no digital zoom to compare against,

@@ -287,3 +287,68 @@ test('the report says which frame led and how well they agreed', { timeout: 120_
   assert.ok(report.agreement > 0 && report.agreement <= 1);
   assert.equal(report.offsets[report.reference].dx, 0, 'the reference does not move relative to itself');
 });
+
+// ── Interpolation, found in a real photograph ─────────────────────────────────
+
+test('merging does not trade fine detail away for noise reduction', { timeout: 300_000 }, () => {
+  /*
+   * Found by looking at an actual photo, not by reasoning about the code.
+   *
+   * Small text on a screen came back cleaner than the frame it was merged from
+   * — and slightly softer. Every frame except the reference is sampled at a
+   * fractional offset, so the interpolator's frequency response is applied to
+   * eleven twelfths of the evidence in a twelve-frame burst, and bilinear
+   * attenuates high frequencies. Measured against a noise-free truth it came
+   * out 3.2% below in gradient energy: real detail, quietly spent on noise.
+   *
+   * Catmull-Rom costs four times the taps and brings that to 0.6%. The merged
+   * result must stay close to the truth AND below the noisy reference — above
+   * the reference would mean it had amplified grain rather than removed it.
+   */
+  const fine = (w: number, h: number, ox = 0, oy = 0): Pixels => {
+    const data = new Uint8ClampedArray(w * h * 4);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const sx = x + ox, sy = y + oy;
+        let v = 128 + 50 * Math.sin(sx * 1.15) + 40 * Math.sin(sy * 0.95) + 30 * Math.sin((sx + sy) * 0.7);
+        if (((sx / 5) | 0) % 2 === 0 && ((sy / 9) | 0) % 2 === 0) v += 45;
+        const p = (y * w + x) * 4;
+        data[p] = data[p + 1] = data[p + 2] = Math.max(0, Math.min(255, v));
+        data[p + 3] = 255;
+      }
+    }
+    return { data, width: w, height: h };
+  };
+
+  const edges = (im: Pixels) => {
+    let t = 0, n = 0;
+    for (let y = 8; y < im.height - 8; y++) {
+      for (let x = 8; x < im.width - 8; x++) {
+        const p = (y * im.width + x) * 4;
+        t += Math.abs(im.data[p + 4] - im.data[p - 4])
+          + Math.abs(im.data[p + im.width * 4] - im.data[p - im.width * 4]);
+        n++;
+      }
+    }
+    return t / n;
+  };
+
+  const truth = fine(260, 260);
+  const frames: Pixels[] = [];
+  for (let i = 0; i < 10; i++) {
+    frames.push(withNoise(fine(260, 260, (i * 0.37) % 1.9 - 0.95, (i * 0.61) % 1.9 - 0.95), 14, (i + 1) * 7919));
+  }
+
+  const { merged, report } = mergeBurst(frames);
+  const ref = frames[report.reference];
+
+  assert.ok(edges(merged) > edges(truth) * 0.97,
+    `merged ${edges(merged).toFixed(1)} against truth ${edges(truth).toFixed(1)} — detail was spent on noise`);
+  assert.ok(edges(merged) < edges(ref),
+    'merged is grainier than the single frame — it amplified noise instead of removing it');
+});
+
+test('cubic sampling is what keeps that detail, and is the default', { timeout: 300_000 }, () => {
+  // If the default ever flips back to bilinear, the softening returns silently.
+  assert.equal(MERGE_DEFAULTS.cubic, true);
+});

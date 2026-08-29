@@ -49,7 +49,19 @@ export interface InspectPane {
 
 type Mode = 'split' | 'side';
 
-export function PixelInspector({ panes, onClose }: { panes: InspectPane[]; onClose: () => void }) {
+export function PixelInspector({ panes, note, onClose }: {
+  panes: InspectPane[];
+  /**
+   * What shot these panes came from — zoom, frames, reconstruction.
+   *
+   * Added after a comparison was made at 1× and read as though it tested the
+   * zoom pipeline. The right-hand pane's label does say which it is, but a
+   * label that has to be noticed is a label that will not be, and a benchmark
+   * nobody can tell the conditions of is not a benchmark.
+   */
+  note?: string;
+  onClose: () => void;
+}) {
   const [images, setImages] = useState<(HTMLImageElement | null)[]>([]);
   const [extra, setExtra] = useState<InspectPane[]>([]);
   const [mode, setMode] = useState<Mode>('side');
@@ -118,6 +130,10 @@ export function PixelInspector({ panes, onClose }: { panes: InspectPane[]; onClo
             onChange={e => { const f = e.target.files?.[0]; if (f) importReference(f); }} />
         </label>
       </div>
+
+      {note && (
+        <p className="px-3 pb-1.5 font-mono text-[10.5px]" style={{ color: '#8fb0dd' }}>{note}</p>
+      )}
 
       {/* ── Panels ─────────────────────────────────────────────────────────── */}
       <div className="flex-1 min-h-0 px-2 pb-2">
