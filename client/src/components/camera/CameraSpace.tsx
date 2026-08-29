@@ -33,6 +33,7 @@ import {
   type Facing, type CaptureCapabilities,
 } from '@/lib/cameraCapture';
 import { NATURAL, ZOOMED, type Pixels } from '@/lib/photoPipeline';
+import { MAX_HONEST_SCALE } from '@/lib/superResolve';
 
 const ACCENT = '#4a76c4';
 const GOLD = '#ffcc33';
@@ -65,6 +66,8 @@ interface Result {
   merged: number;
   /** 0..1 — how much of the burst agreed. Low means the scene was moving. */
   agreement: number;
+  /** Reconstruction factor, or 0 when the burst could not support one. */
+  reconstructed: number;
 }
 
 export function CameraSpace({ onClose }: { onClose: () => void }) {
@@ -159,31 +162,52 @@ export function CameraSpace({ onClose }: { onClose: () => void }) {
       // Zoom and mirror every frame before merging, not after: the merge
       // aligns them against each other, and it can only do that while they
       // are all in the same geometry.
+      /*
+       * Zoom, and the one decision that makes computational zoom worth having.
+       *
+       * The obvious implementation crops to the zoom factor and enlarges. That
+       * throws pixels away and then asks an upscaler to invent them back.
+       *
+       * Instead, when a burst is available, the crop is made SHALLOWER by the
+       * reconstruction factor and the finer grid makes up the difference. A 4×
+       * shot crops to 2× and reconstructs 2×, so the output is built from four
+       * times the sensor area — real measurements rather than interpolation.
+       */
+      const digitallyZoomed = zoom > 1 && !opticallyZoomed;
+      const useSR = digitallyZoomed && frames.length > 1 && zoom >= MAX_HONEST_SCALE;
+      const cropZoom = useSR ? zoom / MAX_HONEST_SCALE : zoom;
+
       frames = frames.map(f => {
-        let p = applyDigitalZoom(f, zoom, opticallyZoomed);
+        let p = applyDigitalZoom(f, cropZoom, opticallyZoomed);
         if (facing === 'user') p = mirrorPixels(p);
         return p;
       });
-
-      const digitallyZoomed = zoom > 1 && !opticallyZoomed;
       /*
        * Merging and enhancing both happen off the main thread. Between them
        * this is several seconds on a large photo, and several seconds on the
        * main thread is a spinner that does not turn and taps that do nothing,
        * which reads as a crash rather than as work.
        */
-      const { pixels: enhanced, report } = await processOffThread(
-        frames, digitallyZoomed ? ZOOMED : NATURAL,
+      const { pixels: enhanced, report, sr } = await processOffThread(
+        frames, digitallyZoomed ? ZOOMED : NATURAL, { superResolve: useSR },
       );
 
-      const used = frames.length - (report?.dropped ?? 0);
-      const base = report ? frames[report.reference] : frames[0];
+      const used = frames.length - ((report?.dropped ?? sr?.dropped) ?? 0);
+      const refIdx = report?.reference ?? sr?.reference ?? 0;
       setResult({
         enhanced,
-        original: base,
+        original: frames[refIdx] ?? frames[0],
         source: shot.source === 'photo' ? 'სენსორი' : 'ვიდეო',
         merged: used,
         agreement: report?.agreement ?? 1,
+        /*
+         * Only claimed when it happened AND the burst actually had the
+         * sub-pixel spread to support it. A steady hand, or stabilisation that
+         * cancelled the tremor, means the frames re-measured the same phases
+         * and there was nothing extra to recover — saying otherwise would be
+         * the overclaim the whole pipeline is built to avoid.
+         */
+        reconstructed: sr && sr.phaseDiversity > 0.25 ? sr.scale : 0,
       });
       setShowOriginal(false);
       setSaved(null);
@@ -349,6 +373,19 @@ export function CameraSpace({ onClose }: { onClose: () => void }) {
                 <span className="px-2.5 py-1 rounded-lg font-mono text-[10.5px]"
                   style={{ background: 'rgba(0,0,0,0.55)', border: `1px solid ${GOLD}66`, color: '#ffe6a0' }}>
                   {result.merged}× შერწყმა
+                </span>
+              )}
+              {result.reconstructed > 1 && (
+                /*
+                 * Said only when the burst genuinely carried the sub-pixel
+                 * spread to support it — `reconstructed` is already 0 when it
+                 * did not. "Reconstruction" here means measurements from
+                 * several frames placed on a finer grid, not a model inventing
+                 * detail, and the wording stays on the right side of that.
+                 */
+                <span className="px-2.5 py-1 rounded-lg font-mono text-[10.5px]"
+                  style={{ background: 'rgba(0,0,0,0.55)', border: `1px solid ${ACCENT}88`, color: '#cfe0ff' }}>
+                  {result.reconstructed}× აღდგენა
                 </span>
               )}
               {result.merged > 1 && result.agreement < 0.5 && (

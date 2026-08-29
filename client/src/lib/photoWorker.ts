@@ -18,11 +18,17 @@
 
 import { enhance, type EnhanceOptions, type Pixels } from './photoPipeline';
 import { mergeBurst, type MergeReport } from './burstMerge';
+import { superResolve, MAX_HONEST_SCALE, type SuperResolveReport } from './superResolve';
 
 interface Request {
   /** One or more frames. Two or more are aligned and merged before enhancing. */
   frames: { data: Uint8ClampedArray; width: number; height: number }[];
   options: EnhanceOptions;
+  /**
+   * Reconstruct onto a finer grid before enhancing. Set when the shot is
+   * zoomed, since that is the only time a finer grid is worth the cost.
+   */
+  superResolve?: boolean;
 }
 
 self.onmessage = (e: MessageEvent<Request>) => {
@@ -37,8 +43,19 @@ self.onmessage = (e: MessageEvent<Request>) => {
      * anything while they are still directly comparable.
      */
     let report: MergeReport | null = null;
+    let sr: SuperResolveReport | null = null;
     let base: Pixels;
-    if (frames.length > 1) {
+
+    if (frames.length > 1 && e.data.superResolve) {
+      /*
+       * The zoom path. Fusing onto a grid twice as fine recovers detail no
+       * single frame holds — the burst sampled the scene at different sub-pixel
+       * phases, and this is what puts those measurements back together.
+       */
+      const out = superResolve(frames, { scale: MAX_HONEST_SCALE });
+      base = out.image;
+      sr = out.report;
+    } else if (frames.length > 1) {
       const merged = mergeBurst(frames);
       base = merged.merged;
       report = merged.report;
@@ -48,7 +65,7 @@ self.onmessage = (e: MessageEvent<Request>) => {
 
     const out = enhance(base, options);
     (self as unknown as Worker).postMessage(
-      { ok: true, data: out.data, width: out.width, height: out.height, report },
+      { ok: true, data: out.data, width: out.width, height: out.height, report, sr },
       [out.data.buffer as ArrayBuffer],
     );
   } catch (err: any) {

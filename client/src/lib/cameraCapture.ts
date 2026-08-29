@@ -39,6 +39,7 @@
 
 import { crop, zoomRect, lanczosResize, enhance, type Pixels, type EnhanceOptions } from './photoPipeline';
 import { mergeBurst, type MergeReport } from './burstMerge';
+import { superResolve, MAX_HONEST_SCALE, type SuperResolveReport } from './superResolve';
 
 /** Ask for far more than any phone has; the browser negotiates down. */
 const IDEAL_W = 4096;
@@ -437,15 +438,23 @@ export function megapixels(p: Pixels): string {
  */
 export interface ProcessResult {
   pixels: Pixels;
-  /** Present when more than one frame went in. */
+  /** Present when a plain multi-frame merge ran. */
   report: MergeReport | null;
+  /** Present when the burst was reconstructed onto a finer grid instead. */
+  sr: SuperResolveReport | null;
 }
 
-export function processOffThread(frames: Pixels[], options: EnhanceOptions): Promise<ProcessResult> {
+export function processOffThread(
+  frames: Pixels[], options: EnhanceOptions, opts: { superResolve?: boolean } = {},
+): Promise<ProcessResult> {
   const inline = (): ProcessResult => {
+    if (frames.length > 1 && opts.superResolve) {
+      const out = superResolve(frames, { scale: MAX_HONEST_SCALE });
+      return { pixels: enhance(out.image, options), report: null, sr: out.report };
+    }
     const merged = frames.length > 1 ? mergeBurst(frames) : null;
     const base = merged ? merged.merged : frames[0];
-    return { pixels: enhance(base, options), report: merged?.report ?? null };
+    return { pixels: enhance(base, options), report: merged?.report ?? null, sr: null };
   };
 
   return new Promise(resolve => {
@@ -468,7 +477,7 @@ export function processOffThread(frames: Pixels[], options: EnhanceOptions): Pro
     worker.onmessage = (e: MessageEvent<any>) => {
       const d = e.data;
       finish(d?.ok
-        ? { pixels: { data: d.data, width: d.width, height: d.height }, report: d.report ?? null }
+        ? { pixels: { data: d.data, width: d.width, height: d.height }, report: d.report ?? null, sr: d.sr ?? null }
         : inline());
     };
     worker.onerror = () => finish(inline());
@@ -478,6 +487,6 @@ export function processOffThread(frames: Pixels[], options: EnhanceOptions): Pro
      * would neuter these buffers, and one of them is the original the compare
      * button shows.
      */
-    worker.postMessage({ frames, options });
+    worker.postMessage({ frames, options, superResolve: !!opts.superResolve });
   });
 }

@@ -80,9 +80,9 @@ function halve(src: Float32Array, w: number, h: number): { data: Float32Array; w
   return { data: out, w: nw, h: nh };
 }
 
-interface Level { data: Float32Array; w: number; h: number }
+export interface Level { data: Float32Array; w: number; h: number }
 
-function pyramid(luma: Float32Array, w: number, h: number, levels: number): Level[] {
+export function buildPyramid(luma: Float32Array, w: number, h: number, levels = LEVELS): Level[] {
   const out: Level[] = [{ data: luma, w, h }];
   for (let i = 1; i < levels; i++) {
     const prev = out[i - 1];
@@ -95,6 +95,41 @@ function pyramid(luma: Float32Array, w: number, h: number, levels: number): Leve
 // ── Alignment ─────────────────────────────────────────────────────────────────
 
 /**
+ * Sum of SQUARED differences at one candidate offset.
+ *
+ * Used only for the sub-pixel fit, and the distinction matters. Absolute
+ * differences give a cost surface with a sharp V at the minimum; fitting a
+ * parabola through a V systematically pulls the vertex towards the sampled
+ * centre, which showed up as sub-pixel estimates biased by around 0.15px
+ * towards whole numbers. Squared differences are locally quadratic, which is
+ * exactly the shape a parabola is being fitted to.
+ *
+ * That bias was not cosmetic: those fractional offsets ARE the extra
+ * information a multi-frame reconstruction runs on, so quantising them towards
+ * zero quietly threw away most of what super-resolution had to work with.
+ */
+export function ssd(
+  ref: Float32Array, frame: Float32Array, w: number, h: number,
+  dx: number, dy: number, margin: number, stride: number,
+): number {
+  let total = 0;
+  let count = 0;
+  for (let y = margin; y < h - margin; y += stride) {
+    const fy = y + dy;
+    if (fy < 0 || fy >= h) continue;
+    const rowR = y * w, rowF = fy * w;
+    for (let x = margin; x < w - margin; x += stride) {
+      const fx = x + dx;
+      if (fx < 0 || fx >= w) continue;
+      const d = ref[rowR + x] - frame[rowF + fx];
+      total += d * d;
+      count++;
+    }
+  }
+  return count === 0 ? Infinity : total / count;
+}
+
+/**
  * Sum of absolute differences at one candidate offset.
  *
  * Sampled on a stride rather than every pixel: at the resolutions this runs on,
@@ -104,7 +139,7 @@ function pyramid(luma: Float32Array, w: number, h: number, levels: number): Leve
  * The border is skipped by the amount of the search, so a candidate that shifts
  * off the edge is not rewarded for comparing fewer pixels.
  */
-function sad(
+export function sad(
   ref: Float32Array, frame: Float32Array, w: number, h: number,
   dx: number, dy: number, margin: number, stride: number,
 ): number {
@@ -179,7 +214,8 @@ export function alignPair(refPyr: Level[], framePyr: Level[]): { dx: number; dy:
    */
   const base = refPyr[0];
   const f0 = framePyr[0];
-  const at = (ox: number, oy: number) => sad(base.data, f0.data, base.w, base.h, ox, oy, FINE_SEARCH + 2, 4);
+  // Squared, not absolute — see `ssd`. A parabola fitted to a V is biased.
+  const at = (ox: number, oy: number) => ssd(base.data, f0.data, base.w, base.h, ox, oy, FINE_SEARCH + 2, 4);
   const c = at(dx, dy);
   const sub = (minus: number, plus: number) => {
     const denom = minus - 2 * c + plus;
@@ -192,7 +228,13 @@ export function alignPair(refPyr: Level[], framePyr: Level[]): { dx: number; dy:
   return {
     dx: dx + sub(at(dx - 1, dy), at(dx + 1, dy)),
     dy: dy + sub(at(dx, dy - 1), at(dx, dy + 1)),
-    error: c,
+    /*
+     * Rooted back into intensity levels. `c` is a squared cost now, and
+     * returning it raw would silently multiply every caller's rejection
+     * threshold by itself — which briefly turned `maxAlignError: 34` into a
+     * rule that discarded every frame in the burst.
+     */
+    error: Math.sqrt(c),
   };
 }
 
@@ -277,7 +319,7 @@ export function mergeBurst(
   }
 
   const w = first.width, h = first.height;
-  const pyramids = usable.map(f => pyramid(lumaOf(f), w, h, LEVELS));
+  const pyramids = usable.map(f => buildPyramid(lumaOf(f), w, h, LEVELS));
   const refIdx = pickReference(pyramids);
   const ref = usable[refIdx];
 
