@@ -30,8 +30,10 @@ import { createPortal } from 'react-dom';
 import {
   openCamera, captureForMerge, applyDigitalZoom, setOpticalZoom, setTorch,
   pixelsToDataUrl, pixelsToBlob, mirrorPixels, savePhoto, megapixels, processOffThread,
+  acquirePool, releasePool,
   type Facing, type CaptureCapabilities,
 } from '@/lib/cameraCapture';
+import { capability } from '@/lib/deviceTier';
 import { NATURAL, ZOOMED, type Pixels } from '@/lib/photoPipeline';
 import { MAX_HONEST_SCALE } from '@/lib/superResolve';
 import { PixelInspector } from './PixelInspector';
@@ -54,8 +56,6 @@ const ZOOM_STOPS = [1, 1.5, 2, 3, 4];
  * that.
  */
 const FRAMES_FAST = 1;
-const FRAMES_MERGED = 5;
-const BURST_BUDGET_MS = 2200;
 
 type Phase = 'live' | 'working' | 'result';
 
@@ -87,6 +87,20 @@ export function CameraSpace({ onClose }: { onClose: () => void }) {
   const [showOriginal, setShowOriginal] = useState(false);
   const [saved, setSaved] = useState<string | null>(null);
   const [inspect, setInspect] = useState(false);
+  /*
+   * Measured once. Core count and memory do not change while a camera screen
+   * is open, and they decide how much evidence a shot is worth collecting —
+   * fourteen frames on a phone that can chew through them, three on one that
+   * cannot.
+   */
+  const cap = useRef(capability()).current;
+
+  /*
+   * The worker pool lives as long as this screen does. Starting workers costs
+   * tens of milliseconds and a burst would pay it several times per shot;
+   * leaking them would run the phone out of threads by the twentieth photo.
+   */
+  useEffect(() => { acquirePool(); return () => releasePool(); }, []);
 
   // ── The stream ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -150,7 +164,7 @@ export function CameraSpace({ onClose }: { onClose: () => void }) {
 
     try {
       const opticallyZoomed = !!caps?.zoom && zoom > 1;
-      const want = mergeMode ? FRAMES_MERGED : FRAMES_FAST;
+      const want = mergeMode ? cap.frames : FRAMES_FAST;
 
       /*
        * The burst, at whatever resolution this device can burst at. On a phone
@@ -158,7 +172,7 @@ export function CameraSpace({ onClose }: { onClose: () => void }) {
        * close to HDR+ as a browser reaches. Where it is not, it is video
        * frames: smaller, but many, which for a dim scene is the better trade.
        */
-      const shot = await captureForMerge(track, video, want, BURST_BUDGET_MS);
+      const shot = await captureForMerge(track, video, want, cap.burstBudgetMs);
       let frames = shot.frames;
 
       // Zoom and mirror every frame before merging, not after: the merge
@@ -176,7 +190,7 @@ export function CameraSpace({ onClose }: { onClose: () => void }) {
        * times the sensor area — real measurements rather than interpolation.
        */
       const digitallyZoomed = zoom > 1 && !opticallyZoomed;
-      const useSR = digitallyZoomed && frames.length > 1 && zoom >= MAX_HONEST_SCALE;
+      const useSR = cap.superResolve && digitallyZoomed && frames.length > 1 && zoom >= MAX_HONEST_SCALE;
       const cropZoom = useSR ? zoom / MAX_HONEST_SCALE : zoom;
 
       frames = frames.map(f => {
@@ -218,7 +232,7 @@ export function CameraSpace({ onClose }: { onClose: () => void }) {
       setError('სურათი ვერ გადაიღო');
       setPhase('live');
     }
-  }, [phase, caps, zoom, facing, mergeMode]);
+  }, [phase, caps, zoom, facing, mergeMode, cap]);
 
   const save = useCallback(async () => {
     if (!result) return;

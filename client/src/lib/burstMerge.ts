@@ -303,33 +303,46 @@ export const MERGE_DEFAULTS: MergeOptions = { motionThreshold: 22, maxAlignError
  * is precisely the information that lets a merge resolve detail a single frame
  * cannot.
  */
-export function mergeBurst(
-  frames: Pixels[],
-  options: MergeOptions = MERGE_DEFAULTS,
-): { merged: Pixels; report: MergeReport } {
-  if (frames.length === 0) throw new Error('mergeBurst: nothing to merge');
+/**
+ * The alignment plan for a burst.
+ *
+ * Separated from the accumulation on purpose, and the separation is what makes
+ * the merge parallelisable at all. Choosing the reference and measuring the
+ * offsets are decisions about the WHOLE frame — a strip of the image cannot
+ * pick a reference, and two strips that picked different ones would produce a
+ * seam. The accumulation that follows is per-pixel and can be split across as
+ * many cores as the phone has.
+ */
+export interface MergePlan {
+  reference: number;
+  /** Only the frames worth merging, with where to sample each. */
+  contributors: { index: number; dx: number; dy: number }[];
+  offsets: Offset[];
+  dropped: number;
+  /** Frames of matching size, in their original order. */
+  usable: Pixels[];
+}
 
+export function planMerge(frames: Pixels[], options: MergeOptions = MERGE_DEFAULTS): MergePlan {
+  if (frames.length === 0) throw new Error('mergeBurst: nothing to merge');
   const first = frames[0];
   const usable = frames.filter(f => f.width === first.width && f.height === first.height);
+
   if (usable.length === 1) {
-    return {
-      merged: usable[0],
-      report: { reference: 0, offsets: [{ dx: 0, dy: 0 }], dropped: frames.length - 1, agreement: 1 },
-    };
+    return { reference: 0, contributors: [], offsets: [{ dx: 0, dy: 0 }], dropped: frames.length - 1, usable };
   }
 
   const w = first.width, h = first.height;
   const pyramids = usable.map(f => buildPyramid(lumaOf(f), w, h, LEVELS));
-  const refIdx = pickReference(pyramids);
-  const ref = usable[refIdx];
+  const reference = pickReference(pyramids);
 
   const offsets: Offset[] = [];
-  const contributors: { frame: Pixels; dx: number; dy: number }[] = [];
-  let dropped = 0;
+  const contributors: { index: number; dx: number; dy: number }[] = [];
+  let dropped = frames.length - usable.length;
 
   for (let i = 0; i < usable.length; i++) {
-    if (i === refIdx) { offsets[i] = { dx: 0, dy: 0 }; continue; }
-    const { dx, dy, error } = alignPair(pyramids[refIdx], pyramids[i]);
+    if (i === reference) { offsets[i] = { dx: 0, dy: 0 }; continue; }
+    const { dx, dy, error } = alignPair(pyramids[reference], pyramids[i]);
     offsets[i] = { dx, dy };
     /*
      * A frame that will not align is not evidence about this scene — it caught
@@ -337,16 +350,43 @@ export function mergeBurst(
      * uniformly, which is worse than the noise it was brought in to remove.
      */
     if (error > options.maxAlignError) { dropped++; continue; }
-    contributors.push({ frame: usable[i], dx, dy });
+    contributors.push({ index: i, dx, dy });
   }
 
-  const n = w * h;
+  return { reference, contributors, offsets, dropped, usable };
+}
+
+/**
+ * Accumulate a band of output rows from an already-aligned burst.
+ *
+ * `rows` selects the horizontal strip to produce. Every pixel is computed from
+ * the frames independently, so strips do not interact and can be produced
+ * concurrently — which is the whole reason the plan is passed in rather than
+ * recomputed. Sampling reaches outside the strip by the alignment offset, which
+ * is why the caller hands over frames covering a halo and says where the strip
+ * starts within them.
+ */
+export function mergeRows(
+  plan: MergePlan,
+  rows: { y0: number; y1: number },
+  options: MergeOptions = MERGE_DEFAULTS,
+): { data: Uint8ClampedArray; agreementSum: number; samples: number } {
+  const { usable, reference, contributors } = plan;
+  const w = usable[0].width, h = usable[0].height;
+  const y0 = Math.max(0, rows.y0), y1 = Math.min(h, rows.y1);
+  const bandH = Math.max(0, y1 - y0);
+
+  const refData = usable[reference].data;
+  const out = new Uint8ClampedArray(w * bandH * 4);
+  if (bandH === 0) return { data: out, agreementSum: 0, samples: 0 };
+
+  const n = w * bandH;
   const acc = new Float32Array(n * 3);
   const wsum = new Float32Array(n);
-  const refData = ref.data;
 
   // The reference, at full weight everywhere.
-  for (let i = 0, p = 0; i < n; i++, p += 4) {
+  for (let i = 0; i < n; i++) {
+    const p = ((y0 + Math.floor(i / w)) * w + (i % w)) * 4;
     acc[i * 3] = refData[p];
     acc[i * 3 + 1] = refData[p + 1];
     acc[i * 3 + 2] = refData[p + 2];
@@ -357,21 +397,21 @@ export function mergeBurst(
   const inv = 1 / (thr * thr);
   let agreementSum = 0;
 
-  for (const { frame, dx, dy } of contributors) {
-    const d = frame.data;
-    for (let y = 0; y < h; y++) {
+  for (const { index, dx, dy } of contributors) {
+    const d = usable[index].data;
+    for (let y = y0; y < y1; y++) {
       const sy = y + dy;
-      const y0 = Math.floor(sy);
-      const fy = sy - y0;
-      const ya = Math.max(0, Math.min(h - 1, y0));
-      const yb = Math.max(0, Math.min(h - 1, y0 + 1));
+      const yi = Math.floor(sy);
+      const fy = sy - yi;
+      const ya = Math.max(0, Math.min(h - 1, yi));
+      const yb = Math.max(0, Math.min(h - 1, yi + 1));
 
       for (let x = 0; x < w; x++) {
         const sx = x + dx;
-        const x0 = Math.floor(sx);
-        const fx = sx - x0;
-        const xa = Math.max(0, Math.min(w - 1, x0));
-        const xb = Math.max(0, Math.min(w - 1, x0 + 1));
+        const xi = Math.floor(sx);
+        const fx = sx - xi;
+        const xa = Math.max(0, Math.min(w - 1, xi));
+        const xb = Math.max(0, Math.min(w - 1, xi + 1));
 
         const pAA = (ya * w + xa) * 4, pAB = (ya * w + xb) * 4;
         const pBA = (yb * w + xa) * 4, pBB = (yb * w + xb) * 4;
@@ -382,7 +422,8 @@ export function mergeBurst(
         const g = d[pAA + 1] * wa + d[pAB + 1] * wb + d[pBA + 1] * wc + d[pBB + 1] * wd;
         const b = d[pAA + 2] * wa + d[pAB + 2] * wb + d[pBA + 2] * wc + d[pBB + 2] * wd;
 
-        const i0 = y * w + x, p0 = i0 * 4;
+        const local = (y - y0) * w + x;
+        const p0 = (y * w + x) * 4;
         // Distance from the reference, over all three channels — a subject can
         // move without changing brightness, and colour catches that.
         const dr = r - refData[p0], dg = g - refData[p0 + 1], db = b - refData[p0 + 2];
@@ -391,32 +432,65 @@ export function mergeBurst(
         // 1 when identical, 0 at the threshold, and never negative.
         const weight = Math.max(0, 1 - dist2 * inv);
         if (weight > 0) {
-          acc[i0 * 3] += r * weight;
-          acc[i0 * 3 + 1] += g * weight;
-          acc[i0 * 3 + 2] += b * weight;
-          wsum[i0] += weight;
+          acc[local * 3] += r * weight;
+          acc[local * 3 + 1] += g * weight;
+          acc[local * 3 + 2] += b * weight;
+          wsum[local] += weight;
         }
         agreementSum += weight;
       }
     }
   }
 
-  const out = new Uint8ClampedArray(n * 4);
   for (let i = 0, p = 0; i < n; i++, p += 4) {
     const k = 1 / wsum[i];
     out[p] = acc[i * 3] * k;
     out[p + 1] = acc[i * 3 + 1] * k;
     out[p + 2] = acc[i * 3 + 2] * k;
-    out[p + 3] = refData[p + 3];
+    out[p + 3] = refData[((y0 + Math.floor(i / w)) * w + (i % w)) * 4 + 3];
   }
 
+  return { data: out, agreementSum, samples: n * contributors.length };
+}
+
+/**
+ * Merge an aligned burst, rejecting whatever moved.
+ *
+ * Every output pixel is a weighted average across the burst. The reference
+ * always carries full weight; every other frame carries a weight that falls to
+ * zero as its sampled value diverges from the reference. That single rule is
+ * the anti-ghosting: a pedestrian who crossed the frame differs enormously from
+ * the reference at those pixels, contributes nothing there, and contributes
+ * fully everywhere else — so the sky still gets eight frames of noise reduction
+ * while the pedestrian stays exactly as sharp as they were in one.
+ *
+ * Sampling is bilinear at the sub-pixel offset. That is not a detail: whole-
+ * pixel sampling would throw away the fractional part of the alignment, which
+ * is precisely the information that lets a merge resolve detail a single frame
+ * cannot.
+ */
+export function mergeBurst(
+  frames: Pixels[],
+  options: MergeOptions = MERGE_DEFAULTS,
+): { merged: Pixels; report: MergeReport } {
+  const plan = planMerge(frames, options);
+  const first = plan.usable[0];
+
+  if (plan.usable.length === 1) {
+    return {
+      merged: plan.usable[0],
+      report: { reference: 0, offsets: plan.offsets, dropped: plan.dropped, agreement: 1 },
+    };
+  }
+
+  const { data, agreementSum, samples } = mergeRows(plan, { y0: 0, y1: first.height }, options);
   return {
-    merged: { data: out, width: w, height: h },
+    merged: { data, width: first.width, height: first.height },
     report: {
-      reference: refIdx,
-      offsets,
-      dropped,
-      agreement: contributors.length ? agreementSum / (n * contributors.length) : 1,
+      reference: plan.reference,
+      offsets: plan.offsets,
+      dropped: plan.dropped,
+      agreement: samples > 0 ? agreementSum / samples : 1,
     },
   };
 }

@@ -40,6 +40,9 @@
 import { crop, zoomRect, lanczosResize, enhance, type Pixels, type EnhanceOptions } from './photoPipeline';
 import { mergeBurst, type MergeReport } from './burstMerge';
 import { superResolve, MAX_HONEST_SCALE, type SuperResolveReport } from './superResolve';
+import { planMerge, mergeRows, MERGE_DEFAULTS, type MergePlan } from './burstMerge';
+import { PhotoPool, mergeAcrossPool } from './photoPool';
+import { capability } from './deviceTier';
 
 /** Ask for far more than any phone has; the browser negotiates down. */
 const IDEAL_W = 4096;
@@ -442,51 +445,109 @@ export interface ProcessResult {
   report: MergeReport | null;
   /** Present when the burst was reconstructed onto a finer grid instead. */
   sr: SuperResolveReport | null;
+  /** How many workers actually did the accumulation. For the readout. */
+  workers: number;
 }
 
-export function processOffThread(
-  frames: Pixels[], options: EnhanceOptions, opts: { superResolve?: boolean } = {},
+/*
+ * One pool for the life of the camera screen.
+ *
+ * Starting a worker costs tens of milliseconds and a burst would do it several
+ * times per shot. `releasePool` is called when the screen closes — a camera
+ * that leaks a worker per photo runs a phone out of threads by the twentieth.
+ */
+let pool: PhotoPool | null = null;
+
+function makeWorker(): Worker {
+  return new Worker(new URL('./photoWorker.ts', import.meta.url), { type: 'module' });
+}
+
+export function acquirePool(): PhotoPool | null {
+  if (pool) return pool.usable ? pool : null;
+  const cap = capability();
+  const p = new PhotoPool(cap.workers, makeWorker);
+  pool = p;
+  return p.usable ? p : null;
+}
+
+export function releasePool(): void {
+  pool?.destroy();
+  pool = null;
+}
+
+/**
+ * Merge and enhance a burst, using as many cores as the device has.
+ *
+ * The fallbacks are not paperwork. Workers are unavailable behind some strict
+ * content-security policies and in a handful of embedded WebViews, and a photo
+ * that takes longer is enormously better than a camera that does not work — so
+ * every stage degrades to running inline rather than failing.
+ */
+export async function processOffThread(
+  rawFrames: Pixels[], options: EnhanceOptions, opts: { superResolve?: boolean } = {},
 ): Promise<ProcessResult> {
+  // Filter by size once, here, so every stage downstream — main thread and
+  // worker alike — is looking at the same list and agrees about indices.
+  const first = rawFrames[0];
+  const frames = rawFrames.filter(f => f.width === first.width && f.height === first.height);
+
   const inline = (): ProcessResult => {
     if (frames.length > 1 && opts.superResolve) {
       const out = superResolve(frames, { scale: MAX_HONEST_SCALE });
-      return { pixels: enhance(out.image, options), report: null, sr: out.report };
+      return { pixels: enhance(out.image, options), report: null, sr: out.report, workers: 1 };
     }
     const merged = frames.length > 1 ? mergeBurst(frames) : null;
     const base = merged ? merged.merged : frames[0];
-    return { pixels: enhance(base, options), report: merged?.report ?? null, sr: null };
+    return { pixels: enhance(base, options), report: merged?.report ?? null, sr: null, workers: 1 };
   };
 
-  return new Promise(resolve => {
-    let worker: Worker;
-    try {
-      worker = new Worker(new URL('./photoWorker.ts', import.meta.url), { type: 'module' });
-    } catch {
-      resolve(inline());
-      return;
+  const p = acquirePool();
+  if (!p) return inline();
+
+  try {
+    /*
+     * Super-resolution stays on one worker for now. It runs on the zoom crop,
+     * which is a fraction of the frame, and splitting it would need the same
+     * halo reasoning as the merge for a much smaller prize.
+     */
+    if (frames.length < 2 || opts.superResolve) {
+      const d = await p.run<any>({ frames, options, superResolve: !!opts.superResolve });
+      return {
+        pixels: { data: d.data, width: d.width, height: d.height },
+        report: d.report ?? null, sr: d.sr ?? null, workers: 1,
+      };
     }
 
-    let settled = false;
-    const finish = (r: ProcessResult) => {
-      if (settled) return;
-      settled = true;
-      worker.terminate();
-      resolve(r);
+    // ── Plan once, on the whole burst ────────────────────────────────────
+    const lite = await p.run<any>({ kind: 'plan', frames, options: MERGE_DEFAULTS });
+    const plan: MergePlan = {
+      reference: lite.reference,
+      contributors: lite.contributors,
+      offsets: lite.offsets,
+      dropped: lite.dropped,
+      usable: frames,
     };
 
-    worker.onmessage = (e: MessageEvent<any>) => {
-      const d = e.data;
-      finish(d?.ok
-        ? { pixels: { data: d.data, width: d.width, height: d.height }, report: d.report ?? null, sr: d.sr ?? null }
-        : inline());
-    };
-    worker.onerror = () => finish(inline());
+    // ── Accumulate in strips, across every core ──────────────────────────
+    const { image: merged, agreement } = await mergeAcrossPool(
+      p, plan, first.width, first.height, MERGE_DEFAULTS,
+      (pl, rows) => mergeRows(pl, rows, MERGE_DEFAULTS),
+    );
 
-    /*
-     * The frames are copied rather than transferred, on purpose: transferring
-     * would neuter these buffers, and one of them is the original the compare
-     * button shows.
-     */
-    worker.postMessage({ frames, options, superResolve: !!opts.superResolve });
-  });
+    const enhanced = await p.run<any>({ kind: 'enhance', frame: merged, options });
+
+    return {
+      pixels: { data: enhanced.data, width: enhanced.width, height: enhanced.height },
+      report: {
+        reference: plan.reference,
+        offsets: plan.offsets,
+        dropped: plan.dropped,
+        agreement,
+      },
+      sr: null,
+      workers: p.size,
+    };
+  } catch {
+    return inline();
+  }
 }
