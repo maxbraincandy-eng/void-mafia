@@ -152,38 +152,61 @@ test('clarity lifts local contrast without clipping the picture', () => {
   }
 });
 
-test('clarity is local: a halo at the edge, and nothing far from it', () => {
+test('the three bands act at three different scales, and do not overlap', { timeout: 60_000 }, () => {
   /*
-   * The defining property, and the one worth pinning down. Clarity subtracts a
-   * blurred copy and adds the difference back, so its effect must fall off with
-   * distance from an edge — strongest against it, gone within a few radii.
+   * The property the multi-band split exists to create, measured directly.
    *
-   * A version that changed pixels a long way from any edge would not be local
-   * contrast at all; it would be a global curve wearing the name, and it would
-   * flatten photographs instead of giving them depth.
+   * Sharpening must be acutance: the pixels either side of an edge, and
+   * nothing further out. Clarity must be micro-contrast: a broad modelling of
+   * the surface near the edge that decays with distance and leaves the far
+   * field alone. When those two were one band, clarity also sharpened and
+   * sharpening also lifted texture, and the result was crunchy edges over flat
+   * surfaces — the smartphone look this camera is trying not to have.
    *
-   * Measured on a photo-sized frame, because the radii scale with the diagonal
-   * and the small frames elsewhere in this file only exercise the small end.
+   * Measured on a photo-sized frame, since the radii scale with the diagonal.
    */
   const img = edge(1200, 900, 90, 170);
-  const out = enhance(img, { ...OFF, clarity: 0.5 });
   const dark = (im: Pixels, d: number) => px(im, 600 - d, 450)[0];
-  const light = (im: Pixels, d: number) => px(im, 600 + d, 450)[0];
 
-  // Against the edge: the dark side goes darker, the light side lighter.
-  assert.ok(dark(out, 1) < dark(img, 1) - 10, `dark side ${dark(out, 1)} vs ${dark(img, 1)}`);
-  assert.ok(light(out, 1) > light(img, 1) + 10, `light side ${light(out, 1)} vs ${light(img, 1)}`);
+  const clarityOnly = enhance(img, { ...OFF, clarity: 0.5 });
+  const sharpenOnly = enhance(img, { ...OFF, sharpen: 1.0, threshold: 0 });
 
-  // Decaying with distance, not a step.
-  assert.ok(dark(out, 10) > dark(out, 1), 'the halo fades outward');
-  assert.ok(light(out, 10) < light(out, 1));
+  // Sharpening: hard against the edge, and finished within a few pixels.
+  assert.ok(dark(sharpenOnly, 1) < dark(img, 1) - 15, `acutance at 1px: ${dark(sharpenOnly, 1)}`);
+  assert.equal(dark(sharpenOnly, 4), dark(img, 4), 'sharpening reached 4px out — that is not acutance');
+  assert.equal(dark(sharpenOnly, 20), dark(img, 20));
 
-  // And gone entirely well before the far side of the frame.
-  assert.equal(dark(out, 200), dark(img, 200), 'untouched far from any edge');
-  assert.equal(light(out, 200), light(img, 200));
+  // Clarity: broader, peaking away from the edge, gone in the far field.
+  assert.ok(dark(clarityOnly, 3) < dark(img, 3) - 12, `micro-contrast at 3px: ${dark(clarityOnly, 3)}`);
+  assert.ok(dark(clarityOnly, 20) < dark(img, 20), 'clarity should still be working at 20px');
+  assert.equal(dark(clarityOnly, 200), dark(img, 200), 'and doing nothing at 200px');
+
+  // And the separation itself: each band is where the other is not.
+  assert.ok(dark(clarityOnly, 1) > dark(sharpenOnly, 1), 'clarity is weaker than sharpening at the edge');
+  assert.ok(dark(clarityOnly, 6) < dark(sharpenOnly, 6), 'and stronger than it further out');
 });
 
-// ── Tone mapping ──────────────────────────────────────────────────────────────
+test('the noise threshold applies to the fine band only', { timeout: 60_000 }, () => {
+  /*
+   * When the bands were combined, the threshold that protects a clear sky from
+   * being sharpened into grain was also suppressing real mid-frequency texture
+   * — trading away what makes a photograph look like a photograph in order to
+   * fix a problem living in a different band entirely.
+   *
+   * Now clarity passes through it untouched, so raising the threshold changes
+   * only the fine detail.
+   */
+  const img = edge(1200, 900, 90, 170);
+  const at = (o: Partial<typeof OFF>, d: number) =>
+    px(enhance(img, { ...OFF, ...o } as typeof OFF), 600 - d, 450)[0];
+
+  assert.equal(at({ clarity: 0.5, threshold: 0 }, 3), at({ clarity: 0.5, threshold: 60 }, 3),
+    'a huge threshold changed the mid band');
+  assert.notEqual(at({ sharpen: 1, threshold: 0 }, 1), at({ sharpen: 1, threshold: 60 }, 1),
+    'the threshold did not reach the fine band it exists for');
+});
+
+// ── Tone: the low band ────────────────────────────────────────────────────────
 
 /** A frame that is dark on the left, mid in the middle, blown out on the right. */
 function ramp(w: number, h: number): Pixels {
@@ -201,10 +224,9 @@ function ramp(w: number, h: number): Pixels {
 
 test('shadows open without touching the midtones', () => {
   /*
-   * The half of the gap to a phone's own camera that was missing entirely.
-   * Local contrast alone pushes the dark side of every edge further down; what
-   * an iPhone does is the opposite at the low end. A lift that also raised the
-   * midtones would just be a brightness slider, and would wash the photo out.
+   * Half of the gap to a phone's own camera, and it lives entirely in the low
+   * band. A lift that also raised the midtones would just be a brightness
+   * slider, and would wash the photograph out instead of opening it.
    */
   const img = ramp(600, 60);
   const out = enhance(img, { ...OFF, shadows: 0.4 });
@@ -233,17 +255,16 @@ test('highlights come down without dragging the midtones with them', () => {
 
 test('opening the shadows does not flatten what is in them', () => {
   /*
-   * The entire reason the curve is applied to the blurred BASE rather than to
+   * The entire reason the tone curve is applied to the LOW band rather than to
    * the pixels. A lift applied directly compresses the dark end, so texture in
-   * a shadow turns to grey mud — recovered brightness, lost photograph.
-   * Splitting base from detail lets the base bend while the detail rides
-   * through untouched.
+   * a shadow turns to grey mud — recovered brightness, lost photograph. The mid
+   * and high bands ride through the curve untouched, which is what keeps the
+   * detail that was down there.
    */
   const w = 400, h = 200;
   const data = new Uint8ClampedArray(w * h * 4);
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
-      // A dark region carrying fine texture.
       const v = 26 + (((x >> 1) + (y >> 1)) % 2 === 0 ? 10 : 0);
       const p = (y * w + x) * 4;
       data[p] = data[p + 1] = data[p + 2] = v;
@@ -268,22 +289,21 @@ test('opening the shadows does not flatten what is in them', () => {
     `texture collapsed from ${texture(img).toFixed(1)} to ${texture(out).toFixed(1)}`);
 });
 
-test('tone mapping at zero is exactly the old unsharp', () => {
-  /*
-   * Tone mapping and clarity share one guide, and clarity is now expressed as
-   * base + detail·(1+clarity). That is algebraically Y + clarity·(Y − base), so
-   * with the tone controls at zero the result must be bit-identical to the
-   * formula it replaced. If this drifts, a refactor changed behaviour.
-   */
-  const img = edge(200, 200, 70, 190);
-  const a = enhance(img, { ...OFF, clarity: 0.4 });
-  const b = enhance(img, { ...OFF, clarity: 0.4, shadows: 0, highlights: 0 });
-  assert.deepEqual([...a.data], [...b.data]);
+test('the tone controls touch only the low band', () => {
+  // Bending the base must not change acutance. If it does, the decomposition
+  // is leaking and a brightness decision is quietly a sharpness decision.
+  const img = edge(1200, 900, 90, 170);
+  const plain = enhance(img, { ...OFF, sharpen: 1, threshold: 0 });
+  const toned = enhance(img, { ...OFF, sharpen: 1, threshold: 0, shadows: 0.3, highlights: 0.3 });
+
+  const acutance = (im: Pixels) => px(im, 601, 450)[0] - px(im, 598, 450)[0];
+  assert.ok(Math.abs(acutance(toned) - acutance(plain)) < 12,
+    `acutance moved from ${acutance(plain)} to ${acutance(toned)} when only tone changed`);
 });
 
 test('the presets open shadows and hold highlights', () => {
   // Both are what a phone's own camera does and this one was not. A preset that
-  // silently loses them would give back the flat, crushed look this fixed.
+  // silently loses them gives back the flat, crushed look this fixed.
   for (const p of [NATURAL, ZOOMED]) {
     assert.ok(p.shadows > 0 && p.shadows < 0.4, `shadows ${p.shadows}`);
     assert.ok(p.highlights > 0 && p.highlights < 0.4, `highlights ${p.highlights}`);

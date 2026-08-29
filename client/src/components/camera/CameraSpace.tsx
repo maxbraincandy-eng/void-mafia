@@ -34,6 +34,7 @@ import {
 } from '@/lib/cameraCapture';
 import { NATURAL, ZOOMED, type Pixels } from '@/lib/photoPipeline';
 import { MAX_HONEST_SCALE } from '@/lib/superResolve';
+import { PixelInspector } from './PixelInspector';
 
 const ACCENT = '#4a76c4';
 const GOLD = '#ffcc33';
@@ -85,6 +86,7 @@ export function CameraSpace({ onClose }: { onClose: () => void }) {
   const [result, setResult] = useState<Result | null>(null);
   const [showOriginal, setShowOriginal] = useState(false);
   const [saved, setSaved] = useState<string | null>(null);
+  const [inspect, setInspect] = useState(false);
 
   // ── The stream ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -424,6 +426,16 @@ export function CameraSpace({ onClose }: { onClose: () => void }) {
                 {showOriginal ? 'ორიგინალი' : 'შედარება'}
               </button>
 
+              {/*
+                * The instrument, not a feature. Holding "შედარება" flips the
+                * whole frame; this opens the same two images at 800% with a
+                * seam, which is where a difference in resolved detail either
+                * exists or does not.
+                */}
+              <button onClick={() => setInspect(true)} aria-label="პიქსელები"
+                className="w-12 h-12 rounded-2xl font-mono text-[11px] text-white/70 flex-shrink-0"
+                style={{ background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.16)' }}>1:1</button>
+
               <button onClick={() => void save()}
                 className="flex-1 h-12 rounded-2xl font-display font-bold text-white text-[14px]"
                 style={{ background: ACCENT, boxShadow: `0 8px 26px ${ACCENT}55` }}>
@@ -433,6 +445,15 @@ export function CameraSpace({ onClose }: { onClose: () => void }) {
           </div>
         )}
       </div>
+
+      <AnimatePresence>
+        {inspect && result && (
+          <PixelInspector onClose={() => setInspect(false)} panes={[
+            { label: 'დამუშავებული', src: pixelsToDataUrl(result.enhanced, 0.98) },
+            { label: 'ორიგინალი', src: pixelsToDataUrl(result.original, 0.98) },
+          ]} />
+        )}
+      </AnimatePresence>
 
       {/* ── Working ──────────────────────────────────────────────────────────── */}
       <AnimatePresence>

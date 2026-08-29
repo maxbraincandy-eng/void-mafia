@@ -281,38 +281,53 @@ export function enhance(img: Pixels, opts: EnhanceOptions): Pixels {
   const smallR = Math.max(1, Math.min(4, Math.round(diag / 1200)));
 
   /*
-   * Tone mapping and clarity, in one pass over one guide.
+   * THREE BANDS, PROCESSED INDEPENDENTLY.
    *
-   * WHY THEY ARE THE SAME OPERATION
-   * ──────────────────────────────
-   * Split the image into a blurred base and the detail left over. Clarity
-   * amplifies the detail; tone mapping bends the base. They want the same
-   * blurred guide, so they get computed together — and because blurring the
-   * reconstruction gives back the base almost exactly, clarity after tone
-   * mapping is a multiply rather than a second full blur.
+   * Two blurs split the luminance into three ranges of spatial frequency, and
+   * each gets the treatment that band actually wants:
    *
-   * With `shadows` and `highlights` at zero this is algebraically identical to
-   * the plain unsharp it replaces: base + detail·(1+clarity) is
-   * Y + clarity·(Y − base). So it is a generalisation, not a new behaviour.
+   *   LOW   (coarser than `bigR`)    tone — exposure, shadows, highlights,
+   *                                  dynamic range. The base the picture sits on.
+   *   MID   (between the two radii)  micro-contrast — texture, modelling, the
+   *                                  sense that a surface has depth. This is
+   *                                  the band that reads as "dimensional".
+   *   HIGH  (finer than `smallR`)    acutance — edges and fine detail, and the
+   *                                  only band where sensor noise lives in any
+   *                                  quantity.
    *
-   * WHY THIS IS THE HALF THAT WAS MISSING
-   * ─────────────────────────────────────
-   * Local contrast alone makes a photo punchier and darker — it pushes the
-   * dark side of every edge further down. What an iPhone or a Pixel does that
-   * we were not doing is the opposite at the low end: open the shadows, hold
-   * the highlights back from clipping, and only then add contrast. Bending the
-   * BASE rather than the pixels is what makes that possible without flattening
-   * the picture, because the detail band rides through untouched.
+   * WHY THIS REPLACED A TWO-WAY SPLIT
+   * ─────────────────────────────────
+   * Before, "detail" meant everything above `bigR`, so clarity amplified the
+   * mid AND high bands together and sharpening then amplified the high band a
+   * second time on top of that. Fine detail was lifted twice while texture was
+   * lifted once — which is precisely the recipe for the look this camera is
+   * trying not to have: crunchy edges over flat, plastic surfaces.
+   *
+   * It also means the noise threshold now applies ONLY to the high band, where
+   * noise actually is. Applied across a combined detail band it was suppressing
+   * genuine mid-frequency texture in order to protect against grain in the fine
+   * frequencies — trading away the thing that makes a photograph look real to
+   * fix a problem in a different band.
+   *
+   * The cost is nothing. Both blurs were already being computed; this stops
+   * throwing one of them away.
    */
-  if (opts.clarity > 0 || opts.shadows > 0 || opts.highlights > 0) {
-    const base = blurGuide(Y, w, h, bigR);
-    const detailGain = 1 + opts.clarity;
-    const sh = opts.shadows, hi = opts.highlights;
-    for (let i = 0; i < n; i++) {
-      const b = base[i];
-      const detail = Y[i] - b;
+  {
+    const low = blurGuide(Y, w, h, bigR);
+    const midCut = boxBlur(Y, w, h, smallR, 2);
 
-      let x = b * (1 / 255);
+    const midGain = 1 + opts.clarity;
+    const highGain = 1 + opts.sharpen;
+    const t = opts.threshold;
+    const sh = opts.shadows, hi = opts.highlights;
+
+    for (let i = 0; i < n; i++) {
+      const lo = low[i];
+      const mid = midCut[i] - lo;
+      const high = Y[i] - midCut[i];
+
+      // ── LOW: tone ────────────────────────────────────────────────────────
+      let x = lo * (1 / 255);
       if (sh > 0) {
         // Weighted by how dark the neighbourhood is, cubed — a strong lift
         // where it is genuinely dark and nothing at all in the midtones.
@@ -326,25 +341,11 @@ export function enhance(img: Pixels, opts: EnhanceOptions): Pixels {
         x -= hi * w1 * w1;
       }
 
-      Y[i] = x * 255 + detail * detailGain;
-    }
-  }
+      // ── HIGH: acutance. The only band the threshold belongs to. ─────────
+      const boosted = (high > t || high < -t) ? high * highGain : high;
 
-  if (opts.sharpen > 0) {
-    /*
-     * Full resolution, and the most expensive step here — a downsampled guide
-     * would blur away exactly the band being sharpened against. Two passes
-     * rather than three: at a radius of one to four pixels the difference from
-     * a true Gaussian is below a level, and the third pass costs a third of a
-     * second on a twelve-megapixel photo.
-     */
-    const guide = boxBlur(Y, w, h, smallR, 2);
-    const t = opts.threshold;
-    for (let i = 0; i < n; i++) {
-      const d = Y[i] - guide[i];
-      // Below the threshold this is noise, not an edge, and amplifying it is
-      // how a clear sky turns to grain.
-      if (d > t || d < -t) Y[i] += opts.sharpen * d;
+      // ── MID: micro-contrast, never thresholded. ─────────────────────────
+      Y[i] = x * 255 + mid * midGain + boosted;
     }
   }
 
