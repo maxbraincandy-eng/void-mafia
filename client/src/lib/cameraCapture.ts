@@ -278,11 +278,29 @@ export async function captureForMerge(
  * large: blowing a 3000-pixel crop up to 4000 adds no information and costs a
  * second of processing.
  */
-export function applyDigitalZoom(pixels: Pixels, zoom: number, opticalZoom: boolean): Pixels {
+export function applyDigitalZoom(
+  pixels: Pixels, zoom: number, opticalZoom: boolean,
+  opts: { cropOnly?: boolean } = {},
+): Pixels {
   if (opticalZoom || zoom <= 1.01) return pixels;
 
   const r = zoomRect(pixels.width, pixels.height, zoom);
   const cropped = crop(pixels, r.x, r.y, r.w, r.h);
+
+  /*
+   * `cropOnly` when a reconstruction is going to follow.
+   *
+   * Enlarging here and then reconstructing would upscale the same picture
+   * twice — Lanczos first, the finer grid second — which is both slower and
+   * worse: the reconstruction would be fusing frames that had already been
+   * interpolated, so the sub-pixel measurements it exists to exploit had
+   * already been smeared into each other before it saw them.
+   *
+   * It also produced an absurd output. A 3840-wide frame cropped to 3×, resized
+   * back to 3840 and then reconstructed at 2× came out 7680 wide — thirty-three
+   * megapixels of which perhaps four were real.
+   */
+  if (opts.cropOnly) return cropped;
 
   // Back up to roughly the original frame size, but never beyond what the
   // sensor gave us in the first place.

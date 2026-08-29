@@ -26,7 +26,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { createPortal } from 'react-dom';
+import { createPortal, flushSync } from 'react-dom';
 import {
   openCamera, captureForMerge, applyDigitalZoom, setOpticalZoom, setTorch,
   pixelsToDataUrl, pixelsToBlob, mirrorPixels, savePhoto, megapixels, processOffThread,
@@ -34,11 +34,37 @@ import {
   type Facing, type CaptureCapabilities,
 } from '@/lib/cameraCapture';
 import { capability } from '@/lib/deviceTier';
+import { selectFrames, framesForZoom } from '@/lib/frameQuality';
+import { lanczosResize, crop, zoomRect } from '@/lib/photoPipeline';
 import { NATURAL, ZOOMED, type Pixels } from '@/lib/photoPipeline';
 import { MAX_HONEST_SCALE } from '@/lib/superResolve';
 import { PixelInspector } from './PixelInspector';
 
 const ACCENT = '#4a76c4';
+
+/**
+ * What an ordinary camera app would have produced.
+ *
+ * Crop to the zoom factor, resize back up, and stop — the three steps this
+ * whole engine exists as an alternative to. Kept so the inspector can put the
+ * two side by side.
+ *
+ * Deliberately NOT a strawman. It resizes with the same Lanczos kernel the real
+ * path uses rather than something cheap, so what the comparison shows is the
+ * value of multi-frame reconstruction and not the value of a better resampler.
+ * If the computational result cannot beat a competently-made digital zoom, that
+ * is worth finding out here rather than being told by somebody holding a phone.
+ */
+function plainDigitalZoom(frame: Pixels, zoom: number, mirror: boolean, targetW: number): Pixels {
+  const r = zoomRect(frame.width, frame.height, zoom);
+  const cut = crop(frame, r.x, r.y, r.w, r.h);
+  // Matched to the computational result's size so the comparison is about
+  // detail alone. Different output sizes would let the one with more pixels
+  // look better for having more pixels, which is not the question.
+  const h = Math.round(cut.height * (targetW / cut.width));
+  const out = lanczosResize(cut, targetW, h);
+  return mirror ? mirrorPixels(out) : out;
+}
 const GOLD = '#ffcc33';
 
 /** The steps the zoom control snaps to. Beyond 4× a crop stops being worth it. */
@@ -69,6 +95,12 @@ interface Result {
   agreement: number;
   /** Reconstruction factor, or 0 when the burst could not support one. */
   reconstructed: number;
+  /** Frames thrown out for being blurred or badly exposed. */
+  rejected: number;
+  /** True while this is the provisional single frame, not the fused result. */
+  provisional: boolean;
+  /** Ordinary crop-and-resize from the same source, for the benchmark pane. */
+  plain: Pixels | null;
 }
 
 export function CameraSpace({ onClose }: { onClose: () => void }) {
@@ -164,7 +196,13 @@ export function CameraSpace({ onClose }: { onClose: () => void }) {
 
     try {
       const opticallyZoomed = !!caps?.zoom && zoom > 1;
-      const want = mergeMode ? cap.frames : FRAMES_FAST;
+      /*
+       * More frames the further in the zoom goes. Reconstruction onto a finer
+       * grid needs the burst to have sampled enough distinct sub-pixel phases
+       * to fill it; at 1× there is no finer grid and the frames buy noise
+       * reduction alone, which saturates quickly.
+       */
+      const want = mergeMode ? framesForZoom(zoom, cap.frames) : FRAMES_FAST;
 
       /*
        * The burst, at whatever resolution this device can burst at. On a phone
@@ -181,23 +219,75 @@ export function CameraSpace({ onClose }: { onClose: () => void }) {
       /*
        * Zoom, and the one decision that makes computational zoom worth having.
        *
-       * The obvious implementation crops to the zoom factor and enlarges. That
-       * throws pixels away and then asks an upscaler to invent them back.
+       * The ordinary implementation crops to the zoom factor and enlarges: the
+       * pixels are thrown away and an interpolator is asked to invent them back.
        *
-       * Instead, when a burst is available, the crop is made SHALLOWER by the
-       * reconstruction factor and the finer grid makes up the difference. A 4×
-       * shot crops to 2× and reconstructs 2×, so the output is built from four
-       * times the sensor area — real measurements rather than interpolation.
+       * Here the crop is the same — it has to be, or the photograph is not
+       * framed where the viewfinder said — but nothing enlarges it. The burst is
+       * reconstructed onto a grid twice as fine instead, so the resolution comes
+       * back from measurements several frames actually made rather than from a
+       * kernel guessing between the ones that survived.
+       *
+       * The crop must NOT be enlarged first. Reconstructing already-interpolated
+       * frames smears the sub-pixel differences into each other before the stage
+       * that exists to exploit them ever sees them.
        */
       const digitallyZoomed = zoom > 1 && !opticallyZoomed;
       const useSR = cap.superResolve && digitallyZoomed && frames.length > 1 && zoom >= MAX_HONEST_SCALE;
-      const cropZoom = useSR ? zoom / MAX_HONEST_SCALE : zoom;
 
       frames = frames.map(f => {
-        let p = applyDigitalZoom(f, cropZoom, opticallyZoomed);
+        let p = applyDigitalZoom(f, zoom, opticallyZoomed, { cropOnly: useSR });
         if (facing === 'user') p = mirrorPixels(p);
         return p;
       });
+
+      /*
+       * Throw out the frames that would make the merge worse.
+       *
+       * The merge already drops frames it cannot align — a lurch, a subject
+       * that turned. That tests whether a frame can be REGISTERED and says
+       * nothing about whether it is any good: a frame caught mid-shake aligns
+       * perfectly well and is simply blurred, and merging it spreads that blur
+       * across every pixel. At fourteen frames the odds one of them is that
+       * frame are no longer small.
+       */
+      const picked = selectFrames(frames);
+      const usable = picked.keep.map(i => frames[i]);
+
+      /*
+       * Stage one, on screen immediately: the sharpest frame the burst caught.
+       *
+       * The full pipeline is several seconds on a large burst. Showing nothing
+       * for that long reads as a hang, and showing a spinner only says "wait".
+       * This is the photograph, already better than the viewfinder, replaced by
+       * the fused version the moment it exists.
+       */
+      const sharpest = picked.scores.reduce((a, b) => (b.sharpness > a.sharpness ? b : a));
+
+      /*
+       * `flushSync`, and it is not optional here.
+       *
+       * A plain setState schedules a normal-priority update, and the very next
+       * line hands the main thread back to the pipeline — so React, given the
+       * choice between committing and letting the work proceed, defers. Measured
+       * across a whole shot, the provisional frame was on screen for exactly
+       * zero milliseconds: the state was set, the render never happened, and the
+       * only thing anybody saw was the finished photo four seconds later.
+       *
+       * This forces the commit, and the double frame afterwards lets the browser
+       * actually paint it — `requestAnimationFrame` fires BEFORE paint, so a
+       * single one returns to the heavy work while the screen is still blank.
+       */
+      flushSync(() => {
+        setResult({
+          enhanced: frames[sharpest.index], original: frames[sharpest.index],
+          source: shot.source === 'photo' ? 'სენსორი' : 'ვიდეო',
+          merged: 1, agreement: 1, reconstructed: 0, rejected: picked.rejected.length,
+          provisional: true, plain: null,
+        });
+        setPhase('result');
+      });
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 0))));
       /*
        * Merging and enhancing both happen off the main thread. Between them
        * this is several seconds on a large photo, and several seconds on the
@@ -205,14 +295,14 @@ export function CameraSpace({ onClose }: { onClose: () => void }) {
        * which reads as a crash rather than as work.
        */
       const { pixels: enhanced, report, sr } = await processOffThread(
-        frames, digitallyZoomed ? ZOOMED : NATURAL, { superResolve: useSR },
+        usable, digitallyZoomed ? ZOOMED : NATURAL, { superResolve: useSR },
       );
 
-      const used = frames.length - ((report?.dropped ?? sr?.dropped) ?? 0);
+      const used = usable.length - ((report?.dropped ?? sr?.dropped) ?? 0);
       const refIdx = report?.reference ?? sr?.reference ?? 0;
       setResult({
         enhanced,
-        original: frames[refIdx] ?? frames[0],
+        original: usable[refIdx] ?? usable[0],
         source: shot.source === 'photo' ? 'სენსორი' : 'ვიდეო',
         merged: used,
         agreement: report?.agreement ?? 1,
@@ -224,6 +314,17 @@ export function CameraSpace({ onClose }: { onClose: () => void }) {
          * the overclaim the whole pipeline is built to avoid.
          */
         reconstructed: sr && sr.phaseDiversity > 0.25 ? sr.scale : 0,
+        rejected: picked.rejected.length,
+        provisional: false,
+        /*
+         * Plain crop-and-resize from the same source, kept for the inspector.
+         *
+         * Without it every claim on this screen is unfalsifiable: the compare
+         * button shows processed against unprocessed, which is not the question.
+         * The question is whether this beats what an ordinary camera app would
+         * have produced from the identical frame, and this is that image.
+         */
+        plain: digitallyZoomed ? plainDigitalZoom(shot.frames[refIdx] ?? shot.frames[0], zoom, facing === 'user', enhanced.width) : null,
       });
       setShowOriginal(false);
       setSaved(null);
@@ -267,6 +368,20 @@ export function CameraSpace({ onClose }: { onClose: () => void }) {
         {shown && phase === 'result' && (
           <img src={pixelsToDataUrl(shown, 0.9)} alt=""
             className="absolute inset-0 w-full h-full" style={{ objectFit: 'contain' }} />
+        )}
+        {result?.provisional && phase === 'result' && (
+          /*
+           * The provisional frame is a real photograph, not a placeholder — it
+           * is the sharpest frame the burst caught. Saying so is the difference
+           * between "here is your picture, it is about to get better" and a
+           * screen that appears to change its mind.
+           */
+          <div className="absolute inset-x-0 bottom-0 flex justify-center pb-2 pointer-events-none" style={{ zIndex: 5 }}>
+            <span className="px-3 py-1.5 rounded-full font-mono text-[10.5px] text-white"
+              style={{ background: 'rgba(0,0,0,0.65)', border: `1px solid ${ACCENT}66` }}>
+              საუკეთესო კადრი · ვამუშავებ დანარჩენს…
+            </span>
+          </div>
         )}
       </div>
 
@@ -404,6 +519,15 @@ export function CameraSpace({ onClose }: { onClose: () => void }) {
                   {result.reconstructed}× აღდგენა
                 </span>
               )}
+              {result.rejected > 0 && (
+                // Frames the burst collected and then threw out for being
+                // blurred or badly exposed. Worth saying: it explains why a
+                // fourteen-frame burst reports as nine.
+                <span className="px-2.5 py-1 rounded-lg font-mono text-[10.5px]"
+                  style={{ background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.55)' }}>
+                  −{result.rejected} სუსტი
+                </span>
+              )}
               {result.merged > 1 && result.agreement < 0.5 && (
                 // The scene moved, so most of the burst was rejected and this is
                 // closer to a single frame than to a merge. Worth admitting.
@@ -463,8 +587,16 @@ export function CameraSpace({ onClose }: { onClose: () => void }) {
       <AnimatePresence>
         {inspect && result && (
           <PixelInspector onClose={() => setInspect(false)} panes={[
-            { label: 'დამუშავებული', src: pixelsToDataUrl(result.enhanced, 0.98) },
-            { label: 'ორიგინალი', src: pixelsToDataUrl(result.original, 0.98) },
+            { label: 'გამოთვლითი ზუმი', src: pixelsToDataUrl(result.enhanced, 0.98) },
+            /*
+             * The benchmark. At 1× there is no digital zoom to compare against,
+             * so the pane is the unprocessed frame; zoomed, it is crop-and-
+             * resize from the same source — what an ordinary camera app would
+             * have handed back.
+             */
+            result.plain
+              ? { label: 'ჩვეულებრივი ციფრული ზუმი', src: pixelsToDataUrl(result.plain, 0.98) }
+              : { label: 'ორიგინალი', src: pixelsToDataUrl(result.original, 0.98) },
           ]} />
         )}
       </AnimatePresence>
