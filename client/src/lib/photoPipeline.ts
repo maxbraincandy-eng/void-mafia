@@ -53,6 +53,18 @@ export interface EnhanceOptions {
   /** Edge acutance, at a small radius. Detail, not resolution. */
   sharpen: number;
   /**
+   * Open the shadows. Applied to the blurred base only, so a dark corner
+   * brightens without the texture inside it flattening — which is the
+   * difference between recovered shadows and a grey smear.
+   */
+  shadows: number;
+  /**
+   * Hold the highlights back. A bright sky that clips has thrown its detail
+   * away for good; pulling the top end down before anything else touches it is
+   * the only chance to keep any.
+   */
+  highlights: number;
+  /**
    * How much of a difference an edge must be before sharpening touches it.
    * Without this, sharpening amplifies sensor noise in flat areas — a clear
    * sky turns to grain — which is the single most common way this goes wrong.
@@ -70,6 +82,7 @@ export const NATURAL: EnhanceOptions = {
   // tell fine noise from fine detail, and a smooth gradient is where that shows
   // first. 6 leaves flat areas alone and still finds every real edge.
   clarity: 0.22, sharpen: 0.55, threshold: 6, denoise: 0.6, saturation: 1.06,
+  shadows: 0.16, highlights: 0.12,
 };
 
 /**
@@ -81,10 +94,12 @@ export const NATURAL: EnhanceOptions = {
  */
 export const ZOOMED: EnhanceOptions = {
   clarity: 0.28, sharpen: 0.85, threshold: 8, denoise: 0.8, saturation: 1.06,
+  shadows: 0.16, highlights: 0.12,
 };
 
 export const OFF: EnhanceOptions = {
   clarity: 0, sharpen: 0, threshold: 0, denoise: 0, saturation: 1,
+  shadows: 0, highlights: 0,
 };
 
 // ── Blur ──────────────────────────────────────────────────────────────────────
@@ -265,10 +280,54 @@ export function enhance(img: Pixels, opts: EnhanceOptions): Pixels {
   const bigR = Math.max(2, Math.min(120, Math.round(diag / 110)));
   const smallR = Math.max(1, Math.min(4, Math.round(diag / 1200)));
 
-  if (opts.clarity > 0) {
-    // Large radius, low-frequency result: safe to compute small.
-    const guide = blurGuide(Y, w, h, bigR);
-    for (let i = 0; i < n; i++) Y[i] += opts.clarity * (Y[i] - guide[i]);
+  /*
+   * Tone mapping and clarity, in one pass over one guide.
+   *
+   * WHY THEY ARE THE SAME OPERATION
+   * ──────────────────────────────
+   * Split the image into a blurred base and the detail left over. Clarity
+   * amplifies the detail; tone mapping bends the base. They want the same
+   * blurred guide, so they get computed together — and because blurring the
+   * reconstruction gives back the base almost exactly, clarity after tone
+   * mapping is a multiply rather than a second full blur.
+   *
+   * With `shadows` and `highlights` at zero this is algebraically identical to
+   * the plain unsharp it replaces: base + detail·(1+clarity) is
+   * Y + clarity·(Y − base). So it is a generalisation, not a new behaviour.
+   *
+   * WHY THIS IS THE HALF THAT WAS MISSING
+   * ─────────────────────────────────────
+   * Local contrast alone makes a photo punchier and darker — it pushes the
+   * dark side of every edge further down. What an iPhone or a Pixel does that
+   * we were not doing is the opposite at the low end: open the shadows, hold
+   * the highlights back from clipping, and only then add contrast. Bending the
+   * BASE rather than the pixels is what makes that possible without flattening
+   * the picture, because the detail band rides through untouched.
+   */
+  if (opts.clarity > 0 || opts.shadows > 0 || opts.highlights > 0) {
+    const base = blurGuide(Y, w, h, bigR);
+    const detailGain = 1 + opts.clarity;
+    const sh = opts.shadows, hi = opts.highlights;
+    for (let i = 0; i < n; i++) {
+      const b = base[i];
+      const detail = Y[i] - b;
+
+      let x = b * (1 / 255);
+      if (sh > 0) {
+        // Weighted by how dark the neighbourhood is, cubed — a strong lift
+        // where it is genuinely dark and nothing at all in the midtones.
+        const w0 = 1 - x;
+        x += sh * w0 * w0 * w0;
+      }
+      if (hi > 0) {
+        // The mirror, to the fourth: highlights need a tighter shoulder or the
+        // midtones sag and the photo looks muddy.
+        const w1 = x * x;
+        x -= hi * w1 * w1;
+      }
+
+      Y[i] = x * 255 + detail * detailGain;
+    }
   }
 
   if (opts.sharpen > 0) {

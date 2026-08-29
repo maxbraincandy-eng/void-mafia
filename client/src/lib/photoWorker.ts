@@ -16,21 +16,39 @@
  * the result screen shows when the compare button is held.
  */
 
-import { enhance, type EnhanceOptions } from './photoPipeline';
+import { enhance, type EnhanceOptions, type Pixels } from './photoPipeline';
+import { mergeBurst, type MergeReport } from './burstMerge';
 
 interface Request {
-  data: Uint8ClampedArray;
-  width: number;
-  height: number;
+  /** One or more frames. Two or more are aligned and merged before enhancing. */
+  frames: { data: Uint8ClampedArray; width: number; height: number }[];
   options: EnhanceOptions;
 }
 
 self.onmessage = (e: MessageEvent<Request>) => {
-  const { data, width, height, options } = e.data;
+  const { frames, options } = e.data;
   try {
-    const out = enhance({ data, width, height }, options);
+    /*
+     * Merge first, enhance second, and never the other way round.
+     *
+     * Enhancing each frame before merging would sharpen each frame's own noise
+     * into something the merge then treats as real detail and preserves —
+     * and the anti-ghosting compares frames to a reference, which only means
+     * anything while they are still directly comparable.
+     */
+    let report: MergeReport | null = null;
+    let base: Pixels;
+    if (frames.length > 1) {
+      const merged = mergeBurst(frames);
+      base = merged.merged;
+      report = merged.report;
+    } else {
+      base = frames[0];
+    }
+
+    const out = enhance(base, options);
     (self as unknown as Worker).postMessage(
-      { ok: true, data: out.data, width: out.width, height: out.height },
+      { ok: true, data: out.data, width: out.width, height: out.height, report },
       [out.data.buffer as ArrayBuffer],
     );
   } catch (err: any) {

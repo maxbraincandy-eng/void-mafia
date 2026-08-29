@@ -183,6 +183,113 @@ test('clarity is local: a halo at the edge, and nothing far from it', () => {
   assert.equal(light(out, 200), light(img, 200));
 });
 
+// ── Tone mapping ──────────────────────────────────────────────────────────────
+
+/** A frame that is dark on the left, mid in the middle, blown out on the right. */
+function ramp(w: number, h: number): Pixels {
+  const data = new Uint8ClampedArray(w * h * 4);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const v = Math.round((x / (w - 1)) * 255);
+      const p = (y * w + x) * 4;
+      data[p] = data[p + 1] = data[p + 2] = v;
+      data[p + 3] = 255;
+    }
+  }
+  return { data, width: w, height: h };
+}
+
+test('shadows open without touching the midtones', () => {
+  /*
+   * The half of the gap to a phone's own camera that was missing entirely.
+   * Local contrast alone pushes the dark side of every edge further down; what
+   * an iPhone does is the opposite at the low end. A lift that also raised the
+   * midtones would just be a brightness slider, and would wash the photo out.
+   */
+  const img = ramp(600, 60);
+  const out = enhance(img, { ...OFF, shadows: 0.4 });
+
+  const dark = px(out, 30, 30)[0] - px(img, 30, 30)[0];
+  const mid = px(out, 300, 30)[0] - px(img, 300, 30)[0];
+  const light = px(out, 570, 30)[0] - px(img, 570, 30)[0];
+
+  assert.ok(dark > 15, `shadows barely moved: +${dark}`);
+  assert.ok(mid < dark / 2, `midtones moved ${mid}, nearly as much as shadows ${dark}`);
+  assert.ok(Math.abs(light) < 6, `highlights moved ${light}`);
+});
+
+test('highlights come down without dragging the midtones with them', () => {
+  const img = ramp(600, 60);
+  const out = enhance(img, { ...OFF, highlights: 0.4 });
+
+  const light = px(img, 570, 30)[0] - px(out, 570, 30)[0];
+  const mid = px(img, 300, 30)[0] - px(out, 300, 30)[0];
+  const dark = px(img, 30, 30)[0] - px(out, 30, 30)[0];
+
+  assert.ok(light > 15, `highlights barely moved: -${light}`);
+  assert.ok(mid < light / 2, `midtones fell ${mid} against highlights ${light}`);
+  assert.ok(Math.abs(dark) < 6, `shadows moved ${dark}`);
+});
+
+test('opening the shadows does not flatten what is in them', () => {
+  /*
+   * The entire reason the curve is applied to the blurred BASE rather than to
+   * the pixels. A lift applied directly compresses the dark end, so texture in
+   * a shadow turns to grey mud — recovered brightness, lost photograph.
+   * Splitting base from detail lets the base bend while the detail rides
+   * through untouched.
+   */
+  const w = 400, h = 200;
+  const data = new Uint8ClampedArray(w * h * 4);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      // A dark region carrying fine texture.
+      const v = 26 + (((x >> 1) + (y >> 1)) % 2 === 0 ? 10 : 0);
+      const p = (y * w + x) * 4;
+      data[p] = data[p + 1] = data[p + 2] = v;
+      data[p + 3] = 255;
+    }
+  }
+  const img: Pixels = { data, width: w, height: h };
+  const out = enhance(img, { ...OFF, shadows: 0.5 });
+
+  const texture = (im: Pixels) => {
+    let t = 0, n = 0;
+    for (let y = 4; y < h - 4; y += 2) {
+      for (let x = 4; x < w - 5; x += 2) {
+        t += Math.abs(px(im, x, y)[0] - px(im, x + 1, y)[0]); n++;
+      }
+    }
+    return t / n;
+  };
+
+  assert.ok(px(out, 200, 100)[0] > px(img, 200, 100)[0] + 8, 'the shadow did lift');
+  assert.ok(texture(out) > texture(img) * 0.8,
+    `texture collapsed from ${texture(img).toFixed(1)} to ${texture(out).toFixed(1)}`);
+});
+
+test('tone mapping at zero is exactly the old unsharp', () => {
+  /*
+   * Tone mapping and clarity share one guide, and clarity is now expressed as
+   * base + detail·(1+clarity). That is algebraically Y + clarity·(Y − base), so
+   * with the tone controls at zero the result must be bit-identical to the
+   * formula it replaced. If this drifts, a refactor changed behaviour.
+   */
+  const img = edge(200, 200, 70, 190);
+  const a = enhance(img, { ...OFF, clarity: 0.4 });
+  const b = enhance(img, { ...OFF, clarity: 0.4, shadows: 0, highlights: 0 });
+  assert.deepEqual([...a.data], [...b.data]);
+});
+
+test('the presets open shadows and hold highlights', () => {
+  // Both are what a phone's own camera does and this one was not. A preset that
+  // silently loses them would give back the flat, crushed look this fixed.
+  for (const p of [NATURAL, ZOOMED]) {
+    assert.ok(p.shadows > 0 && p.shadows < 0.4, `shadows ${p.shadows}`);
+    assert.ok(p.highlights > 0 && p.highlights < 0.4, `highlights ${p.highlights}`);
+  }
+});
+
 test('chroma denoise removes colour speckle and keeps luminance detail', () => {
   /*
    * The trade the whole design rests on: colour acuity is a fraction of

@@ -28,11 +28,11 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import {
-  openCamera, captureFrame, captureBurst, applyDigitalZoom, setOpticalZoom, setTorch,
-  pixelsToDataUrl, pixelsToBlob, mirrorPixels, savePhoto, megapixels, enhanceOffThread,
+  openCamera, captureForMerge, applyDigitalZoom, setOpticalZoom, setTorch,
+  pixelsToDataUrl, pixelsToBlob, mirrorPixels, savePhoto, megapixels, processOffThread,
   type Facing, type CaptureCapabilities,
 } from '@/lib/cameraCapture';
-import { stackFrames, NATURAL, ZOOMED, type Pixels } from '@/lib/photoPipeline';
+import { NATURAL, ZOOMED, type Pixels } from '@/lib/photoPipeline';
 
 const ACCENT = '#4a76c4';
 const GOLD = '#ffcc33';
@@ -40,8 +40,20 @@ const GOLD = '#ffcc33';
 /** The steps the zoom control snaps to. Beyond 4× a crop stops being worth it. */
 const ZOOM_STOPS = [1, 1.5, 2, 3, 4];
 
-/** Frames to average on the low-light path. Long enough to help, short enough not to smear. */
-const BURST = 5;
+/*
+ * How many frames each mode asks for, and how long it may spend collecting them.
+ *
+ * One frame is a plain still: fastest, full resolution, and in good light the
+ * better answer. Five is the merged mode — enough for a real drop in noise
+ * without asking somebody to hold a phone still for a week.
+ *
+ * The budget is what keeps the merged mode honest on a slow device: rather
+ * than taking however long five stills take, it collects what it can and merges
+ * that.
+ */
+const FRAMES_FAST = 1;
+const FRAMES_MERGED = 5;
+const BURST_BUDGET_MS = 2200;
 
 type Phase = 'live' | 'working' | 'result';
 
@@ -49,7 +61,10 @@ interface Result {
   enhanced: Pixels;
   original: Pixels;
   source: string;
-  stacked: boolean;
+  /** How many frames actually went into it, after any were dropped. */
+  merged: number;
+  /** 0..1 — how much of the burst agreed. Low means the scene was moving. */
+  agreement: number;
 }
 
 export function CameraSpace({ onClose }: { onClose: () => void }) {
@@ -62,7 +77,7 @@ export function CameraSpace({ onClose }: { onClose: () => void }) {
   const [caps, setCaps] = useState<CaptureCapabilities | null>(null);
   const [zoom, setZoom] = useState(1);
   const [torchOn, setTorchOn] = useState(false);
-  const [lowLight, setLowLight] = useState(false);
+  const [mergeMode, setMergeMode] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Result | null>(null);
   const [showOriginal, setShowOriginal] = useState(false);
@@ -130,39 +145,46 @@ export function CameraSpace({ onClose }: { onClose: () => void }) {
 
     try {
       const opticallyZoomed = !!caps?.zoom && zoom > 1;
-      let pixels: Pixels;
-      let source: string;
-      let stacked = false;
+      const want = mergeMode ? FRAMES_MERGED : FRAMES_FAST;
 
-      if (lowLight) {
-        /*
-         * Averaging a burst is the only step in the whole pipeline that adds
-         * information rather than trading it away: noise is random and the
-         * scene is not. It runs on video frames because `takePhoto` is far too
-         * slow to fire five times — so it is a deliberate trade of resolution
-         * for cleanliness, offered as a toggle rather than guessed at.
-         */
-        pixels = stackFrames(await captureBurst(video, BURST));
-        source = `${BURST}× კადრი`;
-        stacked = true;
-      } else {
-        const shot = await captureFrame(track, video);
-        pixels = shot.pixels;
-        source = shot.source === 'photo' ? 'სენსორი' : shot.source === 'frame' ? 'კადრი' : 'ვიდეო';
-      }
+      /*
+       * The burst, at whatever resolution this device can burst at. On a phone
+       * where `takePhoto` is quick that is several full-resolution stills — as
+       * close to HDR+ as a browser reaches. Where it is not, it is video
+       * frames: smaller, but many, which for a dim scene is the better trade.
+       */
+      const shot = await captureForMerge(track, video, want, BURST_BUDGET_MS);
+      let frames = shot.frames;
 
-      pixels = applyDigitalZoom(pixels, zoom, opticallyZoomed);
-      // The preview is mirrored because that is what a mirror does; the sensor
-      // does not mirror, so without this a selfie comes out flipped relative to
-      // what was on screen.
-      if (facing === 'user') pixels = mirrorPixels(pixels);
+      // Zoom and mirror every frame before merging, not after: the merge
+      // aligns them against each other, and it can only do that while they
+      // are all in the same geometry.
+      frames = frames.map(f => {
+        let p = applyDigitalZoom(f, zoom, opticallyZoomed);
+        if (facing === 'user') p = mirrorPixels(p);
+        return p;
+      });
 
       const digitallyZoomed = zoom > 1 && !opticallyZoomed;
-      // Off the main thread, so the spinner keeps spinning while a
-      // twelve-megapixel photo is worked on. A frozen screen reads as a crash.
-      const enhanced = await enhanceOffThread(pixels, digitallyZoomed ? ZOOMED : NATURAL);
+      /*
+       * Merging and enhancing both happen off the main thread. Between them
+       * this is several seconds on a large photo, and several seconds on the
+       * main thread is a spinner that does not turn and taps that do nothing,
+       * which reads as a crash rather than as work.
+       */
+      const { pixels: enhanced, report } = await processOffThread(
+        frames, digitallyZoomed ? ZOOMED : NATURAL,
+      );
 
-      setResult({ enhanced, original: pixels, source, stacked });
+      const used = frames.length - (report?.dropped ?? 0);
+      const base = report ? frames[report.reference] : frames[0];
+      setResult({
+        enhanced,
+        original: base,
+        source: shot.source === 'photo' ? 'სენსორი' : 'ვიდეო',
+        merged: used,
+        agreement: report?.agreement ?? 1,
+      });
       setShowOriginal(false);
       setSaved(null);
       setPhase('result');
@@ -170,7 +192,7 @@ export function CameraSpace({ onClose }: { onClose: () => void }) {
       setError('სურათი ვერ გადაიღო');
       setPhase('live');
     }
-  }, [phase, caps, zoom, facing, lowLight]);
+  }, [phase, caps, zoom, facing, mergeMode]);
 
   const save = useCallback(async () => {
     if (!result) return;
@@ -228,17 +250,21 @@ export function CameraSpace({ onClose }: { onClose: () => void }) {
 
           {phase !== 'result' && (
             /*
-             * Named for what it does, not for how. "ღამის რეჟიმი" would promise
-             * a night mode; this averages a burst, which helps in dim light and
-             * smears anything that moves. The label says the trade.
+             * On by default, because it is the whole point of this camera.
+             *
+             * Named for the trade rather than for the mechanism. "ღამის რეჟიმი"
+             * would promise a night mode; this takes several frames and merges
+             * them, which costs a couple of seconds and buys a cleaner, more
+             * detailed photo. Turning it off gives a single fast still, which
+             * in bright light is barely worse and is instant.
              */
-            <button onClick={() => setLowLight(v => !v)}
+            <button onClick={() => setMergeMode(v => !v)}
               className="px-3 h-9 rounded-full flex items-center gap-1.5 font-mono text-[11px] flex-shrink-0"
               style={{
-                background: lowLight ? `${ACCENT}44` : 'rgba(0,0,0,0.5)',
-                border: `1px solid ${lowLight ? ACCENT : 'rgba(255,255,255,0.16)'}`,
-                color: lowLight ? '#cfe0ff' : 'rgba(255,255,255,0.6)',
-              }}>🌙 ბნელი</button>
+                background: mergeMode ? `${ACCENT}44` : 'rgba(0,0,0,0.5)',
+                border: `1px solid ${mergeMode ? ACCENT : 'rgba(255,255,255,0.16)'}`,
+                color: mergeMode ? '#cfe0ff' : 'rgba(255,255,255,0.6)',
+              }}>{mergeMode ? '✦ ხარისხი' : '⚡ სწრაფი'}</button>
           )}
         </div>
 
@@ -313,10 +339,24 @@ export function CameraSpace({ onClose }: { onClose: () => void }) {
                 style={{ background: 'rgba(0,0,0,0.55)', border: `1px solid ${ACCENT}66`, color: '#cfe0ff' }}>
                 {result.source}
               </span>
-              {result.stacked && (
+              {result.merged > 1 && (
+                /*
+                 * How many frames actually made it in, not how many were asked
+                 * for. A burst where three of five were dropped for motion did
+                 * less than one where all five merged, and saying "5×" in both
+                 * cases would be the readout lying about the photo.
+                 */
                 <span className="px-2.5 py-1 rounded-lg font-mono text-[10.5px]"
                   style={{ background: 'rgba(0,0,0,0.55)', border: `1px solid ${GOLD}66`, color: '#ffe6a0' }}>
-                  ხმაური ↓
+                  {result.merged}× შერწყმა
+                </span>
+              )}
+              {result.merged > 1 && result.agreement < 0.5 && (
+                // The scene moved, so most of the burst was rejected and this is
+                // closer to a single frame than to a merge. Worth admitting.
+                <span className="px-2.5 py-1 rounded-lg font-mono text-[10.5px]"
+                  style={{ background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.55)' }}>
+                  მოძრაობა
                 </span>
               )}
             </div>

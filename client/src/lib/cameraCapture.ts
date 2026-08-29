@@ -38,6 +38,7 @@
  */
 
 import { crop, zoomRect, lanczosResize, enhance, type Pixels, type EnhanceOptions } from './photoPipeline';
+import { mergeBurst, type MergeReport } from './burstMerge';
 
 /** Ask for far more than any phone has; the browser negotiates down. */
 const IDEAL_W = 4096;
@@ -189,12 +190,10 @@ export async function captureFrame(
 }
 
 /**
- * A burst, averaged.
+ * A burst of video frames, as fast as the track produces them.
  *
- * Only worth doing on the video path — `takePhoto` is far too slow to fire
- * several times, and the still it returns has already had the device's own
- * noise reduction applied. The frames come as fast as the track produces them,
- * which keeps the burst short enough that a handheld shot stays aligned.
+ * Fast and low resolution. Used when full stills are too slow to burst, and on
+ * every iPhone, where `ImageCapture` does not exist at all.
  */
 export async function captureBurst(video: HTMLVideoElement, count: number): Promise<Pixels[]> {
   const frames: Pixels[] = [];
@@ -203,6 +202,63 @@ export async function captureBurst(video: HTMLVideoElement, count: number): Prom
     if (i < count - 1) await nextFrame();
   }
   return frames;
+}
+
+/**
+ * The best burst this device can produce inside a time budget.
+ *
+ * WHY IT IS ADAPTIVE INSTEAD OF PICKING ONE
+ * ─────────────────────────────────────────
+ * Merging wants many frames; resolution wants full stills; `takePhoto` is
+ * fast on some phones and takes half a second on others. Choosing statically
+ * means either throwing away resolution on the phones that could have given it,
+ * or leaving somebody holding still for six seconds on the ones that cannot.
+ *
+ * So it times the first still and decides. If stills come quickly, the burst is
+ * full-resolution and this is as close to HDR+ as a browser gets. If they do
+ * not, it drops to video frames — lower resolution, but many of them, which for
+ * a dim scene is the better trade anyway.
+ *
+ * Frames are never mixed across the two. Merging a 12-megapixel still with a
+ * 2-megapixel video frame would mean resampling one to meet the other, and
+ * the alignment would be fitting a scaled image to a sharp one.
+ */
+export async function captureForMerge(
+  track: MediaStreamTrack,
+  video: HTMLVideoElement,
+  count: number,
+  budgetMs: number,
+): Promise<{ frames: Pixels[]; source: Shot['source'] }> {
+  const IC: any = (window as any).ImageCapture;
+  if (typeof IC === 'function') {
+    let capture: any = null;
+    try { capture = new IC(track); } catch { capture = null; }
+
+    if (capture) {
+      const frames: Pixels[] = [];
+      const started = Date.now();
+      for (let i = 0; i < count; i++) {
+        const left = budgetMs - (Date.now() - started);
+        // Always allow the first one its full timeout: a single high-resolution
+        // still is a good outcome even when a burst is not.
+        if (i > 0 && left < 250) break;
+        try {
+          const blob: Blob = await withTimeout(capture.takePhoto(), i === 0 ? 2500 : Math.max(250, left));
+          frames.push(await pixelsFromBlob(blob));
+        } catch { break; }
+      }
+      // Two or more full-resolution stills is the best case there is.
+      if (frames.length >= 2) return { frames, source: 'photo' };
+      /*
+       * Exactly one still means `takePhoto` works but is too slow to burst.
+       * A single 12-megapixel frame beats a merge of eight 2-megapixel ones for
+       * everything except noise, so it is kept rather than thrown away.
+       */
+      if (frames.length === 1) return { frames, source: 'photo' };
+    }
+  }
+
+  return { frames: await captureBurst(video, count), source: 'video' };
 }
 
 /**
@@ -379,34 +435,49 @@ export function megapixels(p: Pixels): string {
  * all — so if the worker cannot be built, or answers with an error, the same
  * function runs here instead.
  */
-export function enhanceOffThread(img: Pixels, options: EnhanceOptions): Promise<Pixels> {
+export interface ProcessResult {
+  pixels: Pixels;
+  /** Present when more than one frame went in. */
+  report: MergeReport | null;
+}
+
+export function processOffThread(frames: Pixels[], options: EnhanceOptions): Promise<ProcessResult> {
+  const inline = (): ProcessResult => {
+    const merged = frames.length > 1 ? mergeBurst(frames) : null;
+    const base = merged ? merged.merged : frames[0];
+    return { pixels: enhance(base, options), report: merged?.report ?? null };
+  };
+
   return new Promise(resolve => {
     let worker: Worker;
     try {
       worker = new Worker(new URL('./photoWorker.ts', import.meta.url), { type: 'module' });
     } catch {
-      resolve(enhance(img, options));
+      resolve(inline());
       return;
     }
 
     let settled = false;
-    const finish = (p: Pixels) => {
+    const finish = (r: ProcessResult) => {
       if (settled) return;
       settled = true;
       worker.terminate();
-      resolve(p);
+      resolve(r);
     };
 
     worker.onmessage = (e: MessageEvent<any>) => {
       const d = e.data;
-      finish(d?.ok ? { data: d.data, width: d.width, height: d.height } : enhance(img, options));
+      finish(d?.ok
+        ? { pixels: { data: d.data, width: d.width, height: d.height }, report: d.report ?? null }
+        : inline());
     };
-    worker.onerror = () => finish(enhance(img, options));
+    worker.onerror = () => finish(inline());
 
     /*
-     * The input is copied rather than transferred, on purpose: transferring
-     * would neuter this buffer, and it is the original the compare button shows.
+     * The frames are copied rather than transferred, on purpose: transferring
+     * would neuter these buffers, and one of them is the original the compare
+     * button shows.
      */
-    worker.postMessage({ data: img.data, width: img.width, height: img.height, options });
+    worker.postMessage({ frames, options });
   });
 }
