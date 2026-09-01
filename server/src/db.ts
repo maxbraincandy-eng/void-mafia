@@ -1584,10 +1584,23 @@ export async function initializeDatabase(): Promise<void> {
       created_at   BIGINT NOT NULL
     )
   `;
-  // The board reads one row per player, ordered by score then time; the history
-  // read is per player, newest first. One index each.
-  await sql`CREATE INDEX IF NOT EXISTS idx_dumb_user ON dumb_attempts(user_id, created_at DESC)`;
-  await sql`CREATE INDEX IF NOT EXISTS idx_dumb_board ON dumb_attempts(user_id, correct DESC, duration_ms ASC)`;
+  /*
+   * Which category the run was drawn from, so each one can have its own board.
+   * Rows written before categories existed were all mixed draws, which is what
+   * the default says — no backfill needed.
+   */
+  await sql`ALTER TABLE dumb_attempts ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'mixed'`;
+  /*
+   * The board reads one row per player, ordered by score then time; the history
+   * read is per player, newest first. Both now filter by category, so both
+   * indexes lead with it — and the pre-category pair is dropped rather than left
+   * behind, because CREATE INDEX IF NOT EXISTS would have kept the old
+   * definition under the old name and quietly indexed the wrong columns.
+   */
+  await sql`DROP INDEX IF EXISTS idx_dumb_user`;
+  await sql`DROP INDEX IF EXISTS idx_dumb_board`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_dumb_user_cat ON dumb_attempts(user_id, category, created_at DESC)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_dumb_board_cat ON dumb_attempts(category, user_id, correct DESC, duration_ms ASC)`;
 
   // VOID IQ — cognitive test attempts + public leaderboard
   await sql`

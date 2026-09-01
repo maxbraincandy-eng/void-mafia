@@ -124,10 +124,20 @@ test('options are shuffled, so the answer is not always in the same place', { sk
    * becomes "remember that the boom barrier one is first" — a memory test, and
    * a worse one.
    */
+  /*
+   * Drawn from the category the question actually lives in. A mixed draw would
+   * be the obvious thing to write and is quietly flaky: as the bank grows, the
+   * chance of any one question turning up in twelve gets smaller, and the test
+   * would start failing for a reason that has nothing to do with shuffling.
+   */
   const positions = new Set<number>();
-  for (let i = 0; i < 40; i++) {
-    for (const q of B.drawTest()) if (q.id === 'shlagbaumi') positions.add(q.correct);
+  let seenIt = 0;
+  for (let i = 0; i < 200; i++) {
+    for (const q of B.drawTest([], 'classic')) {
+      if (q.id === 'shlagbaumi') { positions.add(q.correct); seenIt++; }
+    }
   }
+  assert.ok(seenIt >= 20, `the question came up only ${seenIt} times — the draw is not random`);
   assert.ok(positions.size >= 3, `the answer only ever appeared at ${[...positions].join(',')}`);
 });
 
@@ -308,4 +318,156 @@ test('every score lands in a band, and the bands run the right way', { skip }, (
     titles.push(b.title);
   }
   assert.notEqual(titles[0], titles[12], 'the best and worst scores read the same');
+});
+
+// ── Categories ────────────────────────────────────────────────────────────────
+
+const REAL_CATEGORIES = ['classic', 'geo', 'brain', 'void'] as const;
+
+test('every category can fill two tests without repeating itself', { skip }, () => {
+  /*
+   * The floor that makes the game's promise true INSIDE a category. The whole
+   * bank being large is not enough: someone who plays სხვა განზომილება twice
+   * draws only from სხვა განზომილება, and a pool of twenty would repeat on the
+   * second run while every other test here still passed.
+   */
+  for (const c of REAL_CATEGORIES) {
+    const n = B.BANK.filter(q => q.category === c).length;
+    assert.ok(n >= B.QUESTIONS_PER_TEST * 2,
+      `${c} holds ${n} questions, which cannot fill two tests of ${B.QUESTIONS_PER_TEST}`);
+  }
+});
+
+test('a test drawn from a category contains only that category', { skip }, () => {
+  for (const c of REAL_CATEGORIES) {
+    const t = B.drawTest([], c);
+    assert.equal(t.length, B.QUESTIONS_PER_TEST, `${c} drew a short test`);
+    for (const q of t) assert.equal(q.category, c, `${c} drew a ${q.category} question`);
+  }
+});
+
+test('the second run in a category shares nothing with the first', { skip }, () => {
+  for (const c of REAL_CATEGORIES) {
+    const first = B.drawTest([], c).map(q => q.id);
+    const second = B.drawTest(first, c).map(q => q.id);
+    const shared = second.filter(id => first.includes(id));
+    assert.deepEqual(shared, [], `${c} repeated ${shared.length} questions straight away`);
+  }
+});
+
+test('an exhausted category falls back inside itself, not into the whole bank', { skip }, () => {
+  /*
+   * The tempting fix for "not enough left to exclude" is to widen the pool to
+   * the whole bank. It is the wrong one: somebody who chose სხვა განზომილება
+   * would suddenly be asked about khinkali, and the category would silently stop
+   * meaning anything.
+   */
+  for (const c of REAL_CATEGORIES) {
+    const everything = B.BANK.map(q => q.id);
+    const t = B.drawTest(everything, c);
+    assert.equal(t.length, B.QUESTIONS_PER_TEST, `${c} gave up and returned a short test`);
+    for (const q of t) assert.equal(q.category, c, `${c} escaped into ${q.category}`);
+  }
+});
+
+test('the alien category is actually alien', { skip }, () => {
+  // The category was asked for by its contents — the hyperjump, the vortex, the
+  // reality shaper. A file reorganisation that moved them elsewhere would leave
+  // an empty joke behind a full-looking category.
+  const voidIds = B.BANK.filter(q => q.category === 'void').map(q => q.id).join(' ');
+  for (const stem of ['hyperjump', 'vortex', 'reality_shaper']) {
+    assert.ok(voidIds.includes(stem), `სხვა განზომილება has no ${stem} question`);
+  }
+});
+
+test('the picker advertises the real pool sizes', { skip }, () => {
+  // A screen promising more questions than the bank holds is worse than one that
+  // promises nothing, and the number is exactly the kind that rots quietly.
+  for (const info of B.CATEGORIES) {
+    const real = info.id === 'mixed'
+      ? B.BANK.length
+      : B.BANK.filter(q => q.category === info.id).length;
+    assert.equal(info.count, real, `${info.id} advertises ${info.count} but holds ${real}`);
+    assert.ok(info.title.length > 0 && info.sub.length > 0, `${info.id} has no label`);
+  }
+  assert.equal(B.CATEGORIES.length, REAL_CATEGORIES.length + 1, 'mixed is missing from the picker');
+});
+
+test('an unrecognised category falls back to mixed rather than emptying the pool', { skip }, () => {
+  for (const junk of ['', 'VOID', 'geo; DROP TABLE', null, undefined, 42, {}]) {
+    assert.equal(B.asCategory(junk), 'mixed', `${JSON.stringify(junk)} was accepted as a category`);
+  }
+  for (const c of REAL_CATEGORIES) assert.equal(B.asCategory(c), c);
+});
+
+test('the category of a run comes from its questions, not from a claim', { skip }, () => {
+  /*
+   * The client never gets to say which board it belongs on. If it did, the easy
+   * category would be submitted as the hard one and the per-category boards
+   * would rank nothing in particular.
+   */
+  for (const c of REAL_CATEGORIES) {
+    assert.equal(B.categoryOf(B.drawTest([], c).map(q => q.id)), c);
+  }
+  const spanning = [
+    B.BANK.find(q => q.category === 'geo')!.id,
+    B.BANK.find(q => q.category === 'void')!.id,
+  ];
+  assert.equal(B.categoryOf(spanning), 'mixed', 'a run across categories claimed one of them');
+  assert.equal(B.categoryOf(['nonsense', 'also_nonsense']), 'mixed');
+});
+
+test('each category keeps its own board', { skip }, async () => {
+  /*
+   * Categories are not equally hard, so one shared board would rank whoever
+   * picked the easiest.
+   */
+  const voidTest = B.drawTest([], 'void');
+  const geoTest = B.drawTest([], 'geo');
+  await S.submitAttempt(A, perfect(voidTest), 20_000);
+  await S.submitAttempt(C, perfect(geoTest), 20_000);
+
+  const voidBoard = (await S.getLeaderboard(null, 'void')).filter(r => r.userId.startsWith('dtu_'));
+  const geoBoard = (await S.getLeaderboard(null, 'geo')).filter(r => r.userId.startsWith('dtu_'));
+  const mixedBoard = (await S.getLeaderboard(null, 'mixed')).filter(r => r.userId.startsWith('dtu_'));
+
+  assert.deepEqual(voidBoard.map(r => r.userId), [A], 'the სხვა განზომილება board is not its own');
+  assert.deepEqual(geoBoard.map(r => r.userId), [C], 'the ქართული საქმე board is not its own');
+  assert.deepEqual(mixedBoard, [], 'category runs leaked onto the mixed board');
+});
+
+test('a run is filed under the category it was actually drawn from', { skip }, async () => {
+  const t = B.drawTest([], 'brain');
+  const r = await S.submitAttempt(A, perfect(t), 15_000);
+  assert.equal(r.category, 'brain');
+  assert.equal(r.rank, 1, 'the run was ranked against the wrong board');
+
+  const elsewhere = await S.getLeaderboard(null, 'classic');
+  assert.deepEqual(elsewhere.filter(x => x.userId === A), [], 'a brain run appeared on the classic board');
+});
+
+test('status is per category, and one category does not poison another', { skip }, async () => {
+  /*
+   * `lastQuestionIds` feeds the next draw. If status ignored the category, then
+   * picking სხვა განზომილება after a Georgian run would exclude twelve questions
+   * that were never in the pool and exclude nothing that was — the exclusion
+   * would silently stop working.
+   */
+  const geoTest = B.drawTest([], 'geo');
+  await S.submitAttempt(A, perfect(geoTest), 30_000);
+
+  const geo = await S.getStatus(A, 'geo');
+  assert.equal(geo.plays, 1);
+  assert.equal(geo.best, 12);
+  assert.equal(geo.rank, 1);
+  assert.deepEqual(geo.lastQuestionIds.slice().sort(), geoTest.map(q => q.id).sort());
+  assert.equal(geo.bankSize, B.BANK.filter(q => q.category === 'geo').length,
+    'the category reported the whole bank as its pool');
+
+  const alien = await S.getStatus(A, 'void');
+  assert.equal(alien.plays, 0, 'a Georgian run counted as an alien one');
+  assert.equal(alien.best, null);
+  assert.equal(alien.rank, null);
+  assert.deepEqual(alien.lastQuestionIds, [],
+    'the alien draw would have excluded questions it never contained');
 });
