@@ -43,6 +43,8 @@ import { superResolve, MAX_HONEST_SCALE, type SuperResolveReport } from './super
 import { planMerge, mergeRows, MERGE_DEFAULTS, type MergePlan } from './burstMerge';
 import { PhotoPool, mergeAcrossPool } from './photoPool';
 import { capability } from './deviceTier';
+import { tryGpuMerge } from './gpuPath';
+import { reconstructDetail } from './aiDetail';
 
 /** Ask for far more than any phone has; the browser negotiates down. */
 const IDEAL_W = 4096;
@@ -463,8 +465,22 @@ export interface ProcessResult {
   report: MergeReport | null;
   /** Present when the burst was reconstructed onto a finer grid instead. */
   sr: SuperResolveReport | null;
-  /** How many workers actually did the accumulation. For the readout. */
+  /** How many workers actually did the accumulation. 0 means the GPU did it. */
   workers: number;
+  /** Which detail model ran, or null when none is installed. */
+  ai?: string | null;
+}
+
+/**
+ * The last stage, and the only one a model is allowed near.
+ *
+ * Bounded so it reconstructs rather than generates — see `aiDetail`. With no
+ * model installed it returns the photograph untouched rather than quietly
+ * substituting a sharpening filter and keeping the label.
+ */
+async function withAiDetail(img: Pixels): Promise<{ image: Pixels; model: string | null }> {
+  const r = await reconstructDetail(img);
+  return { image: r.image, model: r.model };
 }
 
 /*
@@ -546,6 +562,27 @@ export async function processOffThread(
       usable: frames,
     };
 
+    /*
+     * The GPU, if this device has proved it can be trusted with a photograph.
+     *
+     * `tryGpuMerge` runs a known input through the shader and the CPU function
+     * on first use and compares them; a device where they disagree never gets
+     * asked again. So this is not "use the GPU if present" — it is "use the GPU
+     * if it was verified, on this device, in this session".
+     */
+    const viaGpu = await tryGpuMerge(frames, plan.reference, plan.contributors, MERGE_DEFAULTS);
+    if (viaGpu) {
+      const enhancedGpu = await p.run<any>({ kind: 'enhance', frame: viaGpu, options });
+      const finalGpu = await withAiDetail({ data: enhancedGpu.data, width: enhancedGpu.width, height: enhancedGpu.height });
+      return {
+        pixels: finalGpu.image,
+        report: { reference: plan.reference, offsets: plan.offsets, dropped: plan.dropped, agreement: 1 },
+        sr: null,
+        workers: 0,
+        ai: finalGpu.model,
+      };
+    }
+
     // ── Accumulate in strips, across every core ──────────────────────────
     const { image: merged, agreement } = await mergeAcrossPool(
       p, plan, first.width, first.height, MERGE_DEFAULTS,
@@ -553,9 +590,11 @@ export async function processOffThread(
     );
 
     const enhanced = await p.run<any>({ kind: 'enhance', frame: merged, options });
+    const final = await withAiDetail({ data: enhanced.data, width: enhanced.width, height: enhanced.height });
 
     return {
-      pixels: { data: enhanced.data, width: enhanced.width, height: enhanced.height },
+      pixels: final.image,
+      ai: final.model,
       report: {
         reference: plan.reference,
         offsets: plan.offsets,

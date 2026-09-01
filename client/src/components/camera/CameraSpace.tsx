@@ -103,6 +103,10 @@ interface Result {
   plain: Pixels | null;
   /** The zoom the shot was actually taken at. */
   shotZoom: number;
+  /** The GPU did the accumulation, having proved on this device that it can. */
+  gpu?: boolean;
+  /** Which detail model ran, if any is installed. */
+  ai?: string | null;
 }
 
 export function CameraSpace({ onClose }: { onClose: () => void }) {
@@ -296,7 +300,7 @@ export function CameraSpace({ onClose }: { onClose: () => void }) {
        * main thread is a spinner that does not turn and taps that do nothing,
        * which reads as a crash rather than as work.
        */
-      const { pixels: enhanced, report, sr } = await processOffThread(
+      const { pixels: enhanced, report, sr, workers, ai } = await processOffThread(
         usable, digitallyZoomed ? ZOOMED : NATURAL, { superResolve: useSR },
       );
 
@@ -318,6 +322,9 @@ export function CameraSpace({ onClose }: { onClose: () => void }) {
         reconstructed: sr && sr.phaseDiversity > 0.25 ? sr.scale : 0,
         rejected: picked.rejected.length,
         provisional: false,
+        // 0 workers means the verified GPU path did the accumulation.
+        gpu: workers === 0,
+        ai: ai ?? null,
         /*
          * Plain crop-and-resize from the same source, kept for the inspector.
          *
@@ -529,6 +536,20 @@ export function CameraSpace({ onClose }: { onClose: () => void }) {
                 <span className="px-2.5 py-1 rounded-lg font-mono text-[10.5px]"
                   style={{ background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.55)' }}>
                   −{result.rejected} სუსტი
+                </span>
+              )}
+              {result.gpu && (
+                // Only shown when the shader actually ran, which means it
+                // passed the self-test against the CPU on this device.
+                <span className="px-2.5 py-1 rounded-lg font-mono text-[10.5px]"
+                  style={{ background: 'rgba(0,0,0,0.55)', border: `1px solid ${ACCENT}88`, color: '#cfe0ff' }}>
+                  GPU
+                </span>
+              )}
+              {result.ai && (
+                <span className="px-2.5 py-1 rounded-lg font-mono text-[10.5px]"
+                  style={{ background: 'rgba(0,0,0,0.55)', border: `1px solid ${GOLD}66`, color: '#ffe6a0' }}>
+                  {result.ai}
                 </span>
               )}
               {result.merged > 1 && result.agreement < 0.5 && (
