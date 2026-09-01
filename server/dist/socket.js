@@ -22,6 +22,7 @@ import { registerSxvaMafiaHandlers, handleSxvaMafiaDisconnect } from './sxvaMafi
 import { registerPokerHandlers, handlePokerDisconnect } from './poker/poker.js';
 import { registerWatchPartyHandlers, handleWatchPartyDisconnect } from './watchParty.js';
 import { registerIQHandlers } from './iq.js';
+import { registerDumbHandlers } from './dumbTest.js';
 import { registerMaxPuzzleHandlers } from './maxpuzzle.js';
 import { addCrown as ganabAddCrown, listCrowned as ganabListCrowned } from './services/ganabService.js';
 import { timerService } from './services/timerService.js';
@@ -9773,6 +9774,7 @@ export function attachSocketHandlers(io) {
         registerWatchPartyHandlers(io, socket);
         // ── VOID IQ ──────────────────────────────────────────────────────
         registerIQHandlers(io, socket);
+        registerDumbHandlers(io, socket);
         // ── ბატონი მაქსის თავსატეხი ──────────────────────────────────────
         registerMaxPuzzleHandlers(io, socket);
         // ── Ganab Simulator — global coronation hall of fame ─────────────

@@ -1453,6 +1453,29 @@ export async function initializeDatabase() {
       PRIMARY KEY (tournament_id, player_id)
     )
   `;
+    /*
+     * დებილების ტესტი — attempts and the board.
+     *
+     * Every attempt is kept rather than only the best. The board ranks each
+     * player's best, but the history is what lets the next test avoid the
+     * questions they just saw — and a game whose whole promise is "you will not
+     * get the same twelve twice" needs to remember which twelve those were.
+     */
+    await sql `
+    CREATE TABLE IF NOT EXISTS dumb_attempts (
+      id           TEXT PRIMARY KEY,
+      user_id      TEXT NOT NULL,
+      correct      INTEGER NOT NULL,
+      total        INTEGER NOT NULL,
+      duration_ms  BIGINT NOT NULL DEFAULT 0,
+      question_ids TEXT NOT NULL DEFAULT '[]',
+      created_at   BIGINT NOT NULL
+    )
+  `;
+    // The board reads one row per player, ordered by score then time; the history
+    // read is per player, newest first. One index each.
+    await sql `CREATE INDEX IF NOT EXISTS idx_dumb_user ON dumb_attempts(user_id, created_at DESC)`;
+    await sql `CREATE INDEX IF NOT EXISTS idx_dumb_board ON dumb_attempts(user_id, correct DESC, duration_ms ASC)`;
     // VOID IQ — cognitive test attempts + public leaderboard
     await sql `
     CREATE TABLE IF NOT EXISTS iq_attempts (

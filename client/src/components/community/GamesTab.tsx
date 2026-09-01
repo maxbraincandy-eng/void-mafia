@@ -14,6 +14,7 @@ const MaxPuzzleExperience = lazy(() => import('@/components/maxpuzzle/MaxPuzzleE
 const NoirAdventure = lazy(() => import('@/components/noir/NoirAdventure').then(m => ({ default: m.NoirAdventure })));
 const SkyMap = lazy(() => import('@/components/sky/SkyMap'));
 const CameraSpace = lazy(() => import('@/components/camera/CameraSpace'));
+const DumbTest = lazy(() => import('@/components/dumbtest/DumbTest'));
 const MarsTerminal = lazy(() => import('@/components/mars/MarsTerminal').then(m => ({ default: m.MarsTerminal })));
 import { IQLogo } from '@/components/iq/IQLogo';
 import { LogicLogo } from '@/components/logic/LogicLogo';
@@ -81,7 +82,7 @@ const SECTIONS: SectionDef[] = [
       'lies', 'codenames',
       'poker', 'www',
       'alias', 'blackout',
-      'mergeevo',
+      'mergeevo', 'dumbtest',
     ],
   },
   {
@@ -142,6 +143,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms }: { onOpenSpace?: () =>
   const [marsOpen, setMarsOpen] = useState(false);
   const [skyOpen, setSkyOpen] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [dumbOpen, setDumbOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
 
   // ── Checkers ────────────────────────────────────────────────────────
@@ -426,6 +428,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms }: { onOpenSpace?: () =>
   defs.push({ id: 'logic', title: 'ფორმალური ლოგიკის აკადემია', sub: 'სილოგიზმები · არგუმენტაცია · Logic Rating', kind: 'launch', accent: '#F9C81C', logo: 'logic', emoji: '🧠', badge: true, keywords: 'logic ლოგიკა სილოგიზმი არგუმენტი დედუქცია აკადემია რეიტინგი formal ფორმალური მსჯელობა fallacy შეცდომა', launch: () => setLogicOpen(true) });
   defs.push({ id: 'noir', title: 'ნუარი', sub: 'ინტერაქტიული თავგადასავალი · შენ წყვეტ', kind: 'launch', accent: '#ff2d55', emoji: '🌃', badge: true, keywords: 'noir ნუარი თავგადასავალი ამბავი არჩევანი ისტორია adventure story choice მაფია დეტექტივი', launch: () => setNoirOpen(true) });
   defs.push({ id: 'sky', title: 'ცის რუკა', sub: 'მიმართე ცას · პლანეტები რეალურ პოზიციაზე', kind: 'launch', accent: '#7c9cff', emoji: '🔭', badge: true, keywords: 'sky ცა ვარსკვლავი პლანეტა სატურნი ტელესკოპი ასტრონომია star planet saturn telescope astronomy ღამე', launch: () => setSkyOpen(true) });
+  defs.push({ id: 'dumbtest', title: 'დებილების ტესტი', sub: '12 კითხვა · პასუხები ლოგიკური არაა · ლიდერბორდი', kind: 'launch', accent: '#c46bff', emoji: '🤪', badge: true, keywords: 'დებილი ტესტი კითხვა სულელური სასაცილო აბსურდი ვიქტორინა quiz dumb test funny absurd trivia იუმორი ხუმრობა', launch: () => setDumbOpen(true) });
   defs.push({ id: 'camera', title: 'კამერა', sub: 'სენსორის სრული ხარისხი · დეტალიზაცია · ტელეფონში შენახვა', kind: 'launch', accent: '#4a76c4', emoji: '📷', badge: true, keywords: 'camera კამერა ფოტო სურათი გადაღება photo picture ხარისხი დეტალი zoom ზუმი selfie სელფი შენახვა', launch: () => setCameraOpen(true) });
   defs.push({ id: 'watchparty', title: 'კინო სივრცე', sub: 'ერთად უყურეთ ვიდეოს · სინქრონში + ხმა', kind: 'launch', accent: '#ff5d5d', emoji: '🎬', badge: true, keywords: 'watch party კინო ფილმი youtube ვიდეო together სინქრონი co-watch cinema', launch: () => setWatchPartyOpen(true) });
 
@@ -635,6 +638,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms }: { onOpenSpace?: () =>
       {marsOpen && <Suspense fallback={null}><MarsTerminal onClose={() => setMarsOpen(false)} /></Suspense>}
       {skyOpen && <Suspense fallback={null}><SkyMap onClose={() => setSkyOpen(false)} /></Suspense>}
       {cameraOpen && <Suspense fallback={null}><CameraSpace onClose={() => setCameraOpen(false)} /></Suspense>}
+      {dumbOpen && <Suspense fallback={null}><DumbTest onClose={() => setDumbOpen(false)} /></Suspense>}
       {mergeOpen && <Suspense fallback={null}><MergeEvolution onClose={() => setMergeOpen(false)} /></Suspense>}
       {aristocracyOpen && <Suspense fallback={null}><AristocracyTest onClose={() => setAristocracyOpen(false)} /></Suspense>}
     </div>
