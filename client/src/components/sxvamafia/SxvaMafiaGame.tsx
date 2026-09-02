@@ -11,7 +11,7 @@ import {
   getLiveKitRemoteVideo, getLiveKitLocalVideo, getLiveKitSpeaking, setLiveKitCamera,
 } from '@/services/livekitVoice';
 import { SeatEmblem, assignEmblems } from './SeatEmblem';
-import { ringShape } from './ringShape';
+import { ringShape, fitTile } from './ringShape';
 import { VoidCardBack } from './VoidCardBack';
 import { XM_ROLE_META, XM_TEAM_META, type XmSafeSeat, type XmSafeState, type XmRole } from '@/types/sxvaMafia';
 import { GameInviteButton } from '@/components/social/GameInviteButton';
@@ -837,15 +837,45 @@ export function SxvaMafiaGame() {
     return '';
   })();
 
-  // ── Centre-stage ring layout (wide screens, in play) ───────────────────────
+  // ── Centre-stage ring layout ───────────────────────────────────────────────
   const inPlay = match.phase !== 'lobby' && match.phase !== 'finished';
-  // The centre-stage ring only reads well when there are enough players to fill
-  // its perimeter; with fewer it looks huge and sparse, so fall back to a tidy
-  // centred grid.
-  const useRing = wide && inPlay && match.phase !== 'mafia_meet' && match.seats.length >= 8;
+  /*
+   * The ring runs on a phone too now.
+   *
+   * It used to be gated on screen width, so a phone got a flat two-column grid
+   * with the host squeezed into a thumbnail underneath — which loses the one
+   * thing the layout is for: the moderator sits at the head of the table and
+   * everybody else is arranged around them. That reads better on a small screen
+   * than on a large one, because there is less room to spare.
+   *
+   * The eight-seat floor stays, and it is geometry rather than taste: the stage
+   * takes what the two side columns leave, so a board under three tiles wide has
+   * no middle. See MIN_ACROSS in ringShape.
+   */
+  const useRing = inPlay && match.phase !== 'mafia_meet' && match.seats.length >= 8;
   const amMafia = match.myRole === 'mafia' || match.myRole === 'don';
   const mafiaTeam = match.seats.filter(s => s.role === 'mafia' || s.role === 'don');
-  const ring = ringShape(match.seats.length);
+
+  /*
+   * The shape of the room, and from it the shape of a seat.
+   *
+   * A laptop stage is about 2:1 and a webcam is 16:9, so tiles are landscape.
+   * A phone is the other way round, and four landscape tiles across 340 points
+   * come out 79 by 44 — a slit. Portrait tiles on a portrait screen are 81 by
+   * 107, which is a face.
+   *
+   * Measured rather than assumed from a breakpoint, because the thing that
+   * decides this is the box the ring actually got, not the width of the window
+   * around it. Until the first measurement lands the window's own orientation
+   * is a good enough stand-in — it gets the portrait/landscape call right, which
+   * is all that is needed to avoid a visible reflow.
+   */
+  const boxAspect = stageBox.w > 0 && stageBox.h > 0
+    ? stageBox.w / stageBox.h
+    : (typeof window !== 'undefined' ? window.innerWidth / window.innerHeight : 2);
+  const portraitStage = boxAspect < 1;
+  const TILE_ASPECT = portraitStage ? 3 / 4 : 16 / 9;
+  const ring = ringShape(match.seats.length, { boxAspect, tileAspect: TILE_ASPECT });
 
   const stageIcon = intro ? '🤝' : match.phase === 'night' ? '🌙' : match.phase === 'vote' ? '⚖️'
     : match.phase === 'last_words' ? '🎤' : match.phase === 'day_announce' ? ((match.announce?.killed.length ?? 0) > 0 ? '💀' : '🌅')
@@ -876,42 +906,44 @@ export function SxvaMafiaGame() {
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           {/* A watermark, not a subject: the clock is drawn over this. */}
           <motion.span key={match.phase + stageIcon} initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 0.1 }}
-            style={{ fontSize: 132, filter: 'grayscale(1)' }}>{stageIcon}</motion.span>
+            style={{ fontSize: portraitStage ? 64 : 132, filter: 'grayscale(1)' }}>{stageIcon}</motion.span>
         </div>
       )}
 
-      {/* Phase, on top of the picture. */}
-      <div className="relative text-center pt-2.5 px-3">
-        <p className="font-mono text-[10px] tracking-[0.25em] text-white/45">რაუნდი {match.round}</p>
-        <p className="font-display font-black text-white mt-0.5" style={{ fontSize: 19, textShadow: '0 2px 10px rgba(0,0,0,0.9)' }}>{phaseTitle}</p>
+      {/* Phase, on top of the picture. On a phone the stage is about 170 points
+          across, so the same type set for a laptop wraps to three lines and
+          buries the host. */}
+      <div className={`relative text-center px-1.5 ${portraitStage ? 'pt-1.5' : 'pt-2.5 px-3'}`}>
+        <p className="font-mono tracking-[0.25em] text-white/45" style={{ fontSize: portraitStage ? 8.5 : 10 }}>რაუნდი {match.round}</p>
+        <p className="font-display font-black text-white mt-0.5 leading-tight" style={{ fontSize: portraitStage ? 13 : 19, textShadow: '0 2px 10px rgba(0,0,0,0.9)' }}>{phaseTitle}</p>
 
         {match.phase === 'vote' && match.voteCandidate && (
-          <div className="flex items-center justify-center gap-1.5 mt-1.5 flex-wrap">
-            <span className="font-mono text-[12px] px-2.5 py-1 rounded-full"
-              style={{ background: `${RED}22`, border: `1px solid ${RED}88`, color: '#fff' }}>
+          <div className="flex items-center justify-center gap-1 mt-1 flex-wrap">
+            <span className="font-mono px-2 py-0.5 rounded-full max-w-full truncate"
+              style={{ fontSize: portraitStage ? 10 : 12, background: `${RED}22`, border: `1px solid ${RED}88`, color: '#fff' }}>
               #{match.voteCandidate.seat} {match.voteCandidate.nickname}
             </span>
-            <span className="font-mono text-[11px] px-2 py-0.5 rounded-full"
-              style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.55)' }}>
+            <span className="font-mono px-2 py-0.5 rounded-full"
+              style={{ fontSize: portraitStage ? 9 : 11, background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.55)' }}>
               {match.voteIdx + 1}/{match.voteTotal}{match.voteIsLast ? ' · ავტო-ხმა' : ''}
             </span>
           </div>
         )}
 
         {(match.phase === 'speech' || match.nextSpeaker) && (
-          <div className="flex items-center justify-center gap-1.5 mt-1.5 flex-wrap">
+          <div className="flex items-center justify-center gap-1 mt-1 flex-wrap">
             {match.speakingUserId && (() => {
               const sp = match.seats.find(x => x.userId === match.speakingUserId);
               return sp ? (
-                <span className="font-mono text-[11px] px-2 py-0.5 rounded-full"
-                  style={{ background: 'rgba(0,229,255,0.14)', border: '1px solid rgba(0,229,255,0.45)', color: '#7fe6ff' }}>
+                <span className="font-mono px-2 py-0.5 rounded-full"
+                  style={{ fontSize: portraitStage ? 9.5 : 11, background: 'rgba(0,229,255,0.14)', border: '1px solid rgba(0,229,255,0.45)', color: '#7fe6ff' }}>
                   საუბრობს #{sp.seat}
                 </span>
               ) : null;
             })()}
             {match.nextSpeaker && (
-              <span className="font-mono text-[11px] px-2 py-0.5 rounded-full"
-                style={{ background: 'rgba(255,204,51,0.12)', border: '1px solid rgba(255,204,51,0.4)', color: '#ffcc33' }}>
+              <span className="font-mono px-2 py-0.5 rounded-full"
+                style={{ fontSize: portraitStage ? 9.5 : 11, background: 'rgba(255,204,51,0.12)', border: '1px solid rgba(255,204,51,0.4)', color: '#ffcc33' }}>
                 შემდეგი #{match.nextSpeaker.seat}
               </span>
             )}
@@ -922,20 +954,20 @@ export function SxvaMafiaGame() {
       {/* The clock, when one is running. */}
       <div className="relative flex-1 flex flex-col items-center justify-center pointer-events-none">
         {stageBig && (
-          <span className="font-mono font-black" style={{ fontSize: 40, color: RED, fontVariantNumeric: 'tabular-nums', lineHeight: 1, textShadow: '0 2px 14px rgba(0,0,0,0.85)' }}>{stageBig}</span>
+          <span className="font-mono font-black" style={{ fontSize: portraitStage ? 27 : 40, color: RED, fontVariantNumeric: 'tabular-nums', lineHeight: 1, textShadow: '0 2px 14px rgba(0,0,0,0.85)' }}>{stageBig}</span>
         )}
         {stageSub && !stageBig && (
-          <p className="font-mono text-[12px] px-3 text-center" style={{ color: 'rgba(255,255,255,0.78)', textShadow: '0 1px 8px rgba(0,0,0,0.9)' }}>{stageSub}</p>
+          <p className="font-mono px-2 text-center leading-snug" style={{ fontSize: portraitStage ? 10 : 12, color: 'rgba(255,255,255,0.78)', textShadow: '0 1px 8px rgba(0,0,0,0.9)' }}>{stageSub}</p>
         )}
         {match.phase === 'vote' && match.nominations.length > 0 && (
-          <p className="font-mono text-[12px] mt-1" style={{ color: '#ffcc33' }}>{match.nominations.map(n => `#${n.seat}:${match.voteTally[n.userId] ?? 0}`).join('  ')}</p>
+          <p className="font-mono mt-1 px-1 text-center leading-snug" style={{ fontSize: portraitStage ? 10 : 12, color: '#ffcc33' }}>{match.nominations.map(n => `#${n.seat}:${match.voteTally[n.userId] ?? 0}`).join('  ')}</p>
         )}
       </div>
 
       {/* Who is running the table. */}
-      <div className="relative flex items-center gap-2 px-3 pb-2.5">
-        <span className="font-mono text-[11px] font-bold px-1.5 py-0.5 rounded" style={{ background: `${RED}e6`, color: '#fff' }}>H</span>
-        <span className="font-mono text-[12px] truncate" style={{ color: match.hostConnected ? '#fff' : '#ff6b6b', textShadow: '0 1px 6px rgba(0,0,0,0.9)' }}>
+      <div className={`relative flex items-center gap-1.5 ${portraitStage ? 'px-1.5 pb-1.5' : 'px-3 pb-2.5'}`}>
+        <span className="font-mono font-bold px-1.5 py-0.5 rounded flex-shrink-0" style={{ fontSize: portraitStage ? 9 : 11, background: `${RED}e6`, color: '#fff' }}>H</span>
+        <span className="font-mono truncate" style={{ fontSize: portraitStage ? 10 : 12, color: match.hostConnected ? '#fff' : '#ff6b6b', textShadow: '0 1px 6px rgba(0,0,0,0.9)' }}>
           {match.hostName}{!match.hostConnected && ' · გათიშ.'}
         </span>
         {foulMode && <span className="ml-auto font-mono text-[9px] px-1.5 py-0.5 rounded" style={{ background: '#ffcc33', color: '#000' }}>⚠️ ფაული</span>}
@@ -1140,24 +1172,23 @@ export function SxvaMafiaGame() {
              * bar. So take the smaller of what the width allows and what the
              * height allows, and centre the result.
              */
-            const GAP = 10;
-            const availW = Math.max(320, stageBox.w);
+            // A phone has four tiles across 340 points; ten of those points
+            // between each pair is a tenth of the board spent on nothing.
+            const GAP = portraitStage ? 6 : 10;
+            const availW = Math.max(280, stageBox.w);
             const availH = Math.max(280, stageBox.h);
 
             /*
              * Size the tile from whichever axis runs out first.
              *
              * The widest row sets the width; the two end rows plus however many
-             * seats stack down a side set the height. Tiles are 16:9 because
-             * that is the shape of a webcam, so the height follows from the
-             * width and both limits have to be checked against the same number.
+             * seats stack down a side set the height.
              */
             const across = Math.max(ring.top, ring.bottom);
-            const tileW = Math.min(
-              (availW - GAP * (across - 1)) / across,
-              ((availH - GAP * (ring.side + 1)) / (ring.side + 2)) * (16 / 9),
-            );
-            const tileH = tileW * (9 / 16);
+            const { w: tileW, h: tileH } = fitTile({
+              availW, availH, cols: across, rows: ring.side + 2, gap: GAP,
+              mode: portraitStage ? 'fill' : 'webcam',
+            });
             const boardW = tileW * across + GAP * (across - 1);
             const midH = tileH * ring.side + GAP * (ring.side - 1);
 
@@ -1166,8 +1197,13 @@ export function SxvaMafiaGame() {
              * across the top, down the right, back along the bottom, up the
              * left. Slicing rather than placing by index keeps that order a
              * property of the list instead of arithmetic at every cell.
+             *
+             * Sorted here rather than trusted: the server does keep the array in
+             * seat order, but "#1 is the top-left corner and it runs clockwise"
+             * is a promise this layout makes, and it should not rest on an
+             * invariant maintained three files away in another process.
              */
-            const seats = match.seats;
+            const seats = [...match.seats].sort((a, b) => a.seat - b.seat);
             const topSeats = seats.slice(0, ring.top);
             const rightSeats = seats.slice(ring.top, ring.top + ring.side);
             const bottomSeats = seats.slice(ring.top + ring.side, ring.top + ring.side + ring.bottom).reverse();
@@ -1185,7 +1221,7 @@ export function SxvaMafiaGame() {
             );
 
             return (
-          <div ref={stageRef} className="flex-1 min-h-0 flex items-center justify-center">
+          <div ref={stageRef} data-stagebox className="flex-1 min-h-0 flex items-center justify-center">
             <div style={{ width: boardW, display: 'flex', flexDirection: 'column', gap: GAP }}>
               {row(topSeats)}
               {/* The stage takes whatever the side columns leave, so it is
@@ -1201,13 +1237,40 @@ export function SxvaMafiaGame() {
             );
           })()
         ) : match.phase !== 'lobby' ? (
-          // ── In-play: 2-column grid that fills the screen; host tile at the bottom ──
-          <div className="mx-auto w-full" style={{ height: '100%', display: 'flex', flexDirection: 'column', maxWidth: wide ? 560 : undefined }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gridAutoRows: '1fr', gap: 8, height: '100%', flexShrink: 0 }}>
-              {match.seats.map(s => renderSeat(s, { fill: true }))}
-            </div>
-            <div className="mt-2 mx-auto" style={{ width: '52%', maxWidth: 200 }}>{renderSeat(null, { isHostTile: true })}</div>
-          </div>
+          /*
+           * In-play without the ring — the mafia's first night, or a table too
+           * small to have a middle (see MIN_ACROSS). Host in the grid with
+           * everyone else rather than a thumbnail underneath, so the whole table
+           * is on one screen.
+           *
+           * Sized to the box, not stretched to it: `gridAutoRows: 1fr` over a
+           * fixed height was giving each row an equal share of whatever was
+           * left, so the tiles changed shape with the number of rows and again
+           * every time somebody died. fitTile gives one frame to everybody and
+           * keeps the whole grid on screen, which matters here more than
+           * anywhere — a mafia table you have to scroll is a table you cannot
+           * read.
+           */
+          (() => {
+            const GAP = 8;
+            const cols = portraitStage ? 2 : 3;
+            const seats = [...match.seats].sort((a, b) => a.seat - b.seat);
+            const tile = fitTile({
+              availW: Math.max(280, stageBox.w), availH: Math.max(280, stageBox.h),
+              cols, rows: Math.ceil((seats.length + 1) / cols), gap: GAP,
+              mode: portraitStage ? 'fill' : 'webcam',
+            });
+            return (
+              <div ref={stageRef} data-stagebox className="flex-1 min-h-0 flex items-center justify-center">
+                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, ${tile.w}px)`, gap: GAP, justifyContent: 'center' }}>
+                  {seats.map(s => (
+                    <div key={s.userId} style={{ width: tile.w, height: tile.h }}>{renderSeat(s, { fill: true })}</div>
+                  ))}
+                  <div style={{ width: tile.w, height: tile.h }}>{renderSeat(null, { isHostTile: true, fill: true })}</div>
+                </div>
+              </div>
+            );
+          })()
         ) : (
           // ── Lobby: 2-column grid + setup panels (host tile last) ──
           <div className="max-w-3xl mx-auto">
