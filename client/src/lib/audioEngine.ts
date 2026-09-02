@@ -177,7 +177,16 @@ function scheduleTone(ctx: AudioContext, dest: AudioNode, t: Tone): void {
   osc.stop(ctx.currentTime + at + dur + 0.05);
 }
 
-function sfxPlay(tones: Tone[], masterVol = 0.5, haptic?: number | number[]) {
+/**
+ * @param cutoff  Low-pass corner, in Hz.
+ *
+ * 400 for everything in the original library, which is all body and no ring —
+ * every sound here is a thud between 60 and 160 Hz and the filter takes the
+ * edge off it. A bell is the one thing that cannot live down there: its whole
+ * job is to be heard over twelve people talking, and at 400 Hz a bell is a
+ * knock. So the corner is an argument rather than a constant.
+ */
+function sfxPlay(tones: Tone[], masterVol = 0.5, haptic?: number | number[], cutoff = 400) {
   if (haptic !== undefined) {
     try { navigator.vibrate?.(haptic); } catch {}
   }
@@ -188,7 +197,7 @@ function sfxPlay(tones: Tone[], masterVol = 0.5, haptic?: number | number[]) {
     bus.gain.value = masterVol;
     const lpf = ctx.createBiquadFilter();
     lpf.type = 'lowpass';
-    lpf.frequency.value = 400;
+    lpf.frequency.value = cutoff;
     lpf.Q.value = 0.7;
     bus.connect(lpf);
     lpf.connect(_sfxBus);
@@ -279,6 +288,51 @@ export const SFX = {
       { freq: 90, type: 'triangle', dur: 0.14, vol: 0.65, at: 0.10, attack: 0.015 },
       { freq: 70, type: 'sine',     dur: 0.16, vol: 0.60, at: 0.22, attack: 0.018 },
     ], 0.30, [20, 30, 20]);
+  },
+
+  /*
+   * THE TABLE BELL
+   * ──────────────
+   * A moderator at a real table has a bell, and it does one job: cut through
+   * twelve people talking without making anybody flinch. Two rules follow from
+   * that, and both of them are easy to get wrong in the direction of annoying.
+   *
+   * PITCH. Around 660 Hz — an E above middle C. Low enough that a phone speaker
+   * renders it as a tone rather than a hiss, high enough to sit above speech
+   * instead of underneath it. Higher would carry further and is exactly what
+   * makes a kitchen timer unbearable.
+   *
+   * LENGTH. Under half a second, decaying the whole way. A bell that rings on
+   * is a bell people start talking over, and then it is noise that also failed.
+   *
+   * The fifth above (990 Hz) is what makes it read as a bell rather than a
+   * beep, at a fifth of the fundamental's level; the octave below is body, so
+   * it does not sound thin on a laptop. Struck once — a double chime is the
+   * other classic way to make a short sound irritating.
+   */
+  speechTimeUp() {
+    sfxPlay([
+      { freq: 660, type: 'sine', dur: 0.42, vol: 0.55, attack: 0.006, release: 0.40 },
+      { freq: 990, type: 'sine', dur: 0.30, vol: 0.20, attack: 0.005, release: 0.29 },
+      { freq: 330, type: 'sine', dur: 0.34, vol: 0.18, attack: 0.010, release: 0.32 },
+    ], 0.30, 18, 2600);
+  },
+
+  /*
+   * The same bell for the floor passing to the next speaker — a whole tone
+   * lower, shorter, and about 7 dB quieter (measured: peak 0.063 against the
+   * summons' 0.148, over 186 ms against 264).
+   *
+   * Quieter because it is an acknowledgement rather than a summons: everybody
+   * can already see whose tile lit up, and this only has to say that it was
+   * deliberate. Loud enough to be the same instrument, soft enough that hearing
+   * it eleven times in a round is not a punishment.
+   */
+  speechNext() {
+    sfxPlay([
+      { freq: 560, type: 'sine', dur: 0.28, vol: 0.50, attack: 0.006, release: 0.26 },
+      { freq: 840, type: 'sine', dur: 0.18, vol: 0.14, attack: 0.005, release: 0.17 },
+    ], 0.20, 10, 2200);
   },
 
   // Two ascending low bumps — confirm action

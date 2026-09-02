@@ -12,6 +12,7 @@ import {
   setLiveKitVideoQuality,
 } from '@/services/livekitVoice';
 import { tableQualityPlan } from '@/lib/videoQuality';
+import { nextBell, NO_BELL, type BellMemory } from '@/lib/tableBell';
 import { SeatEmblem, assignEmblems } from './SeatEmblem';
 import { ringShape, fitTile } from './ringShape';
 import { VoidCardBack } from './VoidCardBack';
@@ -404,6 +405,29 @@ export function SxvaMafiaGame() {
       prevPhase.current = p;
     }
   }, [match?.phase]);
+
+  /*
+   * The table bell.
+   *
+   * A moderator watching twelve tiles does not also watch a clock, and a
+   * speaker who has run over does not know it. So the clock says so out loud,
+   * once, the moment it reaches zero — and again, quieter, when the floor
+   * actually moves.
+   *
+   * Rung per speaker rather than per tick: `now` advances every 400 ms, and
+   * without the guard the bell would ring on every one of them for as long as
+   * the state took to come back.
+   */
+  const bell = useRef<BellMemory>(NO_BELL);
+  useEffect(() => {
+    const r = nextBell(bell.current, {
+      phase: match?.phase ?? '', speaker: match?.speakingUserId ?? null,
+      endsAt: match?.speechEndsAt ?? 0, now,
+    });
+    bell.current = r.mem;
+    if (r.play === 'timeUp') { SFX.speechTimeUp?.(); haptic('tap'); }
+    else if (r.play === 'next') SFX.speechNext?.();
+  }, [match?.phase, match?.speakingUserId, match?.speechEndsAt, now]);
 
   if (!match) return null;
 
