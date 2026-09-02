@@ -105,6 +105,18 @@ export interface XmNightState {
   /** Who the cult leader tried to convert, and whether it took. */
   cultConvert: string | null;
   cultResult: 'converted' | 'immune' | null;
+  /**
+   * The host's ruling on tonight's shot.
+   *
+   * `undefined` — they have not ruled, and the mafia's own agreement stands.
+   * `null`      — they ruled it a miss.
+   * a userId    — they named the victim.
+   *
+   * Three states rather than two because "the host said nobody dies" and "the
+   * host has not said anything" are different nights, and collapsing them would
+   * make a miss indistinguishable from a night still waiting on the moderator.
+   */
+  hostShot?: string | null;
 }
 
 export interface XmAnnounce {
@@ -272,6 +284,24 @@ export interface XmSafeState {
   iCheckedTonight: boolean;
   nightAllActed: boolean;       // host hint: everyone with a night role has acted
   mafiaPicks: { userId: string; nickname: string; targetId: string; targetName: string }[]; // mafia-only: teammate kill choices
+  /**
+   * The shot, for the moderator to rule on. Host-only, classic only.
+   *
+   * The host already sees every role, so showing them who the mafia pointed at
+   * gives away nothing they do not have — and without it they cannot do the job
+   * the rules now hand them, which is to say what happened when the team could
+   * not agree.
+   */
+  nightShot: {
+    picks: { userId: string; nickname: string; seat: number; targetId: string | null; targetName: string | null; targetSeat: number | null }[];
+    /** What the team agreed on, or null if they did not. */
+    agreedId: string | null;
+    /** Has the host ruled? `ruledId` null with `ruled` true is a called miss. */
+    ruled: boolean;
+    ruledId: string | null;
+    /** The night is stopped, waiting for that ruling. */
+    needsHost: boolean;
+  } | null;
   /** Playing the tournament ruleset — see sportMafiaRules.ts. */
   sport: boolean;
   /** Host asked for sport in the lobby; only honoured at ten seats. */
@@ -1104,45 +1134,89 @@ export function sheriffCheck(matchId: string, byUserId: string, targetUserId: st
   return m;
 }
 
+/** A named victim, if they are actually shootable tonight. */
+function shootable(m: XmMatch, userId: string | null): XmSeat | null {
+  if (!userId) return null;
+  const victim = findByUser(m, userId);
+  return victim && victim.alive && !isMafiaRole(victim.role) ? victim : null;
+}
+
+/**
+ * Whose door the mafia knocked on.
+ *
+ * EVERYBODY, OR NOBODY
+ * ────────────────────
+ * Every living member of the team has to have pressed, and all of them the same
+ * name. One absence or one disagreement and the night is quiet.
+ *
+ * This used to be a plurality with the don breaking ties, and it was wrong in a
+ * way nobody could see from inside the game: three mafia pointing at three
+ * different people still killed somebody, because the don's vote won the
+ * three-way tie. Whether a split killed at all depended on whether the table
+ * happened to have a don in it. At a table, pointing in three directions is a
+ * miss — and if it is not, that is the moderator's call to make out loud, not
+ * an arithmetic rule to apply silently. Hence `hostShot`.
+ */
 function resolveKill(m: XmMatch): XmSeat | null {
   /*
-   * Sport: everybody, or nobody.
+   * The moderator's ruling is the shot, when they made one.
    *
-   * No plurality and no don tiebreak. Every living member of the team has to
-   * have pressed, and all of them the same name — one absence or one
-   * disagreement and the night is quiet. Blind coordination is the mechanic
-   * the mode is built on; a tiebreak would hand it straight back.
+   * Checked before the team's own votes because that is what overriding means:
+   * a host who has looked at a split and named a victim, or called a miss, has
+   * already decided the night.
    */
-  if (m.sport) {
-    const target = agreedTarget(aliveMafia(m), m.night.mafiaVotes);
-    if (!target) return null;
-    const victim = findByUser(m, target);
-    return victim && victim.alive && !isMafiaRole(victim.role) ? victim : null;
-  }
+  if (m.night.hostShot !== undefined) return shootable(m, m.night.hostShot);
+  return shootable(m, agreedTarget(aliveMafia(m), m.night.mafiaVotes));
+}
 
-  const votes = Object.entries(m.night.mafiaVotes).filter(([voter]) => {
-    const s = findByUser(m, voter); return s && s.alive && isMafiaRole(s.role);
-  });
-  if (votes.length === 0) return null;
-  const tally = new Map<string, number>();
-  for (const [, t] of votes) tally.set(t, (tally.get(t) ?? 0) + 1);
-  let best: string | null = null, bestN = -1, tie = false;
-  for (const [t, c] of tally) { if (c > bestN) { best = t; bestN = c; tie = false; } else if (c === bestN) tie = true; }
-  // Tie → the don's pick decides; if the don didn't vote, no kill lands.
-  if (tie) {
-    const donSeat = m.seats.find(s => s.alive && s.role === 'don');
-    const donPick = donSeat ? m.night.mafiaVotes[donSeat.userId] : undefined;
-    best = donPick ?? null;
+/**
+ * The host names tonight's victim, or calls the shot a miss.
+ *
+ * The moderator runs the table: they see who the mafia pointed at and they say
+ * what happened. `null` is a miss, and is a real answer rather than a cleared
+ * field — it is how a host closes a night the mafia could not agree on.
+ */
+export function setHostShot(matchId: string, byUserId: string, targetUserId: string | null): XmMatch | null {
+  const m = matches.get(matchId);
+  if (!m || m.hostId !== byUserId || m.phase !== 'night') return null;
+  /*
+   * Not in sport. There the whole mechanic is that the team shoots blind and
+   * lives with it; a moderator who can repair a split hands that straight back.
+   */
+  if (m.sport) return null;
+  if (targetUserId !== null) {
+    const target = findByUser(m, targetUserId);
+    // Rejected here rather than silently dropped at resolution, so the host
+    // finds out now that the shot they named cannot land.
+    if (!target || !target.alive || isMafiaRole(target.role)) return null;
   }
-  if (!best) return null;
-  const victim = findByUser(m, best);
-  return victim && victim.alive && !isMafiaRole(victim.role) ? victim : null;
+  m.night.hostShot = targetUserId;
+  maybeAutoNight(m);
+  return m;
+}
+
+/**
+ * Is the night waiting on the moderator?
+ *
+ * A night the mafia agreed on has nothing left to decide, so it closes itself
+ * the moment the last role acts and the game keeps its pace. A split does have
+ * something to decide, and deciding it is the host's job — so the night stops
+ * and waits rather than resolving behind them. They confirm a miss, or name the
+ * victim, and it moves on.
+ */
+function nightNeedsHost(m: XmMatch): boolean {
+  if (m.sport) return false;                       // blind by design; see setHostShot
+  if (m.night.hostShot !== undefined) return false; // already ruled
+  const mafia = aliveMafia(m);
+  if (mafia.length === 0) return false;             // nobody left to shoot
+  return agreedTarget(mafia, m.night.mafiaVotes) === null;
 }
 
 /** Core night resolution — no host check. Used by the host action, the auto-end
  * (all roles acted) and the night timer. */
 function resolveNight(m: XmMatch): void {
   if (m.phase !== 'night') return;
+  m.nightEndsAt = 0;   // the host's grace clock, if one was running
 
   /*
    * Order is the rule here, not an implementation detail.
@@ -1215,9 +1289,25 @@ function resolveNight(m: XmMatch): void {
   if (first) startLastWords(m, first);
 }
 
-/** Auto-close the night the moment every night role has acted. */
+/**
+ * How long a split night waits for the moderator before calling it a miss.
+ *
+ * The waiting is the point — the host is supposed to rule — but a host who has
+ * closed their laptop must not leave eleven people staring at a night that will
+ * never end, which is what "wait for the host" means with nothing behind it.
+ * Long enough that a host who is present is never rushed; short enough that a
+ * host who is gone costs one quiet night rather than the game.
+ */
+const HOST_SHOT_GRACE_MS = 90_000;
+
+/** Auto-close the night the moment every night role has acted — unless the
+ *  moderator still has a split shot to rule on. See `nightNeedsHost`. */
 function maybeAutoNight(m: XmMatch): void {
-  if (m.phase === 'night' && nightAllActed(m)) resolveNight(m);
+  if (m.phase !== 'night') return;
+  if (!nightAllActed(m)) return;
+  if (!nightNeedsHost(m)) { resolveNight(m); return; }
+  // Everyone has acted and the shot is split: hand it to the host, on a clock.
+  if (!m.nightEndsAt) m.nightEndsAt = Date.now() + HOST_SHOT_GRACE_MS;
 }
 
 /** Host closes the night. */
@@ -1886,6 +1976,30 @@ export function getSafeState(m: XmMatch, viewerUserId: string): XmSafeState {
     : [];
 
   /*
+   * The shot, for the moderator.
+   *
+   * Withheld in sport for the same reason the mafia's own picks are: there the
+   * team shoots blind and lives with it, and a host who can see the split could
+   * repair it.
+   */
+  const nightShot = (amHost && !m.sport && m.phase === 'night')
+    ? {
+        picks: aliveMafia(m).map(s => {
+          const pick = m.night.mafiaVotes[s.userId] ?? null;
+          const t = pick ? findByUser(m, pick) : null;
+          return {
+            userId: s.userId, nickname: s.nickname, seat: s.seat,
+            targetId: pick, targetName: t?.nickname ?? null, targetSeat: t?.seat ?? null,
+          };
+        }),
+        agreedId: agreedTarget(aliveMafia(m), m.night.mafiaVotes),
+        ruled: m.night.hostShot !== undefined,
+        ruledId: m.night.hostShot ?? null,
+        needsHost: nightNeedsHost(m),
+      }
+    : null;
+
+  /*
    * The tribunal, projected.
    *
    * The running tally is withheld until it is over. Sending it live would let
@@ -1971,6 +2085,7 @@ export function getSafeState(m: XmMatch, viewerUserId: string): XmSafeState {
       : false,
     nightAllActed: m.phase === 'night' ? nightAllActed(m) : false,
     mafiaPicks,
+    nightShot,
     announce: (m.phase === 'day_announce' || m.phase === 'last_words') ? m.announce : null,
     voteEndsAt: m.phase === 'vote' ? m.voteEndsAt : 0,
     voteRevote: m.phase === 'vote' ? m.voteRevote : false,

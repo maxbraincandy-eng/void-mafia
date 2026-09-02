@@ -27,6 +27,8 @@ interface XmStore {
   endMeet: () => Promise<void>;
   beginNight: () => Promise<void>;
   endNight: () => Promise<void>;
+  /** Host rules on the night's shot. `null` is a called miss, not a cleared field. */
+  hostShot: (targetId: string | null) => Promise<void>;
   beginDay: () => Promise<void>;
   nextSpeaker: () => Promise<void>;
   extendSpeech: (seconds?: number) => Promise<void>;
@@ -124,6 +126,7 @@ export const useSxvaMafiaStore = create<XmStore>((set, get) => {
     endMeet: hostEv('xm:end_meet'),
     beginNight: hostEv('xm:begin_night'),
     endNight: hostEv('xm:end_night'),
+    hostShot: async (targetId) => { const id = mid(); if (!id) return; try { const r = await emit('xm:host_shot', { matchId: id, targetId }); if (!r.ok) set({ error: r.error }); } catch (e: any) { set({ error: e.message }); } },
     beginDay: hostEv('xm:begin_day'),
     nextSpeaker: hostEv('xm:next_speaker'),
     extendSpeech: async (seconds = 30) => { const id = mid(); if (!id) return; try { await emit('xm:extend_speech', { matchId: id, seconds }); } catch { /* ignore */ } },

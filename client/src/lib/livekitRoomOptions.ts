@@ -59,6 +59,17 @@ export function isBroadcastRoom(roomId: string): boolean {
   return roomId.startsWith('live_');
 }
 
+/**
+ * A table room — მაფია ჰოსტით. Mirrors the room id the game builds.
+ *
+ * Twelve people all publishing and all subscribing to each other is a different
+ * shape of problem from either a two-way call or one host to an audience, and
+ * it was the only one of the three still running on LiveKit's unset defaults.
+ */
+export function isTableRoom(roomId: string): boolean {
+  return roomId.startsWith('sxvamafia_');
+}
+
 export function roomOptionsFor(roomId: string): RoomOptions {
   const base: RoomOptions = {
     // See the note above: with no attached elements this only ever disabled
@@ -73,6 +84,39 @@ export function roomOptionsFor(roomId: string): RoomOptions {
      */
     dynacast: true,
   };
+
+  /*
+   * A table: everybody publishes, everybody subscribes to everybody.
+   *
+   * Three explicit rungs rather than LiveKit's default pair, because the tiles
+   * this room draws span a real range — a seat on a phone is 267 device pixels
+   * across and the host's centre stage on a laptop is 1240 — and a subscriber
+   * picks one per participant from the box it is actually drawing (see
+   * videoQuality.ts). Two rungs would round most of them the wrong way.
+   *
+   * The top rung is left at 720 rather than capped lower: with dynacast on, a
+   * layer nobody subscribes to is not encoded, so a table full of phones costs
+   * the publisher two small rungs and the laptop watching the host still gets
+   * the sharp one. Capping capture instead would take that away from everybody
+   * to save something that is already not being spent.
+   *
+   * `balanced` degradation, not `maintain-resolution`: on a broadcast the
+   * picture fills the screen and softness is the complaint, but a seat at a
+   * table is a small square where a face that stops moving reads as a frozen
+   * call.
+   */
+  if (isTableRoom(roomId)) {
+    return {
+      ...base,
+      videoCaptureDefaults: { resolution: VideoPresets.h720.resolution },
+      publishDefaults: {
+        videoEncoding: VideoPresets.h720.encoding,
+        videoSimulcastLayers: [VideoPresets.h180, VideoPresets.h360],
+        simulcast: true,
+        degradationPreference: 'balanced',
+      },
+    };
+  }
 
   // A voice tile is a face the size of a stamp. LiveKit's defaults are already
   // more than that needs, and twenty of them share one phone's encoder.

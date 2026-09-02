@@ -12,7 +12,7 @@ import { strict as assert } from 'assert';
 import {
   createMatch, getMatch, joinMatchAsBot, setRoleConfig, startMatch, pickCard,
   beginMafiaMeet, endMafiaMeet, beginNight, endNight, leaveMatch, getSafeState,
-  mafiaVote, donCheck, doctorHeal, maniacKill, cultConvert,
+  mafiaVote, setHostShot, donCheck, sheriffCheck, doctorHeal, maniacKill, cultConvert, advanceNightAuto,
   effectiveCounts, roleCounts, type XmMatch, type XmRole,
 } from './services/sxvaMafiaService.js';
 
@@ -426,4 +426,171 @@ test('only the host ends the game, and never from the lobby', async () => {
   assert.equal(endGame(m.id, bySeat(m, 1).userId), null, 'a player cannot stop everyone\'s game');
   assert.ok(endGame(m.id, hostOf(m)));
   assert.equal(endGame(m.id, hostOf(m)), null, 'and there is nothing to end once it is over');
+});
+
+// ─── The night shot: everybody, or nobody, or the host ───────────────────────
+
+test('a split shot kills nobody, don or no don', async () => {
+  /*
+   * The bug this was written for. The rule was a plurality with the don
+   * breaking ties, so three mafia pointing in three directions still killed
+   * somebody — and whether a split killed at all depended on whether the table
+   * happened to have a don in it. At a table, pointing in three directions is a
+   * miss.
+   */
+  for (const roles of [
+    ['don', 'mafia', 'sheriff', 'citizen', 'citizen', 'citizen'],
+    ['don', 'mafia', 'mafia', 'sheriff', 'citizen', 'citizen', 'citizen'],
+    ['mafia', 'mafia', 'sheriff', 'citizen', 'citizen', 'citizen'],
+  ] as XmRole[][]) {
+    const m = table(roles);
+    const mafia = m.seats.filter(s => s.role === 'don' || s.role === 'mafia');
+    const targets = m.seats.filter(s => s.role !== 'don' && s.role !== 'mafia');
+    const don = m.seats.find(s => s.role === 'don');
+    if (don) donCheck(m.id, don.userId, targets[0]!.userId);
+    // Everybody points somewhere different.
+    mafia.forEach((s, i) => mafiaVote(m.id, s.userId, targets[i]!.userId));
+
+    assert.equal(m.phase, 'night', `${roles.join('/')}: a split night resolved itself`);
+    endNight(m.id, hostOf(m));
+    assert.deepEqual(m.announce?.killed ?? [], [],
+      `${roles.join('/')}: a split shot killed #${m.announce?.killed?.[0]?.seat}`);
+    assert.equal(m.seats.filter(s => s.alive).length, roles.length);
+  }
+});
+
+test('an agreed shot still lands, and closes the night on its own', () => {
+  // The other half of the rule: agreement is what kills, and a night with
+  // nothing left to decide should not wait for the moderator.
+  const m = table(['don', 'mafia', 'sheriff', 'citizen', 'citizen', 'citizen']);
+  const [don, maf, sher, victim] = m.seats;
+  donCheck(m.id, don.userId, sher.userId);
+  mafiaVote(m.id, don.userId, victim!.userId);
+  mafiaVote(m.id, maf!.userId, victim!.userId);
+  sheriffCheck(m.id, sher!.userId, don.userId);
+
+  assert.notEqual(m.phase, 'night', 'an agreed night should have closed itself');
+  assert.deepEqual((m.announce?.killed ?? []).map(k => k.seat), [victim!.seat]);
+  assert.equal(victim!.alive, false);
+});
+
+test('a split night waits for the host instead of resolving behind them', () => {
+  const m = table(['don', 'mafia', 'sheriff', 'citizen', 'citizen', 'citizen']);
+  const [don, maf, sher, c1, c2] = m.seats;
+  donCheck(m.id, don.userId, sher!.userId);
+  sheriffCheck(m.id, sher!.userId, don.userId);
+  mafiaVote(m.id, don.userId, c1!.userId);
+  mafiaVote(m.id, maf!.userId, c2!.userId);
+
+  // Everyone has acted, so the old rule would have resolved here.
+  const view = getSafeState(m, hostOf(m));
+  assert.equal(m.phase, 'night');
+  assert.equal(view.nightAllActed, true, 'every role acted');
+  assert.equal(view.nightShot?.needsHost, true, 'the host was not told the night is on them');
+  assert.equal(view.nightShot?.agreedId, null);
+});
+
+test('the host names the victim, and that is who dies', () => {
+  const m = table(['don', 'mafia', 'sheriff', 'citizen', 'citizen', 'citizen']);
+  const [don, maf, sher, c1, c2] = m.seats;
+  donCheck(m.id, don.userId, sher!.userId);
+  sheriffCheck(m.id, sher!.userId, don.userId);
+  mafiaVote(m.id, don.userId, c1!.userId);
+  mafiaVote(m.id, maf!.userId, c2!.userId);
+
+  // The moderator looks at the split and calls it: the second name.
+  assert.ok(setHostShot(m.id, hostOf(m), c2!.userId));
+  assert.notEqual(m.phase, 'night', 'the ruling should have closed the night');
+  assert.deepEqual((m.announce?.killed ?? []).map(k => k.seat), [c2!.seat]);
+  assert.equal(c1!.alive, true, 'the wrong player died');
+});
+
+test('the host can call a miss, and it is a real answer', () => {
+  // Distinct from "the host has not ruled yet": a called miss closes the night.
+  const m = table(['don', 'mafia', 'sheriff', 'citizen', 'citizen', 'citizen']);
+  const [don, maf, sher, c1, c2] = m.seats;
+  donCheck(m.id, don.userId, sher!.userId);
+  sheriffCheck(m.id, sher!.userId, don.userId);
+  mafiaVote(m.id, don.userId, c1!.userId);
+  mafiaVote(m.id, maf!.userId, c2!.userId);
+
+  assert.ok(setHostShot(m.id, hostOf(m), null));
+  assert.notEqual(m.phase, 'night');
+  assert.deepEqual(m.announce?.killed ?? [], []);
+  assert.equal(m.seats.filter(s => s.alive).length, 6);
+});
+
+test('the host can overrule a shot the mafia did agree on', () => {
+  // The moderator runs the table, so their word is the shot even when there was
+  // no split to settle.
+  const m = table(['don', 'mafia', 'sheriff', 'citizen', 'citizen', 'citizen']);
+  const [don, maf, sher, c1, c2] = m.seats;
+  donCheck(m.id, don.userId, sher!.userId);
+  mafiaVote(m.id, don.userId, c1!.userId);
+  assert.ok(setHostShot(m.id, hostOf(m), c2!.userId));
+  mafiaVote(m.id, maf!.userId, c1!.userId);
+  sheriffCheck(m.id, sher!.userId, don.userId);
+
+  assert.equal(c2!.alive, false, 'the host\'s name should have been the shot');
+  assert.equal(c1!.alive, true);
+});
+
+test('only the host rules on the shot, and never on a mafioso', () => {
+  const m = table(['don', 'mafia', 'sheriff', 'citizen', 'citizen', 'citizen']);
+  const [don, maf, sher, c1] = m.seats;
+  assert.equal(setHostShot(m.id, don.userId, c1!.userId), null, 'a player ruled on the shot');
+  assert.equal(setHostShot(m.id, sher!.userId, c1!.userId), null);
+  // The mafia do not shoot their own, and the host does not get to by accident.
+  assert.equal(setHostShot(m.id, hostOf(m), maf!.userId), null, 'the host shot a mafioso');
+  assert.equal(m.night.hostShot, undefined, 'a rejected ruling was still recorded');
+});
+
+test('sport keeps shooting blind — no moderator ruling there', () => {
+  /*
+   * The one place the host must NOT be able to repair a split: the whole mode
+   * rests on the team coordinating without seeing each other.
+   */
+  const m = table(['don', 'mafia', 'mafia', 'sheriff', 'doctor', 'citizen', 'citizen', 'citizen', 'citizen', 'citizen']);
+  m.sport = true;
+  const mafia = m.seats.filter(s => s.role === 'don' || s.role === 'mafia');
+  const targets = m.seats.filter(s => s.role !== 'don' && s.role !== 'mafia');
+  assert.equal(setHostShot(m.id, hostOf(m), targets[0]!.userId), null, 'sport accepted a host ruling');
+  assert.equal(getSafeState(m, hostOf(m)).nightShot, null, 'sport showed the host the picks');
+  mafia.forEach((s, i) => mafiaVote(m.id, s.userId, targets[i]!.userId));
+  endNight(m.id, hostOf(m));
+  assert.deepEqual(m.announce?.killed ?? [], [], 'a split still killed in sport');
+});
+
+test('a split night gets a clock, so an absent host cannot freeze the table', () => {
+  /*
+   * The risk the host's authority introduces: "wait for the moderator" with
+   * nothing behind it means a host who closed their laptop leaves everybody in
+   * a night that never ends. The wait is bounded, and running out resolves it
+   * the way an unruled split resolves — quietly.
+   */
+  const m = table(['don', 'mafia', 'sheriff', 'citizen', 'citizen', 'citizen']);
+  const [don, maf, sher, c1, c2] = m.seats;
+  assert.equal(m.nightEndsAt, 0, 'a night nobody is waiting on should have no clock');
+
+  donCheck(m.id, don.userId, sher!.userId);
+  sheriffCheck(m.id, sher!.userId, don.userId);
+  mafiaVote(m.id, don.userId, c1!.userId);
+  mafiaVote(m.id, maf!.userId, c2!.userId);
+
+  assert.ok(m.nightEndsAt > Date.now(), 'a split night was left waiting with no deadline');
+  // Firing it is what the timer does, and it must not kill anybody.
+  assert.ok(advanceNightAuto(m.id));
+  assert.deepEqual(m.announce?.killed ?? [], []);
+  assert.equal(m.nightEndsAt, 0, 'the clock outlived the night it belonged to');
+});
+
+test('an agreed night never starts a host clock', () => {
+  const m = table(['don', 'mafia', 'sheriff', 'citizen', 'citizen', 'citizen']);
+  const [don, maf, sher, victim] = m.seats;
+  donCheck(m.id, don.userId, sher!.userId);
+  mafiaVote(m.id, don.userId, victim!.userId);
+  mafiaVote(m.id, maf!.userId, victim!.userId);
+  sheriffCheck(m.id, sher!.userId, don.userId);
+  assert.equal(m.nightEndsAt, 0);
+  assert.equal(victim!.alive, false);
 });

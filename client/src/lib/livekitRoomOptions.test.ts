@@ -20,7 +20,7 @@
 import { test } from 'node:test';
 import { strict as assert } from 'assert';
 
-import { roomOptionsFor, isBroadcastRoom } from './livekitRoomOptions.js';
+import { roomOptionsFor, isBroadcastRoom, isTableRoom } from './livekitRoomOptions.js';
 
 test('a broadcast room is recognised by the name the server derives', () => {
   // `live_<sessionId>`, from `roomFor` in liveService. Session ids are
@@ -95,4 +95,50 @@ test('the two kinds of room do not share an object', () => {
   assert.notEqual(a, b);
   assert.notEqual(a.publishDefaults, b.publishDefaults);
   assert.notEqual(roomOptionsFor('ABCD'), roomOptionsFor('EFGH'));
+});
+
+// ── The table: twelve publishing and twelve subscribing ──────────────────────
+
+test('a table room is configured, not left on the defaults', () => {
+  /*
+   * It was the only one of the three room kinds still running unset: 720p
+   * capture and LiveKit's default pair of simulcast rungs, for a layout whose
+   * tiles run from 267 real pixels across on a phone to 1240 for the host's
+   * stage on a laptop.
+   */
+  const o = roomOptionsFor('sxvamafia_abc123');
+  assert.equal(isTableRoom('sxvamafia_abc123'), true);
+  assert.ok(o.publishDefaults?.simulcast, 'a table without simulcast can only send one size to everybody');
+  assert.equal(o.publishDefaults?.videoSimulcastLayers?.length, 2,
+    'two named rungs plus the published one makes the three the subscriber picks from');
+});
+
+test('the table keeps a sharp top rung for whoever is drawn large', () => {
+  /*
+   * Capping capture lower would have been the easy way to cut the cost, and it
+   * would take the host's centre stage down with it for everybody. Dynacast
+   * already stops an unsubscribed rung from being encoded, so the sharp one is
+   * free until somebody actually watches it.
+   */
+  const o = roomOptionsFor('sxvamafia_abc123');
+  assert.equal(o.videoCaptureDefaults?.resolution?.height, 720);
+  assert.equal(o.dynacast, true, 'without dynacast the top rung is encoded whether or not anybody wants it');
+  const rungs = (o.publishDefaults?.videoSimulcastLayers ?? []).map(l => l.height);
+  assert.deepEqual(rungs, [180, 360], 'the rungs a small tile picks from');
+});
+
+test('a table degrades on resolution, a broadcast holds it', () => {
+  // A broadcast fills the screen and softness is the complaint. A seat is a
+  // small square, where a face that stops moving reads as a frozen call.
+  assert.equal(roomOptionsFor('sxvamafia_abc123').publishDefaults?.degradationPreference, 'balanced');
+  assert.equal(roomOptionsFor('live_s1').publishDefaults?.degradationPreference, 'maintain-resolution');
+});
+
+test('the three room kinds stay distinct', () => {
+  assert.equal(isTableRoom('live_s1'), false);
+  assert.equal(isBroadcastRoom('sxvamafia_abc'), false);
+  // A plain voice room is still left alone: a stamp-sized tile needs nothing.
+  const voice = roomOptionsFor('room_42');
+  assert.equal(voice.publishDefaults, undefined);
+  assert.equal(voice.videoCaptureDefaults, undefined);
 });

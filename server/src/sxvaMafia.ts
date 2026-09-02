@@ -13,9 +13,9 @@ import {
 } from './types/index.js';
 import {
   createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch,
-  dissolveMatch, transferHost, startMatch, reshuffleRoles, setRoleConfig, setSettings, pickCard, beginMafiaMeet, endMafiaMeet, beginNight, mafiaVote, donCheck, sheriffCheck,
+  dissolveMatch, transferHost, startMatch, reshuffleRoles, setRoleConfig, setSettings, pickCard, beginMafiaMeet, endMafiaMeet, beginNight, mafiaVote, setHostShot, donCheck, sheriffCheck,
   endPlanNight, nextTribunalDefense, tribunalVote, endTribunalVote,
-  endNight, beginDay, nextSpeaker, advanceSpeakerAuto, extendSpeech, nominate, grabFloor,
+  endNight, advanceNightAuto, beginDay, nextSpeaker, advanceSpeakerAuto, extendSpeech, nominate, grabFloor,
   doctorHeal, maniacKill, cultConvert,
   castVote, endVote, nextCandidate, giveFoul, endLastWords, rematch, endGame, disconnectSocket, getSafeState,
   kickPlayer, recipients, resumeForUser, joinMatchAsBot,
@@ -108,7 +108,20 @@ function syncTimer(io: AppServer, matchId: string): void {
     deadline = m.tribunal.endsAt;
     fire = () => { endTribunalVote(matchId, null); };
   }
-  // Night is host-paced (auto-advances when all roles act, or host closes it) — no timer.
+  /*
+   * The night is host-paced and normally has no clock at all: it closes itself
+   * when every role has acted, or when the moderator closes it.
+   *
+   * The one exception is a split shot. That waits for the host to rule, and
+   * "waits" with nothing behind it means a host who closed their laptop leaves
+   * eleven people in a night that never ends. `nightEndsAt` is set only in that
+   * case, and firing it resolves the night the way an unruled split resolves:
+   * quietly, with nobody dead.
+   */
+  else if (m.phase === 'night' && m.nightEndsAt) {
+    deadline = m.nightEndsAt;
+    fire = () => { advanceNightAuto(matchId); };
+  }
   if (!fire || !deadline) return;
   const token = deadline;
   const t = setTimeout(() => {
@@ -119,7 +132,8 @@ function syncTimer(io: AppServer, matchId: string): void {
     const stillCurrent =
       (cur.phase === 'speech' && cur.speechEndsAt === token) ||
       (cur.phase === 'vote' && cur.voteEndsAt === token) ||
-      (cur.phase === 'last_words' && cur.lastWordsEndsAt === token);
+      (cur.phase === 'last_words' && cur.lastWordsEndsAt === token) ||
+      (cur.phase === 'night' && cur.nightEndsAt === token);
     if (!stillCurrent) return;
     fire!();
     broadcastState(io, matchId);
@@ -476,6 +490,23 @@ export function registerSxvaMafiaHandlers(io: AppServer, socket: AppSocket): voi
   });
 
   socket.on('xm:mafia_vote' as any, targetAction(mafiaVote, 'ვერ აირჩია სამიზნე'));
+
+  /**
+   * The host rules on tonight's shot.
+   *
+   * A separate handler rather than `targetAction` because a miss is `null`, and
+   * a null target is the answer here rather than a missing argument.
+   */
+  socket.on('xm:host_shot' as any, (data: { matchId: string; targetId: string | null }, cb: (r: any) => void) => {
+    const reply = typeof cb === 'function' ? cb : () => {};
+    try {
+      const matchId = String(data?.matchId);
+      const target = data?.targetId == null ? null : String(data.targetId);
+      if (!setHostShot(matchId, uid(), target)) return reply(err('ვერ დადგინდა ღამის მსხვერპლი'));
+      after(matchId);
+      reply(ok(null));
+    } catch (e: any) { reply(err(e.message)); }
+  });
   socket.on('xm:don_check' as any, targetAction(donCheck, 'ვერ შეამოწმა'));
   socket.on('xm:sheriff_check' as any, targetAction(sheriffCheck, 'ვერ შეამოწმა'));
   socket.on('xm:doctor_heal' as any, targetAction(doctorHeal, 'ვერ განკურნა'));

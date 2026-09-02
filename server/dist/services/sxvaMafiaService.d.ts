@@ -68,6 +68,18 @@ export interface XmNightState {
     /** Who the cult leader tried to convert, and whether it took. */
     cultConvert: string | null;
     cultResult: 'converted' | 'immune' | null;
+    /**
+     * The host's ruling on tonight's shot.
+     *
+     * `undefined` — they have not ruled, and the mafia's own agreement stands.
+     * `null`      — they ruled it a miss.
+     * a userId    — they named the victim.
+     *
+     * Three states rather than two because "the host said nobody dies" and "the
+     * host has not said anything" are different nights, and collapsing them would
+     * make a miss indistinguishable from a night still waiting on the moderator.
+     */
+    hostShot?: string | null;
 }
 export interface XmAnnounce {
     round: number;
@@ -285,6 +297,31 @@ export interface XmSafeState {
         targetId: string;
         targetName: string;
     }[];
+    /**
+     * The shot, for the moderator to rule on. Host-only, classic only.
+     *
+     * The host already sees every role, so showing them who the mafia pointed at
+     * gives away nothing they do not have — and without it they cannot do the job
+     * the rules now hand them, which is to say what happened when the team could
+     * not agree.
+     */
+    nightShot: {
+        picks: {
+            userId: string;
+            nickname: string;
+            seat: number;
+            targetId: string | null;
+            targetName: string | null;
+            targetSeat: number | null;
+        }[];
+        /** What the team agreed on, or null if they did not. */
+        agreedId: string | null;
+        /** Has the host ruled? `ruledId` null with `ruled` true is a called miss. */
+        ruled: boolean;
+        ruledId: string | null;
+        /** The night is stopped, waiting for that ruling. */
+        needsHost: boolean;
+    } | null;
     /** Playing the tournament ruleset — see sportMafiaRules.ts. */
     sport: boolean;
     /** Host asked for sport in the lobby; only honoured at ten seats. */
@@ -547,6 +584,14 @@ export declare function beginNight(matchId: string, byUserId: string): XmMatch |
 export declare function mafiaVote(matchId: string, byUserId: string, targetUserId: string): XmMatch | null;
 export declare function donCheck(matchId: string, byUserId: string, targetUserId: string): XmMatch | null;
 export declare function sheriffCheck(matchId: string, byUserId: string, targetUserId: string): XmMatch | null;
+/**
+ * The host names tonight's victim, or calls the shot a miss.
+ *
+ * The moderator runs the table: they see who the mafia pointed at and they say
+ * what happened. `null` is a miss, and is a real answer rather than a cleared
+ * field — it is how a host closes a night the mafia could not agree on.
+ */
+export declare function setHostShot(matchId: string, byUserId: string, targetUserId: string | null): XmMatch | null;
 /** Host closes the night. */
 export declare function endNight(matchId: string, byUserId: string): XmMatch | null;
 /** Night timer fired — resolve whatever was chosen. */

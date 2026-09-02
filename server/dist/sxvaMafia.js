@@ -1,5 +1,5 @@
 import { ok, err, } from './types/index.js';
-import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch, dissolveMatch, transferHost, startMatch, reshuffleRoles, setRoleConfig, setSettings, pickCard, beginMafiaMeet, endMafiaMeet, beginNight, mafiaVote, donCheck, sheriffCheck, endPlanNight, nextTribunalDefense, tribunalVote, endTribunalVote, endNight, beginDay, nextSpeaker, advanceSpeakerAuto, extendSpeech, nominate, grabFloor, doctorHeal, maniacKill, cultConvert, castVote, endVote, nextCandidate, giveFoul, endLastWords, rematch, endGame, disconnectSocket, getSafeState, kickPlayer, recipients, resumeForUser, joinMatchAsBot, } from './services/sxvaMafiaService.js';
+import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch, dissolveMatch, transferHost, startMatch, reshuffleRoles, setRoleConfig, setSettings, pickCard, beginMafiaMeet, endMafiaMeet, beginNight, mafiaVote, setHostShot, donCheck, sheriffCheck, endPlanNight, nextTribunalDefense, tribunalVote, endTribunalVote, endNight, advanceNightAuto, beginDay, nextSpeaker, advanceSpeakerAuto, extendSpeech, nominate, grabFloor, doctorHeal, maniacKill, cultConvert, castVote, endVote, nextCandidate, giveFoul, endLastWords, rematch, endGame, disconnectSocket, getSafeState, kickPlayer, recipients, resumeForUser, joinMatchAsBot, } from './services/sxvaMafiaService.js';
 import { botName, isBot, isOwner, newBotId } from './services/testBots.js';
 import { tick as botTick, hasBots } from './services/xmBotDriver.js';
 const ROOM = (id) => `xm:${id}`;
@@ -97,7 +97,20 @@ function syncTimer(io, matchId) {
         deadline = m.tribunal.endsAt;
         fire = () => { endTribunalVote(matchId, null); };
     }
-    // Night is host-paced (auto-advances when all roles act, or host closes it) — no timer.
+    /*
+     * The night is host-paced and normally has no clock at all: it closes itself
+     * when every role has acted, or when the moderator closes it.
+     *
+     * The one exception is a split shot. That waits for the host to rule, and
+     * "waits" with nothing behind it means a host who closed their laptop leaves
+     * eleven people in a night that never ends. `nightEndsAt` is set only in that
+     * case, and firing it resolves the night the way an unruled split resolves:
+     * quietly, with nobody dead.
+     */
+    else if (m.phase === 'night' && m.nightEndsAt) {
+        deadline = m.nightEndsAt;
+        fire = () => { advanceNightAuto(matchId); };
+    }
     if (!fire || !deadline)
         return;
     const token = deadline;
@@ -109,7 +122,8 @@ function syncTimer(io, matchId) {
         // Guard against a stale timer whose deadline was superseded.
         const stillCurrent = (cur.phase === 'speech' && cur.speechEndsAt === token) ||
             (cur.phase === 'vote' && cur.voteEndsAt === token) ||
-            (cur.phase === 'last_words' && cur.lastWordsEndsAt === token);
+            (cur.phase === 'last_words' && cur.lastWordsEndsAt === token) ||
+            (cur.phase === 'night' && cur.nightEndsAt === token);
         if (!stillCurrent)
             return;
         fire();
@@ -541,6 +555,26 @@ export function registerSxvaMafiaHandlers(io, socket) {
         }
     });
     socket.on('xm:mafia_vote', targetAction(mafiaVote, 'ვერ აირჩია სამიზნე'));
+    /**
+     * The host rules on tonight's shot.
+     *
+     * A separate handler rather than `targetAction` because a miss is `null`, and
+     * a null target is the answer here rather than a missing argument.
+     */
+    socket.on('xm:host_shot', (data, cb) => {
+        const reply = typeof cb === 'function' ? cb : () => { };
+        try {
+            const matchId = String(data?.matchId);
+            const target = data?.targetId == null ? null : String(data.targetId);
+            if (!setHostShot(matchId, uid(), target))
+                return reply(err('ვერ დადგინდა ღამის მსხვერპლი'));
+            after(matchId);
+            reply(ok(null));
+        }
+        catch (e) {
+            reply(err(e.message));
+        }
+    });
     socket.on('xm:don_check', targetAction(donCheck, 'ვერ შეამოწმა'));
     socket.on('xm:sheriff_check', targetAction(sheriffCheck, 'ვერ შეამოწმა'));
     socket.on('xm:doctor_heal', targetAction(doctorHeal, 'ვერ განკურნა'));

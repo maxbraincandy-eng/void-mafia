@@ -9,7 +9,9 @@ import { useSxvaMafiaStore } from '@/store/sxvaMafiaStore';
 import { useLiveKitGate, useLivekitRoomVoice } from '@/hooks/useLivekitVoice';
 import {
   getLiveKitRemoteVideo, getLiveKitLocalVideo, getLiveKitSpeaking, setLiveKitCamera,
+  setLiveKitVideoQuality,
 } from '@/services/livekitVoice';
+import { tableQualityPlan } from '@/lib/videoQuality';
 import { SeatEmblem, assignEmblems } from './SeatEmblem';
 import { ringShape, fitTile } from './ringShape';
 import { VoidCardBack } from './VoidCardBack';
@@ -558,10 +560,24 @@ export function SxvaMafiaGame() {
     if (!match.myAlive) return <p className="text-center font-mono text-[12px] text-white/40">💀 შენ თამაშიდან გახვედი — უყურე დანარჩენებს</p>;
 
     if (match.phase === 'night' && canActNight) {
+      /*
+       * What the team has pressed, and whether it agrees.
+       *
+       * The agreement line is the rule, shown: the shot only lands if every
+       * living member names the same person, and a team that cannot see they
+       * have split would keep missing without ever knowing why.
+       */
+      const split = match.mafiaPicks.length > 1
+        && new Set(match.mafiaPicks.map(p => p.targetId)).size > 1;
       const consensus = match.mafiaPicks.length > 0 ? (
         <div className="mt-2 rounded-lg px-2.5 py-1.5" style={{ background: 'rgba(255,59,71,0.08)', border: '1px solid rgba(255,59,71,0.22)' }}>
           <p className="font-mono text-[10px] text-white/45 mb-0.5">🔫 გუნდის არჩევანი:</p>
           {match.mafiaPicks.map(p => <p key={p.userId} className="font-mono text-[11px]" style={{ color: '#ff8a92' }}>{p.nickname} → {p.targetName}</p>)}
+          {split && (
+            <p className="font-mono text-[10.5px] mt-1" style={{ color: '#ffcc33' }}>
+              ⚠️ სხვადასხვა სამიზნეა — თუ არ შეთანხმდებით, გასროლა ააცდენს
+            </p>
+          )}
         </div>
       ) : null;
       /* A converted sheriff or doctor keeps their night action — the reminder
@@ -877,6 +893,25 @@ export function SxvaMafiaGame() {
   const TILE_ASPECT = portraitStage ? 3 / 4 : 16 / 9;
   const ring = ringShape(match.seats.length, { boxAspect, tileAspect: TILE_ASPECT });
 
+  /*
+   * The board's measurements, worked out once.
+   *
+   * Hoisted out of the render branch because they are not only a layout: how
+   * wide a tile is decides which simulcast layer to ask each publisher for, and
+   * that has to be readable from an effect. See the subscription effect below.
+   */
+  const RING_GAP = portraitStage ? 6 : 10;
+  const ringAcross = Math.max(ring.top, ring.bottom);
+  const ringTile = fitTile({
+    availW: Math.max(280, stageBox.w), availH: Math.max(280, stageBox.h),
+    cols: ringAcross, rows: ring.side + 2, gap: RING_GAP,
+    mode: portraitStage ? 'fill' : 'webcam',
+  });
+  /** What the stage between the two side columns is left with. */
+  const ringStageW = Math.max(0, ringTile.w * (ringAcross - 2) + RING_GAP * (ringAcross - 3));
+
+  const seatIdsKey = match.seats.map(s => s.userId).join(',');
+
   const stageIcon = intro ? '🤝' : match.phase === 'night' ? '🌙' : match.phase === 'vote' ? '⚖️'
     : match.phase === 'last_words' ? '🎤' : match.phase === 'day_announce' ? ((match.announce?.killed.length ?? 0) > 0 ? '💀' : '🌅')
     : match.phase === 'speech' ? '🗣️' : '🎭';
@@ -1174,21 +1209,11 @@ export function SxvaMafiaGame() {
              */
             // A phone has four tiles across 340 points; ten of those points
             // between each pair is a tenth of the board spent on nothing.
-            const GAP = portraitStage ? 6 : 10;
-            const availW = Math.max(280, stageBox.w);
-            const availH = Math.max(280, stageBox.h);
-
-            /*
-             * Size the tile from whichever axis runs out first.
-             *
-             * The widest row sets the width; the two end rows plus however many
-             * seats stack down a side set the height.
-             */
-            const across = Math.max(ring.top, ring.bottom);
-            const { w: tileW, h: tileH } = fitTile({
-              availW, availH, cols: across, rows: ring.side + 2, gap: GAP,
-              mode: portraitStage ? 'fill' : 'webcam',
-            });
+            // Measured above, so the video subscriptions can read the same
+            // numbers the layout uses.
+            const GAP = RING_GAP;
+            const across = ringAcross;
+            const { w: tileW, h: tileH } = ringTile;
             const boardW = tileW * across + GAP * (across - 1);
             const midH = tileH * ring.side + GAP * (ring.side - 1);
 
@@ -1222,6 +1247,7 @@ export function SxvaMafiaGame() {
 
             return (
           <div ref={stageRef} data-stagebox className="flex-1 min-h-0 flex items-center justify-center">
+            {lkEnabled && <VideoQualityTuner seatIds={seatIdsKey} seatWidth={tileW} hostId={match.hostId} hostWidth={ringStageW} rev={voice.rev} />}
             <div style={{ width: boardW, display: 'flex', flexDirection: 'column', gap: GAP }}>
               {row(topSeats)}
               {/* The stage takes whatever the side columns leave, so it is
@@ -1262,6 +1288,7 @@ export function SxvaMafiaGame() {
             });
             return (
               <div ref={stageRef} data-stagebox className="flex-1 min-h-0 flex items-center justify-center">
+                {lkEnabled && <VideoQualityTuner seatIds={seatIdsKey} seatWidth={tile.w} hostId={match.hostId} hostWidth={tile.w} rev={voice.rev} />}
                 <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, ${tile.w}px)`, gap: GAP, justifyContent: 'center' }}>
                   {seats.map(s => (
                     <div key={s.userId} style={{ width: tile.w, height: tile.h }}>{renderSeat(s, { fill: true })}</div>
@@ -1476,7 +1503,7 @@ export function SxvaMafiaGame() {
               })()}
             {isHost ? <HostBar /> : <PlayerPanel />}
             {isHost && match.phase !== 'lobby' && match.phase !== 'assign' && (
-              <div className="mt-2 pt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}><PlayerPanelReadonly match={match} /></div>
+              <div className="mt-2 pt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}><PlayerPanelReadonly match={match} onShot={t => store.hostShot(t)} /></div>
             )}
           </div>
         </div>
@@ -1745,9 +1772,113 @@ export function SxvaMafiaGame() {
   );
 }
 
+/**
+ * Asks each publisher for the simulcast layer their tile can actually show.
+ *
+ * WHY THIS EXISTS AT ALL
+ * ──────────────────────
+ * Without it every subscription arrives at the publisher's top rung, because
+ * nothing tells LiveKit how big anything is drawn: this app hands React a
+ * MediaStream rather than attaching the track to an element, so adaptive stream
+ * has no element to measure (see livekitRoomOptions.ts for why it is off). At a
+ * twelve-seat table that is eleven 720p streams filling tiles 89 points wide —
+ * roughly eighteen megabits and ten megapixels a frame, on a phone. That is the
+ * lag, and it is also why the picture is soft: a downlink that cannot keep up
+ * drives congestion control, which pushes every publisher's upload down.
+ *
+ * WHY IT IS A COMPONENT AND NOT AN EFFECT IN THE GAME
+ * ──────────────────────────────────────────────────
+ * The sizes it needs are computed well below `if (!match) return null`, and a
+ * hook after a conditional return is a hook that is sometimes not called —
+ * React counts them, and the first render without a match would crash the game.
+ * A component that renders nothing keeps it an ordinary unconditional hook.
+ */
+function VideoQualityTuner({ seatIds, seatWidth, hostId, hostWidth, rev }: {
+  seatIds: string; seatWidth: number; hostId: string; hostWidth: number; rev: number;
+}) {
+  // Rounded: a sub-pixel reflow must not spend a signalling round trip per seat.
+  const w = Math.round(seatWidth);
+  const hw = Math.round(hostWidth);
+  useEffect(() => {
+    const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+    setLiveKitVideoQuality(tableQualityPlan({
+      seatIds: seatIds ? seatIds.split(',') : [], seatWidth: w, hostId, hostWidth: hw, dpr,
+    }));
+  }, [seatIds, w, hostId, hw, rev]);
+  return null;
+}
+
 // Host also sees the live phase context (read-only) so they know what players face.
-function PlayerPanelReadonly({ match }: { match: XmSafeState }) {
-  if (match.phase === 'night') return <p className="text-center font-mono text-[10px]" style={{ color: match.nightAllActed ? '#7fe0a0' : 'rgba(255,255,255,0.35)' }}>{match.nightAllActed ? '✅ ყველა მზადაა — ღამე ავტომატურად სრულდება' : '🌙 მაფია/შერიფი მოქმედებენ… (ავტომატურად დასრულდება)'}</p>;
+function PlayerPanelReadonly({ match, onShot }: { match: XmSafeState; onShot?: (targetId: string | null) => void }) {
+  if (match.phase === 'night') {
+    const shot = match.nightShot;
+    /*
+     * The moderator's ruling on the shot.
+     *
+     * A night the mafia agreed on resolves itself, so there is nothing here but
+     * the picks. A split stops and waits: at a table the moderator sees three
+     * fingers pointing three ways and says out loud what happened, and the rule
+     * used to make that call silently by counting the don's vote twice.
+     */
+    if (shot) {
+      const pointed = shot.picks.filter(p => p.targetId);
+      const targets = match.seats.filter(s => s.alive && !shot.picks.some(p => p.userId === s.userId));
+      return (
+        <div className="w-full">
+          <p className="text-center font-mono text-[10px]" style={{ color: match.nightAllActed ? '#7fe0a0' : 'rgba(255,255,255,0.35)' }}>
+            {match.nightAllActed ? '✅ ყველამ იმოქმედა' : '🌙 მაფია/შერიფი მოქმედებენ…'}
+          </p>
+          {pointed.length > 0 && (
+            <p className="text-center font-mono text-[10.5px] mt-1" style={{ color: shot.agreedId ? '#7fe0a0' : '#ffcc33' }}>
+              🔫 {pointed.map(p => `#${p.seat}→#${p.targetSeat}`).join('  ')}
+              {shot.agreedId ? '  · შეთანხმდნენ' : '  · ვერ შეთანხმდნენ'}
+            </p>
+          )}
+          {shot.ruled && (
+            <p className="text-center font-mono text-[10.5px] mt-1" style={{ color: '#7fe6ff' }}>
+              👑 შენი გადაწყვეტილება: {shot.ruledId
+                ? `#${match.seats.find(s => s.userId === shot.ruledId)?.seat} ${match.seats.find(s => s.userId === shot.ruledId)?.nickname}`
+                : 'აცილება — არავინ კვდება'}
+            </p>
+          )}
+          {shot.needsHost && onShot && (
+            <div className="mt-2 rounded-xl px-2.5 py-2" style={{ background: 'rgba(255,204,51,0.08)', border: '1px solid rgba(255,204,51,0.3)' }}>
+              <p className="text-center font-mono text-[11px]" style={{ color: '#ffcc33' }}>
+                მაფია ვერ შეთანხმდა — შენ წყვეტ
+                {/* The wait is bounded so an absent host cannot freeze the
+                    table; a host who is here should see that clock, not be
+                    surprised by it. */}
+                {match.nightEndsAt > 0 && <span className="text-white/45"> · {fmt(Math.round((match.nightEndsAt - Date.now()) / 1000))}</span>}
+              </p>
+              {/*
+                Seat numbers, not names.
+                A moderator calls the table by number, and ten full names wrap
+                to three rows — which on a phone puts the buttons the host has
+                to press below the fold of the panel telling them to press one.
+                The name is still on the tile, and on the chip's tooltip.
+              */}
+              <div className="flex flex-wrap gap-1.5 justify-center items-center mt-2">
+                <button onClick={() => { SFX.click?.(); haptic('selection'); onShot(null); }}
+                  className="px-2.5 py-1.5 rounded-full font-mono text-[11px] active:scale-95 flex-shrink-0"
+                  style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.22)', color: '#fff' }}>
+                  🌙 აცილება
+                </button>
+                {targets.map(s => (
+                  <button key={s.userId} title={s.nickname}
+                    onClick={() => { SFX.click?.(); haptic('selection'); onShot(s.userId); }}
+                    className="rounded-full font-mono font-bold text-[12px] active:scale-95 flex-shrink-0"
+                    style={{ width: 34, height: 30, background: `${RED}22`, border: `1px solid ${RED}66`, color: '#fff' }}>
+                    {s.seat}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+    return <p className="text-center font-mono text-[10px]" style={{ color: match.nightAllActed ? '#7fe0a0' : 'rgba(255,255,255,0.35)' }}>{match.nightAllActed ? '✅ ყველა მზადაა — ღამე ავტომატურად სრულდება' : '🌙 მაფია/შერიფი მოქმედებენ… (ავტომატურად დასრულდება)'}</p>;
+  }
   if (match.phase === 'vote') {
     const total = Object.values(match.voteTally).reduce((a, b) => a + b, 0);
     return <p className="text-center font-mono text-[10px] text-white/35">⚖️ მიცემული ხმები: {total} · {match.nominations.map(n => `#${n.seat}:${match.voteTally[n.userId] ?? 0}`).join('  ')}</p>;

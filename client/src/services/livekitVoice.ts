@@ -13,7 +13,7 @@
  * ICE/TURN — no app-side TURN config needed.
  */
 import {
-  Room, RoomEvent, Track, ConnectionState,
+  Room, RoomEvent, Track, ConnectionState, VideoQuality,
   type RemoteTrack, type RemoteTrackPublication, type RemoteParticipant,
 } from 'livekit-client';
 import { roomOptionsFor } from '@/lib/livekitRoomOptions';
@@ -65,6 +65,13 @@ const audioEls = new Map<string, HTMLAudioElement>();
 let remoteVideo = new Map<string, MediaStream>();
 let localVideoStream: MediaStream | null = null;
 let speakingIdentities = new Set<string>();
+/**
+ * The simulcast layer we last asked each publisher for, so a reflow that
+ * changes nothing costs no signalling. Cleared with the rest of the media when
+ * the room changes — otherwise the next room's first layout would skip every
+ * subscription it believes it has already set.
+ */
+const lastQuality = new Map<string, string>();
 
 /** Remote camera streams keyed by participant identity (player id). */
 export function getLiveKitRemoteVideo(): Map<string, MediaStream> { return remoteVideo; }
@@ -121,6 +128,7 @@ function clearMedia() {
   audioEls.forEach(el => el.remove());
   audioEls.clear();
   remoteVideo = new Map();
+  lastQuality.clear();
   localVideoStream = null;
   speakingIdentities = new Set();
 }
@@ -513,6 +521,44 @@ export async function setLiveKitCamera(
     localVideoStream = null;
   }
   patch({ cameraOn: enabled, error: null, rev: ++_rev });
+}
+
+/**
+ * Ask each publisher for the simulcast layer their tile actually needs.
+ *
+ * WHY THIS IS CALLED AT ALL
+ * ─────────────────────────
+ * Adaptive stream would normally do this, sizing each subscription from the
+ * `<video>` element the track was attached to. This app never attaches — it
+ * hands React a `MediaStream` built from `track.mediaStreamTrack` — so nothing
+ * tells LiveKit how big anything is drawn, and a subscriber falls back to the
+ * publisher's top layer. Eleven of those at a twelve-seat table is roughly
+ * eighteen megabits and ten megapixels a frame, to fill tiles 89 points wide.
+ *
+ * So the caller, which is the only code that knows the tile size, says what it
+ * needs. See videoQuality.ts for the mapping.
+ *
+ * Already-correct subscriptions are skipped: `setVideoQuality` is a signalling
+ * round trip, and this is called from a layout effect that runs whenever the
+ * table reflows.
+ */
+export function setLiveKitVideoQuality(want: Map<string, 'low' | 'medium' | 'high'>): void {
+  const r = room;
+  if (!r) return;
+  const level = { low: VideoQuality.LOW, medium: VideoQuality.MEDIUM, high: VideoQuality.HIGH };
+  r.remoteParticipants.forEach((p: RemoteParticipant) => {
+    const q = want.get(p.identity);
+    if (!q) return;
+    const key = `${p.identity}:${q}`;
+    if (lastQuality.get(p.identity) === key) return;
+    const pub: any = (p as any).getTrackPublication?.(Track.Source.Camera)
+      ?? (p as any).getTrack?.(Track.Source.Camera);
+    if (!pub?.setVideoQuality) return;
+    try {
+      pub.setVideoQuality(level[q]);
+      lastQuality.set(p.identity, key);
+    } catch { /* a publication can go away mid-flight; the next reflow retries */ }
+  });
 }
 
 export async function toggleLiveKitCamera(): Promise<void> {

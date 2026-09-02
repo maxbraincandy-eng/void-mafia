@@ -66,6 +66,19 @@ export interface XmSafeState {
   iCheckedTonight: boolean;
   nightAllActed: boolean;
   mafiaPicks: { userId: string; nickname: string; targetId: string; targetName: string }[];
+  /**
+   * Tonight's shot, for the moderator to rule on. Host-only, and null in sport.
+   *
+   * The mafia must agree or the night is quiet; when they do not, the host is
+   * the one who says what happened, the way they would at a table.
+   */
+  nightShot: {
+    picks: { userId: string; nickname: string; seat: number; targetId: string | null; targetName: string | null; targetSeat: number | null }[];
+    agreedId: string | null;
+    ruled: boolean;
+    ruledId: string | null;
+    needsHost: boolean;
+  } | null;
   announce: XmAnnounce | null;
   voteEndsAt: number;
   voteRevote: boolean;
