@@ -17,7 +17,7 @@ import {
   endPlanNight, nextTribunalDefense, tribunalVote, endTribunalVote,
   endNight, advanceNightAuto, beginDay, nextSpeaker, advanceSpeakerAuto, extendSpeech, nominate, grabFloor,
   doctorHeal, maniacKill, cultConvert,
-  castVote, endVote, nextCandidate, giveFoul, endLastWords, rematch, endGame, disconnectSocket, getSafeState,
+  castVote, endVote, nextCandidate, advanceCandidateAuto, giveFoul, endLastWords, rematch, endGame, disconnectSocket, getSafeState,
   kickPlayer, recipients, resumeForUser, joinMatchAsBot,
 } from './services/sxvaMafiaService.js';
 import { botName, isBot, isOwner, newBotId } from './services/testBots.js';
@@ -91,8 +91,14 @@ function syncTimer(io: AppServer, matchId: string): void {
     deadline = m.speechEndsAt;
     fire = () => { advanceSpeakerAuto(matchId); };
   } else if (m.phase === 'vote' && m.voteEndsAt) {
+    /*
+     * The clock belongs to the candidate on the floor, so running out moves to
+     * the next name. It used to end the whole vote, which meant a table with
+     * four candidates that spent its time on the first two never asked about
+     * the other two at all.
+     */
     deadline = m.voteEndsAt;
-    fire = () => { endVote(matchId, null); };
+    fire = () => { advanceCandidateAuto(matchId); };
   } else if (m.phase === 'last_words' && m.lastWordsEndsAt) {
     deadline = m.lastWordsEndsAt;
     fire = () => { endLastWords(matchId, null); };

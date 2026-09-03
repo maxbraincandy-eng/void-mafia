@@ -13,6 +13,7 @@ import {
   createMatch, getMatch, joinMatchAsBot, setRoleConfig, startMatch, pickCard,
   beginMafiaMeet, endMafiaMeet, beginNight, endNight, leaveMatch, getSafeState,
   mafiaVote, setHostShot, donCheck, sheriffCheck, doctorHeal, maniacKill, cultConvert, advanceNightAuto,
+  castVote, nextCandidate, advanceCandidateAuto, setSettings,
   effectiveCounts, roleCounts, type XmMatch, type XmRole,
 } from './services/sxvaMafiaService.js';
 
@@ -593,4 +594,109 @@ test('an agreed night never starts a host clock', () => {
   sheriffCheck(m.id, sher!.userId, don.userId);
   assert.equal(m.nightEndsAt, 0);
   assert.equal(victim!.alive, false);
+});
+
+// ─── The vote: one name at a time, a few seconds each ────────────────────────
+
+/** A table sitting in a vote with the given candidates, in that order. */
+function voting(m: XmMatch, candidates: number[]): void {
+  m.phase = 'vote';
+  m.nominations = candidates.map(i => m.seats[i]!.userId);
+  m.votes = {};
+  m.voteIdx = 0;
+  m.voteResult = null;
+  m.voteRevote = false;
+  // Deliberately shorter than a fresh window, so a reset is unambiguous rather
+  // than two identical timestamps a millisecond apart.
+  m.voteEndsAt = Date.now() + 1000;
+}
+
+test('the clock belongs to a candidate, not to the whole vote', () => {
+  /*
+   * The bug. One clock ran across the entire vote and ENDED it when it expired,
+   * so a table with four names that spent its time on the first two never asked
+   * about the other two — and the standing rule swept every silent player onto
+   * the last name they had never been asked about.
+   */
+  const m = table(['don', 'mafia', 'sheriff', 'citizen', 'citizen', 'citizen']);
+  voting(m, [2, 3, 4, 5]);
+
+  advanceCandidateAuto(m.id);
+  assert.equal(m.phase, 'vote', 'the first candidate running out ended the whole vote');
+  assert.equal(m.voteIdx, 1, 'it did not move to the second name');
+
+  advanceCandidateAuto(m.id);
+  assert.equal(m.voteIdx, 2);
+  advanceCandidateAuto(m.id);
+  assert.equal(m.voteIdx, 3, 'the fourth name was never reached');
+});
+
+test('each candidate gets their own few seconds', () => {
+  const m = table(['don', 'mafia', 'sheriff', 'citizen', 'citizen', 'citizen']);
+  voting(m, [2, 3, 4]);
+  const first = m.voteEndsAt;
+
+  advanceCandidateAuto(m.id);
+  assert.ok(m.voteEndsAt > first, 'the second candidate inherited the first one\'s clock');
+  assert.ok(Math.abs(m.voteEndsAt - Date.now() - m.settings.voteSeconds * 1000) < 500,
+    'the new window is not one candidate long');
+});
+
+test('a moderator can get ahead of the clock, and it resets', () => {
+  const m = table(['don', 'mafia', 'sheriff', 'citizen', 'citizen', 'citizen']);
+  voting(m, [2, 3, 4]);
+  const first = m.voteEndsAt;
+  nextCandidate(m.id, hostOf(m));
+  assert.equal(m.voteIdx, 1);
+  assert.ok(m.voteEndsAt > first, 'advancing early left the old deadline in place');
+  // Only the moderator.
+  assert.equal(nextCandidate(m.id, m.seats[0]!.userId), null);
+});
+
+test('running out on the last name closes the vote, as it always did', () => {
+  // The standing rule survives: past the last candidate, everyone still silent
+  // is counted for that last name.
+  const m = table(['don', 'mafia', 'sheriff', 'citizen', 'citizen', 'citizen']);
+  const last = m.seats[4]!;
+  voting(m, [2, 4]);
+  advanceCandidateAuto(m.id);          // → the second (last) name
+  assert.equal(m.voteIdx, 1);
+  advanceCandidateAuto(m.id);          // → closes
+  assert.notEqual(m.phase, 'vote', 'the last candidate running out did not close the vote');
+  assert.equal(last.alive, false, 'the silent table did not carry the last name');
+});
+
+test('a hand goes up for the name on the floor and nowhere else', () => {
+  const m = table(['don', 'mafia', 'sheriff', 'citizen', 'citizen', 'citizen']);
+  const [don, maf, sher, c1, c2] = m.seats;
+  voting(m, [3, 4]);   // c1 then c2
+
+  // Voting ahead for the second name is refused while the first is up.
+  assert.equal(castVote(m.id, don.userId, c2!.userId), null, 'a vote landed on a name not yet asked');
+  assert.ok(castVote(m.id, don.userId, c1!.userId));
+  assert.equal(m.votes[don.userId], c1!.userId);
+  // One hand each, and it cannot be moved once counted.
+  assert.equal(castVote(m.id, don.userId, c1!.userId), null);
+  advanceCandidateAuto(m.id);
+  assert.equal(castVote(m.id, don.userId, c2!.userId), null, 'a second vote was allowed on the next name');
+  // Somebody who has not voted still can, on the name now up.
+  assert.ok(castVote(m.id, maf!.userId, c2!.userId));
+  assert.equal(sher!.alive, true);
+});
+
+test('five seconds is the default, and the host can set three to thirty', () => {
+  /*
+   * Per candidate, not per vote — so the old fifteen-second floor was a
+   * whole-vote number and would have made a single name outlast a whole round
+   * of them.
+   */
+  const m = table(['don', 'mafia', 'sheriff', 'citizen', 'citizen', 'citizen']);
+  assert.equal(m.settings.voteSeconds, 5);
+  m.phase = 'lobby';
+  setSettings(m.id, hostOf(m), { voteSeconds: 1 });
+  assert.equal(m.settings.voteSeconds, 3, 'no floor');
+  setSettings(m.id, hostOf(m), { voteSeconds: 300 });
+  assert.equal(m.settings.voteSeconds, 30, 'no ceiling');
+  setSettings(m.id, hostOf(m), { voteSeconds: 8 });
+  assert.equal(m.settings.voteSeconds, 8);
 });

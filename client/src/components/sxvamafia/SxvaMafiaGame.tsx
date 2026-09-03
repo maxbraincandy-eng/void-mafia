@@ -55,6 +55,11 @@ const AV = ['#7c5cff', '#3f8cff', '#2fb8a0', '#e0803c', '#d84f7a', '#5cbe6a', '#
 const STARS = Array.from({ length: 54 }, (_, i) => ({ x: (i * 37 + 13) % 100, y: (i * 53 + 7) % 100, s: 1 + ((i * 7) % 3) * 0.7, d: ((i * 11) % 40) / 10 }));
 
 function fmt(sec: number): string { const s = Math.max(0, sec); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
+/**
+ * A candidate's window is about five seconds, and `0:02` is a clumsy way to
+ * write two. Minutes appear only if there are ever any.
+ */
+function secs(sec: number): string { const s = Math.max(0, sec); return s >= 60 ? fmt(s) : String(s); }
 
 /** Viewport-width gate: the centre-stage ring only makes sense on wider screens. */
 function useWide(bp = 760): boolean {
@@ -104,8 +109,10 @@ interface SeatTileProps {
   match: XmSafeState; myId: string; stream: MediaStream | null; isSpeaking: boolean;
   foulMode: boolean; isHost: boolean; speechLeft: number; onFoul: (uid: string) => void; grabbing?: boolean;
   emblem?: number;
+  /** Seconds left on the candidate currently up for a vote. */
+  voteLeft: number;
 }
-const SeatTile = memo(function SeatTile({ seat, isHostTile, fill, match, myId, stream, isSpeaking, foulMode, isHost, speechLeft, onFoul, grabbing, emblem }: SeatTileProps) {
+const SeatTile = memo(function SeatTile({ seat, isHostTile, fill, match, myId, stream, isSpeaking, foulMode, isHost, speechLeft, onFoul, grabbing, emblem, voteLeft }: SeatTileProps) {
   const uid = isHostTile ? match.hostId : seat!.userId;
   const name = isHostTile ? match.hostName : seat!.nickname;
   const isMe = uid === myId;
@@ -117,17 +124,27 @@ const SeatTile = memo(function SeatTile({ seat, isHostTile, fill, match, myId, s
   // Your people are ringed — in your side's colour, so a convert's ring is the
   // cult's candlelight rather than the mafia's red.
   const mateColor = match.myCult ? CULT : '#ff6b6b';
-  const glow = turnSpeaking ? RED : grabbing ? '#ffcc33' : isSpeaking ? '#39d98a' : mate ? mateColor : 'transparent';
+  /*
+   * The name the moderator is asking about RIGHT NOW.
+   *
+   * Every nominee wore the same "კენჭზე" chip, so the board could not say which
+   * of three the table was being asked to raise hands for — the only place that
+   * existed was one line in the middle of the stage card. With five seconds to
+   * answer, "which one?" is not a question anybody should have to go looking
+   * for.
+   */
+  const onFloor = !isHostTile && match.phase === 'vote' && match.voteCandidate?.userId === uid;
+  const glow = turnSpeaking ? RED : onFloor ? '#ffcc33' : grabbing ? '#ffcc33' : isSpeaking ? '#39d98a' : mate ? mateColor : 'transparent';
   const canFoul = isHost && foulMode && !isHostTile && seat!.alive;
   const avatarColor = isHostTile ? RED : AV[((seat?.seat ?? 0)) % AV.length]!;
 
   return (
-    <div className={`relative overflow-hidden select-none ${turnSpeaking ? 'xm-pulse' : ''}`}
+    <div className={`relative overflow-hidden select-none ${turnSpeaking ? 'xm-pulse' : onFloor ? 'xm-vote-pulse' : ''}`}
       style={{
         aspectRatio: fill ? undefined : '4/3', width: fill ? '100%' : undefined, height: fill ? '100%' : undefined,
         borderRadius: 14, background: '#0b0b12',
         border: `1.5px solid ${glow === 'transparent' ? 'rgba(255,255,255,0.09)' : glow}`,
-        boxShadow: turnSpeaking ? undefined : grabbing ? '0 0 18px #ffcc3388' : isSpeaking ? '0 0 15px #39d98a55' : '0 2px 10px rgba(0,0,0,0.4)',
+        boxShadow: turnSpeaking || onFloor ? undefined : grabbing ? '0 0 18px #ffcc3388' : isSpeaking ? '0 0 15px #39d98a55' : '0 2px 10px rgba(0,0,0,0.4)',
         opacity: dead ? 0.55 : 1,
         cursor: canFoul ? 'pointer' : 'default',
         // pulse animation reads these CSS variables
@@ -165,10 +182,14 @@ const SeatTile = memo(function SeatTile({ seat, isHostTile, fill, match, myId, s
         <div className="absolute top-1.5 right-1.5 px-2 py-0.5 rounded-lg font-mono text-[11px] font-bold"
           style={{ background: RED, color: '#fff', fontVariantNumeric: 'tabular-nums', boxShadow: `0 0 12px ${RED}` }}>{fmt(speechLeft)}</div>
       )}
+      {onFloor && (
+        <div className="absolute top-1.5 right-1.5 px-2 py-0.5 rounded-lg font-mono text-[11px] font-black"
+          style={{ background: '#ffcc33', color: '#000', fontVariantNumeric: 'tabular-nums' }}>{Math.max(0, voteLeft)}</div>
+      )}
       {grabbing && !turnSpeaking && (
         <div className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-lg font-mono text-[10px] font-bold" style={{ background: '#ffcc33', color: '#000' }}>🎙 ფოლი</div>
       )}
-      {!isHostTile && seat!.isNominated && !turnSpeaking && match.phase !== 'finished' && (
+      {!isHostTile && seat!.isNominated && !turnSpeaking && !onFloor && match.phase !== 'finished' && (
         <div className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-lg font-mono text-[9px] font-bold" style={{ background: '#ffcc33', color: '#000' }}>კენჭზე</div>
       )}
       {!isHostTile && seat!.fouls > 0 && !dead && (
@@ -473,7 +494,7 @@ export function SxvaMafiaGame() {
     const uid = extra.isHostTile ? match!.hostId : seat!.userId;
     const grabbing = !extra.isHostTile && match!.floorGrabUserId === uid && match!.floorGrabUntil > now;
     return <SeatTile key={extra.isHostTile ? 'host' : seat!.userId} seat={seat} match={match!} myId={myId}
-      stream={streamFor(uid)} isSpeaking={speaking.has(uid)} grabbing={grabbing} foulMode={foulMode} isHost={isHost} speechLeft={speechLeft} onFoul={onFoul} emblem={emblems.get(uid)} {...extra} />;
+      stream={streamFor(uid)} isSpeaking={speaking.has(uid)} grabbing={grabbing} foulMode={foulMode} isHost={isHost} speechLeft={speechLeft} voteLeft={voteLeft} onFoul={onFoul} emblem={emblems.get(uid)} {...extra} />;
   };
 
   // ── target chips for actions (mini-avatar pills) ────────────────────────────
@@ -710,7 +731,7 @@ export function SxvaMafiaGame() {
       return (<div>
         <div className="flex items-center justify-center gap-2 mb-2">
           <p className="font-display font-bold text-[12px]" style={{ color: '#ffcc33' }}>{match.voteRevote ? '🔁 ხელახალი კენჭისყრა' : '⚖️ ვის გავრიცხავთ?'}</p>
-          <span className="font-mono text-[11px] px-2 py-0.5 rounded" style={{ background: 'rgba(255,204,51,0.15)', color: '#ffcc33', fontVariantNumeric: 'tabular-nums' }}>{fmt(voteLeft)}</span>
+          <span className="font-mono font-bold text-[13px] px-2 py-0.5 rounded" style={{ background: 'rgba(255,204,51,0.15)', color: '#ffcc33', fontVariantNumeric: 'tabular-nums' }}>{secs(voteLeft)}</span>
         </div>
 
         {/*
@@ -862,7 +883,7 @@ export function SxvaMafiaGame() {
   // stage / phase hero text
   const stageSub = (() => {
     if (match.phase === 'speech') { const s = match.seats.find(x => x.userId === match.speakingUserId); return s ? `#${s.seat} ${s.nickname} ${intro ? 'წარადგენს თავს' : 'საუბრობს'} · ${fmt(speechLeft)}` : ''; }
-    if (match.phase === 'vote') return `კენჭისყრა · ${fmt(voteLeft)}`;
+    if (match.phase === 'vote') return `კენჭისყრა · ${secs(voteLeft)}წმ`;
     if (match.phase === 'last_words') return `${match.lastWordsName ?? ''} · ${fmt(lwLeft)}`;
     if (match.phase === 'day_announce') {
       if (!match.announce) return 'დღე დასრულდა — ღამდება';
@@ -939,7 +960,7 @@ export function SxvaMafiaGame() {
   const stageIcon = intro ? '🤝' : match.phase === 'night' ? '🌙' : match.phase === 'vote' ? '⚖️'
     : match.phase === 'last_words' ? '🎤' : match.phase === 'day_announce' ? ((match.announce?.killed.length ?? 0) > 0 ? '💀' : '🌅')
     : match.phase === 'speech' ? '🗣️' : '🎭';
-  const stageBig = match.phase === 'speech' ? fmt(speechLeft) : match.phase === 'vote' ? fmt(voteLeft) : match.phase === 'last_words' ? fmt(lwLeft) : '';
+  const stageBig = match.phase === 'speech' ? fmt(speechLeft) : match.phase === 'vote' ? secs(voteLeft) : match.phase === 'last_words' ? fmt(lwLeft) : '';
   const nightMood = match.phase === 'night';
 
   /**
@@ -1043,6 +1064,10 @@ export function SxvaMafiaGame() {
       <style>{`
         @keyframes xmPulseKf { 0%,100% { box-shadow: 0 0 14px rgba(255,59,71,0.5); } 50% { box-shadow: 0 0 32px rgba(255,59,71,0.95); } }
         .xm-pulse { animation: xmPulseKf 1.35s ease-in-out infinite; }
+        /* The candidate being asked about. Faster than the speaking pulse —
+           there are five seconds to answer, not sixty. */
+        @keyframes xmVotePulseKf { 0%,100% { box-shadow: 0 0 14px rgba(255,204,51,0.55); } 50% { box-shadow: 0 0 30px rgba(255,204,51,0.95); } }
+        .xm-vote-pulse { animation: xmVotePulseKf 0.9s ease-in-out infinite; }
         @keyframes xmFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
         .xm-float { animation: xmFloat 3s ease-in-out infinite; }
         @keyframes xmTwinkle { 0%,100% { opacity: 0.15; } 50% { opacity: 0.95; } }
@@ -1471,8 +1496,11 @@ export function SxvaMafiaGame() {
                         onChange={d => store.setSettings({ speechSeconds: clamp(match.settings.speechSeconds + d * 10, 20, 180) })} />
                       <RoleStepper emoji="🌙" label="ღამის დრო" value={match.settings.nightSeconds} min={20} max={120}
                         onChange={d => store.setSettings({ nightSeconds: clamp(match.settings.nightSeconds + d * 10, 20, 120) })} />
-                      <RoleStepper emoji="⚖️" label="კენჭისყრა" value={match.settings.voteSeconds} min={15} max={120}
-                        onChange={d => store.setSettings({ voteSeconds: clamp(match.settings.voteSeconds + d * 5, 15, 120) })} />
+                      {/* Per candidate, not per vote: this is how long the
+                          moderator gives the table to put hands up for one
+                          name. Steps of one, because the whole range is five. */}
+                      <RoleStepper emoji="⚖️" label="ხმა (თითო კანდიდატზე)" value={match.settings.voteSeconds} min={3} max={30}
+                        onChange={d => store.setSettings({ voteSeconds: clamp(match.settings.voteSeconds + d, 3, 30) })} />
                       <RoleStepper emoji="🎤" label="ბოლო სიტყვა" value={match.settings.lastWordsSeconds} min={15} max={120}
                         onChange={d => store.setSettings({ lastWordsSeconds: clamp(match.settings.lastWordsSeconds + d * 5, 15, 120) })} />
                       <button onClick={() => { SFX.click?.(); store.setSettings({ floorControl: !match.settings.floorControl }); }}

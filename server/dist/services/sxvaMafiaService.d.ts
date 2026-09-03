@@ -115,6 +115,7 @@ export interface XmMatch {
     settings: {
         speechSeconds: number;
         nightSeconds: number;
+        /** Seconds per CANDIDATE, not per vote — see the note above startVote. */
         voteSeconds: number;
         lastWordsSeconds: number;
         floorControl: boolean;
@@ -614,15 +615,16 @@ export declare function nominate(matchId: string, byUserId: string, targetUserId
 export declare function castVote(matchId: string, byUserId: string, nomineeUserId: string): XmMatch | null;
 /** The candidate on the floor right now, if the vote is running. */
 export declare function currentCandidate(m: XmMatch): string | null;
-/**
- * Move to the next candidate — or close the vote.
- *
- * Past the last candidate, everyone who has not voted is counted for that last
- * one. That is the standing rule in table mafia: if you sat on your hands all
- * the way down the list, your vote goes to the last name on it. Without it, a
- * player can abstain their way out of every elimination.
- */
 export declare function nextCandidate(matchId: string, byUserId: string): XmMatch | null;
+/**
+ * The candidate's few seconds ran out.
+ *
+ * Moves to the next name rather than ending the vote — which is what the old
+ * timer did, and why a long list never got asked all the way down. The host can
+ * still get ahead of it with `nextCandidate`; this is only what happens when
+ * nobody does anything.
+ */
+export declare function advanceCandidateAuto(matchId: string): XmMatch | null;
 /**
  * Next defence, or open the vote once they have all spoken.
  *

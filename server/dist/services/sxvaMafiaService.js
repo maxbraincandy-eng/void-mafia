@@ -121,7 +121,7 @@ export function createMatch(hostId, socketId, nickname, opts) {
         maxSeats: Math.min(14, Math.max(4, Number(opts.maxSeats ?? 10))),
         seats: [],
         spectators: [],
-        settings: { speechSeconds: 60, nightSeconds: 40, voteSeconds: 30, lastWordsSeconds: 40, floorControl: true },
+        settings: { speechSeconds: 60, nightSeconds: 40, voteSeconds: 5, lastWordsSeconds: 40, floorControl: true },
         roleConfig: null,
         deck: [],
         log: [],
@@ -574,7 +574,7 @@ export function setSettings(matchId, byUserId, patch) {
         if (patch.speechSeconds != null)
             m.settings.speechSeconds = Math.max(20, Math.min(180, Math.floor(patch.speechSeconds)));
         if (patch.voteSeconds != null)
-            m.settings.voteSeconds = Math.max(15, Math.min(120, Math.floor(patch.voteSeconds)));
+            m.settings.voteSeconds = Math.max(3, Math.min(30, Math.floor(patch.voteSeconds)));
         if (patch.lastWordsSeconds != null)
             m.settings.lastWordsSeconds = Math.max(15, Math.min(120, Math.floor(patch.lastWordsSeconds)));
         if (patch.nightSeconds != null)
@@ -1171,13 +1171,29 @@ export function nominate(matchId, byUserId, targetUserId) {
     return m;
 }
 // ── Vote ──────────────────────────────────────────────────────────────────────
+/**
+ * THE CLOCK BELONGS TO A CANDIDATE, NOT TO THE VOTE
+ * ─────────────────────────────────────────────────
+ * A moderator runs a vote one name at a time: "who is for number four?", hands
+ * go up, they count, next name. Each of those is a few seconds long.
+ *
+ * This used to run one clock across the whole vote and END it when that clock
+ * ran out — so a table with four candidates that spent its thirty seconds on
+ * the first two simply never asked about the other two, and the standing rule
+ * swept every silent player onto the last name. The clock now belongs to the
+ * candidate on the floor, and running out moves to the next one instead of
+ * closing the book.
+ */
+function candidateWindow(m) {
+    return Date.now() + m.settings.voteSeconds * 1000;
+}
 function startVote(m) {
     m.votes = {};
     m.voteResult = null;
     m.voteRevote = false;
     m.phase = 'vote';
     m.voteIdx = 0;
-    m.voteEndsAt = Date.now() + m.settings.voteSeconds * 1000;
+    m.voteEndsAt = candidateWindow(m);
 }
 /**
  * Vote for whoever is currently on the floor.
@@ -1217,13 +1233,12 @@ export function currentCandidate(m) {
  * the way down the list, your vote goes to the last name on it. Without it, a
  * player can abstain their way out of every elimination.
  */
-export function nextCandidate(matchId, byUserId) {
-    const m = matches.get(matchId);
-    if (!m || m.phase !== 'vote' || m.hostId !== byUserId)
-        return null;
+function stepCandidate(m) {
     if (m.voteIdx < m.nominations.length - 1) {
         m.voteIdx += 1;
-        return m;
+        // A fresh few seconds: the next name is only just being asked about.
+        m.voteEndsAt = candidateWindow(m);
+        return;
     }
     const last = m.nominations[m.nominations.length - 1];
     if (last) {
@@ -1233,6 +1248,27 @@ export function nextCandidate(matchId, byUserId) {
         }
     }
     resolveVote(m);
+}
+export function nextCandidate(matchId, byUserId) {
+    const m = matches.get(matchId);
+    if (!m || m.phase !== 'vote' || m.hostId !== byUserId)
+        return null;
+    stepCandidate(m);
+    return m;
+}
+/**
+ * The candidate's few seconds ran out.
+ *
+ * Moves to the next name rather than ending the vote — which is what the old
+ * timer did, and why a long list never got asked all the way down. The host can
+ * still get ahead of it with `nextCandidate`; this is only what happens when
+ * nobody does anything.
+ */
+export function advanceCandidateAuto(matchId) {
+    const m = matches.get(matchId);
+    if (!m || m.phase !== 'vote')
+        return null;
+    stepCandidate(m);
     return m;
 }
 // ── Tribunal (sport only) ─────────────────────────────────────────────────────
@@ -1435,7 +1471,7 @@ function resolveVote(m) {
         m.voteRevote = true;
         m.phase = 'vote';
         m.voteIdx = 0;
-        m.voteEndsAt = Date.now() + m.settings.voteSeconds * 1000;
+        m.voteEndsAt = candidateWindow(m);
         return;
     }
     m.voteResult = { eliminatedUserId: null, tally };

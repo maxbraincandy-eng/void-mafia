@@ -1,5 +1,5 @@
 import { ok, err, } from './types/index.js';
-import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch, dissolveMatch, transferHost, startMatch, reshuffleRoles, setRoleConfig, setSettings, pickCard, beginMafiaMeet, endMafiaMeet, beginNight, mafiaVote, setHostShot, donCheck, sheriffCheck, endPlanNight, nextTribunalDefense, tribunalVote, endTribunalVote, endNight, advanceNightAuto, beginDay, nextSpeaker, advanceSpeakerAuto, extendSpeech, nominate, grabFloor, doctorHeal, maniacKill, cultConvert, castVote, endVote, nextCandidate, giveFoul, endLastWords, rematch, endGame, disconnectSocket, getSafeState, kickPlayer, recipients, resumeForUser, joinMatchAsBot, } from './services/sxvaMafiaService.js';
+import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch, dissolveMatch, transferHost, startMatch, reshuffleRoles, setRoleConfig, setSettings, pickCard, beginMafiaMeet, endMafiaMeet, beginNight, mafiaVote, setHostShot, donCheck, sheriffCheck, endPlanNight, nextTribunalDefense, tribunalVote, endTribunalVote, endNight, advanceNightAuto, beginDay, nextSpeaker, advanceSpeakerAuto, extendSpeech, nominate, grabFloor, doctorHeal, maniacKill, cultConvert, castVote, endVote, nextCandidate, advanceCandidateAuto, giveFoul, endLastWords, rematch, endGame, disconnectSocket, getSafeState, kickPlayer, recipients, resumeForUser, joinMatchAsBot, } from './services/sxvaMafiaService.js';
 import { botName, isBot, isOwner, newBotId } from './services/testBots.js';
 import { tick as botTick, hasBots } from './services/xmBotDriver.js';
 const ROOM = (id) => `xm:${id}`;
@@ -78,8 +78,14 @@ function syncTimer(io, matchId) {
         fire = () => { advanceSpeakerAuto(matchId); };
     }
     else if (m.phase === 'vote' && m.voteEndsAt) {
+        /*
+         * The clock belongs to the candidate on the floor, so running out moves to
+         * the next name. It used to end the whole vote, which meant a table with
+         * four candidates that spent its time on the first two never asked about
+         * the other two at all.
+         */
         deadline = m.voteEndsAt;
-        fire = () => { endVote(matchId, null); };
+        fire = () => { advanceCandidateAuto(matchId); };
     }
     else if (m.phase === 'last_words' && m.lastWordsEndsAt) {
         deadline = m.lastWordsEndsAt;
