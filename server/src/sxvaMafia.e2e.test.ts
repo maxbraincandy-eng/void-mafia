@@ -27,7 +27,23 @@ let http: HttpServer;
 let server: Server;
 let port: number;
 
+/*
+ * LiveKit, configured with throwaway credentials.
+ *
+ * Minting a token is local arithmetic — no network — but `isLiveKitEnabled()`
+ * gates the handler, and without these the voice tests would pass because the
+ * feature was off rather than because the rule held. A refusal for the wrong
+ * reason is worse than no test.
+ */
+const LK_ENV = {
+  LIVEKIT_API_KEY: 'test_key',
+  LIVEKIT_API_SECRET: 'test_secret_at_least_32_chars_long_ok',
+  LIVEKIT_URL: 'wss://livekit.invalid',
+};
+const savedEnv: Record<string, string | undefined> = {};
+
 before(async () => {
+  for (const [k, v] of Object.entries(LK_ENV)) { savedEnv[k] = process.env[k]; process.env[k] = v; }
   http = createServer();
   server = new Server(http, { cors: { origin: '*' } });
   server.use((socket, next) => {
@@ -41,6 +57,9 @@ before(async () => {
 });
 
 after(async () => {
+  for (const [k, v] of Object.entries(savedEnv)) {
+    if (v === undefined) delete process.env[k]; else process.env[k] = v;
+  }
   /*
    * Force the sockets down before closing.
    *
@@ -674,4 +693,97 @@ test('a closed table disappears from moderation too', async () => {
   assert.ok(!listMatchesForMod().some(r => r.id === match.id), 'a closed table is not an active room');
 
   host.close();
+});
+
+// ─── The mafia's private voice channel ───────────────────────────────────────
+
+/**
+ * Deal a started match with known roles and put it in a given phase.
+ *
+ * The deal is random and this file is about who may enter a room, so the roles
+ * are overwritten afterwards — the same trick xmRoles.test.ts uses.
+ */
+async function dealt(tag: string, roles: string[], phase: string) {
+  const { host, players, match } = await room(tag, roles.length);
+  await send(host, 'xm:set_roles', {
+    matchId: match.id,
+    config: {
+      don: roles.filter(r => r === 'don').length,
+      mafia: roles.filter(r => r === 'mafia').length,
+      sheriff: roles.filter(r => r === 'sheriff').length,
+    },
+  });
+  await send(host, 'xm:start', { matchId: match.id });
+  const live = getMatch(match.id)!;
+  live.seats.forEach((seat, i) => { seat.role = roles[i] as never; seat.cardIndex = i; });
+  live.phase = phase as never;
+  await settle();
+  return { host, players, match, live };
+}
+
+test('a citizen cannot get a token for the mafia channel', async () => {
+  /*
+   * The whole reason the channel is a separate room. If this ack ever comes
+   * back ok, the conspiracy is one socket call away for the town — and unlike a
+   * UI mistake, nobody would ever see it happen.
+   */
+  const roles = ['don', 'mafia', 'sheriff', 'citizen', 'citizen', 'citizen'];
+  const { host, players, match } = await dealt('vc1', roles, 'mafia_meet');
+
+  // The don's success in the next test is what proves voice is actually on
+  // here, so these refusals are the rule and not the feature being unconfigured.
+  const sheriff = await send(players[2]!, 'xm:voice_token', { matchId: match.id });
+  assert.equal(sheriff.ok, false, 'the sheriff was let into the mafia channel');
+  assert.match((sheriff as any).error, /დახურული/, 'refused, but not for being the wrong role');
+  const citizen = await send(players[3]!, 'xm:voice_token', { matchId: match.id });
+  assert.equal(citizen.ok, false, 'a citizen was let into the mafia channel');
+  assert.match((citizen as any).error, /დახურული/, 'refused, but not for being the wrong role');
+
+  host.close(); players.forEach(p => p.close());
+});
+
+test('a mafioso gets a token, and it names the room the town is not in', async () => {
+  const roles = ['don', 'mafia', 'sheriff', 'citizen', 'citizen', 'citizen'];
+  const { host, players, match } = await dealt('vc2', roles, 'mafia_meet');
+
+  const don = await send(players[0]!, 'xm:voice_token', { matchId: match.id });
+  assert.equal(don.ok, true, `the don was refused: ${(don as any).error}`);
+  const data = (don as any).data;
+  assert.equal(data.role, 'speak');
+  assert.ok(typeof data.token === 'string' && data.token.length > 20);
+  assert.notEqual(data.room, `sxvamafia_${match.id}`, 'the mafia were sent to the table\'s own room');
+  assert.ok(data.room.includes(':'), 'the room is not marked private, so HTTP would mint it');
+
+  // The moderator hears it, and only hears it.
+  const asHost = await send(host, 'xm:voice_token', { matchId: match.id });
+  assert.equal(asHost.ok, true);
+  assert.equal((asHost as any).data.role, 'listen', 'the host could speak into the mafia channel');
+
+  host.close(); players.forEach(p => p.close());
+});
+
+test('the channel closes with the phase, for everybody', async () => {
+  const roles = ['don', 'mafia', 'sheriff', 'citizen', 'citizen', 'citizen'];
+  const { host, players, match, live } = await dealt('vc3', roles, 'mafia_meet');
+
+  assert.equal((await send(players[0]!, 'xm:voice_token', { matchId: match.id })).ok, true);
+  // Daylight.
+  live.phase = 'speech' as never;
+  const inDay = await send(players[0]!, 'xm:voice_token', { matchId: match.id });
+  assert.equal(inDay.ok, false, 'the mafia kept a private channel through the day');
+  assert.equal((await send(host, 'xm:voice_token', { matchId: match.id })).ok, false);
+
+  host.close(); players.forEach(p => p.close());
+});
+
+test('a dead mafioso is refused, while their living partner is not', async () => {
+  const roles = ['don', 'mafia', 'sheriff', 'citizen', 'citizen', 'citizen'];
+  const { host, players, match, live } = await dealt('vc4', roles, 'night');
+
+  live.seats[1]!.alive = false;
+  const dead = await send(players[1]!, 'xm:voice_token', { matchId: match.id });
+  assert.equal(dead.ok, false, 'a dead mafioso kept the private line to the living team');
+  assert.equal((await send(players[0]!, 'xm:voice_token', { matchId: match.id })).ok, true);
+
+  host.close(); players.forEach(p => p.close());
 });

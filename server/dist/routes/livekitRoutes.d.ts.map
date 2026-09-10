@@ -1,1 +1,1 @@
-{"version":3,"file":"livekitRoutes.d.ts","sourceRoot":"","sources":["../../src/routes/livekitRoutes.ts"],"names":[],"mappings":"AAAA;;;;;;;;GAQG;AACH,OAAO,EAAE,MAAM,EAAE,MAAM,SAAS,CAAC;AAMjC,wBAAgB,mBAAmB,IAAI,MAAM,CAyC5C"}
+{"version":3,"file":"livekitRoutes.d.ts","sourceRoot":"","sources":["../../src/routes/livekitRoutes.ts"],"names":[],"mappings":"AAAA;;;;;;;;GAQG;AACH,OAAO,EAAE,MAAM,EAAE,MAAM,SAAS,CAAC;AAMjC;;;;;;;GAOG;AACH,wBAAgB,aAAa,CAAC,IAAI,EAAE,MAAM,GAAG,OAAO,CAA+B;AAEnF,wBAAgB,mBAAmB,IAAI,MAAM,CA2D5C"}

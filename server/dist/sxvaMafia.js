@@ -1,5 +1,6 @@
 import { ok, err, } from './types/index.js';
-import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch, dissolveMatch, transferHost, startMatch, reshuffleRoles, setRoleConfig, setSettings, pickCard, beginMafiaMeet, endMafiaMeet, beginNight, mafiaVote, setHostShot, donCheck, sheriffCheck, endPlanNight, nextTribunalDefense, tribunalVote, endTribunalVote, endNight, advanceNightAuto, beginDay, nextSpeaker, advanceSpeakerAuto, extendSpeech, nominate, grabFloor, doctorHeal, maniacKill, cultConvert, castVote, endVote, nextCandidate, advanceCandidateAuto, giveFoul, endLastWords, rematch, endGame, disconnectSocket, getSafeState, kickPlayer, recipients, resumeForUser, joinMatchAsBot, } from './services/sxvaMafiaService.js';
+import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch, dissolveMatch, transferHost, startMatch, reshuffleRoles, setRoleConfig, setSettings, pickCard, beginMafiaMeet, endMafiaMeet, beginNight, mafiaVote, setHostShot, donCheck, sheriffCheck, endPlanNight, nextTribunalDefense, tribunalVote, endTribunalVote, endNight, advanceNightAuto, beginDay, nextSpeaker, advanceSpeakerAuto, extendSpeech, nominate, grabFloor, doctorHeal, maniacKill, cultConvert, castVote, endVote, nextCandidate, advanceCandidateAuto, giveFoul, endLastWords, rematch, endGame, disconnectSocket, getSafeState, kickPlayer, recipients, resumeForUser, joinMatchAsBot, mafiaChannelRole, mafiaRoomFor, } from './services/sxvaMafiaService.js';
+import { createAccessToken, isLiveKitEnabled } from './services/livekitService.js';
 import { botName, isBot, isOwner, newBotId } from './services/testBots.js';
 import { tick as botTick, hasBots } from './services/xmBotDriver.js';
 const ROOM = (id) => `xm:${id}`;
@@ -558,6 +559,38 @@ export function registerSxvaMafiaHandlers(io, socket) {
         }
         catch (e) {
             cb(err(e.message));
+        }
+    });
+    /**
+     * A token for the mafia's private voice channel.
+     *
+     * Issued here rather than over HTTP because this is where the caller's
+     * identity is already known and cannot be claimed: the socket carries it, and
+     * the room name is derived from the match rather than accepted from the
+     * request. The open token route refuses these rooms outright — otherwise
+     * anybody with the match id could listen to the conspiracy.
+     *
+     * Re-issued on demand rather than pushed on the phase change, so a mafioso
+     * whose connection dropped mid-night can simply ask again.
+     */
+    socket.on('xm:voice_token', async (data, cb) => {
+        const reply = typeof cb === 'function' ? cb : () => { };
+        try {
+            if (!isLiveKitEnabled())
+                return reply(err('ხმა გათიშულია'));
+            const m = getMatch(String(data?.matchId));
+            if (!m)
+                return reply(err('ოთახი არ მოიძებნა'));
+            const role = mafiaChannelRole(m, uid());
+            if (!role)
+                return reply(err('ეს არხი შენთვის დახურულია'));
+            const room = mafiaRoomFor(m.id);
+            const { token, url } = await createAccessToken(uid(), room);
+            reply(ok({ token, url, room, role }));
+        }
+        catch (e) {
+            console.error('[xm] voice token:', e?.message);
+            reply(err('ვერ გაიცა ხმის ტოკენი'));
         }
     });
     socket.on('xm:mafia_vote', targetAction(mafiaVote, 'ვერ აირჩია სამიზნე'));

@@ -19,7 +19,9 @@ import {
   doctorHeal, maniacKill, cultConvert,
   castVote, endVote, nextCandidate, advanceCandidateAuto, giveFoul, endLastWords, rematch, endGame, disconnectSocket, getSafeState,
   kickPlayer, recipients, resumeForUser, joinMatchAsBot,
+  mafiaChannelRole, mafiaRoomFor,
 } from './services/sxvaMafiaService.js';
+import { createAccessToken, isLiveKitEnabled } from './services/livekitService.js';
 import { botName, isBot, isOwner, newBotId } from './services/testBots.js';
 import { tick as botTick, hasBots } from './services/xmBotDriver.js';
 
@@ -493,6 +495,35 @@ export function registerSxvaMafiaHandlers(io: AppServer, socket: AppSocket): voi
       after(matchId);
       cb(ok(null));
     } catch (e: any) { cb(err(e.message)); }
+  });
+
+  /**
+   * A token for the mafia's private voice channel.
+   *
+   * Issued here rather than over HTTP because this is where the caller's
+   * identity is already known and cannot be claimed: the socket carries it, and
+   * the room name is derived from the match rather than accepted from the
+   * request. The open token route refuses these rooms outright — otherwise
+   * anybody with the match id could listen to the conspiracy.
+   *
+   * Re-issued on demand rather than pushed on the phase change, so a mafioso
+   * whose connection dropped mid-night can simply ask again.
+   */
+  socket.on('xm:voice_token' as any, async (data: { matchId: string }, cb: (r: any) => void) => {
+    const reply = typeof cb === 'function' ? cb : () => {};
+    try {
+      if (!isLiveKitEnabled()) return reply(err('ხმა გათიშულია'));
+      const m = getMatch(String(data?.matchId));
+      if (!m) return reply(err('ოთახი არ მოიძებნა'));
+      const role = mafiaChannelRole(m, uid());
+      if (!role) return reply(err('ეს არხი შენთვის დახურულია'));
+      const room = mafiaRoomFor(m.id);
+      const { token, url } = await createAccessToken(uid(), room);
+      reply(ok({ token, url, room, role }));
+    } catch (e: any) {
+      console.error('[xm] voice token:', e?.message);
+      reply(err('ვერ გაიცა ხმის ტოკენი'));
+    }
   });
 
   socket.on('xm:mafia_vote' as any, targetAction(mafiaVote, 'ვერ აირჩია სამიზნე'));

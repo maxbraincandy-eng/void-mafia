@@ -13,6 +13,10 @@ import {
 } from '@/services/livekitVoice';
 import { tableQualityPlan } from '@/lib/videoQuality';
 import { nextBell, NO_BELL, type BellMemory } from '@/lib/tableBell';
+import {
+  joinSideChannel, leaveSideChannel, setSideChannelMic, subscribeSideChannel,
+  getSideChannel, type SideChannelState,
+} from '@/services/livekitSideChannel';
 import { SeatEmblem, assignEmblems } from './SeatEmblem';
 import { ringShape, fitTile } from './ringShape';
 import { VoidCardBack } from './VoidCardBack';
@@ -68,6 +72,8 @@ function useWide(bp = 760): boolean {
   return w;
 }
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
+/** Mafia by role — the don included. Matches `isMafiaRole` on the server. */
+const amMafiaRole = (r: XmRole | null): boolean => r === 'mafia' || r === 'don';
 
 /** ± stepper for one role count in the host's lobby composition panel. */
 function RoleStepper({ emoji, label, value, min, max, onChange }: { emoji: string; label: string; value: number; min: number; max: number; onChange: (delta: number) => void }) {
@@ -379,13 +385,79 @@ export function SxvaMafiaGame() {
   const amActiveTalker = !!match && (match.amHost || match.myAlive) && !match.amSpectator;
   // A player's 6-second "foul" temporarily lifts their floor-control mute.
   const iHaveFloor = !!match && match.floorGrabUserId === myId && match.floorGrabUntil > now;
-  const listenOnly = !!match && (match.amSpectator || (!match.amHost && !match.myAlive) || (floorControl && !iHoldFloor && !iHaveFloor && !match.amHost));
+
+  /*
+   * THE MAFIA'S PRIVATE CHANNEL
+   *
+   * The bug this exists for: the mafia could not hear each other. `iHoldFloor`
+   * above covers the host, the lobby, the speaker on the floor and last words —
+   * and never the phases the mafia are supposed to be talking in, so every one
+   * of them sat force-muted through the meeting the phase exists to hold.
+   *
+   * The fix is not to let them off the mute. That mute is what keeps the town
+   * from hearing them: one LiveKit room, one audience. They get a second room
+   * instead, which the town is not in.
+   *
+   * Mirrored from `mafiaChannelRole` on the server, and the server is the one
+   * that decides — this only works out whether it is worth asking. A client
+   * that lied here would be handed a refusal.
+   */
+  const mafiaChannelOpen = !!match && (
+    match.phase === 'mafia_meet' || match.phase === 'plan_night'
+    || (match.phase === 'night' && !match.sport)
+  );
+  const myChannelRole: 'speak' | 'listen' | null = !match || !mafiaChannelOpen ? null
+    : match.amHost ? 'listen'
+    : (amMafiaRole(match.myRole) && match.myAlive && !match.amSpectator) ? 'speak'
+    : null;
+
+  /*
+   * While that channel is live, the table's microphone stays shut regardless of
+   * the floor-control setting.
+   *
+   * Floor control is a host option, and with it off `listenOnly` would be false
+   * during the night — so a mafioso talking to their team would be publishing
+   * into the room the whole town is sitting in. The private channel must not
+   * depend on a setting somebody can turn off.
+   */
+  const listenOnly = !!match && (
+    match.amSpectator || (!match.amHost && !match.myAlive)
+    || (myChannelRole === 'speak')
+    || (floorControl && !iHoldFloor && !iHaveFloor && !match.amHost)
+  );
   const voice = useLivekitRoomVoice({
     roomId: match?.id ? `sxvamafia_${match.id}` : null,
     identity: myId || null,
     active: lkEnabled && !!match && match.phase !== 'finished',
     listenOnly,
   });
+
+  /*
+   * Join the private room while it is ours, leave the moment it is not.
+   *
+   * Keyed on the role rather than the phase, so the effect is idle for the ten
+   * people it does not concern. The token is fetched fresh each time: it is the
+   * server's answer to "may I", and asking again is also how a mafioso whose
+   * connection dropped mid-night gets back in.
+   */
+  const [side, setSide] = useState<SideChannelState>(getSideChannel);
+  useEffect(() => subscribeSideChannel(setSide), []);
+  useEffect(() => {
+    if (!lkEnabled || !myChannelRole || !match?.id) { void leaveSideChannel(); return; }
+    let cancelled = false;
+    void (async () => {
+      const t = await store.voiceToken();
+      if (cancelled || !t) return;
+      await joinSideChannel({ room: t.room, token: t.token, url: t.url, role: t.role });
+      // Speakers arrive live: the phase is short and a meeting that starts with
+      // everybody muted is a meeting that starts with "can you hear me?".
+      if (t.role === 'speak') await setSideChannelMic(true);
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lkEnabled, myChannelRole, match?.id]);
+  // Nothing should outlive the screen.
+  useEffect(() => () => { void leaveSideChannel(); }, []);
 
   // Auto-open the mic the moment you gain the floor (start of your turn).
   const prevFloor = useRef(false);
@@ -595,6 +667,46 @@ export function SxvaMafiaGame() {
           <button onClick={() => { SFX.click?.(); setFoulMode(f => !f); }} className="px-3 py-2 rounded-xl font-display font-bold text-[13px] whitespace-nowrap"
             style={{ background: foulMode ? '#ffcc33' : 'rgba(255,255,255,0.06)', color: foulMode ? '#000' : '#fff', border: '1px solid rgba(255,255,255,0.14)' }}>⚠️ ფაული {foulMode ? 'ჩართ.' : ''}</button>}
         {match.phase === 'finished' && !match.dissolved && btn('🔄 ხელახლა', () => store.rematch(), true)}
+      </div>
+    );
+  };
+
+  /**
+   * The private channel, made visible.
+   *
+   * A microphone nobody can see is a microphone people talk into by accident,
+   * and one they cannot find is the bug this whole thing exists to fix. It says
+   * who is in, who is talking, and — for the moderator — that they are only
+   * listening.
+   */
+  const MafiaChannelStrip = () => {
+    if (!myChannelRole) return null;
+    const listening = myChannelRole === 'listen';
+    const live = side.connected;
+    const talkers = match.seats.filter(s => side.speaking.has(s.userId));
+    return (
+      <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl mb-2"
+        style={{ background: live ? `${RED}14` : 'rgba(255,255,255,0.04)', border: `1px solid ${live ? `${RED}55` : 'rgba(255,255,255,0.12)'}` }}>
+        <span className="font-mono text-[10.5px] flex-shrink-0" style={{ color: live ? '#ff8a92' : 'rgba(255,255,255,0.4)' }}>
+          {live ? '🔒 მაფიის არხი' : '🔒 უკავშირდება…'}
+        </span>
+        <span className="font-mono text-[10px] text-white/40 flex-1 min-w-0 truncate">
+          {talkers.length > 0
+            ? `🎙 ${talkers.map(t => `#${t.seat}`).join(' ')}`
+            : listening ? 'ისმენ — ქალაქი ვერ გისმენს' : 'ქალაქი ამ არხს ვერ ისმენს'}
+        </span>
+        {!listening && (
+          <button
+            onClick={() => { SFX.click?.(); haptic('selection'); void setSideChannelMic(!side.micOn); }}
+            disabled={!live}
+            className="px-2.5 py-1 rounded-lg font-mono text-[11px] flex-shrink-0 disabled:opacity-40"
+            style={{
+              background: side.micOn ? RED : 'rgba(255,255,255,0.07)',
+              border: `1px solid ${side.micOn ? RED : 'rgba(255,255,255,0.18)'}`, color: '#fff',
+            }}>
+            {side.micOn ? '🎙 ჩართული' : '🔇 გამორთული'}
+          </button>
+        )}
       </div>
     );
   };
@@ -1553,6 +1665,9 @@ export function SxvaMafiaGame() {
                   </button>
                 );
               })()}
+            {/* Above the controls, so it is the first thing in reach the moment
+                the phase turns and the whispering starts. */}
+            <MafiaChannelStrip />
             {isHost ? <HostBar /> : <PlayerPanel />}
             {isHost && match.phase !== 'lobby' && match.phase !== 'assign' && (
               <div className="mt-2 pt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}><PlayerPanelReadonly match={match} onShot={t => store.hostShot(t)} /></div>

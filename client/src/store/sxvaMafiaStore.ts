@@ -29,6 +29,8 @@ interface XmStore {
   endNight: () => Promise<void>;
   /** Host rules on the night's shot. `null` is a called miss, not a cleared field. */
   hostShot: (targetId: string | null) => Promise<void>;
+  /** A token for the mafia's private voice room. Null when it is not ours to join. */
+  voiceToken: () => Promise<{ token: string; url: string; room: string; role: 'speak' | 'listen' } | null>;
   beginDay: () => Promise<void>;
   nextSpeaker: () => Promise<void>;
   extendSpeech: (seconds?: number) => Promise<void>;
@@ -126,6 +128,16 @@ export const useSxvaMafiaStore = create<XmStore>((set, get) => {
     endMeet: hostEv('xm:end_meet'),
     beginNight: hostEv('xm:begin_night'),
     endNight: hostEv('xm:end_night'),
+    voiceToken: async () => {
+      const id = mid();
+      if (!id) return null;
+      try {
+        const r = await emit('xm:voice_token', { matchId: id });
+        // A refusal is the normal answer for most of the table, so it is not an
+        // error the way a failed action is — nothing is shown, nothing is joined.
+        return r?.ok ? (r.data as any) : null;
+      } catch { return null; }
+    },
     hostShot: async (targetId) => { const id = mid(); if (!id) return; try { const r = await emit('xm:host_shot', { matchId: id, targetId }); if (!r.ok) set({ error: r.error }); } catch (e: any) { set({ error: e.message }); } },
     beginDay: hostEv('xm:begin_day'),
     nextSpeaker: hostEv('xm:next_speaker'),

@@ -14,8 +14,10 @@ import {
   beginMafiaMeet, endMafiaMeet, beginNight, endNight, leaveMatch, getSafeState,
   mafiaVote, setHostShot, donCheck, sheriffCheck, doctorHeal, maniacKill, cultConvert, advanceNightAuto,
   castVote, nextCandidate, advanceCandidateAuto, setSettings,
+  mafiaChannelOpen, mafiaChannelRole, mafiaRoomFor,
   effectiveCounts, roleCounts, type XmMatch, type XmRole,
 } from './services/sxvaMafiaService.js';
+import { isPrivateRoom } from './routes/livekitRoutes.js';
 
 let n = 0;
 const nextId = () => `rt_${n++}`;
@@ -699,4 +701,89 @@ test('five seconds is the default, and the host can set three to thirty', () => 
   assert.equal(m.settings.voteSeconds, 30, 'no ceiling');
   setSettings(m.id, hostOf(m), { voteSeconds: 8 });
   assert.equal(m.settings.voteSeconds, 8);
+});
+
+// ─── The mafia's private voice channel ───────────────────────────────────────
+
+test('the channel is open exactly when the mafia have something to say', () => {
+  /*
+   * The classic first night and sport's planning night exist FOR the mafia to
+   * talk. Classic later nights too — they already watch each other's picks
+   * there, so speaking adds nothing they do not have.
+   */
+  const m = table(['don', 'mafia', 'sheriff', 'citizen', 'citizen', 'citizen']);
+  for (const [phase, open] of [
+    ['mafia_meet', true], ['plan_night', true], ['night', true],
+    ['lobby', false], ['assign', false], ['speech', false], ['vote', false],
+    ['day_announce', false], ['last_words', false], ['finished', false],
+  ] as [string, boolean][]) {
+    m.phase = phase as any;
+    assert.equal(mafiaChannelOpen(m), open, `${phase}`);
+  }
+});
+
+test('sport keeps shooting blind — no open microphone after the planning night', () => {
+  /*
+   * The one place the channel must stay shut. `mafiaPicks` is withheld in sport
+   * so the team coordinates without seeing each other; a live microphone would
+   * hand that straight back, and every other rule protecting it would be
+   * decoration.
+   */
+  const m = table(['don', 'mafia', 'mafia', 'sheriff', 'doctor', 'citizen', 'citizen', 'citizen', 'citizen', 'citizen']);
+  m.sport = true;
+  m.phase = 'plan_night';
+  assert.equal(mafiaChannelOpen(m), true, 'sport must allow its one planning night');
+  m.phase = 'night';
+  assert.equal(mafiaChannelOpen(m), false, 'sport opened the channel on a shooting night');
+  assert.equal(mafiaChannelRole(m, m.seats[0]!.userId), null);
+});
+
+test('the mafia speak, the host listens, the town gets nothing', () => {
+  const m = table(['don', 'mafia', 'sheriff', 'citizen', 'citizen', 'citizen']);
+  const [don, maf, sher, c1] = m.seats;
+  m.phase = 'mafia_meet';
+
+  assert.equal(mafiaChannelRole(m, don.userId), 'speak');
+  assert.equal(mafiaChannelRole(m, maf!.userId), 'speak');
+  // The moderator hears the whispering the way they would leaning over a table;
+  // when they answer, they answer to the whole room, which is a different mic.
+  assert.equal(mafiaChannelRole(m, hostOf(m)), 'listen');
+  assert.equal(mafiaChannelRole(m, sher!.userId), null, 'the sheriff got into the mafia channel');
+  assert.equal(mafiaChannelRole(m, c1!.userId), null, 'a citizen got into the mafia channel');
+  assert.equal(mafiaChannelRole(m, 'nobody_at_all'), null, 'a stranger got in');
+});
+
+test('a dead mafioso is out of the channel too', () => {
+  /*
+   * A corpse feeding the living team down a private line is the oldest way to
+   * break a mafia table, and the one the town can never see.
+   */
+  const m = table(['don', 'mafia', 'sheriff', 'citizen', 'citizen', 'citizen']);
+  m.phase = 'night';
+  const maf = m.seats[1]!;
+  assert.equal(mafiaChannelRole(m, maf.userId), 'speak');
+  maf.alive = false;
+  assert.equal(mafiaChannelRole(m, maf.userId), null, 'a dead mafioso kept the channel');
+  // The living one still has it.
+  assert.equal(mafiaChannelRole(m, m.seats[0]!.userId), 'speak');
+});
+
+test('nobody holds the channel once it closes', () => {
+  const m = table(['don', 'mafia', 'sheriff', 'citizen', 'citizen', 'citizen']);
+  m.phase = 'speech';
+  for (const s of m.seats) assert.equal(mafiaChannelRole(m, s.userId), null, `#${s.seat}`);
+  assert.equal(mafiaChannelRole(m, hostOf(m)), null, 'the host kept it in daylight');
+});
+
+test('the private room is named so the open token route can refuse it', () => {
+  /*
+   * The HTTP token endpoint takes a room name from the query string and mints a
+   * token with no membership check at all. That is survivable for the table's
+   * own room and fatal for this one, so the name itself is what marks it.
+   */
+  const m = table(['don', 'mafia', 'sheriff', 'citizen', 'citizen', 'citizen']);
+  const room = mafiaRoomFor(m.id);
+  assert.ok(isPrivateRoom(room), 'the mafia room would be mintable over HTTP');
+  assert.equal(isPrivateRoom(`sxvamafia_${m.id}`), false, 'the table\'s own room was locked out');
+  assert.notEqual(room, `sxvamafia_${m.id}`);
 });

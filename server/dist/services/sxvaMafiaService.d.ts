@@ -463,6 +463,50 @@ export interface XmModRoom {
 export declare function listMatchesForMod(): XmModRoom[];
 /** Is this id a hosted table? Lets the shared mod actions route correctly. */
 export declare function isHostedMatch(id: string): boolean;
+/**
+ * The room the mafia whisper in, separate from the table's.
+ *
+ * ONE ROOM CANNOT HOLD A SECRET
+ * ─────────────────────────────
+ * Everybody's video and voice lives in one LiveKit room, which is right for a
+ * table and wrong for a conspiracy: audio published there reaches every
+ * participant, and no amount of client-side "do not subscribe" changes what the
+ * server is sending. A social deduction game cannot rest its hidden information
+ * on the town's own client choosing not to listen.
+ *
+ * So the mafia get a second, audio-only room that the town is simply not in.
+ * Nothing to intercept, because nothing is sent to them.
+ *
+ * The colon is deliberate: `privateRoomName` is how the open HTTP token route
+ * recognises a room it must never mint a token for. See livekitRoutes.ts.
+ */
+export declare function mafiaRoomFor(matchId: string): string;
+/**
+ * Is the channel live right now?
+ *
+ *   mafia_meet   the classic first night — the phase exists to let them talk
+ *   plan_night   sport's opening night, which is the one coordination it allows
+ *   night        classic only. They already see each other's picks there, so
+ *                speaking adds nothing they do not already have.
+ *
+ * Not sport's later nights. Blind coordination is the mechanic the whole mode
+ * is built on — `mafiaPicks` is withheld there for exactly this reason, and an
+ * open microphone would hand it straight back.
+ */
+export declare function mafiaChannelOpen(m: XmMatch): boolean;
+export type MafiaChannelRole = 'speak' | 'listen' | null;
+/**
+ * What this person may do in that channel.
+ *
+ * The host listens but does not speak into it. They hear the whispering the way
+ * a moderator leaning over the table does, and when they answer, they answer to
+ * the whole room — which is the table's microphone, not this one.
+ *
+ * A dead mafioso gets nothing. Their seat is out of the game, and a corpse
+ * feeding the living team information down a private channel is the oldest way
+ * to break a mafia table.
+ */
+export declare function mafiaChannelRole(m: XmMatch, userId: string): MafiaChannelRole;
 /** Join as a seat (during lobby) or reconnect. Post-start newcomers become spectators. */
 export declare function joinMatch(matchId: string, userId: string, socketId: string, nickname: string): {
     match: XmMatch;
