@@ -88,6 +88,33 @@ function facadeTexture(base: string, trim: string, lit: string, seed: number): T
   return t;
 }
 
+/**
+ * Cobbles — irregular, because Old Town's are laid by hand and a regular grid
+ * reads as graph paper the moment you stand on it.
+ */
+function cobbleTexture(): THREE.Texture {
+  const c = document.createElement('canvas');
+  c.width = 128; c.height = 128;
+  const g = c.getContext('2d')!;
+  let s = 0xc0bb1e;
+  const rnd = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967295; };
+  g.fillStyle = '#4a4038'; g.fillRect(0, 0, 128, 128);
+  for (let y = 0; y < 128; y += 8) {
+    const off = (y / 8) % 2 ? 4 : 0;
+    for (let x = -8; x < 128; x += 8) {
+      const v = 0.72 + rnd() * 0.5;
+      g.fillStyle = `rgb(${Math.round(96 * v)},${Math.round(84 * v)},${Math.round(74 * v)})`;
+      const w = 6 + rnd() * 1.6, h = 6 + rnd() * 1.4;
+      g.fillRect(x + off + (rnd() - 0.5), y + (rnd() - 0.5), w, h);
+    }
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  // The ground's UVs run at 0.01 per metre, so this makes a tile about 2 m.
+  t.repeat.set(50, 50);
+  return t;
+}
+
 export const oldTbilisi: WorldDef = {
   id: 'old_tbilisi',
   name: 'ძველი თბილისი',
@@ -150,19 +177,39 @@ export const oldTbilisi: WorldDef = {
      * river was drawn, correctly, and simply never seen. Nothing looked broken;
      * the old town just had an unexplained empty strip through the middle of it.
      */
-    const groundMat = new T.MeshStandardMaterial({ color: 0x37322f, roughness: 1 });
-    ctx.disposables.push(groundMat);
+    /*
+     * Paving, not a void.
+     *
+     * A flat unlit brown filled the bottom half of every view from eye level —
+     * the single most visible thing in the world and the one carrying no
+     * information at all. A cobble texture at half a metre a tile gives the
+     * ground a scale, which is what tells you how big everything else is.
+     */
+    const groundMat = new T.MeshStandardMaterial({ map: cobbleTexture(), roughness: 0.98 });
+    ctx.disposables.push(groundMat, groundMat.map!);
     const ground = buildGround(T, TBILISI_WATER_B64, groundMat, 900);
     ctx.disposables.push(ground.geometry);
     ctx.scene.add(ground);
 
     // ── The city, from its own footprints ──
+    /*
+     * The texture is now greyscale detail and the COLOUR comes per building, as
+     * a vertex attribute.
+     *
+     * Before this, every building in the largest bucket wore one beige — and
+     * since most of OSM's buildings are tagged `building=yes`, that was most of
+     * the district. Nine hundred identical boxes is what made it read as a
+     * housing estate. Painting per building keeps it to one draw call.
+     */
     const facades: Record<FacadeGroup, THREE.Material> = {
-      stone: new T.MeshStandardMaterial({ map: facadeTexture('#b6a892', '#8d7f6a', '#ffcf8e', 11), roughness: 0.93 }),
-      brick: new T.MeshStandardMaterial({ map: facadeTexture('#9c7358', '#7a5742', '#ffc07a', 29), roughness: 0.95 }),
-      civic: new T.MeshStandardMaterial({ map: facadeTexture('#c3bcae', '#9a9284', '#fff0c9', 47), roughness: 0.88 }),
-      sacred: new T.MeshStandardMaterial({ map: facadeTexture('#a89b84', '#8a7c66', '#ffe2ab', 67), roughness: 0.9 }),
+      stone: new T.MeshStandardMaterial({ map: facadeTexture('#ffffff', '#c8c8c8', '#ffe6b8', 11), roughness: 0.93, vertexColors: true }),
+      brick: new T.MeshStandardMaterial({ map: facadeTexture('#ffffff', '#c0c0c0', '#ffd9a0', 29), roughness: 0.95, vertexColors: true }),
+      civic: new T.MeshStandardMaterial({ map: facadeTexture('#ffffff', '#cfcfcf', '#fff0c9', 47), roughness: 0.88, vertexColors: true }),
+      sacred: new T.MeshStandardMaterial({ map: facadeTexture('#ffffff', '#c4c4c4', '#ffe2ab', 67), roughness: 0.9, vertexColors: true }),
     };
+    // Tile: matte, and coloured per building like the walls.
+    const roofMat = new T.MeshStandardMaterial({ roughness: 0.97, vertexColors: true, flatShading: true });
+    ctx.disposables.push(roofMat);
     // Lighter than the ground it lies on, or the street plan is invisible.
     const roadMat = new T.MeshStandardMaterial({ color: 0x5b5550, roughness: 0.96 });
     for (const m of Object.values(facades)) ctx.disposables.push(m, (m as THREE.MeshStandardMaterial).map!);
@@ -177,7 +224,7 @@ export const oldTbilisi: WorldDef = {
      * rather than the street walls or the landmarks.
      */
     const city = buildCity(
-      T, TBILISI_BUILDINGS_B64, TBILISI_ROADS_B64, facades, roadMat,
+      T, TBILISI_BUILDINGS_B64, TBILISI_ROADS_B64, facades, roadMat, roofMat,
       { maxBuildings: ctx.perf.reduced ? 620 : undefined },
     );
     for (const m of city.meshes) { ctx.scene.add(m); ctx.disposables.push(m.geometry); }
@@ -230,9 +277,17 @@ export const oldTbilisi: WorldDef = {
     const sioni = at('სიონის', { x: -122.5, z: -25.1 });
     georgianChurch(lctx, { x: sioni.x, y: 0, z: sioni.z, scale: 1.15, yaw: 0.3 });
 
+    /*
+     * Metekhi, on its cliff — with the cliff.
+     *
+     * The church was placed at twenty-two metres because that is where it
+     * stands, and nothing was built underneath it. It hung in the sky over the
+     * river, which is the first thing anybody walking the embankment saw.
+     */
     const metekhi = at('მეტეხის ხიდი', { x: 85.8, z: 83.6 });
-    // The church stands on the cliff above the bridge, on the far bank.
-    georgianChurch(lctx, { x: metekhi.x + 48, y: 22, z: metekhi.z - 30, scale: 1, yaw: -0.5 });
+    const MX = metekhi.x + 48, MZ = metekhi.z - 30, MY = 22;
+    mtatsmindaRidge(lctx, { x: MX + 18, z: MZ - 6, length: 180, width: 110, crestY: MY + 5, yaw: -0.5 });
+    georgianChurch(lctx, { x: MX, y: MY, z: MZ, scale: 1, yaw: -0.5 });
 
     const baths = at('სამეფო აბანო', { x: 169.5, z: 332.8 });
     sulphurDomes(lctx, { x: baths.x, z: baths.z, count: 9, spread: 34 });
