@@ -24,7 +24,10 @@
 // Do not remove it.
 import * as THREE from 'three';
 import type { WorldDef, WorldContext } from './types';
-import { buildCity, buildWater, buildGround, lampPositions, type FacadeGroup } from './tbilisiBuild';
+import {
+  buildCity, buildWater, buildGround, lampPositions, carSpots, buildBalconies, buildTrees,
+  type FacadeGroup,
+} from './tbilisiBuild';
 import {
   mtatsmindaMast, mtatsmindaRidge, narikala, georgianChurch, sulphurDomes,
   bridgeOfPeace, resetLandmarkSeed, type LandmarkCtx,
@@ -115,6 +118,87 @@ function cobbleTexture(): THREE.Texture {
   return t;
 }
 
+/**
+ * A dusk dome: warm low in the west where the sun has just gone, deep blue
+ * overhead, with stars only in the upper half where the light has left.
+ */
+function buildSky(ctx: WorldContext): void {
+  const T = ctx.three;
+  /*
+   * The gradient is a texture; the stars are not.
+   *
+   * A star painted into the dome's texture is not a star, it is however many
+   * metres of sky one texel covers — on a dome two and a half kilometres
+   * across that is fifteen, and each one came out as a fat white capsule
+   * hanging over the city. Widening the canvas only made them narrower
+   * capsules. The gradient varies in one direction and is the only thing here
+   * that wants to be a texture at all, so it stays four pixels wide.
+   */
+  const c = document.createElement('canvas');
+  c.width = 4; c.height = 256;
+  const g = c.getContext('2d')!;
+  const grad = g.createLinearGradient(0, 0, 0, 256);
+  grad.addColorStop(0, '#161228');    // zenith
+  grad.addColorStop(0.45, '#2e2742');
+  grad.addColorStop(0.78, '#4c3a4e');
+  grad.addColorStop(0.94, '#7a5348');  // the last of the sun on the horizon
+  grad.addColorStop(1, '#8d6350');
+  g.fillStyle = grad; g.fillRect(0, 0, 4, 256);
+
+  const tex = new T.CanvasTexture(c);
+  const geo = new T.SphereGeometry(2400, 24, 16);
+  /*
+   * Painted first, never tested against depth.
+   *
+   * The dome is drawn with no depth write, which is right, but it was still
+   * sorted with everything else and came out over the hills. A background is
+   * not something to sort: draw it before the world and let the world paint
+   * over it.
+   */
+  const mat = new T.MeshBasicMaterial({
+    map: tex, side: T.BackSide, fog: false, depthWrite: false, depthTest: false,
+  });
+  ctx.disposables.push(tex, geo, mat);
+  const dome = new T.Mesh(geo, mat);
+  dome.renderOrder = -2;
+  dome.matrixAutoUpdate = false;
+  ctx.scene.add(dome);
+
+  // Stars as points, so one star is one pixel however far off the dome is.
+  let s = 0x51a25;
+  const rnd = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967295; };
+  const xyz: number[] = [];
+  for (let i = 0; i < 1600; i++) {
+    // Uniform over the hemisphere, then thinned towards the lit horizon where
+    // they would be washed out anyway.
+    const el = Math.acos(rnd());   // 0 at the zenith, π/2 at the horizon
+    if (rnd() > 0.2 + 0.8 * Math.cos(el)) continue;
+    const az = rnd() * Math.PI * 2;
+    const r = 2300, s1 = Math.sin(el);
+    xyz.push(r * s1 * Math.cos(az), r * Math.cos(el), r * s1 * Math.sin(az));
+  }
+  const sGeo = new T.BufferGeometry();
+  sGeo.setAttribute('position', new T.Float32BufferAttribute(xyz, 3));
+  /*
+   * The stars, unlike the dome, DO test against depth.
+   *
+   * They are transparent, and a transparent object is drawn in three's second
+   * pass — after every opaque one, with renderOrder only sorting within that
+   * pass. So the first version, which borrowed the dome's depthTest:false,
+   * painted stars straight over the buildings: standing in a lane at Sioni you
+   * could see the constellations through a four-storey wall. Testing depth and
+   * not writing it is the whole answer: the wall is already in the buffer.
+   */
+  const sMat = new T.PointsMaterial({
+    color: 0xfff6dc, size: 1.7, sizeAttenuation: false, fog: false,
+    depthWrite: false, transparent: true, opacity: 0.8,
+  });
+  ctx.disposables.push(sGeo, sMat);
+  const stars = new T.Points(sGeo, sMat);
+  stars.matrixAutoUpdate = false;
+  ctx.scene.add(stars);
+}
+
 export const oldTbilisi: WorldDef = {
   id: 'old_tbilisi',
   name: 'ძველი თბილისი',
@@ -124,12 +208,19 @@ export const oldTbilisi: WorldDef = {
   /*
    * A lane beside Sioni, facing the cathedral.
    *
-   * Measured, not chosen: a grid search over the real colliders for a point
-   * with three to nine metres of standing room — enough to turn round, close
-   * enough to the walls to be a street. The first version spawned at the origin,
-   * which is in the middle of the Mtkvari, and opened on an empty plain.
+   * Measured, not chosen: a grid search over the real colliders, scored on
+   * three things at once — standing room between two and nine metres, so it is
+   * a street and not a square; an unbroken sightline of at least thirty metres
+   * along the facing, so there is somewhere to walk; and Sioni within forty-odd
+   * degrees of it, so the cathedral is the thing you arrive looking at.
+   *
+   * All three, because each of the first two versions had only one. The first
+   * spawned at the origin, which is in the middle of the Mtkvari. The second
+   * asked for standing room alone and found it in the middle of an empty plain
+   * — and when that was measured properly it turned out to be facing a wall
+   * three metres away, with the plain behind it.
    */
-  spawn: { x: -104, z: -36, yaw: 2.1 },
+  spawn: { x: -112.5, z: -55.1, yaw: 2.094 },
   oceanR: 420,
   /*
    * Far thinner fog than the other worlds, because this one is far bigger.
@@ -164,6 +255,16 @@ export const oldTbilisi: WorldDef = {
     // Low and to the west, behind Mtatsminda: long shadows up the lanes, and
     // the ridge reads as a silhouette rather than a lit wall.
     ctx.moon.position.set(-900, 420, -300);
+
+    /*
+     * A sky, rather than a clear colour.
+     *
+     * Half of every view looking up the lanes is sky, and a flat purple fill
+     * carries no information at all — it is the same mistake the ground was
+     * making. A dome with a dusk gradient and a scatter of stars costs one
+     * unlit draw call and gives the world a top.
+     */
+    buildSky(ctx);
 
     const lctx: LandmarkCtx = {
       three: T, scene: ctx.scene, disposables: ctx.disposables,
@@ -230,9 +331,35 @@ export const oldTbilisi: WorldDef = {
     for (const m of city.meshes) { ctx.scene.add(m); ctx.disposables.push(m.geometry); }
     for (const c of city.colliders) ctx.addCollider(c);
 
+    /*
+     * The wooden galleries.
+     *
+     * The one feature that makes a photograph of Tbilisi recognisable as
+     * Tbilisi rather than as any other old town — and the thing whose absence
+     * was most of why the first version looked like a generic city. OSM has no
+     * idea they exist, so they are hung off the longest wall of every house
+     * with a first floor.
+     */
+    const woodMat = new T.MeshStandardMaterial({ color: 0x6a4a34, roughness: 0.92 });
+    ctx.disposables.push(woodMat);
+    for (const m of buildBalconies(T, city.balconies, woodMat, ctx.perf.reduced ? 160 : 400)) {
+      ctx.scene.add(m);
+    }
+
     // ── The Mtkvari ──
+    /*
+     * Slate blue, barely metallic, lifted by its own emissive.
+     *
+     * It was metalness 0.55 at roughness 0.22, which is a mirror — and there
+     * is no environment map in this scene for a mirror to reflect, so the
+     * Mtkvari rendered as very nearly pure black. From the embankment the city
+     * ended at a hole. A river at dusk is mostly the sky lying on it, so the
+     * sky's own colour goes in as emissive and the metalness comes back out,
+     * leaving the moon a specular streak at roughness 0.3.
+     */
     const waterMat = new T.MeshStandardMaterial({
-      color: 0x16283a, roughness: 0.22, metalness: 0.55,
+      color: 0x22364c, roughness: 0.3, metalness: 0.08,
+      emissive: 0x2b2742, emissiveIntensity: 0.55,
       transparent: true, opacity: 0.94,
     });
     ctx.disposables.push(waterMat);
@@ -297,6 +424,29 @@ export const oldTbilisi: WorldDef = {
     // lies across that — the yaw is the river's normal, not a guess.
     bridgeOfPeace(lctx, { x: peace.x, z: peace.z, yaw: 0.52, span: 150 });
 
+    /*
+     * ── Volgas, parked on the street ──
+     *
+     * A vintage Soviet saloon is the right car for this district and the wrong
+     * one for the speedway, which is why it is its own vehicle kind rather than
+     * a repaint of the racer.
+     *
+     * Placed off the road centrelines and kept clear of the buildings, so they
+     * sit ON streets pointing the way the street goes — a car dropped at a
+     * random spot and angle reads as abandoned, not parked. Colours are the
+     * ones these actually came in: cream, pale blue, bottle green, grey.
+     */
+    const VOLGA_COLOURS = [0xdcd6c0, 0x8fa7b8, 0x4f6b52, 0x9a9c99, 0xc4b9a0, 0x6c7f93];
+    const spots = carSpots(TBILISI_ROADS_B64, {
+      count: 6, minWidth: 7, apart: 55, clearOf: city.colliders,
+    });
+    spots.forEach((s, i) => {
+      ctx.addVehicle({
+        id: `volga${i}`, x: s.x, z: s.z, yaw: s.yaw,
+        kind: 'retro', color: VOLGA_COLOURS[i % VOLGA_COLOURS.length]!,
+      });
+    });
+
     // ── Street lighting, as glow rather than as lights ──
     /*
      * Four real lights is the engine's budget for the whole scene and the moon
@@ -327,6 +477,24 @@ export const oldTbilisi: WorldDef = {
     }
     bulbs.instanceMatrix.needsUpdate = true; posts.instanceMatrix.needsUpdate = true;
     ctx.scene.add(bulbs, posts);
+
+    /*
+     * ── Planes along the streets ──
+     *
+     * The walk-through renders are what asked for these. The footprints are
+     * real and the roofs sit right, but between a wall and the kerb there was
+     * bare cobble as far as the eye went, and that is what made the place read
+     * as a model of a city rather than a city. Two instanced meshes.
+     */
+    const trees = buildTrees(T, TBILISI_ROADS_B64, {
+      spacing: 19, limit: ctx.perf.reduced ? 130 : 320, minWidth: 5,
+      clearOf: city.colliders,
+    });
+    trees.forEach(t => {
+      ctx.scene.add(t);
+      const im = t as import('three').InstancedMesh;
+      ctx.disposables.push(im.geometry, im.material as import('three').Material);
+    });
 
     // ── The credit the licence requires ──
     attribution(ctx);

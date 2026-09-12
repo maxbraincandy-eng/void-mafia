@@ -35,7 +35,11 @@ export interface WorldDryZone { x: number; z: number; r?: number; hw?: number; h
 // and refuse to drive onto dry ground; `car` is a LAND vehicle — it rolls on the
 // ground, is stopped by colliders (barriers, walls) and carries its passenger
 // side-by-side in the other bucket seat rather than astern.
-export type VehicleKind = 'jetski' | 'boat' | 'car';
+export type VehicleKind = 'jetski' | 'boat' | 'car' | 'retro';
+// `retro` is a land vehicle like `car`, but a vintage Soviet saloon rather than
+// an open-wheel racer: a three-box body with a chrome grille and round lamps.
+// It exists as its own kind because the speedway's racer is right where it is
+// and wrong parked on a lane in Old Town, and one `kind` cannot be both.
 // `waterY` is the world's water surface, so the hull floats at the right height
 // (worlds put their sea at different levels). `color`/`num` dress a car (body
 // paint + racing number) so a starting grid isn't five identical machines.

@@ -5,6 +5,7 @@
 // loop survive re-renders. Reused by every present and future Premium World.
 import * as THREE from 'three';
 import { Avatar, type EmoteKind } from './avatar';
+import { buildRetroCar } from './retroCar';
 import type { WorldDef, WorldContext, WorldCollider, WorldSeat, WorldInteractable, AmbientSource, AvatarConfig, WorldScreen, WorldSwimZone, WorldDryZone, WorldVehicle, VehicleKind } from './types';
 import type { CharacterSpec } from '../character/spec';
 import { tNow } from '@/store/langStore';
@@ -60,6 +61,8 @@ const VEH_SEATS: Record<VehicleKind, { drv: SeatOffset; pass: SeatOffset; seatH:
   jetski: { drv: { dx: 0, dz: 0 }, pass: { dx: 0, dz: 0.9 }, seatH: 0.75 },
   boat: { drv: { dx: 0, dz: 0 }, pass: { dx: 0, dz: 1.5 }, seatH: 0.75 },
   car: { drv: { dx: -0.46, dz: 0.15 }, pass: { dx: 0.46, dz: 0.15 }, seatH: 0.98 },
+  // A saloon's bench is wider apart and lower than a racer's buckets.
+  retro: { drv: { dx: -0.52, dz: 0.05 }, pass: { dx: 0.52, dz: 0.05 }, seatH: 0.86 },
 };
 // Land driving: top speeds (walk/boost), how briskly the throttle takes effect
 // and how hard it steers at speed.
@@ -550,7 +553,7 @@ export class WorldEngine {
         const wheels: THREE.Object3D[] = [];
         const mesh = this.buildVehicle(v, wheels);
         const yaw = v.yaw ?? 0;
-        const land = v.kind === 'car';
+        const land = v.kind === 'car' || v.kind === 'retro';
         // Land vehicles sit ON the ground; hulls float slightly into the water.
         const floatY = land ? 0 : v.waterY !== undefined ? v.waterY - 0.2 : VEH_Y;
         const spec = VEH_SEATS[v.kind];
@@ -575,6 +578,7 @@ export class WorldEngine {
     const g = new THREE.Group();
     const accent = new THREE.MeshBasicMaterial({ color: 0x35e0e0, toneMapped: false });
     if (kind === 'car') { this.buildCar(g, v, wheels); return g; }
+    if (kind === 'retro') { buildRetroCar(THREE, g, v.color, wheels); return g; }
     if (kind === 'jetski') {
       const hullMat = new THREE.MeshStandardMaterial({ color: 0xff3b6a, roughness: 0.4, metalness: 0.3 });
       const hull = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.4, 2.0), hullMat); hull.position.y = 0.35; hull.castShadow = true; g.add(hull);
@@ -963,7 +967,7 @@ export class WorldEngine {
       this.nearScreen = !!this.screen && Math.hypot(this.screen.x - this.pos.x, this.screen.z - this.pos.z) < 9;
       const W = tNow().worlds;
       const nv = this.nearVehicle;
-      const vIcon = nv?.land ? '🏎️' : '🛥️';
+      const vIcon = nv?.kind === 'retro' ? '🚗' : nv?.land ? '🏎️' : '🛥️';
       const label = this.riding ? '🚪 გადმოსვლა'
         : this.seated ? (this.seated.pose ? W.shipDown : W.standUp)
         : nv

@@ -75,8 +75,24 @@ function tintFor(list: number[], x: number, z: number): number {
   return list[h % list.length]!;
 }
 
+/**
+ * The balconies.
+ *
+ * The one feature that makes a photograph of Tbilisi recognisable as Tbilisi
+ * and not as any other old town on this latitude: carved wooden galleries hung
+ * off the first floor, overhanging the lane. Nothing in OSM knows they exist,
+ * so they are hung here — on street-facing walls of houses, which is where they
+ * are.
+ *
+ * Instanced: one box for the deck, one for the rail, a few uprights. Two draw
+ * calls for the whole district however many there turn out to be.
+ */
+export interface Balcony { x: number; z: number; yaw: number; w: number; y: number; }
+
 export interface BuiltCity {
   meshes: THREE.Mesh[];
+  /** Where to hang a wooden gallery, in world metres. */
+  balconies: Balcony[];
   /** One circle per building, for the engine's collision sweep. */
   colliders: { x: number; z: number; r: number }[];
   buildings: number;
@@ -430,6 +446,7 @@ export function buildCity(
 
   const groups: Record<string, { pos: number[]; nor: number[]; uv: number[]; col: number[]; tris: number }> = {};
   const colliders: { x: number; z: number; r: number }[] = [];
+  const balconies: Balcony[] = [];
   let triangles = 0;
 
   // Roofs are their own bucket: one tile material for the whole district, and
@@ -487,6 +504,39 @@ export function buildCity(
      * lanes are three metres wide, so this is not a detail.
      */
     colliders.push({ x: c.x, z: c.z, r: Math.max(1.2, c.r * 0.62) });
+
+    /*
+     * Hang a gallery off the longest wall, if this is a house with a first
+     * floor to hang it from.
+     *
+     * The longest edge is a good proxy for the street frontage: a building's
+     * biggest uninterrupted wall is almost always the one facing the road,
+     * because that is the side the plot is measured from.
+     */
+    if (b.height >= 6 && b.height < 20 && c.r < 22) {
+      let best = -1, bestLen = 0;
+      for (let i = 0; i < b.pts.length; i++) {
+        const p0 = b.pts[i]!, p1 = b.pts[(i + 1) % b.pts.length]!;
+        const len = Math.hypot(p1.x - p0.x, p1.z - p0.z);
+        if (len > bestLen) { bestLen = len; best = i; }
+      }
+      if (best >= 0 && bestLen >= 5.5) {
+        const p0 = b.pts[best]!, p1 = b.pts[(best + 1) % b.pts.length]!;
+        const dx = p1.x - p0.x, dz = p1.z - p0.z;
+        const len = Math.hypot(dx, dz);
+        // Outward normal of the edge, so the gallery hangs over the street and
+        // not into the building.
+        const nx = dz / len, nz = -dx / len;
+        const mx = (p0.x + p1.x) / 2, mz = (p0.z + p1.z) / 2;
+        balconies.push({
+          x: mx + nx * 0.55, z: mz + nz * 0.55,
+          yaw: Math.atan2(nx, nz),
+          w: Math.min(bestLen - 1.2, 7),
+          // On the first floor, which is where they are — never the ground.
+          y: Math.min(b.height - 2.2, 3.6),
+        });
+      }
+    }
   }
 
   const meshes: THREE.Mesh[] = [];
@@ -548,7 +598,182 @@ export function buildCity(
     triangles += rp.length / 9;
   }
 
-  return { meshes, colliders, buildings: list.length, triangles };
+  return { meshes, colliders, balconies, buildings: list.length, triangles };
+}
+
+/**
+ * Build the galleries as instanced parts.
+ *
+ * Three instanced meshes — deck, rail, posts — rather than a merged buffer,
+ * because every balcony is the same shape at a different width, and an instance
+ * can carry that in its matrix. A merged mesh would be six hundred copies of
+ * the same eighty vertices.
+ */
+export function buildBalconies(
+  three: typeof THREE, list: Balcony[], wood: THREE.Material, limit: number,
+): THREE.Object3D[] {
+  const use = list.slice(0, limit);
+  if (!use.length) return [];
+  const deckGeo = new three.BoxGeometry(1, 0.12, 1.25);
+  const railGeo = new three.BoxGeometry(1, 0.09, 0.08);
+  const postGeo = new three.BoxGeometry(0.07, 0.85, 0.07);
+
+  const decks = new three.InstancedMesh(deckGeo, wood, use.length);
+  const rails = new three.InstancedMesh(railGeo, wood, use.length);
+  // Four uprights a balcony: the two ends and two between.
+  const posts = new three.InstancedMesh(postGeo, wood, use.length * 4);
+
+  const m = new three.Matrix4();
+  const q = new three.Quaternion();
+  const e = new three.Euler();
+  const v = new three.Vector3();
+  const sc = new three.Vector3();
+  let pi = 0;
+  use.forEach((b, i) => {
+    e.set(0, b.yaw, 0); q.setFromEuler(e);
+    v.set(b.x, b.y, b.z); sc.set(b.w, 1, 1);
+    decks.setMatrixAt(i, m.compose(v, q, sc));
+    v.set(b.x, b.y + 0.9, b.z);
+    rails.setMatrixAt(i, m.compose(v, q, sc));
+    // Uprights along the front edge, spaced across the width.
+    const fx = Math.sin(b.yaw), fz = Math.cos(b.yaw);
+    const rx = Math.cos(b.yaw), rz = -Math.sin(b.yaw);
+    for (let k = 0; k < 4; k++) {
+      const t = (k / 3 - 0.5) * b.w * 0.92;
+      v.set(b.x + rx * t + fx * 0.58, b.y + 0.48, b.z + rz * t + fz * 0.58);
+      posts.setMatrixAt(pi++, m.compose(v, q, sc.set(1, 1, 1)));
+      sc.set(b.w, 1, 1);
+    }
+  });
+  decks.instanceMatrix.needsUpdate = true;
+  rails.instanceMatrix.needsUpdate = true;
+  posts.instanceMatrix.needsUpdate = true;
+  return [decks, rails, posts];
+}
+
+/**
+ * Plane trees along the streets.
+ *
+ * The renders from eye level were the problem this solves: the footprints are
+ * real and the roofs are right, but between the walls and the kerb there was
+ * nothing at all, and a hundred metres of bare cobble reads as a car park
+ * rather than a city. Tbilisi's streets and its embankment are lined with
+ * planes, so that is what goes in — set back off the kerb on both sides, and
+ * dropped wherever one would be standing in a wall.
+ *
+ * Two InstancedMeshes for the lot. The foliage is a low-poly icosahedron
+ * rather than a sphere: at dusk it is a mass with a silhouette, and a hundred
+ * segments of it would be a hundred segments nobody sees.
+ */
+export interface TreeSpot { x: number; z: number; h: number; r: number; }
+
+/**
+ * Where the trees go — separated from the meshes so the placement rules can be
+ * tested without standing up a renderer, the way the lamps and the cars are.
+ */
+export function treeSpots(
+  roadsB64: string,
+  o: {
+    spacing: number; limit: number; minWidth: number;
+    clearOf: { x: number; z: number; r: number }[];
+  },
+): TreeSpot[] {
+  const roads = unpackRoads(b64ToBytes(roadsB64))
+    .filter(r => r.width >= o.minWidth)
+    .sort((a, b) => b.width - a.width);
+
+  const spots: TreeSpot[] = [];
+  // Deterministic: the city must be the same city on every load.
+  let s = 0x7ea31;
+  const rnd = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967295; };
+
+  /** Perpendicular distance from a point to a road's centreline. */
+  const distTo = (r: { pts: { x: number; z: number }[] }, x: number, z: number) => {
+    let best = Infinity;
+    for (let i = 0; i + 1 < r.pts.length; i++) {
+      const a = r.pts[i]!, b = r.pts[i + 1]!;
+      const dx = b.x - a.x, dz = b.z - a.z;
+      const len2 = dx * dx + dz * dz;
+      if (len2 < 1e-6) continue;
+      const t = Math.max(0, Math.min(1, ((x - a.x) * dx + (z - a.z) * dz) / len2));
+      const d = Math.hypot(x - (a.x + dx * t), z - (a.z + dz * t));
+      if (d < best) best = d;
+    }
+    return best;
+  };
+
+  const free = (x: number, z: number) => {
+    for (const c of o.clearOf) if (Math.hypot(c.x - x, c.z - z) < c.r + 2.2) return false;
+    for (const p of spots) if (Math.hypot(p.x - x, p.z - z) < o.spacing * 0.55) return false;
+    /*
+     * Not in anybody else's road.
+     *
+     * Set back from its own kerb is not enough: where two streets meet, the
+     * verge of one is the carriageway of the other, and a tree went up in the
+     * middle of a junction. Every road gets a say, not just the one being
+     * walked.
+     */
+    for (const r of roads) if (distTo(r, x, z) < r.width / 2) return false;
+    return true;
+  };
+
+  for (const r of roads) {
+    if (spots.length >= o.limit) break;
+    let carried = rnd() * o.spacing;
+    for (let i = 0; i + 1 < r.pts.length; i++) {
+      const a = r.pts[i]!, b = r.pts[i + 1]!;
+      const dx = b.x - a.x, dz = b.z - a.z;
+      const len = Math.hypot(dx, dz);
+      if (len < 1) continue;
+      const ux = dx / len, uz = dz / len;
+      let t = carried;
+      while (t < len && spots.length < o.limit) {
+        // Past the kerb and the lamps, on whichever side this one landed.
+        const off = (r.width / 2 + 1.9) * (rnd() < 0.5 ? 1 : -1);
+        const x = a.x + ux * t + uz * off, z = a.z + uz * t - ux * off;
+        if (free(x, z)) spots.push({ x, z, h: 5.5 + rnd() * 3, r: 1.8 + rnd() * 1.1 });
+        t += o.spacing;
+      }
+      carried = t - len;
+    }
+  }
+  return spots;
+}
+
+export function buildTrees(
+  three: typeof THREE,
+  roadsB64: string,
+  o: {
+    spacing: number; limit: number; minWidth: number;
+    clearOf: { x: number; z: number; r: number }[];
+  },
+): THREE.Object3D[] {
+  const spots = treeSpots(roadsB64, o);
+  if (!spots.length) return [];
+  let s = 0x21f5b;
+  const rnd = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967295; };
+
+  const trunkGeo = new three.CylinderGeometry(0.13, 0.21, 1, 6);
+  const leafGeo = new three.IcosahedronGeometry(1, 1);
+  const barkMat = new three.MeshStandardMaterial({ color: 0x5b4a3a, roughness: 1 });
+  const leafMat = new three.MeshStandardMaterial({ color: 0x3d5335, roughness: 1, flatShading: true });
+  const trunks = new three.InstancedMesh(trunkGeo, barkMat, spots.length);
+  const crowns = new three.InstancedMesh(leafGeo, leafMat, spots.length);
+
+  const m = new three.Matrix4(), q = new three.Quaternion();
+  const e = new three.Euler(), v = new three.Vector3(), sc = new three.Vector3();
+  spots.forEach((p, i) => {
+    // A little yaw so the facets do not all catch the moon the same way.
+    e.set(0, rnd() * Math.PI * 2, 0); q.setFromEuler(e);
+    v.set(p.x, p.h / 2, p.z); sc.set(1, p.h, 1);
+    trunks.setMatrixAt(i, m.compose(v, q, sc));
+    // Squashed a shade: a plane's crown is wider than it is tall.
+    v.set(p.x, p.h + p.r * 0.55, p.z); sc.set(p.r, p.r * 0.82, p.r);
+    crowns.setMatrixAt(i, m.compose(v, q, sc));
+  });
+  trunks.instanceMatrix.needsUpdate = true;
+  crowns.instanceMatrix.needsUpdate = true;
+  return [trunks, crowns];
 }
 
 /**
@@ -632,6 +857,55 @@ export function lampPositions(
         t += spacing;
       }
       carried = t - len;
+    }
+  }
+  return out;
+}
+
+/**
+ * Where to leave a car so it is on a street, facing along it.
+ *
+ * Placed from the road centrelines rather than scattered, for the same reason
+ * the lamps are: a car dropped at random sits inside a wall or across a
+ * building, and a car parked at a random angle looks abandoned rather than
+ * parked. Yaw comes from the segment's own direction, so it points the way the
+ * street goes.
+ *
+ * Only wide roads — a Volga does not fit up a three-metre lane in Abanotubani,
+ * and neither does the camera that follows it.
+ */
+export function carSpots(
+  roadsB64: string,
+  o: { count: number; minWidth: number; apart: number; clearOf: { x: number; z: number; r: number }[] },
+): { x: number; z: number; yaw: number }[] {
+  const roads = unpackRoads(b64ToBytes(roadsB64))
+    .filter(r => r.width >= o.minWidth)
+    .sort((a, b) => b.width - a.width);
+  const out: { x: number; z: number; yaw: number }[] = [];
+
+  /** Room for a 4.7 m saloon plus the door. */
+  const clear = (x: number, z: number) => {
+    for (const c of o.clearOf) if (Math.hypot(c.x - x, c.z - z) < c.r + 3.4) return false;
+    for (const p of out) if (Math.hypot(p.x - x, p.z - z) < o.apart) return false;
+    return true;
+  };
+
+  for (const r of roads) {
+    if (out.length >= o.count) break;
+    for (let i = 0; i + 1 < r.pts.length && out.length < o.count; i++) {
+      const a = r.pts[i]!, b = r.pts[i + 1]!;
+      const dx = b.x - a.x, dz = b.z - a.z;
+      const len = Math.hypot(dx, dz);
+      // Long enough to hold a car and still be a straight piece of road.
+      if (len < 14) continue;
+      const mx = a.x + dx * 0.5, mz = a.z + dz * 0.5;
+      if (!clear(mx, mz)) continue;
+      /*
+       * The engine drives vehicles along their local −Z, so a heading of
+       * atan2(dx, dz) would point the car backwards down the street. The π
+       * turn is that convention, not a fudge.
+       */
+      out.push({ x: mx, z: mz, yaw: Math.atan2(dx, dz) + Math.PI });
     }
   }
   return out;

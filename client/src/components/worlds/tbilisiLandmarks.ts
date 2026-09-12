@@ -122,6 +122,8 @@ export function mtatsmindaRidge(
 ): void {
   const { three: T, scene } = ctx;
   const SEG = 48;
+  /** How far under the ground plane the flat edge of the sheet is buried. */
+  const SKIRT = 3;
   const geo = new T.PlaneGeometry(o.length, o.width, SEG, 18);
   const pos = geo.attributes.position;
   for (let i = 0; i < pos.count; i++) {
@@ -129,13 +131,39 @@ export function mtatsmindaRidge(
     const v = pos.getY(i) / o.width;           // −0.5 … 0.5 across it
     // A cosine hump across, tapering at both ends, roughened a little so it is
     // not a machined extrusion.
-    const across = Math.cos(Math.min(Math.abs(v) * Math.PI, Math.PI / 2));
-    const along = Math.cos(Math.min(Math.abs(u) * Math.PI * 0.9, Math.PI / 2));
-    const bump = Math.sin(u * 31) * Math.cos(v * 17) * 0.06;
-    pos.setZ(i, o.crestY * Math.max(0, across * along + bump));
+    /*
+     * One taper, on the radius — not a cosine along times a cosine across.
+     *
+     * The product of two cosines has square contours. The hill looked right
+     * near the crest and then flattened into a plateau with straight sides and
+     * rounded corners, and from the air a dark quadrilateral lay over the
+     * right bank with Metekhi sitting in the middle of it. Tapering on the
+     * elliptical radius gives contours that are ellipses, which is what a hill
+     * has.
+     */
+    const d = Math.min(1, Math.hypot(u * 2, v * 2));
+    /*
+     * The roughness multiplies the taper rather than adding to it: added, it
+     * survives where the taper has gone to zero, and on a four-hundred-metre
+     * mountain six per cent of the crest is twenty metres of hillside standing
+     * up along the boundary. Multiplied, it can only roughen a slope that is
+     * already there.
+     */
+    const bump = 1 + Math.sin(u * 31) * Math.cos(v * 17) * 0.09;
+    const h = Math.max(0, Math.cos(d * Math.PI / 2) * bump);
+    /*
+     * Sink the skirt rather than letting it lie flat.
+     *
+     * The hump is built on a rectangular plane, so everywhere outside it the
+     * sheet sat at exactly ground level — and a dark rectangle of hillside
+     * appeared on the map, corners and all, with the hill in the middle of it.
+     * Dropping the flat part three metres under the ground plane buries the
+     * rectangle and leaves only the part that is actually a hill.
+     */
+    pos.setZ(i, o.crestY * h - SKIRT * (1 - h));
   }
   geo.computeVertexNormals();
-  const mat = new T.MeshStandardMaterial({ color: 0x2b2f27, roughness: 1, flatShading: true });
+  const mat = new T.MeshStandardMaterial({ color: 0x39402f, roughness: 1, flatShading: true });
   ctx.disposables.push(geo, mat);
   const m = new T.Mesh(geo, mat);
   m.rotation.x = -Math.PI / 2;
@@ -197,8 +225,16 @@ export function georgianChurch(
 ): void {
   const { three: T, scene } = ctx;
   const s = o.scale ?? 1;
-  const stone = new T.MeshStandardMaterial({ color: 0xa89b84, roughness: 0.9 });
-  const roof = new T.MeshStandardMaterial({ color: 0x4a4f52, roughness: 0.8 });
+  /*
+   * Paler than the houses around it, not darker.
+   *
+   * At 0xa89b84 the tuff came out a shade under the facades, and under a lilac
+   * ambient with the moon behind it Sioni read as a grey mass in the middle of
+   * a pale street — the one building in the district nobody would pick out.
+   * Georgian churches are the light thing on the skyline.
+   */
+  const stone = new T.MeshStandardMaterial({ color: 0xd2c6ab, roughness: 0.9 });
+  const roof = new T.MeshStandardMaterial({ color: 0x3f4a45, roughness: 0.8 });
   ctx.disposables.push(stone, roof);
   const g = new T.Group();
   g.position.set(o.x, o.y, o.z);
