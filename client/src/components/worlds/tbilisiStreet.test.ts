@@ -40,6 +40,12 @@ function buildingCircles(): { x: number; z: number; r: number }[] {
 
 const CIRCLES = buildingCircles();
 
+/** The same options the world passes, so the tests check what ships. */
+const CAR_OPTS = {
+  count: 8, minWidth: 6, apart: 45, clearOf: CIRCLES,
+  anchor: oldTbilisi.spawn, within: 300,
+};
+
 test('trees stand clear of the buildings', () => {
   const spots = treeSpots(TBILISI_ROADS_B64, {
     spacing: 19, limit: 320, minWidth: 5, clearOf: CIRCLES,
@@ -119,10 +125,8 @@ test('trees are the same trees on every load', () => {
 });
 
 test('parked cars stand clear of the buildings and of each other', () => {
-  const spots = carSpots(TBILISI_ROADS_B64, {
-    count: 6, minWidth: 7, apart: 55, clearOf: CIRCLES,
-  });
-  assert.equal(spots.length, 6, `${spots.length} parking spots found on the wide streets`);
+  const spots = carSpots(TBILISI_ROADS_B64, CAR_OPTS);
+  assert.equal(spots.length, 8, `${spots.length} parking spots found on the wide streets`);
 
   for (const s of spots) {
     for (const c of CIRCLES) {
@@ -133,16 +137,14 @@ test('parked cars stand clear of the buildings and of each other', () => {
   for (let i = 0; i < spots.length; i++) {
     for (let k = i + 1; k < spots.length; k++) {
       const d = Math.hypot(spots[i]!.x - spots[k]!.x, spots[i]!.z - spots[k]!.z);
-      assert.ok(d >= 55, `two cars are parked ${d.toFixed(1)} m apart`);
+      assert.ok(d >= 45, `two cars are parked ${d.toFixed(1)} m apart`);
     }
   }
 });
 
 test('a parked car points along its street, not across it', () => {
-  const roads = unpackRoads(b64ToBytes(TBILISI_ROADS_B64)).filter(r => r.width >= 7);
-  const spots = carSpots(TBILISI_ROADS_B64, {
-    count: 6, minWidth: 7, apart: 55, clearOf: CIRCLES,
-  });
+  const roads = unpackRoads(b64ToBytes(TBILISI_ROADS_B64)).filter(r => r.width >= 6);
+  const spots = carSpots(TBILISI_ROADS_B64, CAR_OPTS);
 
   for (const s of spots) {
     // The nearest segment to the spot is the one it was placed on.
@@ -205,4 +207,37 @@ test('the spawn stands in a street, with somewhere to look', () => {
   assert.ok(d > 15 && d < 90, `Sioni is ${d.toFixed(0)} m from the spawn`);
   const cos = (hx * dx + hz * dz) / d;
   assert.ok(cos > 0.7, `Sioni is ${(Math.acos(Math.max(-1, Math.min(1, cos))) * 180 / Math.PI).toFixed(0)}° off the spawn's heading`);
+});
+
+/**
+ * A car you can get to.
+ *
+ * This is the one that shipped. Six Volgas, every one of them on a real
+ * street, pointing the right way, clear of every wall — and 241, 371, 409,
+ * 473, 508 and 513 metres from where you arrive, all of them on the avenues
+ * across the river, because `minWidth: 7` excluded every street in the old
+ * town and the widest within eighty metres of the spawn is 6.4. Six tests
+ * passed on it. None of them asked the only question that mattered, which is
+ * whether a player would ever find one.
+ */
+test('a car is parked within a short walk of the spawn', () => {
+  const spots = carSpots(TBILISI_ROADS_B64, CAR_OPTS);
+  const { x, z } = oldTbilisi.spawn;
+  const nearest = Math.min(...spots.map(s => Math.hypot(s.x - x, s.z - z)));
+  assert.ok(nearest < 70, `the nearest car is ${nearest.toFixed(0)} m from the spawn`);
+});
+
+test('the cars are spread over the district, not strung along one avenue', () => {
+  const spots = carSpots(TBILISI_ROADS_B64, CAR_OPTS);
+  const { x, z } = oldTbilisi.spawn;
+  const d = spots.map(s => Math.hypot(s.x - x, s.z - z)).sort((a, b) => a - b);
+
+  // Nothing out at the edge of the extract, where farthest-point sampling
+  // sends them if it is left unbounded.
+  assert.ok(d[d.length - 1]! <= 320, `a car is ${d[d.length - 1]!.toFixed(0)} m out — past the walkable district`);
+
+  // And genuinely spread rather than clustered: the median is well away from
+  // both the spawn and the outer bound.
+  const median = d[Math.floor(d.length / 2)]!;
+  assert.ok(median > 90 && median < 280, `the median car is ${median.toFixed(0)} m from the spawn`);
 });

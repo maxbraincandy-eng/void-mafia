@@ -438,7 +438,10 @@ export const oldTbilisi: WorldDef = {
      */
     const VOLGA_COLOURS = [0xdcd6c0, 0x8fa7b8, 0x4f6b52, 0x9a9c99, 0xc4b9a0, 0x6c7f93];
     const spots = carSpots(TBILISI_ROADS_B64, {
-      count: 6, minWidth: 7, apart: 55, clearOf: city.colliders,
+      count: 8, minWidth: 6, apart: 45, clearOf: city.colliders,
+      // One of them within a short walk of where you arrive, and the rest
+      // spread over the part of the district anybody is going to walk.
+      anchor: oldTbilisi.spawn, within: 300,
     });
     spots.forEach((s, i) => {
       ctx.addVehicle({

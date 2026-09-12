@@ -873,40 +873,90 @@ export function lampPositions(
  *
  * Only wide roads — a Volga does not fit up a three-metre lane in Abanotubani,
  * and neither does the camera that follows it.
+ *
+ * `anchor` is the reason this does not simply take the first spots it finds.
+ *
+ * It did, walking the widest roads first, and the result passed every test it
+ * had: six cars, all on real streets, all pointing the right way, none inside a
+ * building. They were also 241, 371, 409, 473, 508 and 513 metres from the
+ * spawn — every one of them on the avenues across the river, because the
+ * widest street within eighty metres of where you arrive is 6.4 m and the
+ * filter was set at 7. A car you cannot reach is not a car you can drive. So
+ * the first spot is the one nearest the anchor, and the rest are chosen by
+ * farthest-point sampling, which spreads them over the district instead of
+ * stringing them along whichever avenue happened to be widest.
  */
 export function carSpots(
   roadsB64: string,
-  o: { count: number; minWidth: number; apart: number; clearOf: { x: number; z: number; r: number }[] },
+  o: {
+    count: number; minWidth: number; apart: number;
+    clearOf: { x: number; z: number; r: number }[];
+    anchor?: { x: number; z: number };
+    /**
+     * How far from the anchor a car may be parked.
+     *
+     * Farthest-point sampling on its own goes to the corners: the eight cars
+     * landed at 44 m and then 439 to 759, out at the edges of the extract,
+     * with nothing in the district between. Bounding the candidates keeps the
+     * spread inside the part of the city anybody is going to walk.
+     */
+    within?: number;
+  },
 ): { x: number; z: number; yaw: number }[] {
-  const roads = unpackRoads(b64ToBytes(roadsB64))
-    .filter(r => r.width >= o.minWidth)
-    .sort((a, b) => b.width - a.width);
-  const out: { x: number; z: number; yaw: number }[] = [];
+  const roads = unpackRoads(b64ToBytes(roadsB64)).filter(r => r.width >= o.minWidth);
 
   /** Room for a 4.7 m saloon plus the door. */
-  const clear = (x: number, z: number) => {
+  const clearOfWalls = (x: number, z: number) => {
     for (const c of o.clearOf) if (Math.hypot(c.x - x, c.z - z) < c.r + 3.4) return false;
-    for (const p of out) if (Math.hypot(p.x - x, p.z - z) < o.apart) return false;
     return true;
   };
 
+  // Every mid-segment that could hold a car, before choosing between them.
+  const cand: { x: number; z: number; yaw: number }[] = [];
   for (const r of roads) {
-    if (out.length >= o.count) break;
-    for (let i = 0; i + 1 < r.pts.length && out.length < o.count; i++) {
+    for (let i = 0; i + 1 < r.pts.length; i++) {
       const a = r.pts[i]!, b = r.pts[i + 1]!;
       const dx = b.x - a.x, dz = b.z - a.z;
-      const len = Math.hypot(dx, dz);
       // Long enough to hold a car and still be a straight piece of road.
-      if (len < 14) continue;
+      if (Math.hypot(dx, dz) < 14) continue;
       const mx = a.x + dx * 0.5, mz = a.z + dz * 0.5;
-      if (!clear(mx, mz)) continue;
+      if (!clearOfWalls(mx, mz)) continue;
       /*
        * The engine drives vehicles along their local −Z, so a heading of
        * atan2(dx, dz) would point the car backwards down the street. The π
        * turn is that convention, not a fudge.
        */
-      out.push({ x: mx, z: mz, yaw: Math.atan2(dx, dz) + Math.PI });
+      cand.push({ x: mx, z: mz, yaw: Math.atan2(dx, dz) + Math.PI });
     }
+  }
+  if (!cand.length) return [];
+
+  const out: { x: number; z: number; yaw: number }[] = [];
+  const anchor = o.anchor ?? cand[0]!;
+  const pool = o.within === undefined ? cand
+    : cand.filter(c => Math.hypot(c.x - anchor.x, c.z - anchor.z) <= o.within!);
+  // Fall back to the whole district rather than returning nothing if the
+  // radius is tighter than the street plan allows.
+  const use = pool.length >= o.count ? pool : cand;
+
+  // Nearest the anchor first: one car within walking distance of the spawn.
+  let pick = 0, bestD = Infinity;
+  use.forEach((c, i) => {
+    const d = Math.hypot(c.x - anchor.x, c.z - anchor.z);
+    if (d < bestD) { bestD = d; pick = i; }
+  });
+  out.push(use.splice(pick, 1)[0]!);
+
+  // Then the one farthest from everything already placed, repeatedly.
+  while (out.length < o.count && use.length) {
+    let best = -1, bestScore = -Infinity;
+    use.forEach((c, i) => {
+      let near = Infinity;
+      for (const p of out) near = Math.min(near, Math.hypot(p.x - c.x, p.z - c.z));
+      if (near > bestScore) { bestScore = near; best = i; }
+    });
+    if (best < 0 || bestScore < o.apart) break;
+    out.push(use.splice(best, 1)[0]!);
   }
   return out;
 }
