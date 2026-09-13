@@ -26,6 +26,7 @@ import * as THREE from 'three';
 import type { WorldDef, WorldContext } from './types';
 import {
   buildCity, buildWater, buildGround, lampPositions, carSpots, buildBalconies, buildTrees,
+  buildDoors,
   type FacadeGroup,
 } from './tbilisiBuild';
 import {
@@ -62,32 +63,96 @@ function at(fragment: string, fallback: { x: number; z: number }) {
  * is what makes a six-metre cottage and a twenty-metre block look like the same
  * city rather than the same box at two scales.
  */
-function facadeTexture(base: string, trim: string, lit: string, seed: number): THREE.Texture {
+function facadeTexture(
+  base: string, trim: string, lit: string, seed: number, pxPerM: number,
+): THREE.Texture {
+  /*
+   * Eight metres across, four high — not four by four.
+   *
+   * Two things were wrong with a square tile. Sixteen pixels to the metre is a
+   * smear at arm's length, and in a three-metre lane you are always at arm's
+   * length from a wall. And a four-metre horizontal period is short enough to
+   * SEE: a terrace wore the same three windows over and over, which is the one
+   * thing that makes a facade read as wallpaper rather than as a building.
+   *
+   * Doubling the horizontal period costs nothing but canvas and breaks the
+   * pattern, and the pixel density is set by the caller so a phone can have
+   * the same wall at half the resolution rather than a different one.
+   */
+  const W = Math.round(8 * pxPerM), H = Math.round(4 * pxPerM);
   const c = document.createElement('canvas');
-  c.width = 64; c.height = 64;
+  c.width = W; c.height = H;
   const g = c.getContext('2d')!;
   let s = seed;
   const rnd = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967295; };
+  const m = (v: number) => v * pxPerM;        // metres → pixels
 
-  g.fillStyle = base; g.fillRect(0, 0, 64, 64);
+  g.fillStyle = base; g.fillRect(0, 0, W, H);
   // Plaster mottling — without it a flat colour reads as untextured plastic.
-  for (let i = 0; i < 180; i++) {
-    g.globalAlpha = 0.04 + rnd() * 0.07;
+  for (let i = 0; i < 2600; i++) {
+    g.globalAlpha = 0.03 + rnd() * 0.06;
     g.fillStyle = rnd() < 0.5 ? '#000' : '#fff';
-    g.fillRect(rnd() * 64, rnd() * 64, 2 + rnd() * 7, 2 + rnd() * 5);
+    // Small patches: at half a metre across they are blurry blobs the moment
+    // you stand close, which is worse than no mottling at all.
+    g.fillRect(rnd() * W, rnd() * H, m(0.04) + rnd() * m(0.16), m(0.03) + rnd() * m(0.12));
+  }
+  // A few long streaks: rain runs down plaster, it does not speckle it.
+  for (let i = 0; i < 40; i++) {
+    g.globalAlpha = 0.03 + rnd() * 0.04;
+    g.fillStyle = '#000';
+    g.fillRect(rnd() * W, rnd() * H, Math.max(1, m(0.02) + rnd() * m(0.05)), m(0.5) + rnd() * m(1.4));
   }
   g.globalAlpha = 1;
-  // A storey line and a row of windows, some of them lit.
-  g.fillStyle = trim; g.fillRect(0, 30, 64, 2);
-  for (const wx of [7, 25, 43]) {
-    const on = rnd() < 0.42;
-    g.fillStyle = on ? lit : '#14161d';
-    g.fillRect(wx, 8, 12, 16);
+
+  // The storey band at the top of the tile, with a shadow line under it so it
+  // reads as a moulding rather than a stripe.
+  g.fillStyle = trim; g.fillRect(0, m(3.6), W, Math.max(2, m(0.11)));
+  g.globalAlpha = 0.22; g.fillStyle = '#000';
+  g.fillRect(0, m(3.71), W, Math.max(1, m(0.05)));
+  g.globalAlpha = 1;
+
+  /*
+   * Windows: one every two metres, drawn rather than blocked in.
+   *
+   * Reveal, frame, sill and glazing bar. At the old resolution a window was a
+   * 12 × 16 rectangle with no room for any of that, so every facade was a row
+   * of stickers — and there were three to the four metres, half again as many
+   * as a street of this kind actually has.
+   */
+  for (let k = 0; k < 4; k++) {
+    const wx = m(0.62 + k * 2), wy = m(1.05);
+    const ww = m(0.78), wh = m(1.3);
+    const on = rnd() < 0.4;
+    // Reveal: the wall thickness you see at the edge of the opening.
+    g.globalAlpha = 0.3; g.fillStyle = '#000';
+    g.fillRect(wx - m(0.05), wy - m(0.05), ww + m(0.1), wh + m(0.1));
+    g.globalAlpha = 1;
+    g.fillStyle = on ? lit : '#171a22';
+    g.fillRect(wx, wy, ww, wh);
+    // Glazing bars, a two-over-two sash.
     g.fillStyle = trim;
-    g.fillRect(wx - 1, 7, 14, 1);
+    g.fillRect(wx + ww / 2 - m(0.015), wy, Math.max(1, m(0.03)), wh);
+    g.fillRect(wx, wy + wh / 2 - m(0.015), ww, Math.max(1, m(0.03)));
+    // Frame, and a sill that oversails it the way a real one sheds water.
+    g.lineWidth = Math.max(2, m(0.05)); g.strokeStyle = trim;
+    g.strokeRect(wx - m(0.025), wy - m(0.025), ww + m(0.05), wh + m(0.05));
+    g.fillRect(wx - m(0.09), wy + wh + m(0.03), ww + m(0.18), Math.max(2, m(0.08)));
+    g.globalAlpha = 0.25; g.fillStyle = '#000';
+    g.fillRect(wx - m(0.09), wy + wh + m(0.11), ww + m(0.18), Math.max(1, m(0.05)));
+    g.globalAlpha = 1;
   }
+
   const t = new THREE.CanvasTexture(c);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  /*
+   * Anisotropy, because every wall in this world is seen edge-on.
+   *
+   * A lane three metres wide means the facade beside you runs away at a few
+   * degrees to the view, and that is precisely the case trilinear filtering
+   * handles worst: it picks a mip for the worst axis and blurs the other into
+   * porridge. Sixteen is the usual ceiling and drivers clamp it themselves.
+   */
+  t.anisotropy = 16;
   return t;
 }
 
@@ -302,11 +367,20 @@ export const oldTbilisi: WorldDef = {
      * the district. Nine hundred identical boxes is what made it read as a
      * housing estate. Painting per building keeps it to one draw call.
      */
+    const px = ctx.perf.reduced ? 64 : 128;
     const facades: Record<FacadeGroup, THREE.Material> = {
-      stone: new T.MeshStandardMaterial({ map: facadeTexture('#ffffff', '#c8c8c8', '#ffe6b8', 11), roughness: 0.93, vertexColors: true }),
-      brick: new T.MeshStandardMaterial({ map: facadeTexture('#ffffff', '#c0c0c0', '#ffd9a0', 29), roughness: 0.95, vertexColors: true }),
-      civic: new T.MeshStandardMaterial({ map: facadeTexture('#ffffff', '#cfcfcf', '#fff0c9', 47), roughness: 0.88, vertexColors: true }),
-      sacred: new T.MeshStandardMaterial({ map: facadeTexture('#ffffff', '#c4c4c4', '#ffe2ab', 67), roughness: 0.9, vertexColors: true }),
+      /*
+       * Half the pixel density on a reduced device.
+       *
+       * The four atlases at 128 px/m are 8 MB of texture before mipmaps, which
+       * is worth it on a desktop standing in a three-metre lane and is not
+       * worth it on a phone that is already budgeting draw calls. Same wall,
+       * fewer pixels — not a different wall.
+       */
+      stone: new T.MeshStandardMaterial({ map: facadeTexture('#ffffff', '#c8c8c8', '#ffe6b8', 11, px), roughness: 0.93, vertexColors: true }),
+      brick: new T.MeshStandardMaterial({ map: facadeTexture('#ffffff', '#c0c0c0', '#ffd9a0', 29, px), roughness: 0.95, vertexColors: true }),
+      civic: new T.MeshStandardMaterial({ map: facadeTexture('#ffffff', '#cfcfcf', '#fff0c9', 47, px), roughness: 0.88, vertexColors: true }),
+      sacred: new T.MeshStandardMaterial({ map: facadeTexture('#ffffff', '#c4c4c4', '#ffe2ab', 67, px), roughness: 0.9, vertexColors: true }),
     };
     // Tile: matte, and coloured per building like the walls.
     const roofMat = new T.MeshStandardMaterial({ roughness: 0.97, vertexColors: true, flatShading: true });
@@ -344,6 +418,20 @@ export const oldTbilisi: WorldDef = {
     ctx.disposables.push(woodMat);
     for (const m of buildBalconies(T, city.balconies, woodMat, ctx.perf.reduced ? 160 : 400)) {
       ctx.scene.add(m);
+    }
+
+    /*
+     * ── Street doors ──
+     *
+     * Every building met the pavement with a blank wall. A frontage with no
+     * way into it is the other half of why the district read as a set of
+     * extrusions rather than as somewhere people live — the walls were right
+     * and nobody could have got in through any of them.
+     */
+    for (const m of buildDoors(T, city.doors, ctx.perf.reduced ? 260 : 700)) {
+      ctx.scene.add(m);
+      const im = m as import('three').InstancedMesh;
+      ctx.disposables.push(im.geometry, im.material as import('three').Material);
     }
 
     // ── The Mtkvari ──

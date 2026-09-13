@@ -89,10 +89,22 @@ function tintFor(list: number[], x: number, z: number): number {
  */
 export interface Balcony { x: number; z: number; yaw: number; w: number; y: number; }
 
+/**
+ * A street door.
+ *
+ * Every building in the district met the pavement with a blank wall, which is
+ * the other half of why they read as extrusions: a building you cannot get
+ * into is scenery. Placed on the same edge the gallery uses, because the
+ * longest wall is the frontage and the frontage is where the door is.
+ */
+export interface Door { x: number; z: number; yaw: number; }
+
 export interface BuiltCity {
   meshes: THREE.Mesh[];
   /** Where to hang a wooden gallery, in world metres. */
   balconies: Balcony[];
+  /** Where the street doors go, in world metres. */
+  doors: Door[];
   /**
    * One per building, for the engine's collision sweep: the enclosing circle
    * as a broad phase and the real outline inside it.
@@ -132,6 +144,33 @@ function pushUpTri(
   for (let i = 0; i < 3; i++) nor.push(0, 1, 0);
   uv.push(t0[0], t0[1], t1[0], t1[1], t2[0], t2[1]);
   if (col && rgb) for (let i = 0; i < 3; i++) col.push(rgb[0], rgb[1], rgb[2]);
+}
+
+/** Length of edge i of a ring. */
+function edgeLen(pts: { x: number; z: number }[], i: number): number {
+  const a = pts[i]!, b = pts[(i + 1) % pts.length]!;
+  return Math.hypot(b.x - a.x, b.z - a.z);
+}
+
+/** Is this point outside every building except the one it belongs to? */
+function openGround(
+  x: number, z: number,
+  others: { cx: number; cz: number; r: number; pts: { x: number; z: number }[] }[],
+  self: number,
+): boolean {
+  for (let i = 0; i < others.length; i++) {
+    if (i === self) continue;
+    const o = others[i]!;
+    const dx = x - o.cx, dz = z - o.cz;
+    if (dx > o.r || dx < -o.r || dz > o.r || dz < -o.r) continue;
+    let inside = false;
+    for (let k = 0, j = o.pts.length - 1; k < o.pts.length; j = k++) {
+      const a = o.pts[k]!, b = o.pts[j]!;
+      if ((a.z > z) !== (b.z > z) && x < ((b.x - a.x) * (z - a.z)) / (b.z - a.z) + a.x) inside = !inside;
+    }
+    if (inside) return false;
+  }
+  return true;
 }
 
 /** 0xRRGGBB → linear-ish floats, jittered a little so a terrace is not a block. */
@@ -407,16 +446,35 @@ function extrude(
     // normal of edge a→c is (dz, -dx) normalised.
     const nx = dz / len, nz = -dx / len;
 
-    // Two triangles, wound so the front face points out.
-    const quad = [
-      [a.x, 0, a.z, 0, 0], [c.x, 0, c.z, len, 0], [c.x, h, c.z, len, h],
-      [a.x, 0, a.z, 0, 0], [c.x, h, c.z, len, h], [a.x, h, a.z, 0, h],
-    ];
-    for (const [x, y, z, u, v] of quad) {
-      pos.push(x!, y!, z!); nor.push(nx, 0, nz); uv.push(u! * 0.25, v! * 0.25);
-      col.push(wall[0], wall[1], wall[2]);
-    }
-    tris += 2;
+    /*
+     * Split at the base course rather than one quad to the eaves.
+     *
+     * A wall running straight from the pavement to the roof in one shade is
+     * the giveaway that a building was extruded rather than built: the real
+     * ones have a stone or rendered plinth at the bottom, darker, and it is
+     * what stops a facade looking like it is floating. One extra quad a wall
+     * buys it, and it costs no material and no draw call because the shade
+     * rides on the vertex colour that is already there.
+     */
+    const BASE = Math.min(1.6, h * 0.22);
+    const plinth: [number, number, number] = [wall[0] * 0.74, wall[1] * 0.72, wall[2] * 0.7];
+
+    const band = (y0: number, y1: number, rgb: [number, number, number]) => {
+      // Two triangles, wound so the front face points out.
+      const quad = [
+        [a.x, y0, a.z, 0, y0], [c.x, y0, c.z, len, y0], [c.x, y1, c.z, len, y1],
+        [a.x, y0, a.z, 0, y0], [c.x, y1, c.z, len, y1], [a.x, y1, a.z, 0, y1],
+      ];
+      for (const [x, y, z, u, v] of quad) {
+        // The facade atlas is eight metres across and four high, so u and v
+        // are scaled differently. They were both 0.25 when it was square.
+        pos.push(x!, y!, z!); nor.push(nx, 0, nz); uv.push(u! * 0.125, v! * 0.25);
+        col.push(rgb[0], rgb[1], rgb[2]);
+      }
+      tris += 2;
+    };
+    band(0, BASE, plinth);
+    band(BASE, h, wall);
   }
 
   return tris;
@@ -450,13 +508,24 @@ export function buildCity(
   const groups: Record<string, { pos: number[]; nor: number[]; uv: number[]; col: number[]; tris: number }> = {};
   const colliders: BuiltCity['colliders'] = [];
   const balconies: Balcony[] = [];
+  const doors: Door[] = [];
   let triangles = 0;
 
   // Roofs are their own bucket: one tile material for the whole district, and
   // the walls keep theirs. Two draw calls between them.
   const roofs = { pos: [] as number[], nor: [] as number[], uv: [] as number[], col: [] as number[] };
 
-  for (const b of list) {
+  /*
+   * Every footprint's bounding circle, so a door can ask whether the wall it
+   * is about to go in has anything built against it.
+   */
+  const others = list.map(b => {
+    const fc = footprintCircle(b.pts);
+    return { cx: fc.x, cz: fc.z, r: fc.r, pts: b.pts };
+  });
+
+  for (let oi = 0; oi < list.length; oi++) {
+    const b = list[oi]!;
     const c = footprintCircle(b.pts);
     const g = KIND_TO_GROUP[b.kind] ?? 'stone';
     const bucket = groups[g] ?? (groups[g] = { pos: [], nor: [], uv: [], col: [], tris: 0 });
@@ -517,20 +586,46 @@ export function buildCity(
     colliders.push({ x: c.x, z: c.z, r: c.r, poly: b.pts });
 
     /*
-     * Hang a gallery off the longest wall, if this is a house with a first
-     * floor to hang it from.
+     * The frontage: the longest edge that faces OPEN GROUND.
      *
-     * The longest edge is a good proxy for the street frontage: a building's
-     * biggest uninterrupted wall is almost always the one facing the road,
-     * because that is the side the plot is measured from.
+     * Longest alone is a good proxy for which wall is on the street — that is
+     * the side a plot is measured from — and it is what the gallery uses. It
+     * is not enough for a door, because Old Town's buildings touch: 193 of the
+     * first 906 doors were placed on a party wall and ended up six centimetres
+     * inside the neighbour, buried in its masonry. A door has to open onto
+     * somewhere, so each edge is tried longest-first and the first one with
+     * air outside it wins.
+     */
+    let best = -1, bestLen = 0;
+    for (let i = 0; i < b.pts.length; i++) {
+      const p0 = b.pts[i]!, p1 = b.pts[(i + 1) % b.pts.length]!;
+      const len = Math.hypot(p1.x - p0.x, p1.z - p0.z);
+      if (len > bestLen) { bestLen = len; best = i; }
+    }
+
+    if (b.height >= 3) {
+      // A third of the way along rather than the middle, so a terrace does not
+      // get a row of doors all lined up with its balconies.
+      const t = 0.34 + ((Math.abs(Math.round(c.x * 3.1) ^ Math.round(c.z * 7.7)) % 7) / 21);
+      const byLength = b.pts.map((_, i) => i).sort((i, j) => edgeLen(b.pts, j) - edgeLen(b.pts, i));
+      for (const i of byLength) {
+        if (edgeLen(b.pts, i) < 3.4) break;
+        const p0 = b.pts[i]!, p1 = b.pts[(i + 1) % b.pts.length]!;
+        const dx = p1.x - p0.x, dz = p1.z - p0.z;
+        const len = Math.hypot(dx, dz);
+        const nx = dz / len, nz = -dx / len;
+        const px = p0.x + dx * t, pz = p0.z + dz * t;
+        // Far enough out to clear the door's own step and frame.
+        if (!openGround(px + nx * 0.8, pz + nz * 0.8, others, oi)) continue;
+        doors.push({ x: px + nx * 0.06, z: pz + nz * 0.06, yaw: Math.atan2(nx, nz) });
+        break;
+      }
+    }
+
+    /*
+     * And a gallery, if this is a house with a first floor to hang one from.
      */
     if (b.height >= 6 && b.height < 20 && c.r < 22) {
-      let best = -1, bestLen = 0;
-      for (let i = 0; i < b.pts.length; i++) {
-        const p0 = b.pts[i]!, p1 = b.pts[(i + 1) % b.pts.length]!;
-        const len = Math.hypot(p1.x - p0.x, p1.z - p0.z);
-        if (len > bestLen) { bestLen = len; best = i; }
-      }
       if (best >= 0 && bestLen >= 5.5) {
         const p0 = b.pts[best]!, p1 = b.pts[(best + 1) % b.pts.length]!;
         const dx = p1.x - p0.x, dz = p1.z - p0.z;
@@ -609,7 +704,7 @@ export function buildCity(
     triangles += rp.length / 9;
   }
 
-  return { meshes, colliders, balconies, buildings: list.length, triangles };
+  return { meshes, colliders, balconies, doors, buildings: list.length, triangles };
 }
 
 /**
@@ -660,6 +755,94 @@ export function buildBalconies(
   rails.instanceMatrix.needsUpdate = true;
   posts.instanceMatrix.needsUpdate = true;
   return [decks, rails, posts];
+}
+
+/**
+ * The street doors.
+ *
+ * Three instanced meshes for every door in the district: the leaf, the frame
+ * around it, and a stone step under it. Sunk six centimetres into the wall so
+ * the frame reads as a reveal rather than a panel stuck on the outside, and
+ * given a step because a doorway flush with the cobbles looks painted on.
+ */
+/**
+ * One canvas for every door in the district.
+ *
+ * A flat brown box at dusk is a black slab, and a door is the one thing in
+ * this world you walk right up to. Two recessed panels and a handle are
+ * enough: the panels catch the light differently from the stiles, which is
+ * what says "door" from six metres, and the handle says it from one.
+ */
+function doorTexture(three: typeof THREE): THREE.Texture {
+  const c = document.createElement('canvas');
+  c.width = 128; c.height = 256;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#6b4b34'; g.fillRect(0, 0, 128, 256);
+  // Vertical grain.
+  let s = 0xd00d1;
+  const rnd = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967295; };
+  for (let i = 0; i < 200; i++) {
+    g.globalAlpha = 0.05 + rnd() * 0.08;
+    g.fillStyle = rnd() < 0.5 ? '#2a1c12' : '#8a6448';
+    g.fillRect(rnd() * 128, rnd() * 256, 1 + rnd() * 3, 20 + rnd() * 80);
+  }
+  g.globalAlpha = 1;
+  // Two sunk panels: a dark line round a slightly lighter field reads as a
+  // rebate, which is the whole trick.
+  for (const [py, ph] of [[24, 92], [136, 96]] as const) {
+    g.fillStyle = '#3a281b'; g.fillRect(18, py, 92, ph);
+    g.fillStyle = '#7a573d'; g.fillRect(22, py + 4, 84, ph - 8);
+    g.globalAlpha = 0.3; g.fillStyle = '#000';
+    g.fillRect(22, py + 4, 84, 3);
+    g.globalAlpha = 1;
+  }
+  // A handle, on the side a handle goes.
+  g.fillStyle = '#c9b283'; g.fillRect(98, 128, 8, 16);
+  g.fillStyle = '#8f7c55'; g.fillRect(98, 142, 8, 3);
+  const t = new three.CanvasTexture(c);
+  t.anisotropy = 8;
+  return t;
+}
+
+export function buildDoors(
+  three: typeof THREE, list: Door[], limit: number,
+): THREE.Object3D[] {
+  const use = list.slice(0, limit);
+  if (!use.length) return [];
+
+  const H = 2.25, W = 1.12;
+  const leafGeo = new three.BoxGeometry(W, H, 0.1);
+  const frameGeo = new three.BoxGeometry(W + 0.3, H + 0.2, 0.16);
+  const stepGeo = new three.BoxGeometry(W + 0.5, 0.14, 0.6);
+  const leafMat = new three.MeshStandardMaterial({
+    map: doorTexture(three), roughness: 0.8,
+  });
+  const frameMat = new three.MeshStandardMaterial({ color: 0x8d7d64, roughness: 0.9 });
+  const stepMat = new three.MeshStandardMaterial({ color: 0x8a8378, roughness: 1 });
+
+  const leaves = new three.InstancedMesh(leafGeo, leafMat, use.length);
+  const frames = new three.InstancedMesh(frameGeo, frameMat, use.length);
+  const steps = new three.InstancedMesh(stepGeo, stepMat, use.length);
+
+  const m = new three.Matrix4(), q = new three.Quaternion();
+  const e = new three.Euler(), v = new three.Vector3();
+  const one = new three.Vector3(1, 1, 1);
+  use.forEach((d, i) => {
+    e.set(0, d.yaw, 0); q.setFromEuler(e);
+    // Outward, along the wall's normal, which is what the yaw encodes.
+    const fx = Math.sin(d.yaw), fz = Math.cos(d.yaw);
+    // The frame stands proud; the leaf sits back inside it.
+    v.set(d.x + fx * 0.02, H / 2 + 0.07, d.z + fz * 0.02);
+    frames.setMatrixAt(i, m.compose(v, q, one));
+    v.set(d.x - fx * 0.05, H / 2 + 0.05, d.z - fz * 0.05);
+    leaves.setMatrixAt(i, m.compose(v, q, one));
+    v.set(d.x + fx * 0.2, 0.07, d.z + fz * 0.2);
+    steps.setMatrixAt(i, m.compose(v, q, one));
+  });
+  leaves.instanceMatrix.needsUpdate = true;
+  frames.instanceMatrix.needsUpdate = true;
+  steps.instanceMatrix.needsUpdate = true;
+  return [frames, leaves, steps];
 }
 
 /**
