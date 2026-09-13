@@ -93,8 +93,11 @@ export interface BuiltCity {
   meshes: THREE.Mesh[];
   /** Where to hang a wooden gallery, in world metres. */
   balconies: Balcony[];
-  /** One circle per building, for the engine's collision sweep. */
-  colliders: { x: number; z: number; r: number }[];
+  /**
+   * One per building, for the engine's collision sweep: the enclosing circle
+   * as a broad phase and the real outline inside it.
+   */
+  colliders: { x: number; z: number; r: number; poly?: { x: number; z: number }[] }[];
   buildings: number;
   triangles: number;
 }
@@ -445,7 +448,7 @@ export function buildCity(
   const list = opts.maxBuildings ? all.slice(0, opts.maxBuildings) : all;
 
   const groups: Record<string, { pos: number[]; nor: number[]; uv: number[]; col: number[]; tris: number }> = {};
-  const colliders: { x: number; z: number; r: number }[] = [];
+  const colliders: BuiltCity['colliders'] = [];
   const balconies: Balcony[] = [];
   let triangles = 0;
 
@@ -461,9 +464,15 @@ export function buildCity(
     bucket.tris += t;
     triangles += t;
     /*
-     * A pitched roof on anything that is not a church — those have their own
-     * shape and get it from the landmark builders — and not on the big flat
-     * blocks, where a hip roof over a forty-metre span would be a marquee.
+     * EVERY building gets a top.
+     *
+     * Churches used to be skipped here, on the grounds that they "have their
+     * own shape and get it from the landmark builders". The landmark builders
+     * place two — Sioni and Metekhi. The extract contains sixteen churches, so
+     * fourteen of them stood in the district as open boxes: near walls drawn,
+     * far walls back-face culled, nothing overhead. Walk up to one and it is a
+     * pair of flat panels meeting at a corner with the sky between them, which
+     * is what an unfinished building looks like because it is one.
      */
     /*
      * A pitched roof only where the plan can carry one.
@@ -475,7 +484,7 @@ export function buildCity(
      * roof. Those get a flat top with a parapet, which is also true of plenty
      * of the real ones.
      */
-    if (b.kind !== 3) {
+    {
       /*
        * A pitched roof belongs on a HOUSE.
        *
@@ -496,14 +505,16 @@ export function buildCity(
     }
 
     /*
-     * One collider per building, inscribed rather than enclosing.
+     * The building's own outline, with its enclosing circle as the bound.
      *
-     * The enclosing circle of a long terrace reaches well past its ends and
-     * would wall off the lane beside it; 0.62 of it is a compromise that keeps
-     * the walker out of the building without closing the street. Old Town's
-     * lanes are three metres wide, so this is not a detail.
+     * This was a disc at 0.62 of the enclosing radius — a compromise, because
+     * the full circle round a long terrace reaches well past its ends and
+     * walls off the three-metre lane beside it, while a smaller one lets you
+     * walk in. There is no radius that is both, and the one that was chosen
+     * meant you could walk through the front of almost any building that was
+     * not roughly round. The outline is not a compromise.
      */
-    colliders.push({ x: c.x, z: c.z, r: Math.max(1.2, c.r * 0.62) });
+    colliders.push({ x: c.x, z: c.z, r: c.r, poly: b.pts });
 
     /*
      * Hang a gallery off the longest wall, if this is a house with a first

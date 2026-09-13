@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import { Avatar, type EmoteKind } from './avatar';
 import { buildRetroCar } from './retroCar';
+import { polyPush, moveResolved } from './polyPush';
 import type { WorldDef, WorldContext, WorldCollider, WorldSeat, WorldInteractable, AmbientSource, AvatarConfig, WorldScreen, WorldSwimZone, WorldDryZone, WorldVehicle, VehicleKind } from './types';
 import type { CharacterSpec } from '../character/spec';
 import { tNow } from '@/store/langStore';
@@ -1064,7 +1065,13 @@ export class WorldEngine {
       const dx = p.x - c.x, dz = p.z - c.z;
       const d = Math.hypot(dx, dz);
       const min = c.r + pad;
-      if (d < min && d > 0.0001) { p.x = c.x + dx / d * min; p.z = c.z + dz / d * min; hit = true; }
+      if (d >= min) continue;                            // outside the bound: cannot touch
+      if (c.poly) {
+        const push = polyPush(p.x, p.z, c.poly, pad);
+        if (push) { p.x += push.dx; p.z += push.dz; hit = true; }
+      } else if (d > 0.0001) {
+        p.x = c.x + dx / d * min; p.z = c.z + dz / d * min; hit = true;
+      }
     }
     return hit;
   }
@@ -1077,28 +1084,17 @@ export class WorldEngine {
     this.camYaw += d * Math.min(1, dt * 2.6);
   }
 
+  /*
+   * Two passes, one axis each, so a walk into a wall slides along it rather
+   * than stopping dead. A polygon resolves to a push vector like a circle does;
+   * only the component for the axis just moved is applied, which is what keeps
+   * the slide.
+   */
   private moveWithCollision(sx: number, sz: number) {
     const y = this.pos.y;
-    this.pos.x += sx;
-    for (const c of this.colliders) {
-      if (c.h !== undefined && y >= c.h) continue;   // jumped clear of a low obstacle
-      const dx = this.pos.x - c.x, dz = this.pos.z - c.z;
-      const min = c.r + 0.34;
-      // exact reject: hypot(dx,dz) >= max(|dx|,|dz|), so either axis clearing the
-      // radius rules the collider out without the sqrt
-      if (dx > min || dx < -min || dz > min || dz < -min) continue;
-      const d = Math.hypot(dx, dz);
-      if (d < min && d > 0.0001) { this.pos.x = c.x + dx / d * min; }
-    }
-    this.pos.z += sz;
-    for (const c of this.colliders) {
-      if (c.h !== undefined && y >= c.h) continue;
-      const dx = this.pos.x - c.x, dz = this.pos.z - c.z;
-      const min = c.r + 0.34;
-      if (dx > min || dx < -min || dz > min || dz < -min) continue;
-      const d = Math.hypot(dx, dz);
-      if (d < min && d > 0.0001) { this.pos.z = c.z + dz / d * min; }
-    }
+    moveResolved(this.pos, sx, sz, this.colliders, 0.34,
+      // Jumped clear of a low obstacle.
+      c => c.h !== undefined && y >= c.h);
   }
 
   private sit(s: WorldSeat) {

@@ -7,7 +7,21 @@ import type * as THREE from 'three';
 
 // cylinder (organic scenes). `h` = height: if the avatar's feet clear it
 // (mid-jump), the collider is passed over. Omit `h` for full-height/solid.
-export interface WorldCollider { x: number; z: number; r: number; h?: number; }
+/**
+ * A circle, or a circle around a shape.
+ *
+ * `r` is always the broad phase — nothing outside it can be touching. When
+ * `poly` is present it is the real outline in world metres and the circle is
+ * only a bound, so a long terrace blocks its own walls instead of a disc.
+ *
+ * A disc is what a building used to be, at 62% of its enclosing radius so it
+ * would not wall off the lane beside it, and the consequence was that you
+ * could walk through the front of any building that was not roughly round.
+ */
+export interface WorldCollider {
+  x: number; z: number; r: number; h?: number;
+  poly?: { x: number; z: number }[];
+}
 // `pose` seats aren't sit-downs: the avatar stands and holds a pose (e.g. the
 // bow "titanic" arms-out stance) while still locked in place with a Stand button.
 // `hugL`/`hugR` are a standing face-to-face embrace: two spots placed close
