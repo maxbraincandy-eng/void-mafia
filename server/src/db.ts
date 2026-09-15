@@ -1602,6 +1602,51 @@ export async function initializeDatabase(): Promise<void> {
   await sql`CREATE INDEX IF NOT EXISTS idx_dumb_user_cat ON dumb_attempts(user_id, category, created_at DESC)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_dumb_board_cat ON dumb_attempts(category, user_id, correct DESC, duration_ms ASC)`;
 
+  /*
+   * სიტყვა — one row per player per puzzle, and one row of standing per player.
+   *
+   * The day's guesses live in a single row rather than one row per guess, so
+   * "what has this player done today" is a read by primary key — which is what
+   * the screen asks on every open, including every open by somebody who has
+   * already finished and just wants to see the grid again.
+   *
+   * The solution is not stored. It is derived from the puzzle number, so there
+   * is no table anywhere holding today's answer next to a user id.
+   */
+  await sql`
+    CREATE TABLE IF NOT EXISTS word_days (
+      user_id     TEXT NOT NULL,
+      puzzle      INTEGER NOT NULL,
+      date_key    TEXT NOT NULL,
+      guesses     TEXT NOT NULL DEFAULT '[]',
+      solved      BOOLEAN NOT NULL DEFAULT FALSE,
+      finished    BOOLEAN NOT NULL DEFAULT FALSE,
+      started_at  BIGINT NOT NULL,
+      finished_at BIGINT,
+      PRIMARY KEY (user_id, puzzle)
+    )
+  `;
+  // The board reads one puzzle's finished rows, fewest guesses first.
+  await sql`CREATE INDEX IF NOT EXISTS idx_word_board ON word_days(puzzle, solved, finished_at)`;
+
+  /*
+   * Standing. `last_solved` is the puzzle number, not a date: the streak rule
+   * is "consecutive PUZZLES", and comparing puzzle numbers cannot be thrown
+   * off by a time zone the way comparing dates can.
+   */
+  await sql`
+    CREATE TABLE IF NOT EXISTS word_stats (
+      user_id     TEXT PRIMARY KEY,
+      played      INTEGER NOT NULL DEFAULT 0,
+      wins        INTEGER NOT NULL DEFAULT 0,
+      streak      INTEGER NOT NULL DEFAULT 0,
+      max_streak  INTEGER NOT NULL DEFAULT 0,
+      last_solved INTEGER,
+      dist        TEXT NOT NULL DEFAULT '[0,0,0,0,0,0]'
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_word_streak ON word_stats(max_streak DESC, streak DESC)`;
+
   // VOID IQ — cognitive test attempts + public leaderboard
   await sql`
     CREATE TABLE IF NOT EXISTS iq_attempts (

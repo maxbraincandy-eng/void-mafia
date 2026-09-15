@@ -42,6 +42,7 @@ import { registerPokerHandlers, handlePokerDisconnect } from './poker/poker.js';
 import { registerWatchPartyHandlers, handleWatchPartyDisconnect } from './watchParty.js';
 import { registerIQHandlers } from './iq.js';
 import { registerDumbHandlers } from './dumbTest.js';
+import { registerWordHandlers } from './word.js';
 import { registerMaxPuzzleHandlers } from './maxpuzzle.js';
 import { addCrown as ganabAddCrown, listCrowned as ganabListCrowned } from './services/ganabService.js';
 import { timerService } from './services/timerService.js';
@@ -8584,6 +8585,7 @@ export function attachSocketHandlers(io: AppServer): void {
     // ── VOID IQ ──────────────────────────────────────────────────────
     registerIQHandlers(io, socket);
     registerDumbHandlers(io, socket);
+    registerWordHandlers(io, socket);
 
     // ── ბატონი მაქსის თავსატეხი ──────────────────────────────────────
     registerMaxPuzzleHandlers(io, socket);
