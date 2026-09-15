@@ -24,6 +24,7 @@ import { registerWatchPartyHandlers, handleWatchPartyDisconnect } from './watchP
 import { registerIQHandlers } from './iq.js';
 import { registerDumbHandlers } from './dumbTest.js';
 import { registerWordHandlers } from './word.js';
+import { registerWhoSaidHandlers } from './whoSaid.js';
 import { registerMaxPuzzleHandlers } from './maxpuzzle.js';
 import { addCrown as ganabAddCrown, listCrowned as ganabListCrowned } from './services/ganabService.js';
 import { timerService } from './services/timerService.js';
@@ -9777,6 +9778,7 @@ export function attachSocketHandlers(io) {
         registerIQHandlers(io, socket);
         registerDumbHandlers(io, socket);
         registerWordHandlers(io, socket);
+        registerWhoSaidHandlers(io, socket);
         // ── ბატონი მაქსის თავსატეხი ──────────────────────────────────────
         registerMaxPuzzleHandlers(io, socket);
         // ── Ganab Simulator — global coronation hall of fame ─────────────
