@@ -158,8 +158,24 @@ export function WhoSaidGame({ onClose, myId, myName }: {
               {st ? `${st.code} · რაუნდი ${Math.max(1, st.round)}/${st.rounds}` : 'ხმის თამაში · 3-10 მოთამაშე'}
             </p>
           </div>
-          {st && st.status !== 'finished' && lkEnabled && <VoiceDisguiseButton compact />}
         </div>
+
+        {/*
+          * The voice changer, on its own row and before there is a match.
+          *
+          * Its own row because the button expands into a picker panel beneath
+          * itself, and inside the header's `flex items-center` that panel would
+          * land in the row next to the title. `flex-col` is how ჯაშუში does it.
+          *
+          * Before there is a match because the picker records a couple of
+          * seconds and plays them back, and hearing what you sound like for the
+          * first time while the room waits on you to read is too late.
+          */}
+        {lkEnabled && st?.status !== 'finished' && (
+          <div className="flex flex-col items-start pb-2">
+            <VoiceDisguiseButton unlocked />
+          </div>
+        )}
 
         {error && <p className="font-mono text-[12px] pb-2" style={{ color: BAD }}>{error}</p>}
 

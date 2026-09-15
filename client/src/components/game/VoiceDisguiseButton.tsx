@@ -17,10 +17,21 @@ import { VoiceDisguisePicker } from '@/components/game/VoiceDisguisePicker';
  *
  * Shown to free accounts too, locked, opening the pitch instead — a perk nobody
  * knows exists sells nothing.
+ *
+ * `unlocked` is for the one place where it is not a perk.
+ *
+ * In ვინ თქვა? changing your voice is not a flourish on top of the game, it IS
+ * the game: one player reads a line aloud and everybody else guesses who, so a
+ * player who cannot disguise their voice has nothing to play with. Locking the
+ * core move of a game behind the gate would not sell anything either — it
+ * would just mean most of the table could not take part.
  */
-export function VoiceDisguiseButton({ compact = false }: { compact?: boolean }) {
+export function VoiceDisguiseButton({ compact = false, unlocked = false }: {
+  compact?: boolean;
+  unlocked?: boolean;
+}) {
   const limits = useMyLimits();
-  const allowed = limits.liveDisguise;
+  const allowed = unlocked || limits.liveDisguise;
   const voice = useIncognitoStore(s => s.voice);
   const [open, setOpen] = useState(false);
   const [pitch, setPitch] = useState(false);
