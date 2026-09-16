@@ -16,13 +16,28 @@ import {
 
 test('the shelf holds the six books a visitor can see, in order', () => {
   assert.deepEqual(SHELF.map(b => b.title), [
-    'THE BOOK OF NAMES',
-    'THE BOOK OF FORGOTTEN GAMES',
-    'THE BOOK OF MIRRORS',
-    'THE BOOK OF POSSIBILITIES',
-    'THE BOOK OF THE UNKNOWN',
-    'THE BOOK WITHOUT A TITLE',
+    'სახელების წიგნი',
+    'დავიწყებული თამაშების წიგნი',
+    'სარკეების წიგნი',
+    'შესაძლებლობების წიგნი',
+    'უცნობის წიგნი',
+    'წიგნი სათაურის გარეშე',
   ]);
+});
+
+test('the catalogue is written in Georgian', () => {
+  /*
+   * The whole screen was English in its first version. A single book left
+   * behind in a translation is not a crash and not a typo — it is one card in
+   * a list, in the wrong language, that nobody notices until a reader does.
+   */
+  const latin = /[A-Za-z]/;
+  for (const b of CATALOGUE) {
+    assert.ok(!latin.test(b.title), `"${b.title}" is still in English`);
+    for (const l of b.lines) {
+      assert.ok(!latin.test(l), `a line of "${b.title}" is still in English: "${l}"`);
+    }
+  }
 });
 
 test('the Library is larger than its shelf', () => {
@@ -45,7 +60,12 @@ test('every book is well formed', () => {
 });
 
 test('no book explains itself', () => {
-  // Short is the rule. A book that needs a paragraph is documentation.
+  /*
+   * Short is the rule. A book that needs a paragraph is documentation.
+   *
+   * Counted in characters, and Mkhedruli is one UTF-16 unit per letter, so the
+   * limit means the same thing here as it did in English.
+   */
   for (const b of CATALOGUE) {
     assert.ok(b.lines.length <= 3, `${b.title} runs to ${b.lines.length} lines`);
     for (const l of b.lines) {
@@ -62,23 +82,16 @@ test('no two books share a catalogue number', () => {
 // ── searching ───────────────────────────────────────────────────────────────
 
 test('a search finds a book by its title', () => {
-  const r = searchLibrary('mirrors');
+  const r = searchLibrary('სარკე');
   assert.equal(r.unindexed, null);
-  assert.ok(r.found.some(b => b.title === 'THE BOOK OF MIRRORS'));
+  assert.ok(r.found.some(b => b.title === 'სარკეების წიგნი'));
 });
 
 test('a search finds a book by something written inside it', () => {
   // The example the Library was designed around: a name, not a title.
-  const r = searchLibrary('Max');
+  const r = searchLibrary('მაქსი');
   assert.equal(r.unindexed, null, 'the Library did not know about Max');
   assert.ok(r.found.some(b => b.id === '000271'), 'the visitor record was not found');
-});
-
-test('searching does not care about case', () => {
-  assert.deepEqual(
-    searchLibrary('MAX').found.map(b => b.id),
-    searchLibrary('max').found.map(b => b.id),
-  );
 });
 
 test('a search with nothing to find is answered, not refused', () => {
@@ -94,7 +107,7 @@ test('a search with nothing to find is answered, not refused', () => {
 });
 
 test('found and unindexed are never both set', () => {
-  for (const q of ['mirrors', 'Max', 'zzzzzzz', 'the', 'door']) {
+  for (const q of ['სარკე', 'მაქსი', 'zzzzzzz', 'წიგნი', 'კარი']) {
     const r = searchLibrary(q);
     assert.ok(!(r.found.length && r.unindexed), `both were set for "${q}"`);
   }
@@ -110,8 +123,8 @@ test('an empty search asks nothing and is told nothing', () => {
 
 test('surrounding space does not change the answer', () => {
   assert.deepEqual(
-    searchLibrary('  mirrors  ').found.map(b => b.id),
-    searchLibrary('mirrors').found.map(b => b.id),
+    searchLibrary('  სარკე  ').found.map(b => b.id),
+    searchLibrary('სარკე').found.map(b => b.id),
   );
 });
 

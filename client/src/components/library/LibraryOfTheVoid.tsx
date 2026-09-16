@@ -26,13 +26,14 @@
  * exactly where you were. A place that is supposed to feel endless should not
  * ask anybody to learn its menus.
  *
- * WHY THE INTERFACE IS IN ENGLISH
- * ───────────────────────────────
- * Everything else in this product is Georgian. The Library is not of this
- * place, and it says so by not speaking the language of the rest of the app —
- * the spec set every string in English and it reads as deliberate rather than
- * untranslated. The tile in the hub carries a Georgian subtitle so the catalogue
- * still makes sense from outside.
+ * THE LANGUAGE
+ * ────────────
+ * Georgian, like the rest of the product. The first draft was English on the
+ * theory that the Library is not of this place and says so by not speaking the
+ * local language; in practice that just made it the one screen a Georgian
+ * speaker had to read in a second language, which is not mystery, only
+ * friction. `ვოიდი` rather than a new word for the Void, because that is what
+ * this product has called it since the Backrooms.
  */
 
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
@@ -82,7 +83,7 @@ export function LibraryOfTheVoid({ onClose }: { onClose: () => void }) {
       <div className="relative min-h-full flex flex-col max-w-lg mx-auto px-5 pb-12">
 
         <div className="flex items-center pt-5 pb-1">
-          <button onClick={onClose} aria-label="Leave the Library"
+          <button onClick={onClose} aria-label="ბიბლიოთეკიდან გასვლა"
             className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
             style={{
               color: 'rgba(207,228,242,0.6)',
@@ -98,19 +99,23 @@ export function LibraryOfTheVoid({ onClose }: { onClose: () => void }) {
             transition={{ duration: 1.1, delay: 0.15 }}
             className="font-display font-black leading-tight"
             style={{
-              fontSize: 'clamp(21px, 6.2vw, 27px)',
+              fontSize: 'clamp(23px, 6.8vw, 30px)',
               color: INK,
-              letterSpacing: '0.055em',
-              textShadow: `0 0 26px rgba(121,198,232,0.28)`,
+              // No tracking: Mkhedruli has no capitals and spacing it out only
+              // pulls the word apart. The Latin caps needed it; this does not.
+              letterSpacing: '0',
+              // Tighter than it was for the Latin caps: Mkhedruli's counters
+              // are rounder and a wide glow fills them in.
+              textShadow: `0 0 16px rgba(121,198,232,0.22)`,
             }}>
-            THE LIBRARY<br />OF THE VOID
+            ვოიდის<br />ბიბლიოთეკა
           </motion.h1>
           <motion.p
             initial={{ opacity: 0 }} animate={{ opacity: 1 }}
             transition={{ duration: 1.4, delay: 0.7 }}
             className="font-mono pt-3"
-            style={{ fontSize: 11.5, color: 'rgba(207,228,242,0.44)', letterSpacing: '0.04em' }}>
-            “Every book contains a possibility.”
+            style={{ fontSize: 12, color: 'rgba(207,228,242,0.44)' }}>
+            „ყოველი წიგნი შესაძლებლობას შეიცავს.“
           </motion.p>
         </div>
 
@@ -119,8 +124,8 @@ export function LibraryOfTheVoid({ onClose }: { onClose: () => void }) {
           <input
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="Search the Library…"
-            aria-label="Search the Library"
+            placeholder="მოძებნე ბიბლიოთეკაში…"
+            aria-label="მოძებნე ბიბლიოთეკაში"
             spellCheck={false}
             className="w-full h-12 rounded-xl px-4 font-mono outline-none"
             style={{
@@ -131,7 +136,7 @@ export function LibraryOfTheVoid({ onClose }: { onClose: () => void }) {
               backdropFilter: 'blur(3px)',
             }} />
           {searching && (
-            <button onClick={() => setQuery('')} aria-label="Clear"
+            <button onClick={() => setQuery('')} aria-label="გასუფთავება"
               className="absolute right-3 top-0 h-12 font-mono"
               style={{ fontSize: 12, color: 'rgba(207,228,242,0.4)' }}>✕</button>
           )}
@@ -148,8 +153,8 @@ export function LibraryOfTheVoid({ onClose }: { onClose: () => void }) {
         ) : (
           <div className="flex-1">
             <p className="font-mono pb-3"
-              style={{ fontSize: 10, color: 'rgba(207,228,242,0.3)', letterSpacing: '0.16em' }}>
-              WITHIN REACH
+              style={{ fontSize: 10.5, color: 'rgba(207,228,242,0.3)', letterSpacing: '0.1em' }}>
+              ხელმისაწვდომი
             </p>
             {SHELF.map((b, i) => (
               <Entry key={b.id} book={b} index={i} onOpen={read} />
@@ -161,7 +166,7 @@ export function LibraryOfTheVoid({ onClose }: { onClose: () => void }) {
               */}
             <p className="font-mono text-center pt-7 pb-6"
               style={{ fontSize: 10.5, color: 'rgba(207,228,242,0.22)', lineHeight: 1.9 }}>
-              The remaining shelves continue<br />past the reach of the light.
+              დანარჩენი თაროები<br />შუქის მიღმა გრძელდება.
             </p>
 
             <button onClick={drawOne}
@@ -173,7 +178,7 @@ export function LibraryOfTheVoid({ onClose }: { onClose: () => void }) {
                 background: 'rgba(121,198,232,0.07)',
                 border: '1px solid rgba(121,198,232,0.28)',
               }}>
-              OPEN A RANDOM BOOK
+              გახსენი შემთხვევითი წიგნი
             </button>
           </div>
         )}
@@ -248,10 +253,10 @@ function Reading({ book, onClose }: { book: VoidBook; onClose: () => void }) {
 
         <p className="font-mono text-center"
           style={{ fontSize: 9.5, color: 'rgba(154,134,216,0.75)', letterSpacing: '0.16em' }}>
-          BOOK #{book.id}
+          წიგნი #{book.id}
         </p>
         <h2 className="font-display font-black text-center pt-3 pb-6 leading-snug"
-          style={{ fontSize: 17, color: INK, letterSpacing: '0.04em' }}>
+          style={{ fontSize: 17, color: INK }}>
           {book.title}
         </h2>
 
@@ -282,7 +287,7 @@ function Reading({ book, onClose }: { book: VoidBook; onClose: () => void }) {
             background: 'rgba(120,180,220,0.06)',
             border: '1px solid rgba(120,180,220,0.16)',
           }}>
-          RETURN TO THE LIBRARY
+          ბიბლიოთეკაში დაბრუნება
         </button>
       </motion.div>
     </motion.div>

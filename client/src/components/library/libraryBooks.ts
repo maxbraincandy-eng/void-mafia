@@ -41,53 +41,53 @@ export interface VoidBook {
 export const SHELF: VoidBook[] = [
   {
     id: '000001',
-    title: 'THE BOOK OF NAMES',
+    title: 'სახელების წიგნი',
     lines: [
-      'Every name ever spoken is written here.',
-      'Yours appears on page 4,102.',
-      'The entry is not finished.',
+      'აქ ჩაწერილია ყველა სახელი, რაც კი წარმოთქმულა.',
+      'შენი 4,102-ე გვერდზეა.',
+      'ჩანაწერი დაუსრულებელია.',
     ],
   },
   {
     id: '004417',
-    title: 'THE BOOK OF FORGOTTEN GAMES',
+    title: 'დავიწყებული თამაშების წიგნი',
     lines: [
-      'Some games end.',
-      'Others are merely no longer played.',
-      'This book lists the second kind.',
+      'ზოგი თამაში მთავრდება.',
+      'სხვები უბრალოდ აღარ თამაშდება.',
+      'ეს წიგნი მეორეებს ჩამოთვლის.',
     ],
   },
   {
     id: '011088',
-    title: 'THE BOOK OF MIRRORS',
+    title: 'სარკეების წიგნი',
     lines: [
-      'Each page reflects the reader.',
-      'Those who have looked twice',
-      'report two different reflections.',
+      'ყოველი გვერდი მკითხველს ირეკლავს.',
+      'ვინც ორჯერ ჩაიხედა,',
+      'ორ სხვადასხვა ანარეკლს იხსენებს.',
     ],
   },
   {
     id: '100000',
-    title: 'THE BOOK OF POSSIBILITIES',
+    title: 'შესაძლებლობების წიგნი',
     lines: [
-      'It contains everything that could still happen.',
-      'It is thinner than expected.',
+      'შეიცავს ყველაფერს, რაც ჯერ კიდევ შეიძლება მოხდეს.',
+      'მოსალოდნელზე თხელია.',
     ],
   },
   {
     id: '000000',
-    title: 'THE BOOK OF THE UNKNOWN',
+    title: 'უცნობის წიგნი',
     lines: [
-      'The pages are blank.',
-      'The index is forty pages long.',
+      'გვერდები ცარიელია.',
+      'საძიებელი ორმოცი გვერდია.',
     ],
   },
   {
     id: '——————',
-    title: 'THE BOOK WITHOUT A TITLE',
+    title: 'წიგნი სათაურის გარეშე',
     lines: [
-      'Readers who open it agree on what it says.',
-      'None can repeat it afterwards.',
+      'ვინც კი გახსნა, ერთსა და იმავეს ამბობს.',
+      'შემდეგ ვერავინ იმეორებს.',
     ],
   },
 ];
@@ -102,115 +102,115 @@ export const SHELF: VoidBook[] = [
 export const ARCHIVE: VoidBook[] = [
   {
     id: '000271',
-    title: 'VISITOR RECORD',
+    title: 'სტუმრის ჩანაწერი',
     lines: [
-      'Max entered the library at 03:17.',
-      'No record exists of Max leaving.',
+      'მაქსი ბიბლიოთეკაში 03:17-ზე შევიდა.',
+      'მისი გასვლის ჩანაწერი არ არსებობს.',
     ],
   },
   {
     id: '719204',
-    title: 'THE MAN WHO NEVER LEFT',
+    title: 'კაცი, რომელიც არ წასულა',
     lines: [
-      'He entered the library once.',
-      'According to the library,',
-      'he is still here.',
+      'ერთხელ შემოვიდა ბიბლიოთეკაში.',
+      'ბიბლიოთეკის თქმით,',
+      'ის ჯერ კიდევ აქ არის.',
     ],
   },
   {
     id: '000318',
-    title: 'THE HOUR AFTER',
+    title: 'ერთი წუთის შემდეგ',
     lines: [
-      'Something happens at 03:18.',
-      'The Library declines to specify.',
+      '03:18-ზე რაღაც ხდება.',
+      'ბიბლიოთეკა დაზუსტებაზე უარს ამბობს.',
     ],
   },
   {
     id: '001114',
-    title: 'THE CATALOGUE OF DOORS',
+    title: 'კარების კატალოგი',
     lines: [
-      'The Library has 1,114 doors.',
-      'Eleven of them open outward.',
+      'ბიბლიოთეკას 1,114 კარი აქვს.',
+      'მათგან თერთმეტი გარეთ იღება.',
     ],
   },
   {
     id: '000002',
-    title: 'THE BOOK OF THE SECOND FLOOR',
+    title: 'მეორე სართულის წიგნი',
     lines: [
-      'There is no second floor.',
-      'The stairs disagree.',
+      'მეორე სართული არ არსებობს.',
+      'კიბე არ ეთანხმება.',
     ],
   },
   {
     id: '000012',
-    title: 'THE RECORD OF QUIET ROOMS',
+    title: 'ჩუმი ოთახების ჩანაწერი',
     lines: [
-      'Room 12 has never been entered.',
-      'It is always warm.',
+      'მე-12 ოთახში არავინ შესულა.',
+      'იქ ყოველთვის თბილა.',
     ],
   },
   {
     id: '098001',
-    title: 'THE BOOK OF LAST PAGES',
+    title: 'ბოლო გვერდების წიგნი',
     lines: [
-      'Final pages only.',
-      'Some of them are yours.',
+      'მხოლოდ ბოლო გვერდები.',
+      'ზოგი მათგანი შენია.',
     ],
   },
   {
     id: '004000',
-    title: 'THE BOOK OF WAITING',
+    title: 'ლოდინის წიგნი',
     lines: [
-      'Written by someone expecting company.',
-      'It is four thousand pages long.',
+      'დაწერა ვიღაცამ, ვინც სტუმარს ელოდა.',
+      'ოთხი ათასი გვერდია.',
     ],
   },
   {
     id: '000003',
-    title: 'THE INVENTORY',
+    title: 'ინვენტარი',
     lines: [
-      'Every object ever lost here.',
-      'Including three librarians.',
+      'ყველაფერი, რაც კი აქ დაკარგულა.',
+      'მათ შორის სამი ბიბლიოთეკარი.',
     ],
   },
   {
     id: '060060',
-    title: 'THE BOOK OF RETURNS',
+    title: 'დაბრუნებულთა წიგნი',
     lines: [
-      'Books that came back',
-      'from readers who did not.',
+      'წიგნები, რომლებიც დაბრუნდა',
+      'მკითხველებისგან, რომლებიც არა.',
     ],
   },
   {
     id: '999999',
-    title: 'THE BOOK OF ALMOST',
+    title: 'თითქმისის წიგნი',
     lines: [
-      'Everything that nearly happened.',
-      'It is the largest book in the Library.',
+      'ყველაფერი, რაც კინაღამ მოხდა.',
+      'ბიბლიოთეკის ყველაზე დიდი წიგნია.',
     ],
   },
   {
     id: '000009',
-    title: 'THE SILENT SHELF',
+    title: 'მდუმარე თარო',
     lines: [
-      'Shelf 9 makes no sound.',
-      'Books removed from it are never missed.',
+      'მე-9 თარო ხმას არ გამოსცემს.',
+      'იქიდან აღებულ წიგნებს არავინ ეძებს.',
     ],
   },
   {
     id: '021300',
-    title: 'THE BOOK OF CORRIDORS',
+    title: 'დერეფნების წიგნი',
     lines: [
-      'Walk east for long enough',
-      'and you arrive where you began, older.',
+      'იარე აღმოსავლეთით საკმარისად დიდხანს',
+      'და იქ მიხვალ, სადაც დაიწყე — უფროსი.',
     ],
   },
   {
     id: '000047',
-    title: 'ON THE READING OF THIS BOOK',
+    title: 'ამ წიგნის კითხვის შესახებ',
     lines: [
-      'You are being read at the same rate.',
-      'The Library keeps both records.',
+      'შენც იმავე სიჩქარით გკითხულობენ.',
+      'ბიბლიოთეკა ორივე ჩანაწერს ინახავს.',
     ],
   },
 ];
@@ -242,10 +242,10 @@ export interface LibrarySearch {
 function unindexedFor(query: string): VoidBook {
   return {
     id: '— — — — — —',
-    title: 'THE ENTRY THAT IS NOT YET WRITTEN',
+    title: 'ჩანაწერი, რომელიც ჯერ არ დაწერილა',
     lines: [
-      `The Library holds no record of “${query}”.`,
-      'It suggests you return when you do.',
+      `ბიბლიოთეკას „${query}“-ის ჩანაწერი არ აქვს.`,
+      'გირჩევს, დაბრუნდე, როცა შენ გექნება.',
     ],
   };
 }
@@ -261,6 +261,14 @@ export function searchLibrary(raw: string): LibrarySearch {
   const query = raw.trim();
   if (!query) return { query, found: [], unindexed: null };
 
+  /*
+   * Lowercased, though nothing in the catalogue currently needs it.
+   *
+   * Mkhedruli has no case, so while every book is Georgian this line does
+   * nothing at all — a mutation removing it breaks no test, and there is no
+   * honest test to write for it. It stays because the moment the catalogue
+   * holds a name (a player's, a match's) it will be Latin and it will matter.
+   */
   const needle = query.toLowerCase();
   const found = CATALOGUE.filter(b =>
     b.title.toLowerCase().includes(needle) ||
