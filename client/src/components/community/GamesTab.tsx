@@ -651,7 +651,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms }: { onOpenSpace?: () =>
       {cameraOpen && <Suspense fallback={null}><CameraSpace onClose={() => setCameraOpen(false)} /></Suspense>}
       {dumbOpen && <Suspense fallback={null}><DumbTest onClose={() => setDumbOpen(false)} /></Suspense>}
       {wordOpen && <Suspense fallback={null}><WordGame onClose={() => setWordOpen(false)} /></Suspense>}
-      {whoSaidOpen && <Suspense fallback={null}><WhoSaidGame onClose={() => setWhoSaidOpen(false)} myId={profile?.id ?? ''} myName={playerName} /></Suspense>}
+      {whoSaidOpen && <Suspense fallback={null}><WhoSaidGame onClose={() => setWhoSaidOpen(false)} myName={playerName} /></Suspense>}
       {libraryOpen && <Suspense fallback={null}><LibraryOfTheVoid onClose={() => setLibraryOpen(false)} /></Suspense>}
       {mergeOpen && <Suspense fallback={null}><MergeEvolution onClose={() => setMergeOpen(false)} /></Suspense>}
       {aristocracyOpen && <Suspense fallback={null}><AristocracyTest onClose={() => setAristocracyOpen(false)} /></Suspense>}

@@ -88,6 +88,42 @@ test('the phrase goes to the reader and to nobody else', () => {
   }
 });
 
+test('the state tells each client who the server thinks it is', () => {
+  /*
+   * The bug this pins down shipped, and it looked like "the game does not
+   * work": the client took its own id from the auth store and compared it to
+   * `hostId`, while the server identifies a socket as `profileId ?? socket.id`.
+   * For anything short of a fully authenticated session those never matched,
+   * so the host was never recognised as the host and the button that starts
+   * the match was never drawn — and the same id is what LiveKit joins under,
+   * so there was no voice either. Identity is the server's to state.
+   */
+  const m = table(4);
+  startMatch(m.id, 'u0');
+  for (const p of m.players) {
+    assert.equal(getSafeState(m, p.userId).myUserId, p.userId,
+      `${p.userId} was not told who they are`);
+  }
+  // And it is the only field that differs by viewer for two non-readers.
+  const a = m.players.find(p => p.userId !== m.readerId)!;
+  const b = m.players.find(p => p.userId !== m.readerId && p.userId !== a.userId)!;
+  const va = { ...getSafeState(m, a.userId), myUserId: '' };
+  const vb = { ...getSafeState(m, b.userId), myUserId: '' };
+  assert.equal(JSON.stringify(va), JSON.stringify(vb),
+    'two bystanders differ by something other than their own id');
+});
+
+test('the host is the host by the id the server just sent', () => {
+  // How the screen actually decides: `state.hostId === state.myUserId`.
+  const m = table(4);
+  const host = getSafeState(m, m.hostId);
+  assert.equal(host.hostId, host.myUserId, 'the host does not match themselves');
+  for (const p of m.players.filter(x => x.userId !== m.hostId)) {
+    const v = getSafeState(m, p.userId);
+    assert.notEqual(v.hostId, v.myUserId, `${p.userId} is treated as the host`);
+  }
+});
+
 test('a non-reader cannot tell who is reading, whoever it is', () => {
   /*
    * Every player's id is necessarily in the state — you have to be able to

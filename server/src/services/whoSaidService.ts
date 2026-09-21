@@ -92,6 +92,19 @@ export interface WhoSaidMatch {
 /** What a client is allowed to know. */
 export interface WhoSaidPublicState {
   id: string;
+  /**
+   * Who the recipient is, as the SERVER knows them.
+   *
+   * Every other game here sends this and the client compares against it. The
+   * first version of this screen did not: it took the viewer's id from the
+   * auth store on the client and compared that to `hostId`. Those agree only
+   * when `socket.data.profileId` is set — an unauthenticated socket is
+   * identified by its own socket id, which the client has never seen. The host
+   * then never matched `hostId`, so the button that starts the match was never
+   * drawn, and the id handed to LiveKit was the empty string, so voice never
+   * connected at all. Identity belongs to whoever assigns it.
+   */
+  myUserId: string;
   code: string;
   hostId: string;
   status: WhoSaidStatus;
@@ -400,6 +413,7 @@ export function getSafeState(m: WhoSaidMatch, viewerUserId: string): WhoSaidPubl
     id: m.id,
     code: m.code,
     hostId: m.hostId,
+    myUserId: viewerUserId,
     status: m.status,
     round: m.round,
     rounds: m.rounds,

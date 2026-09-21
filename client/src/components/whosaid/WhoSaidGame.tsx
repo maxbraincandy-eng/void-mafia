@@ -50,6 +50,8 @@ interface Reveal {
 }
 interface State {
   id: string; code: string; hostId: string; status: Status;
+  /** Who the server thinks this client is. The only identity worth trusting. */
+  myUserId: string;
   round: number; rounds: number; endsAt: number;
   players: Player[];
   youAreReading: boolean;
@@ -63,9 +65,8 @@ interface ListItem {
   players: number; maxPlayers: number; status: Status;
 }
 
-export function WhoSaidGame({ onClose, myId, myName }: {
+export function WhoSaidGame({ onClose, myName }: {
   onClose: () => void;
-  myId: string;
   myName: string;
 }) {
   const [st, setSt] = useState<State | null>(null);
@@ -74,6 +75,17 @@ export function WhoSaidGame({ onClose, myId, myName }: {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  /*
+   * Identity comes from the server, not from the auth store.
+   *
+   * The first version took it from the client's own profile and compared that
+   * to `hostId`. The server identifies a socket as `profileId ?? socket.id`,
+   * so the two agree only for a fully authenticated session — and when they
+   * did not, the host never matched `hostId` and the button that starts the
+   * match was simply never drawn. The same id is what LiveKit joins under, so
+   * an empty one meant no voice either.
+   */
+  const myId = st?.myUserId ?? '';
   const isHost = !!st && st.hostId === myId;
   const amReader = !!st?.youAreReading;
 
@@ -89,8 +101,31 @@ export function WhoSaidGame({ onClose, myId, myName }: {
     roomId: st?.id ? `whosaid_${st.id}` : null,
     identity: myId || null,
     active: lkEnabled && !!st?.id && st.status !== 'finished',
-    listenOnly: st?.status === 'reading' && !amReader,
+    /*
+     * Never listen-only, even while somebody else is reading.
+     *
+     * `listenOnly` is not a mute: it mints a token with no publish grant at
+     * all, which is right for a dead mafia player and wrong here. A listener
+     * who connects or reconnects mid-round would get that token and then be
+     * unable to speak for the rest of the match, because nothing re-fetches
+     * one. The silence this game needs is a muted microphone, which is local
+     * and reversible — see below.
+     */
+    listenOnly: false,
   });
+
+  /*
+   * One voice at a time, by muting rather than by disconnecting.
+   *
+   * Driven off the phase and the reader, so it fires once per transition and
+   * not on every render — a player who mutes themselves between rounds is left
+   * alone until the next phase actually changes.
+   */
+  const silence = st?.status === 'reading' && !amReader;
+  useEffect(() => {
+    if (!lkVoice.connected) return;
+    lkVoice.setMic(!silence);
+  }, [silence, lkVoice.connected]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   const apply = useCallback((res: any) => {
     setBusy(false);

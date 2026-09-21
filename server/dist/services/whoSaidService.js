@@ -332,6 +332,7 @@ export function getSafeState(m, viewerUserId) {
         id: m.id,
         code: m.code,
         hostId: m.hostId,
+        myUserId: viewerUserId,
         status: m.status,
         round: m.round,
         rounds: m.rounds,
