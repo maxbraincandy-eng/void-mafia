@@ -17,7 +17,6 @@ const CameraSpace = lazy(() => import('@/components/camera/CameraSpace'));
 const DumbTest = lazy(() => import('@/components/dumbtest/DumbTest'));
 const WordGame = lazy(() => import('@/components/word/WordGame'));
 const WhoSaidGame = lazy(() => import('@/components/whosaid/WhoSaidGame'));
-const LibraryOfTheVoid = lazy(() => import('@/components/library/LibraryOfTheVoid'));
 const MarsTerminal = lazy(() => import('@/components/mars/MarsTerminal').then(m => ({ default: m.MarsTerminal })));
 import { IQLogo } from '@/components/iq/IQLogo';
 import { LogicLogo } from '@/components/logic/LogicLogo';
@@ -92,12 +91,11 @@ const SECTIONS: SectionDef[] = [
   {
     id: 'mind', title: 'გონება', emoji: '🧠', accent: '#7c9cff',
     ids: [
-      'library', 'word',
-      'voidiq', 'logic',
-      'philosophy', 'philotest',
-      'aristocracy', 'noir',
-      'ganab', 'maxpuzzle',
-      'dilemmas',
+      'word', 'voidiq',
+      'logic', 'philosophy',
+      'philotest', 'aristocracy',
+      'noir', 'ganab',
+      'maxpuzzle', 'dilemmas',
     ],
   },
   {
@@ -151,7 +149,6 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms }: { onOpenSpace?: () =>
   const [dumbOpen, setDumbOpen] = useState(false);
   const [wordOpen, setWordOpen] = useState(false);
   const [whoSaidOpen, setWhoSaidOpen] = useState(false);
-  const [libraryOpen, setLibraryOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
 
   // ── Checkers ────────────────────────────────────────────────────────
@@ -436,7 +433,6 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms }: { onOpenSpace?: () =>
   defs.push({ id: 'logic', title: 'ფორმალური ლოგიკის აკადემია', sub: 'სილოგიზმები · არგუმენტაცია · Logic Rating', kind: 'launch', accent: '#F9C81C', logo: 'logic', emoji: '🧠', badge: true, keywords: 'logic ლოგიკა სილოგიზმი არგუმენტი დედუქცია აკადემია რეიტინგი formal ფორმალური მსჯელობა fallacy შეცდომა', launch: () => setLogicOpen(true) });
   defs.push({ id: 'noir', title: 'ნუარი', sub: 'ინტერაქტიული თავგადასავალი · შენ წყვეტ', kind: 'launch', accent: '#ff2d55', emoji: '🌃', badge: true, keywords: 'noir ნუარი თავგადასავალი ამბავი არჩევანი ისტორია adventure story choice მაფია დეტექტივი', launch: () => setNoirOpen(true) });
   defs.push({ id: 'sky', title: 'ცის რუკა', sub: 'მიმართე ცას · პლანეტები რეალურ პოზიციაზე', kind: 'launch', accent: '#7c9cff', emoji: '🔭', badge: true, keywords: 'sky ცა ვარსკვლავი პლანეტა სატურნი ტელესკოპი ასტრონომია star planet saturn telescope astronomy ღამე', launch: () => setSkyOpen(true) });
-  defs.push({ id: 'library', title: 'ვოიდის ბიბლიოთეკა', sub: 'უსასრულო თაროები · ყოველი წიგნი შესაძლებლობაა', kind: 'launch', accent: '#79c6e8', emoji: '📚', badge: true, keywords: 'ბიბლიოთეკა library ვოიდი void წიგნი books უსასრულო infinite ლაბირინთი labyrinth მისტიკა mystery არქივი archive ფილოსოფია თარო დერეფანი', launch: () => setLibraryOpen(true) });
   defs.push({ id: 'whosaid', title: 'ვინ თქვა?', sub: 'ხმის თამაში · 3-10 მოთ. · კამერის გარეშე', kind: 'launch', accent: '#a855f7', emoji: '🎙', badge: true, keywords: 'ვინ თქვა ხმა ხმის შეცვლა გამოცნობა who said voice disguise დედუქცია წვეულება party ფრაზა აბსურდი', launch: () => setWhoSaidOpen(true) });
   defs.push({ id: 'word', title: 'სიტყვა', sub: 'დღის სიტყვა · 6 ცდა · სერიები', kind: 'launch', accent: '#4dd48a', emoji: '🔤', badge: true, keywords: 'სიტყვა wordle ვორდლი დღის ასო ანბანი გამოცანა თავსატეხი word daily streak სერია ლიდერბორდი ქართული', launch: () => setWordOpen(true) });
   defs.push({ id: 'dumbtest', title: 'დებილების ტესტი', sub: '4 კატეგორია · 12 კითხვა · ლიდერბორდი', kind: 'launch', accent: '#c46bff', emoji: '🤪', badge: true, keywords: 'დებილი ტესტი კითხვა სულელური სასაცილო აბსურდი ვიქტორინა quiz dumb test funny absurd trivia იუმორი ხუმრობა უცხოპლანეტური ვორტექსი ჰიპერნახტომი კატეგორია alien vortex', launch: () => setDumbOpen(true) });
@@ -652,7 +648,6 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms }: { onOpenSpace?: () =>
       {dumbOpen && <Suspense fallback={null}><DumbTest onClose={() => setDumbOpen(false)} /></Suspense>}
       {wordOpen && <Suspense fallback={null}><WordGame onClose={() => setWordOpen(false)} /></Suspense>}
       {whoSaidOpen && <Suspense fallback={null}><WhoSaidGame onClose={() => setWhoSaidOpen(false)} myName={playerName} /></Suspense>}
-      {libraryOpen && <Suspense fallback={null}><LibraryOfTheVoid onClose={() => setLibraryOpen(false)} /></Suspense>}
       {mergeOpen && <Suspense fallback={null}><MergeEvolution onClose={() => setMergeOpen(false)} /></Suspense>}
       {aristocracyOpen && <Suspense fallback={null}><AristocracyTest onClose={() => setAristocracyOpen(false)} /></Suspense>}
     </div>
