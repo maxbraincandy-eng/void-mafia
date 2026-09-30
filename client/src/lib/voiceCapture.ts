@@ -125,6 +125,23 @@ export function preparePlayback(): void {
   try { s.type = 'playback'; } catch { /* not settable here */ }
 }
 
+/**
+ * The app is idle: let our sounds mix with whatever else is playing.
+ *
+ * Left at its default, iOS gives a page that plays sound the exclusive
+ * playback session, so the first click sound stopped the music or video in
+ * whatever app the player had open. 'ambient' mixes instead (and, like every
+ * game, follows the silent switch). Voice notes still ask for 'playback' and
+ * voice rooms for 'play-and-record' when they need them; this is only the
+ * state we return to. Does nothing while a microphone is open.
+ */
+export function prepareAmbient(): void {
+  if (liveCaptures > 0) return;
+  const s = audioSession();
+  if (!s) return;
+  try { s.type = 'ambient'; } catch { /* not settable here */ }
+}
+
 export interface VoiceCapture {
   stream: MediaStream;
   mimeType?: string;

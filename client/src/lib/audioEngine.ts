@@ -5,6 +5,7 @@
  */
 
 import { useSettingsStore } from '@/store/settingsStore';
+import { isApple, prepareAmbient } from '@/lib/voiceCapture';
 
 // ── Singleton state ───────────────────────────────────────────────────
 
@@ -21,6 +22,9 @@ let _musicPending = false; // want music but no user gesture yet
 
 function boot(): AudioContext {
   if (_ctx && _ctx.state !== 'closed') return _ctx;
+  // Before the context exists: on iOS the first sound would otherwise take the
+  // audio session from every other app — see prepareAmbient.
+  if (isApple()) prepareAmbient();
   // latencyHint:'playback' → higher quality output, bypasses some device audio post-processing
   _ctx = new AudioContext({ latencyHint: 'playback' });
 
@@ -71,6 +75,13 @@ let _htmlKeepAlive: HTMLAudioElement | null = null;
 function attachKeepAlive(ctx: AudioContext) {
   if (_keepaliveInit) return;
   _keepaliveInit = true;
+  // Not on iOS. A playing <audio> element there takes the exclusive playback
+  // session (iOS ignores `volume`, so "silent" is not), the media session puts
+  // Void Mafia on the lock screen in place of the player's own music, and the
+  // noise loop keeps the session held — together they stopped YouTube and
+  // Instagram the moment the app was touched. None of it buys background
+  // audio on iOS anyway; the native shell's background audio mode does that.
+  if (isApple()) return;
 
   // Layer 1: silent looping Web Audio buffer (-60 dB, inaudible but not optimized away)
   const frames = Math.ceil(ctx.sampleRate * 2);

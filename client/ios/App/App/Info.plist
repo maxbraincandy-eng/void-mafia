@@ -70,5 +70,13 @@
 	<!-- WKWebView inline video (needed for remote WebRTC video in iOS) -->
 	<key>NSAllowsArbitraryLoads</key>
 	<false/>
+
+	<!-- Voice rooms keep playing and listening when the app is minimised.
+	     Without it iOS suspends the web view the moment the player switches
+	     apps, and the room goes silent both ways. -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+	</array>
 </dict>
 </plist>

@@ -20,7 +20,7 @@ import { roomOptionsFor } from '@/lib/livekitRoomOptions';
 import { emitWithAck } from '@/lib/socket';
 import { tNow } from '@/store/langStore';
 import { applyVoiceMask, resetVoiceMask, type VoiceMaskPreset } from '@/lib/voiceMask';
-import { prepareCapture, setCaptureLive } from '@/lib/voiceCapture';
+import { prepareCapture, prepareAmbient, setCaptureLive } from '@/lib/voiceCapture';
 import type { Disguise } from '@/lib/voiceDisguise';
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL ?? '';
@@ -601,5 +601,8 @@ export async function leaveLiveKitVoice(): Promise<void> {
   // the next join attaches a fresh one instead of retuning a dead graph.
   resetVoiceMask();
   if (r) { try { await r.disconnect(); } catch { /* ignore */ } }
+  // Out of the room: give the other apps their audio back. Only when no new
+  // join started meanwhile — switching rooms calls this on the way through.
+  if (currentRoomId === null) prepareAmbient();
   patch({ ...INITIAL });
 }
