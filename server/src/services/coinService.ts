@@ -160,28 +160,38 @@ async function recordTransaction(
 
 export async function claimDailyReward(playerId: string): Promise<{ coins: number; balance: number; alreadyClaimed: boolean; boosted?: boolean }> {
   const dateKey = new Date().toISOString().slice(0, 10);
-  const existing = await sql`
-    SELECT 1 FROM daily_coin_claims WHERE player_id = ${playerId} AND date_key = ${dateKey}
+  // Claim the day first, then pay. Checking and then paying let two taps (or a
+  // retried request) both pass the check and both get paid; the primary key
+  // lets exactly one of them insert this row.
+  const claimed = await sql`
+    INSERT INTO daily_coin_claims (player_id, date_key, coins_awarded, claimed_at)
+    VALUES (${playerId}, ${dateKey}, 0, ${Date.now()})
+    ON CONFLICT (player_id, date_key) DO NOTHING
+    RETURNING 1
   ` as any[];
-  if (existing.length > 0) {
+  if (claimed.length === 0) {
     const balance = await getCoins(playerId);
     return { coins: 0, balance, alreadyClaimed: true };
   }
-  // Coin Magnet perk: +25% while it lasts. Applied here because the daily
-  // reward is the game's actual recurring coin faucet — imported lazily so
-  // coinService and perkService (which imports coinService) don't form a cycle.
-  const { applyCoinMagnet } = await import('./perkService.js');
-  const { amount, boosted } = await applyCoinMagnet(playerId, DAILY_REWARD_COINS);
-
-  const { balanceAfter } = await recordTransaction(
-    playerId, 'daily_reward', amount, boosted ? 'Daily reward (+25% magnet)' : 'Daily reward',
-  );
-  await sql`
-    INSERT INTO daily_coin_claims (player_id, date_key, coins_awarded, claimed_at)
-    VALUES (${playerId}, ${dateKey}, ${amount}, ${Date.now()})
-    ON CONFLICT (player_id, date_key) DO NOTHING
-  `;
-  return { coins: amount, balance: balanceAfter, alreadyClaimed: false, boosted };
+  try {
+    // Coin Magnet perk: +25% while it lasts. Applied here because the daily
+    // reward is the game's actual recurring coin faucet — imported lazily so
+    // coinService and perkService (which imports coinService) don't form a cycle.
+    const { applyCoinMagnet } = await import('./perkService.js');
+    const { amount, boosted } = await applyCoinMagnet(playerId, DAILY_REWARD_COINS);
+    const { balanceAfter } = await recordTransaction(
+      playerId, 'daily_reward', amount, boosted ? 'Daily reward (+25% magnet)' : 'Daily reward',
+    );
+    await sql`
+      UPDATE daily_coin_claims SET coins_awarded = ${amount}
+      WHERE player_id = ${playerId} AND date_key = ${dateKey}
+    `;
+    return { coins: amount, balance: balanceAfter, alreadyClaimed: false, boosted };
+  } catch (e) {
+    // Not paid, so the day is not spent: release it for a retry.
+    await sql`DELETE FROM daily_coin_claims WHERE player_id = ${playerId} AND date_key = ${dateKey}`.catch(() => {});
+    throw e;
+  }
 }
 
 export async function grantCoins(
