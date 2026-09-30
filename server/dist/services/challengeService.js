@@ -19,7 +19,7 @@ const VOLUME_QUEST = {
     id: 'play_3', description: 'Play 3 games today', xpReward: 100, targetCount: 3,
     check: () => true,
 };
-function todayKey() { return new Date().toISOString().slice(0, 10); }
+export function todayKey() { return new Date().toISOString().slice(0, 10); }
 function getTodayWinQuest() {
     return WIN_QUESTS[new Date().getDay() % WIN_QUESTS.length];
 }
@@ -28,12 +28,19 @@ export function getTodayChallenge() {
     const ch = getTodayWinQuest();
     return { id: ch.id, description: ch.description, xpReward: ch.xpReward, targetCount: ch.targetCount };
 }
+/*
+ * A quest that needs N events stores one row per event, as `id:1` … `id:N`.
+ * The primary key is (player, challenge, day), so a single `id` row could only
+ * ever be written once — which left "play 3 games" stuck at 1/3 for everybody.
+ */
+const stepId = (id, n) => `${id}:${n}`;
 async function questProgress(profileId, id, targetCount) {
     const [row] = await sql `
     SELECT COUNT(*) as c FROM daily_completions
-    WHERE player_id = ${profileId} AND challenge_id = ${id} AND date_key = ${todayKey()}
+    WHERE player_id = ${profileId} AND date_key = ${todayKey()}
+      AND (challenge_id = ${id} OR challenge_id LIKE ${id.replace(/[\\%_]/g, '\\$&') + ':%'})
   `;
-    const progress = Number(row?.c ?? 0);
+    const progress = Math.min(targetCount, Number(row?.c ?? 0));
     return { progress, completed: progress >= targetCount };
 }
 export async function getDailyQuestsForPlayer(profileId) {
@@ -49,24 +56,22 @@ export async function checkAndAwardChallenges(profileId, won, role, dayReached, 
     let totalBonus = 0;
     let anyCompleted = false;
     for (const q of quests) {
-        const [countRow] = await sql `
-      SELECT COUNT(*) as c FROM daily_completions
-      WHERE player_id = ${profileId} AND challenge_id = ${q.id} AND date_key = ${dateKey}
-    `;
-        if (Number(countRow?.c ?? 0) >= q.targetCount)
-            continue;
         if (!q.check(won, role, dayReached, team))
             continue;
-        await sql `
+        const { progress, completed } = await questProgress(profileId, q.id, q.targetCount);
+        if (completed)
+            continue;
+        const next = progress + 1;
+        const rowId = q.targetCount > 1 ? stepId(q.id, next) : q.id;
+        // The bonus is paid by whichever call inserts the final row, so a result
+        // processed twice cannot pay twice: the second insert conflicts.
+        const inserted = await sql `
       INSERT INTO daily_completions (player_id, challenge_id, date_key, completed_at)
-      VALUES (${profileId}, ${q.id}, ${dateKey}, ${Date.now()})
+      VALUES (${profileId}, ${rowId}, ${dateKey}, ${Date.now()})
       ON CONFLICT DO NOTHING
+      RETURNING 1
     `;
-        const [newRow] = await sql `
-      SELECT COUNT(*) as c FROM daily_completions
-      WHERE player_id = ${profileId} AND challenge_id = ${q.id} AND date_key = ${dateKey}
-    `;
-        if (Number(newRow?.c ?? 0) >= q.targetCount) {
+        if (inserted.length && next >= q.targetCount) {
             totalBonus += q.xpReward;
             anyCompleted = true;
         }

@@ -1,5 +1,5 @@
 import { ok, err, } from './types/index.js';
-import { createMatch, getMatch, getMatchByCode, getMatchForSocket, getOpenMatches, applyMove, finishMatch, } from './services/checkersService.js';
+import { createMatch, getMatch, getMatchByCode, getMatchForSocket, getOpenMatches, applyMove, finishMatch, getAbandonedMatches, } from './services/checkersService.js';
 import { award } from './services/legacyService.js';
 import { buildIceConfig } from './lib/iceConfig.js';
 import { voiceJoin, voiceLeave, voiceGetMatchId } from './services/checkersVoiceService.js';
@@ -51,8 +51,28 @@ function toListItem(match) {
 function broadcastState(io, match) {
     io.to(CHECKERS_ROOM(match.id)).emit('checkers:state', toPublic(match));
 }
+// ── Abandoned-match sweep ──────────────────────────────────────────────
+// A match both players have left must not sit in the lobby list for ever.
+// Leave and disconnect normally close it; this catches whatever path does not.
+const SWEEP_MS = 60000;
+let sweepStarted = false;
+export function sweepAbandonedCheckers(io) {
+    const gone = getAbandonedMatches(id => io.sockets.sockets.has(id));
+    for (const m of gone) {
+        finishMatch(m, null);
+        const rk = CHECKERS_ROOM(m.id);
+        io.in(rk).socketsLeave(rk);
+    }
+    if (gone.length)
+        io.emit('checkers:list_update', getOpenMatches().map(toListItem));
+    return gone.length;
+}
 // ── Handler Registration ───────────────────────────────────────────────
 export function registerCheckersHandlers(io, socket) {
+    if (!sweepStarted) {
+        sweepStarted = true;
+        setInterval(() => sweepAbandonedCheckers(io), SWEEP_MS).unref?.();
+    }
     // ── List open matches ──────────────────────────────────────────────
     socket.on('checkers:list', (cb) => {
         try {
@@ -416,6 +436,7 @@ function handleCheckersLeave(io, socketId, match) {
         if (winnerColor) {
             finishMatch(match, winnerColor);
             broadcastState(io, match);
+            io.emit('checkers:list_update', getOpenMatches().map(toListItem));
         }
     }
     else if (match.status === 'waiting' && match.red.socketId === socketId) {

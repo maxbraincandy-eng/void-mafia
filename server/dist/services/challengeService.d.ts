@@ -6,6 +6,7 @@ interface ChallengeCheck {
     targetCount: number;
     check: (won: boolean, role: string | null, dayReached: number, team: string | null) => boolean;
 }
+export declare function todayKey(): string;
 export declare function getTodayChallenge(): Omit<ChallengeCheck, 'check'>;
 export declare function getDailyQuestsForPlayer(profileId: string): Promise<DailyChallenge[]>;
 export declare function checkAndAwardChallenges(profileId: string, won: boolean, role: string | null, dayReached: number, team: string | null): Promise<{

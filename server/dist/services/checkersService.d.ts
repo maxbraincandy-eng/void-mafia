@@ -87,5 +87,7 @@ export declare function getMatchByCode(code: string): CheckersMatch | undefined;
 export declare function deleteMatch(id: string): void;
 export declare function getOpenMatches(): CheckersMatch[];
 export declare function getMatchForSocket(socketId: string): CheckersMatch | undefined;
+/** Unfinished matches with no player still connected. */
+export declare function getAbandonedMatches(isConnected: (socketId: string) => boolean): CheckersMatch[];
 export declare function finishMatch(match: CheckersMatch, winner: PieceColor | null): void;
 //# sourceMappingURL=checkersService.d.ts.map
