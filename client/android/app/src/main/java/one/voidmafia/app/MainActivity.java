@@ -1,6 +1,7 @@
 package one.voidmafia.app;
 
 import android.Manifest;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
@@ -60,6 +61,11 @@ public class MainActivity extends BridgeActivity {
         // back to a no-op when this interface is absent.
         webView.addJavascriptInterface(new ScreenSecurity(), "AndroidScreenSecurity");
 
+        // window.AndroidVoiceService.setActive(true/false): the page calls it on
+        // joining and leaving a voice room, so the room keeps working behind
+        // other apps. See VoiceCallService.
+        webView.addJavascriptInterface(new VoiceServiceBridge(), "AndroidVoiceService");
+
         // Override WebChromeClient to auto-grant camera/mic requests from the page.
         // Android requires the runtime permissions to already be granted (handled below)
         // before the WebView can use them.
@@ -97,6 +103,48 @@ public class MainActivity extends BridgeActivity {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         // Permissions have been responded to — the WebView will retry getUserMedia
         // on the next call from the page.  No additional action needed here.
+    }
+
+    @Override
+    public void onDestroy() {
+        // The activity is gone for good: no room is left to keep alive.
+        stopService(new Intent(this, VoiceCallService.class));
+        super.onDestroy();
+    }
+
+    /**
+     * JS bridge: window.AndroidVoiceService.setActive(true/false).
+     *
+     * Started while the app is on screen — Android refuses to start a
+     * microphone foreground service from the background — and stopped when the
+     * page leaves its voice room. The notification permission (Android 13+) is
+     * asked for here, the first time it is needed, not at launch.
+     */
+    public class VoiceServiceBridge {
+        @JavascriptInterface
+        public void setActive(final boolean active) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    Intent intent = new Intent(MainActivity.this, VoiceCallService.class);
+                    if (!active) {
+                        stopService(intent);
+                        return;
+                    }
+                    if (Build.VERSION.SDK_INT >= 33
+                            && ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.POST_NOTIFICATIONS)
+                                != PackageManager.PERMISSION_GRANTED) {
+                        ActivityCompat.requestPermissions(MainActivity.this,
+                            new String[] { Manifest.permission.POST_NOTIFICATIONS }, PERMISSION_REQUEST_CODE + 1);
+                    }
+                    try {
+                        ContextCompat.startForegroundService(MainActivity.this, intent);
+                    } catch (RuntimeException e) {
+                        // Not allowed right now; voice still works while on screen.
+                    }
+                }
+            });
+        }
     }
 
     /**

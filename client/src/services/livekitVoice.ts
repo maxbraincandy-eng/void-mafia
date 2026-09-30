@@ -21,6 +21,7 @@ import { emitWithAck } from '@/lib/socket';
 import { tNow } from '@/store/langStore';
 import { applyVoiceMask, resetVoiceMask, type VoiceMaskPreset } from '@/lib/voiceMask';
 import { prepareCapture, prepareAmbient, setCaptureLive } from '@/lib/voiceCapture';
+import { setNativeVoiceActive } from '@/lib/nativeVoice';
 import type { Disguise } from '@/lib/voiceDisguise';
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL ?? '';
@@ -336,7 +337,7 @@ export async function joinLiveKitVoice(identity: string, roomId: string, opts: J
   if (currentRoomId === roomId && room && room.state !== ConnectionState.Disconnected) {
     return; // already in this room
   }
-  await leaveLiveKitVoice();
+  await leaveLiveKitVoice({ switching: true });
 
   const seq = ++joinSeq;
   const alive = opts.alive !== false;
@@ -363,6 +364,9 @@ export async function joinLiveKitVoice(identity: string, roomId: string, opts: J
 
     room = r;
     patch({ status: mapStatus(r.state), participants: r.numParticipants, audioBlocked: !r.canPlaybackAudio });
+    // Android: keep the room running behind other apps. Started here, on
+    // screen, because Android will not start it once the app is behind.
+    setNativeVoiceActive(true);
 
     // Alive players publish their mic on by default; dead players stay muted.
     if (alive) {
@@ -452,7 +456,7 @@ export async function setLiveKitMic(enabled: boolean): Promise<void> {
       _micPermRetry = true;
       const rid = currentRoomId, id = room.localParticipant.identity, wasDead = state.dead;
       try {
-        await leaveLiveKitVoice();
+        await leaveLiveKitVoice({ switching: true });
         if (rid) await joinLiveKitVoice(id, rid, { alive: !wasDead });
         await new Promise(r => setTimeout(r, 250));
         if (room) { prepareCapture(); await room.localParticipant.setMicrophoneEnabled(true); patch({ micEnabled: true, error: null }); }
@@ -589,8 +593,15 @@ export async function setLiveKitDead(dead: boolean): Promise<void> {
   }
 }
 
-/** Leave the current room and clean up all remote audio elements. */
-export async function leaveLiveKitVoice(): Promise<void> {
+/**
+ * Leave the current room and clean up all remote audio elements.
+ *
+ * `switching` is set by a join moving to another room (the mafia's night
+ * room and back): the background service and the audio session stay as they
+ * are, because the app may be behind other apps at that moment and Android
+ * would not let the service start again.
+ */
+export async function leaveLiveKitVoice(opts: { switching?: boolean } = {}): Promise<void> {
   if (micLive) { setCaptureLive(false); micLive = false; }
   joinSeq++; // cancel any in-flight join
   currentRoomId = null;
@@ -601,8 +612,11 @@ export async function leaveLiveKitVoice(): Promise<void> {
   // the next join attaches a fresh one instead of retuning a dead graph.
   resetVoiceMask();
   if (r) { try { await r.disconnect(); } catch { /* ignore */ } }
-  // Out of the room: give the other apps their audio back. Only when no new
-  // join started meanwhile — switching rooms calls this on the way through.
-  if (currentRoomId === null) prepareAmbient();
+  // Out of voice altogether: give the other apps their audio back and let
+  // Android drop the background service.
+  if (!opts.switching) {
+    prepareAmbient();
+    setNativeVoiceActive(false);
+  }
   patch({ ...INITIAL });
 }
