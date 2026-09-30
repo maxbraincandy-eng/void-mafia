@@ -25,4 +25,14 @@ export declare function removeFromChannel(socketId: string, channel: VoiceChanne
     roomId: string;
     remaining: VoiceMember[];
 } | null;
+/**
+ * The private LiveKit room this player may be in right now, or null.
+ *
+ * Mirrors the client's night switch (useLivekitVoice): living mafia talk in
+ * `${roomId}::mafia` during planning night, night and the don-mode kill step;
+ * living yakuza in `${roomId}::yakuza` at night. The name is built here from
+ * the server's own view of the game — never taken from the request — because
+ * the open token route refuses private rooms, and this is the only way in.
+ */
+export declare function factionVoiceRoom(room: Room, playerId: string): string | null;
 //# sourceMappingURL=voiceService.d.ts.map

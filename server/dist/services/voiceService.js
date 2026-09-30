@@ -148,4 +148,26 @@ export function removeFromChannel(socketId, channel) {
     }
     return null;
 }
+/**
+ * The private LiveKit room this player may be in right now, or null.
+ *
+ * Mirrors the client's night switch (useLivekitVoice): living mafia talk in
+ * `${roomId}::mafia` during planning night, night and the don-mode kill step;
+ * living yakuza in `${roomId}::yakuza` at night. The name is built here from
+ * the server's own view of the game — never taken from the request — because
+ * the open token route refuses private rooms, and this is the only way in.
+ */
+export function factionVoiceRoom(room, playerId) {
+    const player = room.players.get(playerId);
+    if (!player || !player.isAlive || player.isSpectator || !player.isConnected)
+        return null;
+    const phase = room.phase;
+    if (player.team === 'mafia'
+        && (phase === 'planning_night' || phase === 'night' || phase === 'mafia_kill')) {
+        return `${room.id}::mafia`;
+    }
+    if (player.team === 'yakuza' && phase === 'night')
+        return `${room.id}::yakuza`;
+    return null;
+}
 //# sourceMappingURL=voiceService.js.map

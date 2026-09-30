@@ -17,6 +17,7 @@ import {
   type RemoteTrack, type RemoteTrackPublication, type RemoteParticipant,
 } from 'livekit-client';
 import { roomOptionsFor } from '@/lib/livekitRoomOptions';
+import { emitWithAck } from '@/lib/socket';
 import { tNow } from '@/store/langStore';
 import { applyVoiceMask, resetVoiceMask, type VoiceMaskPreset } from '@/lib/voiceMask';
 import { prepareCapture, setCaptureLive } from '@/lib/voiceCapture';
@@ -301,6 +302,17 @@ export async function fetchLiveKitEnabled(): Promise<boolean> {
 }
 
 async function fetchToken(identity: string, roomId: string, canPublish: boolean): Promise<{ token: string; url: string }> {
+  // A faction's night room (`id::mafia`, `id::yakuza`) is refused by the open
+  // route — anyone could name it there. The game socket issues it instead,
+  // after checking this player's team, life and phase on the server.
+  if (roomId.includes(':')) {
+    const res = await emitWithAck<unknown, { ok: boolean; data?: { token: string; url: string; room: string }; error?: string }>(
+      'voice:livekit_token', {},
+    );
+    if (!res?.ok || !res.data?.token || !res.data.url) throw new Error(res?.error || 'Failed to get voice token.');
+    if (res.data.room !== roomId) throw new Error('Voice room changed; retrying.');
+    return { token: res.data.token, url: res.data.url };
+  }
   const qs = new URLSearchParams({ identity, room: roomId, canPublish: canPublish ? '1' : '0' });
   const res = await fetch(`${SERVER_URL}/livekit/token?${qs.toString()}`);
   const json = await res.json().catch(() => ({}));

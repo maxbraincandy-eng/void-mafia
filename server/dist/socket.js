@@ -75,7 +75,8 @@ function marsUploadRateOk(profileId) {
     return true;
 }
 import { canDo, banPlayer, unbanPlayer, mutePlayer, unmutePlayer, warnPlayer, createReport, getReports, resolveReport, getLogs, getModPlayers, getBannedPlayers, logKick, addModNote, freezeAccount, unfreezeAccount, renamePlayer, getPlayerDetail, assignReport, getDashboardDbStats, addModLog, } from './services/moderationService.js';
-import { canJoin as voiceCanJoin, canTransmitVoice, join as voiceJoin, leave as voiceLeave, getMembers as voiceGetMembers, getSharedChannel as voiceGetSharedChannel, removeFromChannel as voiceRemoveFromChannel, } from './services/voiceService.js';
+import { canJoin as voiceCanJoin, canTransmitVoice, join as voiceJoin, leave as voiceLeave, getMembers as voiceGetMembers, getSharedChannel as voiceGetSharedChannel, removeFromChannel as voiceRemoveFromChannel, factionVoiceRoom, } from './services/voiceService.js';
+import { createAccessToken, isLiveKitEnabled } from './services/livekitService.js';
 import { sql } from './db.js';
 import bcrypt from 'bcryptjs';
 import { sendPushToUser } from './pushService.js';
@@ -5728,6 +5729,27 @@ export function attachSocketHandlers(io) {
                     socket.emit('voice:force-mute', { reason: d.reason ?? 'Listen only.' });
             }
             catch { /* not in a room */ }
+        });
+        // ── Voice: LiveKit token for the mafia / yakuza night room ─────────
+        // The open token route refuses private rooms, so without this the mafia's
+        // night switch was refused and they heard nobody. The room is derived from
+        // the server's view of the game; the request cannot name one.
+        socket.on('voice:livekit_token', async (_data, cb) => {
+            const reply = typeof cb === 'function' ? cb : () => { };
+            try {
+                if (!isLiveKitEnabled())
+                    return reply(err('Voice is off.'));
+                const room = getRoomFromSocket(socket);
+                const playerId = socket.data.playerId;
+                const faction = playerId ? factionVoiceRoom(room, playerId) : null;
+                if (!playerId || !faction)
+                    return reply(err('This channel is closed to you.'));
+                const { token, url } = await createAccessToken(playerId, faction, { canPublish: true, ttlSeconds: 30 * 60 });
+                reply(ok({ token, url, room: faction }));
+            }
+            catch (e) {
+                reply(err(e?.message ?? 'Could not issue a voice token.'));
+            }
         });
         // ── Voice: Relay Offer ──────────────────────────────────────────
         socket.on('voice:offer', ({ to, sdp }, cb) => {
