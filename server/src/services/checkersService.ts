@@ -349,12 +349,27 @@ export function getOpenMatches(): CheckersMatch[] {
 }
 
 export function getMatchForSocket(socketId: string): CheckersMatch | undefined {
+  // A finished match lingers for ten minutes with the same socket ids, and after
+  // a rematch it sits earlier in the map than the live one. Returning it first
+  // meant a disconnect "left" the dead match and the live one stayed open forever.
+  let finished: CheckersMatch | undefined;
   for (const m of matches.values()) {
-    if (m.red.socketId === socketId) return m;
-    if (m.black?.socketId === socketId) return m;
-    if (m.spectatorSocketIds.includes(socketId)) return m;
+    const inIt = m.red.socketId === socketId
+      || m.black?.socketId === socketId
+      || m.spectatorSocketIds.includes(socketId);
+    if (!inIt) continue;
+    if (m.status !== 'finished') return m;
+    finished ??= m;
   }
-  return undefined;
+  return finished;
+}
+
+/** Unfinished matches with no player still connected. */
+export function getAbandonedMatches(isConnected: (socketId: string) => boolean): CheckersMatch[] {
+  return [...matches.values()].filter(m =>
+    m.status !== 'finished'
+    && !isConnected(m.red.socketId)
+    && !(m.black && isConnected(m.black.socketId)));
 }
 
 export function finishMatch(match: CheckersMatch, winner: PieceColor | null): void {

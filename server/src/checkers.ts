@@ -9,7 +9,7 @@ import {
 } from './types/index.js';
 import {
   createMatch, getMatch, getMatchByCode, getMatchForSocket, getOpenMatches,
-  applyMove, finishMatch,
+  applyMove, finishMatch, getAbandonedMatches,
   type CheckersMatch, type PieceColor, type CheckersChatMsg,
 } from './services/checkersService.js';
 import { award } from './services/legacyService.js';
@@ -71,8 +71,29 @@ function broadcastState(io: AppServer, match: CheckersMatch): void {
   io.to(CHECKERS_ROOM(match.id)).emit('checkers:state' as any, toPublic(match));
 }
 
+// ── Abandoned-match sweep ──────────────────────────────────────────────
+// A match both players have left must not sit in the lobby list for ever.
+// Leave and disconnect normally close it; this catches whatever path does not.
+const SWEEP_MS = 60_000;
+let sweepStarted = false;
+
+export function sweepAbandonedCheckers(io: AppServer): number {
+  const gone = getAbandonedMatches(id => io.sockets.sockets.has(id));
+  for (const m of gone) {
+    finishMatch(m, null);
+    const rk = CHECKERS_ROOM(m.id);
+    io.in(rk).socketsLeave(rk);
+  }
+  if (gone.length) io.emit('checkers:list_update' as any, getOpenMatches().map(toListItem));
+  return gone.length;
+}
+
 // ── Handler Registration ───────────────────────────────────────────────
 export function registerCheckersHandlers(io: AppServer, socket: AppSocket): void {
+  if (!sweepStarted) {
+    sweepStarted = true;
+    setInterval(() => sweepAbandonedCheckers(io), SWEEP_MS).unref?.();
+  }
 
   // ── List open matches ──────────────────────────────────────────────
   socket.on('checkers:list' as any, (cb: (res: any) => void) => {
@@ -416,6 +437,7 @@ function handleCheckersLeave(io: AppServer, socketId: string, match: CheckersMat
     if (winnerColor) {
       finishMatch(match, winnerColor);
       broadcastState(io, match);
+      io.emit('checkers:list_update' as any, getOpenMatches().map(toListItem));
     }
   } else if (match.status === 'waiting' && match.red.socketId === socketId) {
     // Creator left before anyone joined — remove the match.

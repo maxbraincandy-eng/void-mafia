@@ -157,7 +157,8 @@ export function CheckersGame() {
       {/* Main content */}
       <div className="flex-1 overflow-hidden flex flex-col relative">
         {/* Player info bar — always shows "me" on left, opponent on right */}
-        <div className="flex-shrink-0 flex items-center justify-between px-4 py-2 gap-2">
+        <div className="flex-shrink-0 px-4 py-2">
+        <div className="flex items-center justify-between gap-3">
           <PlayerBadge
             name={leftPlayer?.name ?? '?'}
             color={leftColor}
@@ -166,16 +167,6 @@ export function CheckersGame() {
             isMe={isPlayer}
             isSpeaking={leftSpeaking}
           />
-          <div className="text-center flex-shrink-0">
-            <p className="font-mono text-[12px] uppercase tracking-widest" style={{ color: turnColor }}>
-              {turnLabel}
-            </p>
-            {captureRequired && (
-              <p className="font-mono text-[12px] uppercase tracking-wider mt-0.5" style={{ color: '#ff6622' }}>
-                {t.games.checkers.captureRequired}
-              </p>
-            )}
-          </div>
           <PlayerBadge
             name={rightPlayer?.name ?? '?'}
             color={rightColor}
@@ -185,6 +176,19 @@ export function CheckersGame() {
             isSpeaking={rightSpeaking}
             reversed
           />
+        </div>
+        {/* Its own line: the Georgian turn label is long, and beside the
+            badges it squeezed the left name down to one letter per line. */}
+        <div className="text-center mt-1.5">
+          <p className="font-mono text-[11px] uppercase tracking-wider" style={{ color: turnColor }}>
+            {turnLabel}
+          </p>
+          {captureRequired && (
+            <p className="font-mono text-[11px] uppercase tracking-wider mt-0.5" style={{ color: '#ff6622' }}>
+              {t.games.checkers.captureRequired}
+            </p>
+          )}
+        </div>
         </div>
 
         {/* Voice — LiveKit (open mic, all in the match) when enabled, else the
@@ -325,7 +329,7 @@ function PlayerBadge({
 }) {
   const c = BADGE_COLORS[color];
   return (
-    <div className={`flex items-center gap-2 min-w-0 ${reversed ? 'flex-row-reverse text-right' : ''}`}>
+    <div className={`flex-1 basis-0 flex items-center gap-2 min-w-0 ${reversed ? 'flex-row-reverse text-right' : ''}`}>
       <div style={{ position: 'relative', width: 28, height: 28, flexShrink: 0 }}>
         <div style={{
           width: 28, height: 28, borderRadius: '50%',
@@ -349,7 +353,7 @@ function PlayerBadge({
         <p className="font-mono text-xs text-white truncate">
           {name}{isMe ? ' ✦' : ''}
         </p>
-        <p className="font-mono text-[12px] text-white/30">
+        <p className="font-mono text-[12px] text-white/30 whitespace-nowrap">
           {isSpeaking ? '🎙' : ''}{captures} cap.
         </p>
       </div>
