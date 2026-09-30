@@ -1,5 +1,6 @@
 import { ok, err, } from './types/index.js';
 import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch, startMatch, toggleLights, move, kill, report, vote, endMeeting, rematch, sendChat, disconnectSocket, getSafeState, sabotage, emergency, hackDoor, } from './services/blackoutService.js';
+import { trackCompletion, ADAPTERS } from './services/gameProgressService.js';
 const ROOM = (id) => `blackout:${id}`;
 function userId(socket) {
     return socket.data.profileId ?? socket.id;
@@ -8,6 +9,7 @@ function broadcastState(io, matchId) {
     const m = getMatch(matchId);
     if (!m)
         return;
+    trackCompletion(ADAPTERS.blackout, m);
     for (const player of m.players) {
         const s = io.sockets.sockets.get(player.socketId);
         if (s)

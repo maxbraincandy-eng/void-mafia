@@ -11,6 +11,7 @@ import {
   resumeForUser,
 } from './services/aliasService.js';
 import { emitToPlayers } from './lib/liveSocket.js';
+import { trackCompletion, ADAPTERS } from './services/gameProgressService.js';
 
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -21,6 +22,7 @@ function userId(socket: AppSocket): string { return socket.data.profileId ?? soc
 function broadcastState(io: AppServer, matchId: string): void {
   const m = getMatch(matchId);
   if (!m) return;
+  trackCompletion(ADAPTERS.alias, m);
   // Resolved by identity so a reconnected player keeps receiving state — see
   // lib/liveSocket.
   emitToPlayers(io, m.players, 'alias:state', p => getSafeState(m, p.userId), (p, sid) => {

@@ -3,12 +3,14 @@ import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMat
 import { emitToPlayers } from './lib/liveSocket.js';
 import { voiceJoin as spyVoiceJoin, voiceLeave as spyVoiceLeave, voiceGetMatchId as spyVoiceGetMatchId, } from './services/spyfallVoiceService.js';
 import { buildIceConfig } from './lib/iceConfig.js';
+import { trackCompletion, ADAPTERS } from './services/gameProgressService.js';
 const ROOM = (id) => `spyfall:${id}`;
 function userId(socket) { return socket.data.profileId ?? socket.id; }
 function broadcastState(io, matchId) {
     const m = getMatch(matchId);
     if (!m)
         return;
+    trackCompletion(ADAPTERS.spyfall, m);
     // Resolved by identity so a reconnected player keeps receiving state — see
     // lib/liveSocket.
     emitToPlayers(io, m.players, 'spy:state', p => getSafeState(m, p.userId), (p, sid) => {

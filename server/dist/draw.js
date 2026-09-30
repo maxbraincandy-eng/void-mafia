@@ -1,12 +1,14 @@
 import { ok, err, } from './types/index.js';
 import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch, dissolveMatch, startMatch, chooseWord, autoChoose, guess, endTurn, nextTurn, rematch, disconnectSocket, getSafeState, addSeg, clearCanvas, resumeForUser, } from './services/drawService.js';
 import { emitToPlayers } from './lib/liveSocket.js';
+import { trackCompletion, ADAPTERS } from './services/gameProgressService.js';
 const ROOM = (id) => `draw:${id}`;
 function userId(socket) { return socket.data.profileId ?? socket.id; }
 function broadcastState(io, matchId) {
     const m = getMatch(matchId);
     if (!m)
         return;
+    trackCompletion(ADAPTERS.draw, m);
     // Resolved by identity so a reconnected player keeps receiving state — see
     // lib/liveSocket.
     emitToPlayers(io, m.players, 'draw:state', p => getSafeState(m, p.userId), (p, sid) => {

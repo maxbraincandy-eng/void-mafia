@@ -18,6 +18,7 @@ import {
   voiceGetMatchId as unoVoiceGetMatchId,
 } from './services/unoVoiceService.js';
 import { buildIceConfig } from './lib/iceConfig.js';
+import { trackCompletion, ADAPTERS } from './services/gameProgressService.js';
 
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -31,6 +32,7 @@ function userId(socket: AppSocket): string {
 function broadcastState(io: AppServer, matchId: string): void {
   const m = getMatch(matchId);
   if (!m) return;
+  trackCompletion(ADAPTERS.uno, m);
   // Send personalized state to each player
   for (const player of m.players) {
     const playerSockets = [...io.sockets.sockets.values()].filter(s => s.id === player.socketId);

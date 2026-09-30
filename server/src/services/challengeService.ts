@@ -24,7 +24,7 @@ const SURVIVAL_QUEST: ChallengeCheck = {
 };
 
 // Category 3 — Volume quest (fixed daily)
-const VOLUME_QUEST: ChallengeCheck = {
+export const VOLUME_QUEST: ChallengeCheck = {
   id: 'play_3', description: 'Play 3 games today', xpReward: 100, targetCount: 3,
   check: () => true,
 };
@@ -46,13 +46,16 @@ export function getTodayChallenge(): Omit<ChallengeCheck, 'check'> {
  * The primary key is (player, challenge, day), so a single `id` row could only
  * ever be written once — which left "play 3 games" stuck at 1/3 for everybody.
  */
-const stepId = (id: string, n: number) => `${id}:${n}`;
+export const stepId = (id: string, n: number) => `${id}:${n}`;
+
+/** Escaped for LIKE, so `play_3` matches only itself and its steps. */
+export const stepPattern = (id: string) => id.replace(/[\\%_]/g, '\\$&') + ':%';
 
 async function questProgress(profileId: string, id: string, targetCount: number): Promise<{ progress: number; completed: boolean }> {
   const [row] = await sql`
     SELECT COUNT(*) as c FROM daily_completions
     WHERE player_id = ${profileId} AND date_key = ${todayKey()}
-      AND (challenge_id = ${id} OR challenge_id LIKE ${id.replace(/[\\%_]/g, '\\$&') + ':%'})
+      AND (challenge_id = ${id} OR challenge_id LIKE ${stepPattern(id)})
   ` as any[];
   const progress = Math.min(targetCount, Number(row?.c ?? 0));
   return { progress, completed: progress >= targetCount };

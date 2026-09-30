@@ -2,6 +2,7 @@ import { ok, err, } from './types/index.js';
 import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, spectateMatch, leaveMatch, startMatch, playCard, drawCard, callUno, sendChat, disconnectSocket, rematch, getSafeState, } from './services/unoService.js';
 import { voiceJoin as unoVoiceJoin, voiceLeave as unoVoiceLeave, voiceGetMatchId as unoVoiceGetMatchId, } from './services/unoVoiceService.js';
 import { buildIceConfig } from './lib/iceConfig.js';
+import { trackCompletion, ADAPTERS } from './services/gameProgressService.js';
 const UNO_ROOM = (id) => `uno:${id}`;
 function userId(socket) {
     return socket.data.profileId ?? socket.id;
@@ -10,6 +11,7 @@ function broadcastState(io, matchId) {
     const m = getMatch(matchId);
     if (!m)
         return;
+    trackCompletion(ADAPTERS.uno, m);
     // Send personalized state to each player
     for (const player of m.players) {
         const playerSockets = [...io.sockets.sockets.values()].filter(s => s.id === player.socketId);

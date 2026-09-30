@@ -595,13 +595,22 @@ export function getLevel(xp: number): number {
 }
 
 export async function addXP(profileId: string, amount: number): Promise<{ newXP: number; newLevel: number; leveledUp: boolean }> {
-  const [row] = await sql`SELECT xp, level FROM players WHERE id = ${profileId}` as any[];
+  // Increment in the database, not read-then-write: two awards landing together
+  // used to both read the same total, and the second write erased the first.
+  const [row] = await sql`
+    UPDATE players SET xp = xp + ${amount} WHERE id = ${profileId}
+    RETURNING xp, level
+  ` as any[];
   if (!row) return { newXP: 0, newLevel: 1, leveledUp: false };
-  const newXP = Number(row.xp ?? 0) + amount;
+  const newXP = Number(row.xp ?? 0);
+  const oldLevel = Number(row.level ?? 1);
   const newLevel = getLevel(newXP);
-  await sql`UPDATE players SET xp = ${newXP}, level = ${newLevel} WHERE id = ${profileId}`;
+  // Only while the total is still ours; a later award sets its own level.
+  if (newLevel !== oldLevel) {
+    await sql`UPDATE players SET level = ${newLevel} WHERE id = ${profileId} AND xp = ${newXP}`;
+  }
   await checkLevelCosmetics(profileId, newLevel);
-  return { newXP, newLevel, leveledUp: newLevel > Number(row.level ?? 1) };
+  return { newXP, newLevel, leveledUp: newLevel > oldLevel };
 }
 
 export async function getCosmetics(profileId: string): Promise<PlayerCosmetics> {
@@ -730,7 +739,7 @@ export async function grantStarterCosmetics(profileId: string): Promise<void> {
   }
 }
 
-async function checkLevelCosmetics(profileId: string, level: number): Promise<void> {
+export async function checkLevelCosmetics(profileId: string, level: number): Promise<void> {
   const unlocks: Record<number, string[]> = {
     2:   ['name_cyan',       'title_night_owl'],
     3:   ['name_pink',       'frame_bronze',       'skin_neon',       'title_city_sheriff'],

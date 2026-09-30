@@ -13,6 +13,7 @@ import {
   endMeeting, rematch, sendChat, disconnectSocket, getSafeState,
   sabotage, emergency, hackDoor,
 } from './services/blackoutService.js';
+import { trackCompletion, ADAPTERS } from './services/gameProgressService.js';
 
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -26,6 +27,7 @@ function userId(socket: AppSocket): string {
 function broadcastState(io: AppServer, matchId: string): void {
   const m = getMatch(matchId);
   if (!m) return;
+  trackCompletion(ADAPTERS.blackout, m);
   for (const player of m.players) {
     const s = io.sockets.sockets.get(player.socketId);
     if (s) s.emit('blackout:state' as any, getSafeState(m, player.userId));

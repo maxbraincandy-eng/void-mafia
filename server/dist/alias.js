@@ -1,12 +1,14 @@
 import { ok, err, } from './types/index.js';
 import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, switchTeam, leaveMatch, dissolveMatch, startMatch, startTurn, markWord, endTurn, rematch, disconnectSocket, getSafeState, resumeForUser, } from './services/aliasService.js';
 import { emitToPlayers } from './lib/liveSocket.js';
+import { trackCompletion, ADAPTERS } from './services/gameProgressService.js';
 const ROOM = (id) => `alias:${id}`;
 function userId(socket) { return socket.data.profileId ?? socket.id; }
 function broadcastState(io, matchId) {
     const m = getMatch(matchId);
     if (!m)
         return;
+    trackCompletion(ADAPTERS.alias, m);
     // Resolved by identity so a reconnected player keeps receiving state — see
     // lib/liveSocket.
     emitToPlayers(io, m.players, 'alias:state', p => getSafeState(m, p.userId), (p, sid) => {

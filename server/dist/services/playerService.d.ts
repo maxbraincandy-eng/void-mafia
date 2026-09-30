@@ -71,6 +71,7 @@ export declare function invalidateVerifiedCache(): void;
 export declare function getNameColors(profileIds: string[]): Promise<Record<string, string>>;
 export declare function equipCosmetic(profileId: string, type: 'name_color' | 'frame' | 'title' | 'role_skin' | 'wallpaper' | 'border', itemId: string | null): Promise<PlayerCosmetics>;
 export declare function grantStarterCosmetics(profileId: string): Promise<void>;
+export declare function checkLevelCosmetics(profileId: string, level: number): Promise<void>;
 export declare function updateAvatarUrl(uid: string, url: string | null): Promise<void>;
 export declare function updateUsername(uid: string, newName: string): Promise<void>;
 //# sourceMappingURL=playerService.d.ts.map

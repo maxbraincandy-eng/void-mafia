@@ -21,6 +21,7 @@ import {
 } from './services/whoSaidService.js';
 import { READ_SECONDS, VOTE_SECONDS } from './services/whoSaidPhrases.js';
 import { emitToPlayers } from './lib/liveSocket.js';
+import { trackCompletion, ADAPTERS } from './services/gameProgressService.js';
 
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -31,6 +32,7 @@ const uidOf = (s: AppSocket) => String(s.data.profileId ?? s.id);
 function broadcastState(io: AppServer, matchId: string): void {
   const m = getMatch(matchId);
   if (!m) return;
+  trackCompletion(ADAPTERS.whosaid, m);
   emitToPlayers(io, recipients(m), 'ws:state' as any, p => getSafeState(m, p.userId), (p, sid) => {
     p.socketId = sid;
     p.connected = true;

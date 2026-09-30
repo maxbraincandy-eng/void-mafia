@@ -12,6 +12,7 @@ import {
   disconnectSocket, getSafeState, addSeg, clearCanvas, resumeForUser, type DrawSeg,
 } from './services/drawService.js';
 import { emitToPlayers } from './lib/liveSocket.js';
+import { trackCompletion, ADAPTERS } from './services/gameProgressService.js';
 
 type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 type AppServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -22,6 +23,7 @@ function userId(socket: AppSocket): string { return socket.data.profileId ?? soc
 function broadcastState(io: AppServer, matchId: string): void {
   const m = getMatch(matchId);
   if (!m) return;
+  trackCompletion(ADAPTERS.draw, m);
   // Resolved by identity so a reconnected player keeps receiving state — see
   // lib/liveSocket.
   emitToPlayers(io, m.players, 'draw:state', p => getSafeState(m, p.userId), (p, sid) => {

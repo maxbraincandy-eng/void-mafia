@@ -1,12 +1,14 @@
 import { ok, err, } from './types/index.js';
 import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch, dissolveMatch, startMatch, submitBluff, clearRejected, submitGuess, forcePhaseEnd, nextRound, rematch, disconnectSocket, getSafeState, resumeForUser, } from './services/liesService.js';
 import { emitToPlayers } from './lib/liveSocket.js';
+import { trackCompletion, ADAPTERS } from './services/gameProgressService.js';
 const ROOM = (id) => `lies:${id}`;
 function userId(socket) { return socket.data.profileId ?? socket.id; }
 function broadcastState(io, matchId) {
     const m = getMatch(matchId);
     if (!m)
         return;
+    trackCompletion(ADAPTERS.lies, m);
     // By identity, not by the socket id the player joined with: a reconnected
     // phone has a new socket, and emitting into the old one is how a player ends
     // up frozen mid-round while everyone can still hear them.

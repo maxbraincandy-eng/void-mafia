@@ -13,12 +13,14 @@ import { ok, err, } from './types/index.js';
 import { createMatch, getMatch, getMatchByCode, listMatches, joinMatch, leaveMatch, startMatch, beginVoting, castVote, forceFinishRound, nextRound, rematch, disconnectSocket, resumeForUser, getSafeState, recipients, MIN_PLAYERS, } from './services/whoSaidService.js';
 import { READ_SECONDS, VOTE_SECONDS } from './services/whoSaidPhrases.js';
 import { emitToPlayers } from './lib/liveSocket.js';
+import { trackCompletion, ADAPTERS } from './services/gameProgressService.js';
 const ROOM = (id) => `whosaid:${id}`;
 const uidOf = (s) => String(s.data.profileId ?? s.id);
 function broadcastState(io, matchId) {
     const m = getMatch(matchId);
     if (!m)
         return;
+    trackCompletion(ADAPTERS.whosaid, m);
     emitToPlayers(io, recipients(m), 'ws:state', p => getSafeState(m, p.userId), (p, sid) => {
         p.socketId = sid;
         p.connected = true;
