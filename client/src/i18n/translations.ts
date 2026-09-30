@@ -29,9 +29,6 @@ export const TRANSLATIONS = {
       signInBtn: 'Sign In',
       registerLink: 'Register',
       signInLink: 'Sign In',
-      downloadAndroid: 'Download for Android',
-      iosSoon: 'iOS coming soon',
-      iosFlight: 'TestFlight planned',
     },
     nav: {
       rooms: 'Mafia',
@@ -2234,9 +2231,6 @@ export const TRANSLATIONS = {
       signInBtn: 'შესვლა',
       registerLink: 'რეგისტრაცია',
       signInLink: 'შესვლა',
-      downloadAndroid: 'Android-ზე ჩამოტვირთვა',
-      iosSoon: 'iOS — მალე',
-      iosFlight: 'TestFlight იგეგმება',
     },
     nav: {
       rooms: 'მაფია',
@@ -4438,9 +4432,6 @@ export const TRANSLATIONS = {
       signInBtn: 'Войти',
       registerLink: 'Регистрация',
       signInLink: 'Вход',
-      downloadAndroid: 'Скачать для Android',
-      iosSoon: 'iOS скоро',
-      iosFlight: 'TestFlight запланирован',
     },
     nav: {
       rooms: 'Мафия',
