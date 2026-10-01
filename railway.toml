@@ -1,21 +1,17 @@
 [build]
 buildCommand = "echo 'using pre-built dist'"
 
-# Build on every push, always.
+# No watch patterns, on purpose.
 #
-# Railway lets a service carry "watch paths" set in its dashboard, and when a
-# push does not touch them it answers `no changes detected in watch paths,
-# build will skip` and keeps the old container running. The CI job still
-# uploads happily, so nothing looks wrong until you notice the live build
-# number has stopped moving — which is exactly what happened to v592: both
-# services skipped, production stayed on v591, and the only clue was one line
-# in the middle of the deploy log.
-#
-# Every push here is meant to deploy — dist/ is committed, so a change to any
-# part of the repo can be a change to what is served. Declaring the pattern in
-# the file makes that a property of the repository rather than a setting
-# someone has to remember is there.
-watchPatterns = ["**"]
+# Railway skips a build when a push touches none of a service's watch paths
+# (`no changes detected in watch paths, build will skip`) and keeps the old
+# container running. This file used to declare `watchPatterns = ["**"]` to
+# rule that out. On 2026-10-01 Railway's builder v3 started answering "no
+# changes" for this service on every upload — three times in a row, with
+# server/dist really changed — while the client service, whose railway.toml
+# declares no patterns at all, kept deploying. With no patterns there is
+# nothing to skip on: every upload builds. The dashboard's Watch Paths field
+# for the server service must stay empty for the same reason.
 
 [deploy]
 startCommand = "NODE_ENV=production node server/dist/index.js"
