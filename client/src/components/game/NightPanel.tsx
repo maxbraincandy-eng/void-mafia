@@ -5,10 +5,11 @@ import { useGameStore } from '@/store/gameStore';
 import { useT } from '@/store/langStore';
 import { PlayerList } from './PlayerList';
 import { Button } from '@/components/ui/Button';
+import { isFullMoon } from '@/lib/halloween';
 
 const WAKE_ROLES = new Set<RoleKey>([
   'mafia', 'don', 'sheriff', 'doctor', 'bodyguard', 'maniac', 'vigilante',
-  'escort', 'tracker', 'veteran', 'arsonist', 'cult_leader', 'yakuza', 'vampire',
+  'escort', 'tracker', 'veteran', 'arsonist', 'cult_leader', 'yakuza', 'vampire', 'werewolf',
 ]);
 
 export function NightPanel() {
@@ -55,6 +56,19 @@ export function NightPanel() {
       <div className="flex flex-col items-center justify-center h-64 gap-4">
         <div className="text-4xl animate-pulse">{isSpy ? '🕵️' : '😴'}</div>
         <p className="text-white/50 font-mono text-sm text-center whitespace-pre-line">{msg}</p>
+      </div>
+    );
+  }
+
+  // The werewolf is only a beast under the full moon; other nights it sleeps.
+  if (role === 'werewolf' && myPlayer.isAlive && !isFullMoon(room.day)) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-3">
+        <div className="text-4xl">🌒</div>
+        <p className="font-mono text-sm text-center" style={{ color: '#ffb347' }}>მთვარე ჯერ არ არის სავსე.</p>
+        <p className="text-white/45 font-mono text-xs text-center">
+          ამაღამ ადამიანი ხარ და გძინავს. სავსე მთვარე — {room.day + 1}-ე ღამეს.
+        </p>
       </div>
     );
   }

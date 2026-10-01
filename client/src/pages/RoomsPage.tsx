@@ -1058,11 +1058,14 @@ function HalloweenNote() {
   return (
     <div className="rounded-xl px-3.5 py-3 mb-3 flex items-start gap-3"
       style={{ background: 'linear-gradient(135deg, rgba(255,138,31,0.10), rgba(255,45,85,0.06))', border: '1px solid rgba(255,138,31,0.28)' }}>
-      <span className="text-[22px] leading-none pt-0.5" aria-hidden>🧛</span>
+      <span className="text-[22px] leading-none pt-0.5" aria-hidden>🎃</span>
       <div className="min-w-0">
         <p className="font-display font-bold text-[13.5px]" style={{ color: '#ffb066' }}>ჰელოუინის ღამეები · 1 ნოემბრამდე</p>
         <p className="font-mono text-[11px] text-white/60 leading-snug pt-0.5">
-          7+ მოთამაშიან ოთახებში შეიძლება ვამპირი შეგხვდეს: ღამით კბენს და უკვდავია — მხოლოდ დღის კენჭისყრა კლავს.
+          7+ მოთამაშიან ოთახებში შეიძლება შეგხვდეს 🧛 ვამპირი — ღამით უკვდავი — ან 🐺 მაქცია, რომელიც სავსე მთვარეზე გლეჯს.
+        </p>
+        <p className="font-mono text-[11px] leading-snug pt-1" style={{ color: '#ffb066cc' }}>
+          ერთი თამაში ბოლომდე — და ჰელოუინის ჩარჩო შენია.
         </p>
       </div>
     </div>

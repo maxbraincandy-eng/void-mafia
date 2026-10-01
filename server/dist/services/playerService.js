@@ -695,6 +695,19 @@ export async function grantStarterCosmetics(profileId) {
         await sql `UPDATE players SET cosmetics = ${JSON.stringify(cosmetics)} WHERE id = ${profileId}`;
     }
 }
+/**
+ * Unlock one cosmetic item. True when it was new — so the caller can say so —
+ * and false when the player already had it, which makes it safe to call at the
+ * end of every game.
+ */
+export async function grantCosmeticItem(profileId, itemId) {
+    const cosmetics = await getCosmetics(profileId);
+    if (cosmetics.unlockedItems.includes(itemId))
+        return false;
+    cosmetics.unlockedItems.push(itemId);
+    await sql `UPDATE players SET cosmetics = ${JSON.stringify(cosmetics)} WHERE id = ${profileId}`;
+    return true;
+}
 export async function checkLevelCosmetics(profileId, level) {
     const unlocks = {
         2: ['name_cyan', 'title_night_owl'],

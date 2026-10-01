@@ -38,7 +38,8 @@ export type RoleKey =
   | 'mayor'
   | 'yakuza'
   | 'shogun'
-  | 'vampire';
+  | 'vampire'
+  | 'werewolf';
 
 export type Team = 'mafia' | 'town' | 'neutral' | 'cult' | 'yakuza';
 export type TieRule = 'no_elimination' | 'random';
@@ -517,6 +518,8 @@ export interface GameSettings {
     shogun: number;
     /** Halloween only (see services/halloween.ts); ignored outside the season. */
     vampire?: number;
+    /** Halloween only, like the vampire. */
+    werewolf?: number;
   };
 }
 

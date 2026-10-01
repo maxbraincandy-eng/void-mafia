@@ -59,6 +59,12 @@ export function Avatar({ name, size = 'md', isAlive = true, isHost = false, src,
               : (initials || '?')
             }
           </div>
+          {frameDef.badge && (
+            <span aria-hidden className="absolute -top-1 -right-1 leading-none"
+              style={{ fontSize: size === 'xl' ? 16 : 11, filter: `drop-shadow(0 0 4px ${frameDef.glow})` }}>
+              {frameDef.badge}
+            </span>
+          )}
         </div>
       ) : (
         <div

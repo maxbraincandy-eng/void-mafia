@@ -2,7 +2,7 @@ import { Server, Socket } from 'socket.io';
 import { z } from 'zod';
 import { randomUUID } from 'crypto';
 import {
-  ServerToClientEvents, ClientToServerEvents, InterServerEvents, SocketData,
+  ServerToClientEvents, ClientToServerEvents, InterServerEvents, SocketData, AchievementEarned,
   RoomPublic, ChatMessage, ok, err, Room, Player, Phase, GameSettings,
   ReportReason, NightSummary, LiveRoomInfo, LiveRoomPlayer,
 } from './types/index.js';
@@ -201,7 +201,8 @@ function stickerRateOk(socketId: string): boolean {
   return true;
 }
 import { submitRun as noirSubmit, leaderboard as noirBoard, myStats as noirStats } from './services/noirService.js';
-import { getVerifiedMap, setVerifiedTier, listVerified } from './services/playerService.js';
+import { getVerifiedMap, setVerifiedTier, listVerified, grantCosmeticItem } from './services/playerService.js';
+import { isMafiaHalloween, HALLOWEEN_FRAME_ID } from './services/halloween.js';
 import {
   tierOf, limitsFor, perkList, recordProfileVisit, getProfileVisitors, getVisitorCounts,
   refreshVipSnapshot,
@@ -1221,6 +1222,7 @@ const NIGHT_DEATH: Partial<Record<string, string>> = {
   arsonist:   'The Arsonist burns out.',
   yakuza:     'The Yakuza enforcer falls. The clan is weakened.',
   shogun:     'A hidden blade is revealed too late.',
+  werewolf:   'The beast is slain before the full moon rises again.',
 };
 const VOTE_DEATH: Partial<Record<string, string>> = {
   jester:     '🃏 The Jester laughs from beyond the grave.',
@@ -1234,6 +1236,7 @@ const VOTE_DEATH: Partial<Record<string, string>> = {
   yakuza:     '⚖️ The Yakuza enforcer is unmasked and cast out.',
   shogun:     '⚖️ A hidden ally is exposed. The Yakuza loses its shadow.',
   vampire:    '🧛 A stake through the heart. The Vampire hunts no more.',
+  werewolf:   '🐺 A silver bullet. The Werewolf will not see another full moon.',
 };
 
 function nightDeathMsg(name: string, role: string | null, lastWill: string | null | undefined): string {
@@ -1677,15 +1680,32 @@ async function emitGameOver(io: AppServer, room: Room): Promise<void> {
         } catch { /* non-fatal */ }
       } catch { /* non-fatal */ }
 
+      // Halloween: finishing a game this season unlocks the frame, once.
+      // Announced through the achievement toast, together with any real
+      // achievements — two separate emits would have the second replace the first.
+      let seasonal: AchievementEarned[] = [];
+      if (isMafiaHalloween()) {
+        try {
+          if (await grantCosmeticItem(p.profileId, HALLOWEEN_FRAME_ID)) {
+            seasonal = [{
+              key: HALLOWEEN_FRAME_ID, name: 'ჰელოუინის ჩარჩო 🎃', icon: '🎃', rarity: 'epic',
+              description: 'პროფილის ჩარჩო — ჰელოუინი 2026. ჩაიცვი პროფილის კოსმეტიკაში.',
+            }];
+          }
+        } catch { /* non-fatal */ }
+      }
+
       // Check and award achievements
       try {
         const newKeys = await checkAchievements(room, p.id);
-        if (newKeys.length > 0 && p.socketId) {
-          const allAchs = await getPlayerAchievements(p.profileId);
-          const earned = allAchs.filter(a => newKeys.includes(a.key));
+        const allAchs = newKeys.length > 0 ? await getPlayerAchievements(p.profileId) : [];
+        const earned = [...allAchs.filter(a => newKeys.includes(a.key)), ...seasonal];
+        if (earned.length > 0 && p.socketId) {
           io.to(p.socketId).emit('achievement:earned', { achievements: earned });
         }
-      } catch { /* non-fatal */ }
+      } catch {
+        if (seasonal.length && p.socketId) io.to(p.socketId).emit('achievement:earned', { achievements: seasonal });
+      }
     }
   }
 

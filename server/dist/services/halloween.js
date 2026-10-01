@@ -11,4 +11,14 @@ export function isMafiaHalloween(now = Date.now()) {
     const month = d.getUTCMonth() + 1;
     return month === 10 || (month === 11 && d.getUTCDate() === 1);
 }
+/**
+ * The werewolf's night. Night k is played while room.day === k, so this is the
+ * second night, the fourth, and so on: never the first, which would let a
+ * werewolf strike before the town has had a single day.
+ */
+export function isFullMoon(day) {
+    return day >= 2 && day % 2 === 0;
+}
+/** The frame everyone who finishes a classic Mafia game this Halloween keeps. */
+export const HALLOWEEN_FRAME_ID = 'frame_halloween_2026';
 //# sourceMappingURL=halloween.js.map

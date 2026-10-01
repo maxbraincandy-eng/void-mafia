@@ -13,7 +13,7 @@ import { NIGHTISH } from './PhaseAtmosphere';
 const reducedMotion = () =>
   typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
-export function HalloweenLayer({ phase }: { phase: Phase }) {
+export function HalloweenLayer({ phase, fullMoon = false }: { phase: Phase; fullMoon?: boolean }) {
   const night = NIGHTISH.includes(phase);
   const still = reducedMotion();
 
@@ -41,16 +41,26 @@ export function HalloweenLayer({ phase }: { phase: Phase }) {
           {night && (
             <motion.div key="hw-night" className="absolute inset-0"
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 1.6 }}>
-              {/* A blood moon over the town. */}
-              <div className="absolute rounded-full"
-                style={{
-                  // Low and faint: the top of the screen is where the phase
-                  // text is, and the moon sits behind it.
-                  top: '38%', right: '5%', width: 58, height: 58,
-                  background: 'radial-gradient(circle at 38% 36%, #ffd2a6 0%, #ff8a3d 38%, #c2281a 78%, #7a0f0a 100%)',
-                  boxShadow: '0 0 50px 14px rgba(255,90,40,0.22)',
-                  opacity: 0.55,
-                }} />
+              {/* A blood moon over the town — or, on the werewolf's nights,
+                  a great full moon. Low and faint either way: the top of the
+                  screen is where the phase text is, and the moon sits behind. */}
+              {fullMoon ? (
+                <div className="absolute rounded-full"
+                  style={{
+                    top: '30%', right: '-6%', width: 150, height: 150,
+                    background: 'radial-gradient(circle at 40% 38%, #fff8e6 0%, #ffe2a8 45%, #f2b65a 80%, #c9822a 100%)',
+                    boxShadow: '0 0 90px 30px rgba(255,214,140,0.25)',
+                    opacity: 0.42,
+                  }} />
+              ) : (
+                <div className="absolute rounded-full"
+                  style={{
+                    top: '38%', right: '5%', width: 58, height: 58,
+                    background: 'radial-gradient(circle at 38% 36%, #ffd2a6 0%, #ff8a3d 38%, #c2281a 78%, #7a0f0a 100%)',
+                    boxShadow: '0 0 50px 14px rgba(255,90,40,0.22)',
+                    opacity: 0.55,
+                  }} />
+              )}
               {/* Fog drifting along the bottom. */}
               <motion.div className="absolute left-[-20%] right-[-20%] bottom-0 h-44"
                 style={{ background: 'radial-gradient(60% 100% at 50% 100%, rgba(190,170,220,0.16), transparent 70%)' }}

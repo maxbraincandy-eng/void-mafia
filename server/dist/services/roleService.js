@@ -12,20 +12,23 @@ export function validateRoleDistribution(playerCount, settings) {
     }
 }
 /**
- * Halloween: a table of seven or more gets one vampire in place of a citizen.
- * Seven, because below that a night-immortal solo killer ends the game for the
- * town before the town has had a day to find it.
+ * Halloween's monsters take citizens' seats: one at seven to nine players
+ * (vampire or werewolf, by chance), both from ten. Never below seven — a solo
+ * killer at a small table ends it before the town has had a day to look.
  */
-function withHalloween(deck, count, now) {
+function withHalloween(deck, count, now, rng = Math.random) {
     if (!isMafiaHalloween(now) || count < 7)
         return deck;
-    const i = deck.indexOf('citizen');
-    if (i >= 0)
-        deck[i] = 'vampire';
+    const monsters = count >= 10 ? ['vampire', 'werewolf'] : [rng() < 0.5 ? 'vampire' : 'werewolf'];
+    for (const m of monsters) {
+        const i = deck.indexOf('citizen');
+        if (i >= 0)
+            deck[i] = m;
+    }
     return deck;
 }
-export function buildAutoRoleDeck(count, now = Date.now()) {
-    return withHalloween(buildAutoRoleDeckPlain(count), count, now);
+export function buildAutoRoleDeck(count, now = Date.now(), rng = Math.random) {
+    return withHalloween(buildAutoRoleDeckPlain(count), count, now, rng);
 }
 function buildAutoRoleDeckPlain(count) {
     const presets = {
@@ -247,6 +250,16 @@ export const ROLES = {
         color: 'red',
         glowColor: '#ff2d55',
     },
+    werewolf: {
+        key: 'werewolf',
+        name: 'Werewolf',
+        team: 'neutral',
+        description: 'Human by day. Under the full moon — every second night — a beast nobody can stop.',
+        ability: 'On full-moon nights, maul one player: no doctor or bodyguard can save them. Looks human to the Sheriff except under the full moon.',
+        wakeAtNight: true,
+        color: 'orange',
+        glowColor: '#ffb347',
+    },
     shogun: {
         key: 'shogun',
         name: 'Shogun',
@@ -290,8 +303,10 @@ export function buildRoleDeck(settings, playerCount, now = Date.now()) {
     push('yakuza', r.yakuza ?? 0);
     push('shogun', r.shogun ?? 0);
     // Seasonal: a vampire asked for in November is simply not dealt.
-    if (isMafiaHalloween(now))
+    if (isMafiaHalloween(now)) {
         push('vampire', Math.min(1, r.vampire ?? 0));
+        push('werewolf', Math.min(1, r.werewolf ?? 0));
+    }
     while (deck.length < playerCount)
         deck.push('citizen');
     return shuffle(deck).slice(0, playerCount);

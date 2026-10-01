@@ -1,6 +1,7 @@
 import {
   Room, Player, Phase, RoleKey, Team, NightAction, GameOverResult, DonModeState,
 } from '../types/index.js';
+import { isFullMoon } from './halloween.js';
 import { buildRoleDeck, buildAutoRoleDeck, buildDonModeRoleDeck, validateRoleDistribution, getTeam, isSuspiciousToSheriff, getRole } from './roleService.js';
 import { getAlivePlayers } from './roomService.js';
 import { tryTriggerEvent, setRoomEvent, clearRoomEvent } from './dynamicEventService.js';
@@ -867,6 +868,19 @@ export function resolveNight(room: Room): void {
     target.deathType = 'night';
     room.killedLastNight.push({ id: targetId, name: target.name, lastWill: target.lastWill ?? null });
   }
+
+  // ── Werewolf: the full-moon maul ─────────────────────────────────────
+  // Nothing stops it — no doctor, no bodyguard — except a vampire's nature
+  // and a veteran on alert, who meets the beast at the door.
+  for (const action of actions) {
+    if (action.role !== 'werewolf' || !isFullMoon(room.day)) continue;
+    if (alertedVeterans.has(action.targetId)) continue;
+    const target = room.players.get(action.targetId);
+    if (!target || !target.isAlive || target.role === 'vampire') continue;
+    target.isAlive = false;
+    target.deathType = 'night';
+    room.killedLastNight.push({ id: target.id, name: target.name, lastWill: target.lastWill ?? null });
+  }
 }
 
 // ── Night Action ──────────────────────────────────────────────────────
@@ -923,6 +937,12 @@ export function submitNightAction(room: Room, actor: Player, targetId: string): 
   // Vampire cannot bite themselves
   if (actor.role === 'vampire' && isSelfTarget) throw new Error('You cannot bite yourself.');
 
+  // The werewolf is only a beast under the full moon
+  if (actor.role === 'werewolf') {
+    if (!isFullMoon(room.day)) throw new Error('The moon is not full tonight.');
+    if (isSelfTarget) throw new Error('You cannot target yourself.');
+  }
+
   // Escort cannot target themselves
   if (actor.role === 'escort' && isSelfTarget) throw new Error('You cannot target yourself.');
 
@@ -962,7 +982,8 @@ export function getInvestigationResult(room: Room, actor: Player): { targetId: s
   if (!target.role) return null;
 
   // Sheriff Fog: 40% chance of incorrect result
-  let correct = isSuspiciousToSheriff(target.role);
+  // A werewolf looks human except under the full moon.
+  let correct = target.role === 'werewolf' ? isFullMoon(room.day) : isSuspiciousToSheriff(target.role);
   if (room.activeEvent?.key === 'sheriff_fog' && Math.random() < 0.4) {
     correct = !correct;
   }
@@ -1171,6 +1192,7 @@ export function checkWin(room: Room): boolean {
   const yakuzaAlive     = alive.filter(p => p.team === 'yakuza').length;
   const yakuzaKillerAlive = alive.some(p => p.role === 'yakuza');
   const vampireAlive    = alive.some(p => p.role === 'vampire');
+  const werewolfAlive   = alive.some(p => p.role === 'werewolf');
 
   // Cult win: leader alive and cult outnumbers everyone else
   if (cultLeaderAlive && cultAlive >= mafiaAlive + townAlive + neutralAlive + yakuzaAlive && cultAlive > 0) {
@@ -1193,8 +1215,8 @@ export function checkWin(room: Room): boolean {
 
   // Yakuza faction is completely dead — check remaining factions without yakuza
   // Town wins: all mafia, cult, and yakuza eliminated
-  // A living vampire is still killing every night, so the town has not won yet.
-  if (mafiaAlive === 0 && cultAlive === 0 && yakuzaAlive === 0 && !vampireAlive) {
+  // A living vampire or werewolf is still killing, so the town has not won yet.
+  if (mafiaAlive === 0 && cultAlive === 0 && yakuzaAlive === 0 && !vampireAlive && !werewolfAlive) {
     room.winner = 'town';
     return true;
   }
@@ -1233,6 +1255,8 @@ export function allNightActionsSubmitted(room: Room): boolean {
   const actorsNeeded = alivePlayers.filter(p => {
     if (p.isBot) return false;
     if (!p.role) return false;
+    // Off the full moon the werewolf sleeps; the night must not wait for it.
+    if (p.role === 'werewolf' && !isFullMoon(room.day)) return false;
     return getRole(p.role).wakeAtNight;
   });
   return actorsNeeded.every(p => room.nightActions.has(p.id));

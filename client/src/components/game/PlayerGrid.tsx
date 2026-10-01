@@ -10,7 +10,7 @@ const ROLE_ICONS: Partial<Record<RoleKey, string>> = {
   vigilante: '⚖', escort: '✿', spy: '◉', tracker: '◯',
   veteran: '★', mayor: '♔',
   mafia: '◆', don: '♛', arsonist: '△',
-  maniac: '∞', jester: '✧', vampire: '🦇',
+  maniac: '∞', jester: '✧', vampire: '🦇', werewolf: '🐺',
   cult_leader: '⛤', cultist: '◎',
 };
 
@@ -23,6 +23,7 @@ const ROLE_CARD_IMAGES: Partial<Record<RoleKey, string>> = {
   don:         '/roles/don.svg',
   maniac:      '/roles/maniac.svg',
   vampire:     '/roles/vampire.svg',
+  werewolf:    '/roles/werewolf.svg',
   jester:      '/roles/jester.svg',
   bodyguard:   '/roles/bodyguard.svg',
   spy:         '/roles/spy.svg',

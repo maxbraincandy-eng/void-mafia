@@ -768,7 +768,7 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
                 {/* Frame preview */}
                 <div className="flex-1 rounded-xl border border-white/8 bg-white/3 p-2 flex flex-col items-center gap-1.5">
                   <div
-                    className="w-10 h-10 rounded-full p-[2.5px]"
+                    className="relative w-10 h-10 rounded-full p-[2.5px]"
                     style={frameDef
                       ? { background: `linear-gradient(135deg, ${frameDef.colors[0]}, ${frameDef.colors[1]})`, boxShadow: `0 0 8px ${frameDef.glow}` }
                       : { background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)' }
@@ -777,6 +777,7 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
                     <div className="w-full h-full rounded-full bg-gradient-to-br from-neon-purple/30 to-neon-cyan/20 flex items-center justify-center text-sm font-bold text-neon-cyan">
                       {(profile.username[0] ?? '?').toUpperCase()}
                     </div>
+                    {frameDef?.badge && <span aria-hidden className="absolute -top-1.5 -right-1.5 text-[13px] leading-none">{frameDef.badge}</span>}
                   </div>
                   <p className="text-[12px] font-mono text-white/30 uppercase tracking-wider text-center">Frame</p>
                   <p className="text-[12px] font-mono text-white/60 text-center truncate w-full">
@@ -867,11 +868,12 @@ export function ProfilePage({ onViewReplay }: { onViewReplay?: (gameId: string) 
                           borderColor: isEquipped ? `${f.colors[0]}50` : 'rgba(255,255,255,0.08)',
                         }}
                       >
-                        <div className="w-9 h-9 rounded-full p-[2px] flex-shrink-0"
+                        <div className="relative w-9 h-9 rounded-full p-[2px] flex-shrink-0"
                           style={{ background: `linear-gradient(135deg, ${f.colors[0]}, ${f.colors[1]})`, boxShadow: `0 0 8px ${f.glow}` }}>
                           <div className="w-full h-full rounded-full bg-[#03000d] flex items-center justify-center text-xs font-bold text-neon-cyan">
                             {(profile.username[0] ?? '?').toUpperCase()}
                           </div>
+                          {f.badge && <span aria-hidden className="absolute -top-1.5 -right-1.5 text-[12px] leading-none">{f.badge}</span>}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="font-mono text-xs text-white/80 font-bold">{f.name}</p>

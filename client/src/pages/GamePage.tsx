@@ -32,7 +32,7 @@ import { EliminationCinematic } from '@/components/game/EliminationCinematic';
 import { GameEventLog } from '@/components/game/GameEventLog';
 import { PhaseAtmosphere } from '@/components/game/PhaseAtmosphere';
 import { HalloweenLayer } from '@/components/game/HalloweenLayer';
-import { isMafiaHalloween } from '@/lib/halloween';
+import { isMafiaHalloween, isFullMoon } from '@/lib/halloween';
 import { VoteEliminationOverlay } from '@/components/game/VoteEliminationOverlay';
 import { CultConversionOverlay } from '@/components/game/CultConversionOverlay';
 import { VoteRevealScreen } from '@/components/game/VoteRevealScreen';
@@ -1355,7 +1355,7 @@ export function GamePage() {
       <CultConversionOverlay visible={cultConversionNotice} onDismiss={dismissCultConversion} />
 
       {/* Phase transition overlay */}
-      <PhaseTransition phase={transitionPhase} onDone={handleTransitionDone} />
+      <PhaseTransition phase={transitionPhase} onDone={handleTransitionDone} fullMoon={isFullMoon(room.day)} />
 
       {/* Game Over */}
       {gameOverResult && <GameOver result={gameOverResult} />}
@@ -1542,7 +1542,7 @@ export function GamePage() {
       {/* ── Phase atmosphere (ambient tinted background per phase) ── */}
       <PhaseAtmosphere phase={phase} />
       {/* Halloween: decoration and the night-falls swarm, in season only. */}
-      {isMafiaHalloween() && <HalloweenLayer phase={phase} />}
+      {isMafiaHalloween() && <HalloweenLayer phase={phase} fullMoon={isFullMoon(room.day)} />}
 
       {/* Night music — YouTube audio for idle citizens/dead/spectators */}
       <NightMusic

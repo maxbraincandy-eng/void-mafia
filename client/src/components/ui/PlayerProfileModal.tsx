@@ -648,6 +648,10 @@ export function PlayerProfileModal({ playerId, onClose }: Props) {
                                   ? <img src={profile.avatarUrl} alt={profile.username} className="w-full h-full object-cover" />
                                   : profile.avatar}
                               </div>
+                              {!borderDef && frameDef?.badge && (
+                                <span aria-hidden className="absolute -top-1 -right-1 text-[20px] leading-none"
+                                  style={{ filter: `drop-shadow(0 0 6px ${frameDef.glow})` }}>{frameDef.badge}</span>
+                              )}
                             </div>
                           ) : (
                             <div

@@ -28,7 +28,10 @@ const ROLES_META: RoleMeta[] = [
   // NEUTRAL
   { key: 'maniac',      icon: '🌀',  team: 'neutral' },
   { key: 'jester',      icon: '🃏',  team: 'neutral' },
-  ...(isMafiaHalloween() ? [{ key: 'vampire' as const, icon: '🧛', team: 'neutral' as const }] : []),
+  ...(isMafiaHalloween() ? [
+    { key: 'vampire' as const, icon: '🧛', team: 'neutral' as const },
+    { key: 'werewolf' as const, icon: '🐺', team: 'neutral' as const },
+  ] : []),
   // CULT
   { key: 'cult_leader', icon: '🕯️',  team: 'cult' },
   { key: 'cultist',     icon: '🔮',  team: 'cult' },

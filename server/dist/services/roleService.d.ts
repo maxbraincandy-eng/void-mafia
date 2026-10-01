@@ -1,6 +1,6 @@
 import { Role, RoleKey, GameSettings, Team } from '../types/index.js';
 export declare function validateRoleDistribution(playerCount: number, settings: GameSettings): void;
-export declare function buildAutoRoleDeck(count: number, now?: number): RoleKey[];
+export declare function buildAutoRoleDeck(count: number, now?: number, rng?: () => number): RoleKey[];
 /** Fixed role deck for Don Card mode. Exactly 10 players are required. */
 export declare function buildDonModeRoleDeck(count: number): RoleKey[];
 export declare const ROLES: Record<RoleKey, Role>;

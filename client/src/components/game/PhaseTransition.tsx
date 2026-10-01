@@ -6,6 +6,8 @@ import { isMafiaHalloween } from '@/lib/halloween';
 interface Props {
   phase: Phase | null;
   onDone: () => void;
+  /** Halloween: the werewolf's night gets its own entrance. */
+  fullMoon?: boolean;
 }
 
 interface PhaseConfig {
@@ -56,7 +58,9 @@ const HALLOWEEN_CONFIG: Partial<Record<Phase, PhaseConfig>> = {
   day:   { icon: '🎃', label: 'გათენდა', color: '#ffb066', bg: 'from-[#1a0d00]', tight: true },
 };
 
-export function PhaseTransition({ phase, onDone }: Props) {
+const FULL_MOON: PhaseConfig = { icon: '🐺', label: 'სავსე მთვარე', color: '#ffd27a', bg: 'from-[#1a1205]', tight: true };
+
+export function PhaseTransition({ phase, onDone, fullMoon }: Props) {
   useEffect(() => {
     if (!phase) return;
     // total visible time: 0.25s in + 1.0s hold + 0.4s out = 1.65s
@@ -65,7 +69,10 @@ export function PhaseTransition({ phase, onDone }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 
-  const config = phase ? (isMafiaHalloween() && HALLOWEEN_CONFIG[phase]) || PHASE_CONFIG[phase] : null;
+  const halloween = isMafiaHalloween()
+    ? (phase === 'night' && fullMoon ? FULL_MOON : phase ? HALLOWEEN_CONFIG[phase] : undefined)
+    : undefined;
+  const config = phase ? halloween || PHASE_CONFIG[phase] : null;
 
   return (
     <AnimatePresence>

@@ -126,21 +126,21 @@ function ToggleBtn({
 
 const ROLE_ICONS: Record<string, string> = {
   citizen: '🏙', mafia: '🔫', don: '♛', sheriff: '🔍', doctor: '💉',
-  maniac: '🌀', jester: '🃏', vampire: '🧛', bodyguard: '🛡', spy: '🕵️',
+  maniac: '🌀', jester: '🃏', vampire: '🧛', werewolf: '🐺', bodyguard: '🛡', spy: '🕵️',
   escort: '💃', vigilante: '⚖️', cult_leader: '🕯️',
   veteran: '🎖️', tracker: '👁', arsonist: '🔥', mayor: '👑',
 };
 
 const ROLE_COLORS: Record<string, string> = {
   citizen: 'rgba(255,255,255,0.5)', mafia: '#ff2d55', don: '#ff2d55',
-  sheriff: '#60a5fa', doctor: '#00ff88', maniac: '#9b00ff', jester: '#a855f7', vampire: '#ff2d55',
+  sheriff: '#60a5fa', doctor: '#00ff88', maniac: '#9b00ff', jester: '#a855f7', vampire: '#ff2d55', werewolf: '#ffb347',
   bodyguard: '#34d399', spy: '#00e5ff', escort: '#f472b6', vigilante: '#fbbf24',
   cult_leader: '#e879f9', veteran: '#fbbf24', tracker: '#60a5fa',
   arsonist: '#fb923c', mayor: '#ffd700',
 };
 
 const ROLE_ORDER = ['mafia', 'don', 'sheriff', 'doctor', 'bodyguard', 'spy', 'escort',
-  'vigilante', 'tracker', 'veteran', 'mayor', 'maniac', 'vampire', 'arsonist', 'jester', 'cult_leader', 'citizen'];
+  'vigilante', 'tracker', 'veteran', 'mayor', 'maniac', 'vampire', 'werewolf', 'arsonist', 'jester', 'cult_leader', 'citizen'];
 
 // ── Main component ───────────────────────────────────────────────────
 

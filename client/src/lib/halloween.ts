@@ -10,3 +10,11 @@ export function isMafiaHalloween(now: number = Date.now()): boolean {
   const month = d.getUTCMonth() + 1;
   return month === 10 || (month === 11 && d.getUTCDate() === 1);
 }
+
+/**
+ * The werewolf's night: the second night, the fourth, and so on (night k is
+ * played while room.day === k). Mirrors server/src/services/halloween.ts.
+ */
+export function isFullMoon(day: number): boolean {
+  return day >= 2 && day % 2 === 0;
+}

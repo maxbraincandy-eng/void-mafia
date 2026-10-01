@@ -1,5 +1,5 @@
 export type Phase = 'lobby' | 'role_reveal' | 'night' | 'morning' | 'day' | 'speech' | 'trial_defense' | 'voting' | 'final_words' | 'game_over' | 'planning_night' | 'don_check' | 'mafia_kill' | 'sheriff_check' | 'tie_defense' | 'revote' | 'double_elim_vote';
-export type RoleKey = 'mafia' | 'citizen' | 'sheriff' | 'doctor' | 'don' | 'maniac' | 'jester' | 'bodyguard' | 'spy' | 'escort' | 'vigilante' | 'cult_leader' | 'cultist' | 'veteran' | 'tracker' | 'arsonist' | 'mayor' | 'yakuza' | 'shogun' | 'vampire';
+export type RoleKey = 'mafia' | 'citizen' | 'sheriff' | 'doctor' | 'don' | 'maniac' | 'jester' | 'bodyguard' | 'spy' | 'escort' | 'vigilante' | 'cult_leader' | 'cultist' | 'veteran' | 'tracker' | 'arsonist' | 'mayor' | 'yakuza' | 'shogun' | 'vampire' | 'werewolf';
 export type Team = 'mafia' | 'town' | 'neutral' | 'cult' | 'yakuza';
 export type TieRule = 'no_elimination' | 'random';
 export type ChatChannel = 'room' | 'mafia' | 'yakuza' | 'dead' | 'spectator';
@@ -394,6 +394,8 @@ export interface GameSettings {
         shogun: number;
         /** Halloween only (see services/halloween.ts); ignored outside the season. */
         vampire?: number;
+        /** Halloween only, like the vampire. */
+        werewolf?: number;
     };
 }
 export interface Room {

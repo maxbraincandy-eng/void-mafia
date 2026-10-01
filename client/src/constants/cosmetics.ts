@@ -6,6 +6,8 @@ export interface FrameDef {
   rarity: CosmeticRarity;
   colors: [string, string]; // gradient start, end
   glow: string;
+  /** A small emblem worn on the ring — seasonal frames carry one. */
+  badge?: string;
 }
 
 export interface TitleDef {
@@ -35,6 +37,8 @@ export const FRAMES: FrameDef[] = [
   { id: 'frame_cult',      name: 'Cult Ritual',      rarity: 'rare',      colors: ['#9b00ff', '#4b0082'], glow: '#9b00ff60' },
   { id: 'frame_yakuza',    name: 'Yakuza Shadow',    rarity: 'rare',      colors: ['#00ff88', '#00ccaa'], glow: '#00ff8860' },
   { id: 'frame_neon_sheriff', name: 'Neon Sheriff',  rarity: 'uncommon',  colors: ['#00e5ff', '#00ff88'], glow: '#00e5ff50' },
+  // Halloween 2026: kept by everyone who finished a classic Mafia game that October.
+  { id: 'frame_halloween_2026', name: 'Halloween 2026', rarity: 'exclusive', colors: ['#ff8a1f', '#6b21a8'], glow: '#ff8a1f80', badge: '🎃' },
 ];
 
 export const TITLES: TitleDef[] = [
