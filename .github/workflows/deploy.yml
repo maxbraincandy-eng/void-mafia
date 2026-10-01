@@ -14,7 +14,11 @@ jobs:
     # when it decides to skip, so two services plus a verify pass did not fit
     # and the verify step was being cancelled mid-poll — which reads as "the
     # deploy is still going" when it has in fact already failed.
-    timeout-minutes: 45
+    #
+    # 75 now: each upload is capped at 15 minutes by railway-up.sh, so two
+    # uploads, a retry of both and the live checks fit, and a stalled upload no
+    # longer takes the whole job down with it.
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
 
@@ -27,13 +31,13 @@ jobs:
       # stopped landing for three days and the workflow reported success the
       # whole time. Waiting is slower and tells the truth.
       - name: Deploy server
-        run: railway up --service 226d60e0-8aee-42f4-83b3-2151ee30dced
+        run: ./.github/scripts/railway-up.sh 226d60e0-8aee-42f4-83b3-2151ee30dced server
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           RAILWAY_PROJECT_ID: 08c2a0d2-1c54-4c07-8497-8130c7baa696
 
       - name: Deploy client
-        run: railway up --service 958a7cd3-adc4-49ad-a955-27c6df5794d8
+        run: ./.github/scripts/railway-up.sh 958a7cd3-adc4-49ad-a955-27c6df5794d8 client
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           RAILWAY_PROJECT_ID: 08c2a0d2-1c54-4c07-8497-8130c7baa696
@@ -62,8 +66,9 @@ jobs:
       # it did not — Railway now warns on every deploy that config-as-code is
       # deprecated, so the file can no longer be relied on to carry it.
       #
-      # A retry is worth one attempt: a second `railway up` uploads again, and
-      # a skip decided against a stale comparison sometimes does not repeat.
+      # A retry is worth one attempt: a second upload carries a new stamp in
+      # railway.toml (see scripts/railway-up.sh), so it is a changed upload
+      # even when the code is the same as the first.
       # What it cannot do is force a build Railway has decided not to run —
       # `railway redeploy` would only restart the image already there, which in
       # a skip is the OLD one. So this tries, and then tells the truth.
@@ -71,8 +76,8 @@ jobs:
         if: steps.verify.outcome == 'failure'
         run: |
           echo "::warning::the upload did not become live — Railway most likely skipped the build"
-          railway up --service 226d60e0-8aee-42f4-83b3-2151ee30dced
-          railway up --service 958a7cd3-adc4-49ad-a955-27c6df5794d8
+          ./.github/scripts/railway-up.sh 226d60e0-8aee-42f4-83b3-2151ee30dced server
+          ./.github/scripts/railway-up.sh 958a7cd3-adc4-49ad-a955-27c6df5794d8 client
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           RAILWAY_PROJECT_ID: 08c2a0d2-1c54-4c07-8497-8130c7baa696
