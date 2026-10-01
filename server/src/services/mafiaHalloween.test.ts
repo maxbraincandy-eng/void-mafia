@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import { strict as assert } from 'assert';
 
 import { createRoom, addPlayer } from './roomService.js';
-import { resolveNight, submitNightAction, checkWin, getInvestigationResult, allNightActionsSubmitted } from './gameService.js';
+import { resolveNight, submitNightAction, checkWin, getInvestigationResult, allNightActionsSubmitted, isWinner } from './gameService.js';
 import { buildAutoRoleDeck, buildRoleDeck, getTeam, isSuspiciousToSheriff } from './roleService.js';
 import { isMafiaHalloween, isFullMoon } from './halloween.js';
 import type { Room, Player, RoleKey } from '../types/index.js';
@@ -193,4 +193,44 @@ test('a werewolf asked for by the host is dealt in season, at most one', () => {
   const settings: any = { roles: { mafia: 2, sheriff: 1, werewolf: 2 } };
   assert.equal(buildRoleDeck(settings, 9, OCT).filter(r => r === 'werewolf').length, 1);
   assert.equal(buildRoleDeck(settings, 9, DEC).filter(r => r === 'werewolf').length, 0);
+});
+
+// ── Endings ─────────────────────────────────────────────────────────────────
+
+test('one monster against one player is over: the monster wins at once', () => {
+  for (const monster of ['vampire', 'werewolf'] as RoleKey[]) {
+    const { room, p } = night([monster, 'citizen', 'citizen', 'mafia', 'citizen'], 3);
+    p[2]!.isAlive = false; p[3]!.isAlive = false; p[4]!.isAlive = false;   // monster + one citizen left
+    assert.equal(checkWin(room), true, `${monster} vs one citizen did not end`);
+    assert.equal(room.winner, 'neutral');
+  }
+});
+
+test('the vampire and the werewolf alone together: the monsters win', () => {
+  const { room, p } = night(['vampire', 'werewolf', 'citizen', 'mafia'], 3);
+  p[2]!.isAlive = false; p[3]!.isAlive = false;
+  assert.equal(checkWin(room), true);
+  assert.equal(room.winner, 'neutral');
+});
+
+test('a monster against two players goes on — the vote can still catch it', () => {
+  const { room, p } = night(['vampire', 'citizen', 'citizen', 'mafia'], 3);
+  p[3]!.isAlive = false;
+  assert.equal(checkWin(room), false);
+});
+
+test('with the mafia still alive, the mafia\'s own rule decides, not the monsters\'', () => {
+  const { room, p } = night(['vampire', 'mafia', 'citizen', 'citizen'], 3);
+  p[2]!.isAlive = false; p[3]!.isAlive = false;    // vampire + mafia
+  assert.equal(checkWin(room), true);
+  assert.equal(room.winner, 'mafia');
+});
+
+test('a dead monster does not share the other monster\'s win', () => {
+  const { room, p } = night(['vampire', 'werewolf', 'citizen', 'mafia'], 3);
+  p[1]!.isAlive = false; p[3]!.isAlive = false;           // werewolf and mafia dead
+  assert.equal(checkWin(room), true);                       // vampire vs citizen: parity
+  assert.equal(isWinner(room, p[0]!), true, 'the living vampire did not win');
+  assert.equal(isWinner(room, p[1]!), false, 'the dead werewolf was counted a winner');
+  assert.equal(isWinner(room, p[2]!), false);
 });

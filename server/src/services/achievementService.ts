@@ -1,5 +1,6 @@
 import { sql } from '../db.js';
 import { Room } from '../types/index.js';
+import { isWinner } from './winner.js';
 
 export interface AchievementDef {
   key: string; name: string; description: string; icon: string; rarity: string;
@@ -41,7 +42,7 @@ export async function checkAchievements(room: Room, playerId: string): Promise<s
   const profileId = player.profileId;
 
   const newAchievements: string[] = [];
-  const win = player.team === room.winner;
+  const win = isWinner(room, player);
   const role = player.role;
 
   if (win && await award(profileId, 'first_blood')) newAchievements.push('first_blood');

@@ -10,7 +10,7 @@ const ROLE_ICONS: Partial<Record<RoleKey, string>> = {
   vigilante: '⚖', escort: '✿', spy: '◉', tracker: '◯',
   veteran: '★', mayor: '♔',
   mafia: '◆', don: '♛', arsonist: '△',
-  maniac: '∞', jester: '✧', vampire: '🦇', werewolf: '🐺',
+  maniac: '∞', jester: '✧', vampire: '🧛', werewolf: '🐺',
   cult_leader: '⛤', cultist: '◎',
 };
 

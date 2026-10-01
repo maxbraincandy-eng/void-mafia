@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { randomUUID } from 'crypto';
 import { ok, err, } from './types/index.js';
 import { createRoom, getRoom, getRoomByCode, deleteRoom, addPlayer, addSpectatorPlayer, removePlayer, reseatForDonModerator, getPlayerBySocket, toPublicRoom, getHostPlayer, toRoomListItem, getAllRooms, getPlayerByProfile, transferHost, rematchRoom, setPlayerAvatarUrl, enqueueForNextRound, dequeueFromNextRound, promoteQueuedPlayers, becomeSpectator, becomePlayer, } from './services/roomService.js';
-import { startGame, setPhase, advancePhase, submitNightAction, submitVote, submitNomination, checkWin, buildGameOverResult, allNightActionsSubmitted, getInvestigationResult, getTrackResult, resolveVotes, submitDonCheck, submitSheriffCheck, submitMafiaKillVote, submitDoubleEliminationVote, allMafiaKillVotesSubmitted, allDoubleElimVotesSubmitted, } from './services/gameService.js';
+import { startGame, setPhase, advancePhase, submitNightAction, submitVote, submitNomination, checkWin, isWinner, buildGameOverResult, allNightActionsSubmitted, getInvestigationResult, getTrackResult, resolveVotes, submitDonCheck, submitSheriffCheck, submitMafiaKillVote, submitDoubleEliminationVote, allMafiaKillVotesSubmitted, allDoubleElimVotesSubmitted, } from './services/gameService.js';
 import { createPlayerMessage, createSystemMessage, addMessage, validateChat, } from './services/chatService.js';
 import { registerCheckersHandlers, handleCheckersDisconnect } from './checkers.js';
 import { registerJokerHandlers, handleJokerDisconnect } from './joker.js';
@@ -1509,7 +1509,7 @@ async function emitGameOver(io, room) {
         if (p.socketId)
             io.to(p.socketId).emit('game:over', result);
         else if (p.profileId && !p.isSpectator) {
-            const won = room.winner && p.team === room.winner;
+            const won = isWinner(room, p);
             sendPushToUser(p.profileId, {
                 title: won ? '🏆 You Won!' : '💀 Game Over',
                 body: room.winner ? `${room.winner.charAt(0).toUpperCase() + room.winner.slice(1)} wins the game!` : 'The game has ended.',
@@ -1519,7 +1519,7 @@ async function emitGameOver(io, room) {
         // spectators and players promoted from the queue at game over must not
         // receive a win/loss record for a game they never played.
         if (p.profileId && room.winner && p.role) {
-            const won = p.team === room.winner;
+            const won = isWinner(room, p);
             await addGameResult(p.profileId, won);
             // Award XP
             try {
@@ -1601,7 +1601,7 @@ async function emitGameOver(io, room) {
     // Ranked ELO update
     if (room.settings.ranked && room.winner) {
         try {
-            const winnerPlayers = [...room.players.values()].filter(p => !p.isSpectator && p.role && p.team === room.winner && p.profileId);
+            const winnerPlayers = [...room.players.values()].filter(p => !p.isSpectator && p.role && isWinner(room, p) && p.profileId);
             const loserPlayers = [...room.players.values()].filter(p => !p.isSpectator && p.role && p.team !== room.winner && p.profileId);
             const winnerIds = winnerPlayers.map(p => p.profileId);
             const loserIds = loserPlayers.map(p => p.profileId);
@@ -1636,7 +1636,7 @@ async function emitGameOver(io, room) {
                 await recordLeagueGame({
                     playerId: p.profileId,
                     clanId: membership.id,
-                    won: p.team === room.winner,
+                    won: isWinner(room, p),
                     ranked: !!room.settings.ranked,
                 }).catch(() => { });
             }
@@ -1650,7 +1650,7 @@ async function emitGameOver(io, room) {
         try {
             // Collect profile IDs of players on the winning team
             const winningProfileIds = [...room.players.values()]
-                .filter(p => !p.isSpectator && p.team === room.winner && p.profileId)
+                .filter(p => !p.isSpectator && isWinner(room, p) && p.profileId)
                 .map(p => p.profileId);
             // Find which clans those winners belong to (including the room's own clan)
             const winnerClanIds = new Set();

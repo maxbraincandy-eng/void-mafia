@@ -28,7 +28,7 @@ const WINNER_BG: Record<Team, string> = {
 
 const ROLE_ICONS: Record<RoleKey, string> = {
   mafia: '◆', citizen: '◈', sheriff: '✦', doctor: '+', don: '♛',
-  maniac: '∞', jester: '✧', bodyguard: '⬡', vampire: '🦇', werewolf: '🐺',
+  maniac: '∞', jester: '✧', bodyguard: '⬡', vampire: '🧛', werewolf: '🐺',
   spy: '◉', escort: '✿', vigilante: '⚖',
   cult_leader: '⛤', cultist: '◎', veteran: '★',
   tracker: '◯', arsonist: '△', mayor: '♔',
@@ -116,10 +116,13 @@ function computeMVPBadges(players: PlayerEntry[], result: GameOverResult): MVPBa
   }
   const neutralSurvivor = players.find(p => p.team === 'neutral' && p.survived);
   if (neutralSurvivor) {
+    const vamp = neutralSurvivor.role === 'vampire';
+    const wolf = neutralSurvivor.role === 'werewolf';
     badges.push({
-      icon: '∞', title: 'Lone Wolf',
-      description: 'Survived as a neutral',
-      playerName: neutralSurvivor.name, color: 'text-neon-purple',
+      icon: vamp ? '🧛' : wolf ? '🐺' : '∞',
+      title: vamp ? 'Creature of the Night' : 'Lone Wolf',
+      description: vamp ? 'Outlived the town' : wolf ? 'Outlasted every full moon' : 'Survived as a neutral',
+      playerName: neutralSurvivor.name, color: vamp ? 'text-red-400' : wolf ? 'text-amber-300' : 'text-neon-purple',
     });
   }
   const cultLeader = players.find(p => p.role === 'cult_leader' && p.survived);
@@ -256,8 +259,23 @@ export function GameOver({ result }: Props) {
     yakuza:  players.filter(p => p.team === 'yakuza'),
   }), [players]);
 
+  // A Halloween ending names its monster rather than "solo win".
+  const shown = useMemo(() => {
+    if (result.winner !== 'neutral') return cfg;
+    const alive = players.filter(p => p.survived);
+    const v = alive.some(p => p.role === 'vampire');
+    const w = alive.some(p => p.role === 'werewolf');
+    if (v && w) return { label: 'მონსტრების გამარჯვება', color: 'text-orange-400', glowColor: '#ff6a1f', symbol: '🎃' };
+    if (v) return { label: 'ვამპირის გამარჯვება', color: 'text-red-400', glowColor: '#ff2d55', symbol: '🧛' };
+    if (w) return { label: 'მაქციას გამარჯვება', color: 'text-amber-300', glowColor: '#ffb347', symbol: '🐺' };
+    return cfg;
+  }, [result.winner, players, cfg]);
+
   const myData = myPlayerId ? result.allRoles[myPlayerId] : null;
-  const iWon = myData?.team === result.winner;
+  // Halloween's monsters hunt alone: a dead one did not share the other's win.
+  const iAmDeadMonster = (myData?.role === 'vampire' || myData?.role === 'werewolf')
+    && !(myPlayerId && survivalMap.get(myPlayerId));
+  const iWon = myData?.team === result.winner && !iAmDeadMonster;
   const mvpBadges = useMemo(() => computeMVPBadges(players, result), [players, result]);
 
   const roleLabel = (role: RoleKey) =>
@@ -411,15 +429,20 @@ export function GameOver({ result }: Props) {
               >
                 <div
                   className="font-mono text-5xl mb-2 leading-none"
-                  style={{ color: cfg.glowColor, filter: `drop-shadow(0 0 18px ${cfg.glowColor})` }}
+                  style={{ color: shown.glowColor, filter: `drop-shadow(0 0 18px ${shown.glowColor})` }}
                 >
-                  {cfg.symbol}
+                  {shown.symbol}
                 </div>
+                {/* Long Georgian titles ran off both edges at text-4xl with the
+                    widest tracking; they get a size that fits the screen. */}
                 <h1
-                  className={`font-display text-4xl font-bold tracking-widest uppercase ${cfg.color}`}
-                  style={{ textShadow: `0 0 24px ${cfg.glowColor}` }}
+                  className={`font-display font-bold uppercase px-3 ${shown.label.length > 14 ? 'tracking-wide' : 'text-4xl tracking-widest'} ${shown.color}`}
+                  style={{
+                    textShadow: `0 0 24px ${shown.glowColor}`,
+                    ...(shown.label.length > 14 ? { fontSize: 'clamp(22px, 7.5vw, 34px)', lineHeight: 1.15 } : {}),
+                  }}
                 >
-                  {cfg.label}
+                  {shown.label}
                 </h1>
                 <p className="text-white/30 font-mono text-[11px] mt-1 uppercase tracking-widest">
                   {t.game.gameOver.gameIsOver}

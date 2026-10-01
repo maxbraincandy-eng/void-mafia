@@ -1,4 +1,5 @@
 import { sql } from '../db.js';
+import { isWinner } from './winner.js';
 export async function getPlayerAchievements(playerId) {
     const rows = await sql `
     SELECT a.key, a.name, a.description, a.icon, a.rarity, pa.earned_at
@@ -31,7 +32,7 @@ export async function checkAchievements(room, playerId) {
         return [];
     const profileId = player.profileId;
     const newAchievements = [];
-    const win = player.team === room.winner;
+    const win = isWinner(room, player);
     const role = player.role;
     if (win && await award(profileId, 'first_blood'))
         newAchievements.push('first_blood');

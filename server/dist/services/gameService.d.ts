@@ -1,4 +1,5 @@
 import { Room, Player, Phase, GameOverResult } from '../types/index.js';
+export { isWinner } from './winner.js';
 export declare function startGame(room: Room): void;
 export declare function setPhase(room: Room, phase: Phase): void;
 export declare function advancePhase(room: Room): Phase;

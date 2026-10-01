@@ -1,4 +1,5 @@
 import { sql } from '../db.js';
+import { isWinner } from './winner.js';
 import { generateId } from '../utils/helpers.js';
 export async function getPlayerRoleStats(playerId) {
     const [totals] = await sql `
@@ -61,7 +62,7 @@ export async function recordGame(room) {
         await sql `
       INSERT INTO game_players (game_id, player_id, role, team, survived, won)
       VALUES (${id}, ${p.profileId}, ${p.role ?? null}, ${p.team ?? null},
-              ${p.isAlive ? 1 : 0}, ${p.team === room.winner ? 1 : 0})
+              ${p.isAlive ? 1 : 0}, ${isWinner(room, p) ? 1 : 0})
       ON CONFLICT DO NOTHING
     `;
     }

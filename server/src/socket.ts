@@ -15,7 +15,7 @@ import {
 } from './services/roomService.js';
 import {
   startGame, setPhase, advancePhase, submitNightAction, submitVote, submitNomination,
-  checkWin, buildGameOverResult, allNightActionsSubmitted, getInvestigationResult,
+  checkWin, isWinner, buildGameOverResult, allNightActionsSubmitted, getInvestigationResult,
   getTrackResult, resolveVotes,
   submitDonCheck, submitSheriffCheck, submitMafiaKillVote, submitDoubleEliminationVote,
   allMafiaKillVotesSubmitted, allDoubleElimVotesSubmitted,
@@ -1620,7 +1620,7 @@ async function emitGameOver(io: AppServer, room: Room): Promise<void> {
   for (const p of room.players.values()) {
     if (p.socketId) io.to(p.socketId).emit('game:over', result);
     else if (p.profileId && !p.isSpectator) {
-      const won = room.winner && p.team === room.winner;
+      const won = isWinner(room, p);
       sendPushToUser(p.profileId, {
         title: won ? '🏆 You Won!' : '💀 Game Over',
         body: room.winner ? `${room.winner.charAt(0).toUpperCase() + room.winner.slice(1)} wins the game!` : 'The game has ended.',
@@ -1630,7 +1630,7 @@ async function emitGameOver(io: AppServer, room: Room): Promise<void> {
     // spectators and players promoted from the queue at game over must not
     // receive a win/loss record for a game they never played.
     if (p.profileId && room.winner && p.role) {
-      const won = p.team === room.winner;
+      const won = isWinner(room, p);
       await addGameResult(p.profileId, won);
 
       // Award XP
@@ -1712,7 +1712,7 @@ async function emitGameOver(io: AppServer, room: Room): Promise<void> {
   // Ranked ELO update
   if (room.settings.ranked && room.winner) {
     try {
-      const winnerPlayers = [...room.players.values()].filter(p => !p.isSpectator && p.role && p.team === room.winner && p.profileId);
+      const winnerPlayers = [...room.players.values()].filter(p => !p.isSpectator && p.role && isWinner(room, p) && p.profileId);
       const loserPlayers  = [...room.players.values()].filter(p => !p.isSpectator && p.role && p.team !== room.winner && p.profileId);
       const winnerIds = winnerPlayers.map(p => p.profileId as string);
       const loserIds  = loserPlayers.map(p => p.profileId as string);
@@ -1745,7 +1745,7 @@ async function emitGameOver(io: AppServer, room: Room): Promise<void> {
         await recordLeagueGame({
           playerId: p.profileId as string,
           clanId: membership.id,
-          won: p.team === room.winner,
+          won: isWinner(room, p),
           ranked: !!room.settings.ranked,
         }).catch(() => { /* non-fatal — league scoring never breaks game flow */ });
       }
@@ -1759,7 +1759,7 @@ async function emitGameOver(io: AppServer, room: Room): Promise<void> {
     try {
       // Collect profile IDs of players on the winning team
       const winningProfileIds = [...room.players.values()]
-        .filter(p => !p.isSpectator && p.team === room.winner && p.profileId)
+        .filter(p => !p.isSpectator && isWinner(room, p) && p.profileId)
         .map(p => p.profileId as string);
 
       // Find which clans those winners belong to (including the room's own clan)

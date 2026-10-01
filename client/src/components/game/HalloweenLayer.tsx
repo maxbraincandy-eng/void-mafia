@@ -34,8 +34,6 @@ export function HalloweenLayer({ phase, fullMoon = false }: { phase: Phase; full
 
         <span className="absolute bottom-3 left-2 text-[26px] select-none"
           style={{ filter: 'drop-shadow(0 0 10px rgba(255,138,31,0.55))', opacity: 0.75 }}>🎃</span>
-        <span className="absolute bottom-3 right-2 text-[20px] select-none"
-          style={{ filter: 'drop-shadow(0 0 8px rgba(255,138,31,0.5))', opacity: 0.6 }}>🎃</span>
 
         <AnimatePresence>
           {night && (

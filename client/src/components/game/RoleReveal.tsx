@@ -68,7 +68,7 @@ const ROLE_ICONS: Record<string, string> = {
   doctor:      '+',
   don:         '♛',
   maniac:      '∞',
-  vampire:     '🦇',
+  vampire:     '🧛',
   werewolf:    '🐺',
   jester:      '✧',
   bodyguard:   '⬡',

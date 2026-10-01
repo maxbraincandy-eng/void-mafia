@@ -1,4 +1,5 @@
 import { isFullMoon } from './halloween.js';
+export { isWinner } from './winner.js';
 import { buildRoleDeck, buildAutoRoleDeck, buildDonModeRoleDeck, validateRoleDistribution, getTeam, isSuspiciousToSheriff, getRole } from './roleService.js';
 import { getAlivePlayers } from './roomService.js';
 import { tryTriggerEvent, setRoomEvent, clearRoomEvent } from './dynamicEventService.js';
@@ -1215,6 +1216,16 @@ export function checkWin(room) {
     }
     // Yakuza faction is completely dead — check remaining factions without yakuza
     // Town wins: all mafia, cult, and yakuza eliminated
+    // Halloween's monsters win at parity, the way the mafia does: once the other
+    // killing factions are gone and they are at least as many as everyone else,
+    // the day's vote can no longer remove them (one against one is a tie), so
+    // the table would only drag on until the next bite. End it.
+    const monstersAlive = alive.filter(p => p.role === 'vampire' || p.role === 'werewolf').length;
+    if (monstersAlive > 0 && mafiaAlive === 0 && cultAlive === 0 && yakuzaAlive === 0
+        && monstersAlive >= alive.length - monstersAlive) {
+        room.winner = 'neutral';
+        return true;
+    }
     // A living vampire or werewolf is still killing, so the town has not won yet.
     if (mafiaAlive === 0 && cultAlive === 0 && yakuzaAlive === 0 && !vampireAlive && !werewolfAlive) {
         room.winner = 'town';
