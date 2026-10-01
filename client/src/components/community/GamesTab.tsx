@@ -17,6 +17,8 @@ const CameraSpace = lazy(() => import('@/components/camera/CameraSpace'));
 const DumbTest = lazy(() => import('@/components/dumbtest/DumbTest'));
 const WordGame = lazy(() => import('@/components/word/WordGame'));
 const WhoSaidGame = lazy(() => import('@/components/whosaid/WhoSaidGame'));
+const TrickOrTreat = lazy(() => import('@/components/halloween/TrickOrTreat'));
+import { isHalloweenSeason } from '@/components/halloween/season';
 const MarsTerminal = lazy(() => import('@/components/mars/MarsTerminal').then(m => ({ default: m.MarsTerminal })));
 import { IQLogo } from '@/components/iq/IQLogo';
 import { LogicLogo } from '@/components/logic/LogicLogo';
@@ -78,6 +80,8 @@ const SECTIONS: SectionDef[] = [
   {
     id: 'fun', title: 'გართობა', emoji: '🎉', accent: '#ff8c26',
     ids: [
+      // Seasonal: only in the catalogue in October, so the slot is empty otherwise.
+      'trickortreat',
       'checkers', 'ludo',
       'uno', 'joker',
       'draw', 'spyfall',
@@ -149,6 +153,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms }: { onOpenSpace?: () =>
   const [dumbOpen, setDumbOpen] = useState(false);
   const [wordOpen, setWordOpen] = useState(false);
   const [whoSaidOpen, setWhoSaidOpen] = useState(false);
+  const [totOpen, setTotOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
 
   // ── Checkers ────────────────────────────────────────────────────────
@@ -434,6 +439,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms }: { onOpenSpace?: () =>
   defs.push({ id: 'noir', title: 'ნუარი', sub: 'ინტერაქტიული თავგადასავალი · შენ წყვეტ', kind: 'launch', accent: '#ff2d55', emoji: '🌃', badge: true, keywords: 'noir ნუარი თავგადასავალი ამბავი არჩევანი ისტორია adventure story choice მაფია დეტექტივი', launch: () => setNoirOpen(true) });
   defs.push({ id: 'sky', title: 'ცის რუკა', sub: 'მიმართე ცას · პლანეტები რეალურ პოზიციაზე', kind: 'launch', accent: '#7c9cff', emoji: '🔭', badge: true, keywords: 'sky ცა ვარსკვლავი პლანეტა სატურნი ტელესკოპი ასტრონომია star planet saturn telescope astronomy ღამე', launch: () => setSkyOpen(true) });
   defs.push({ id: 'whosaid', title: 'ვინ თქვა?', sub: 'ხმის თამაში · 3-10 მოთ. · კამერის გარეშე', kind: 'launch', accent: '#a855f7', emoji: '🎙', badge: true, keywords: 'ვინ თქვა ხმა ხმის შეცვლა გამოცნობა who said voice disguise დედუქცია წვეულება party ფრაზა აბსურდი', launch: () => setWhoSaidOpen(true) });
+  if (isHalloweenSeason()) defs.push({ id: 'trickortreat', title: 'ტკბილეული თუ ხრიკი', sub: 'ჰელოუინი · კანფეტი თუ მოჩვენება', kind: 'launch', accent: '#ff8a1f', emoji: '🎃', badge: true, keywords: 'ჰელოუინი halloween ტკბილეული ხრიკი trick treat კანფეტი მოჩვენება ghost გოგრა pumpkin საშინელება', launch: () => setTotOpen(true) });
   defs.push({ id: 'word', title: 'სიტყვა', sub: 'დღის სიტყვა · 6 ცდა · სერიები', kind: 'launch', accent: '#4dd48a', emoji: '🔤', badge: true, keywords: 'სიტყვა wordle ვორდლი დღის ასო ანბანი გამოცანა თავსატეხი word daily streak სერია ლიდერბორდი ქართული', launch: () => setWordOpen(true) });
   defs.push({ id: 'dumbtest', title: 'დებილების ტესტი', sub: '4 კატეგორია · 12 კითხვა · ლიდერბორდი', kind: 'launch', accent: '#c46bff', emoji: '🤪', badge: true, keywords: 'დებილი ტესტი კითხვა სულელური სასაცილო აბსურდი ვიქტორინა quiz dumb test funny absurd trivia იუმორი ხუმრობა უცხოპლანეტური ვორტექსი ჰიპერნახტომი კატეგორია alien vortex', launch: () => setDumbOpen(true) });
   defs.push({ id: 'camera', title: 'კამერა', sub: 'სენსორის სრული ხარისხი · დეტალიზაცია · ტელეფონში შენახვა', kind: 'launch', accent: '#4a76c4', emoji: '📷', badge: true, keywords: 'camera კამერა ფოტო სურათი გადაღება photo picture ხარისხი დეტალი zoom ზუმი selfie სელფი შენახვა', launch: () => setCameraOpen(true) });
@@ -610,6 +616,7 @@ export function GamesTab({ onOpenSpace, onOpenBackrooms }: { onOpenSpace?: () =>
       {cameraOpen && <Suspense fallback={null}><CameraSpace onClose={() => setCameraOpen(false)} /></Suspense>}
       {dumbOpen && <Suspense fallback={null}><DumbTest onClose={() => setDumbOpen(false)} /></Suspense>}
       {wordOpen && <Suspense fallback={null}><WordGame onClose={() => setWordOpen(false)} /></Suspense>}
+      {totOpen && <Suspense fallback={null}><TrickOrTreat onClose={() => setTotOpen(false)} /></Suspense>}
       {whoSaidOpen && <Suspense fallback={null}><WhoSaidGame onClose={() => setWhoSaidOpen(false)} myName={playerName} /></Suspense>}
       {mergeOpen && <Suspense fallback={null}><MergeEvolution onClose={() => setMergeOpen(false)} /></Suspense>}
       {aristocracyOpen && <Suspense fallback={null}><AristocracyTest onClose={() => setAristocracyOpen(false)} /></Suspense>}
@@ -752,7 +759,7 @@ function GameArt({ d, size }: { d: GameDef; size: number }) {
  * carried the badge, which is the same as none of them carrying it. Keep this
  * list short and prune it as things stop being new.
  */
-const NEW_GAMES = new Set(['noir', 'mergeevo', 'logic', 'poker']);
+const NEW_GAMES = new Set(['noir', 'mergeevo', 'logic', 'poker', 'trickortreat']);
 
 function NumPicker({ label, values, value, onChange, accent }: { label: string; values: number[]; value: number; onChange: (n: number) => void; accent: string }) {
   return (

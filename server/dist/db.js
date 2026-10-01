@@ -1532,6 +1532,28 @@ export async function initializeDatabase() {
     )
   `;
     await sql `CREATE INDEX IF NOT EXISTS idx_word_streak ON word_stats(max_streak DESC, streak DESC)`;
+    /*
+     * ტკბილეული თუ ხრიკი — one row per walk down the street.
+     *
+     * The walk is stored whole after every door (`state`, JSON), so a reconnect
+     * resumes it exactly. `banked` is copied out of it so the season board is a
+     * plain SUM; it is 0 until the walk ends at home.
+     */
+    await sql `
+    CREATE TABLE IF NOT EXISTS tot_runs (
+      id          TEXT PRIMARY KEY,
+      user_id     TEXT NOT NULL,
+      season      INTEGER NOT NULL,
+      date_key    TEXT NOT NULL,
+      state       TEXT NOT NULL,
+      status      TEXT NOT NULL,
+      banked      INTEGER NOT NULL DEFAULT 0,
+      started_at  BIGINT NOT NULL,
+      finished_at BIGINT
+    )
+  `;
+    await sql `CREATE INDEX IF NOT EXISTS idx_tot_user_day ON tot_runs(user_id, date_key)`;
+    await sql `CREATE INDEX IF NOT EXISTS idx_tot_season ON tot_runs(season, status)`;
     // VOID IQ — cognitive test attempts + public leaderboard
     await sql `
     CREATE TABLE IF NOT EXISTS iq_attempts (
