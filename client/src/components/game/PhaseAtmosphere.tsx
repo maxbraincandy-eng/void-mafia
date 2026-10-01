@@ -43,7 +43,7 @@ function NightLayer() {
 
 // Every phase where the city sleeps shares the starfield night layer —
 // including the Don-mode night chain and the planning night.
-const NIGHTISH: Phase[] = ['night', 'planning_night', 'don_check', 'mafia_kill', 'sheriff_check'];
+export const NIGHTISH: Phase[] = ['night', 'planning_night', 'don_check', 'mafia_kill', 'sheriff_check'];
 
 const TRIBUNAL_RED =
   'radial-gradient(ellipse 200% 80% at 50% 50%, rgba(110,0,25,0.22) 0%, transparent 65%),' +

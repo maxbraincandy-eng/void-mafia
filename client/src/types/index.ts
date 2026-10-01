@@ -39,7 +39,8 @@ export type RoleKey =
   | 'arsonist'
   | 'mayor'
   | 'yakuza'
-  | 'shogun';
+  | 'shogun'
+  | 'vampire';
 
 export type Team = 'mafia' | 'town' | 'neutral' | 'cult' | 'yakuza';
 export type TieRule = 'no_elimination' | 'random';
@@ -320,6 +321,8 @@ export interface GameSettings {
     mayor: number;
     yakuza: number;
     shogun: number;
+    /** Halloween only; the server ignores it outside the season. */
+    vampire?: number;
   };
 }
 

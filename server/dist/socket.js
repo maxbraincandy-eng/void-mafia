@@ -1113,6 +1113,7 @@ const VOTE_DEATH = {
     arsonist: '⚖️ The Arsonist is extinguished.',
     yakuza: '⚖️ The Yakuza enforcer is unmasked and cast out.',
     shogun: '⚖️ A hidden ally is exposed. The Yakuza loses its shadow.',
+    vampire: '🧛 A stake through the heart. The Vampire hunts no more.',
 };
 function nightDeathMsg(name, role, lastWill) {
     const flavour = role ? NIGHT_DEATH[role] : null;

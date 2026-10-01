@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Phase } from '@/types/index';
+import { isMafiaHalloween } from '@/lib/halloween';
 
 interface Props {
   phase: Phase | null;
@@ -12,6 +13,8 @@ interface PhaseConfig {
   label: string;
   color: string;
   bg: string;
+  /** Georgian runs far wider than Latin caps: less tracking, sized to the screen. */
+  tight?: boolean;
 }
 
 const PHASE_CONFIG: Partial<Record<Phase, PhaseConfig>> = {
@@ -47,6 +50,12 @@ const PHASE_CONFIG: Partial<Record<Phase, PhaseConfig>> = {
   },
 };
 
+/** Halloween's night and dawn, in season (lib/halloween). */
+const HALLOWEEN_CONFIG: Partial<Record<Phase, PhaseConfig>> = {
+  night: { icon: '🦇', label: 'ჰელოუინის ღამე', color: '#ff6a1f', bg: 'from-[#1a0500]', tight: true },
+  day:   { icon: '🎃', label: 'გათენდა', color: '#ffb066', bg: 'from-[#1a0d00]', tight: true },
+};
+
 export function PhaseTransition({ phase, onDone }: Props) {
   useEffect(() => {
     if (!phase) return;
@@ -56,7 +65,7 @@ export function PhaseTransition({ phase, onDone }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 
-  const config = phase ? PHASE_CONFIG[phase] : null;
+  const config = phase ? (isMafiaHalloween() && HALLOWEEN_CONFIG[phase]) || PHASE_CONFIG[phase] : null;
 
   return (
     <AnimatePresence>
@@ -109,10 +118,11 @@ export function PhaseTransition({ phase, onDone }: Props) {
 
             <motion.p
               initial={{ opacity: 0, letterSpacing: '0.1em' }}
-              animate={{ opacity: 1, letterSpacing: '0.3em' }}
+              animate={{ opacity: 1, letterSpacing: config.tight ? '0.08em' : '0.3em' }}
               transition={{ delay: 0.1, duration: 0.35 }}
-              className="font-display text-4xl font-bold uppercase tracking-[0.3em]"
+              className={`font-display font-bold uppercase ${config.tight ? 'text-center px-4' : 'text-4xl tracking-[0.3em]'}`}
               style={{
+                ...(config.tight ? { fontSize: 'clamp(24px, 8vw, 38px)' } : {}),
                 color: config.color,
                 textShadow: `0 0 20px ${config.color}, 0 0 40px ${config.color}80`,
               }}

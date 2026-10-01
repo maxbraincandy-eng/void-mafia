@@ -10,6 +10,7 @@ import { useAmbientDrone } from '@/hooks/useAudio';
 import { Button } from '@/components/ui/Button';
 import { SkeletonRoomCard } from '@/components/ui/Skeleton';
 import { DailyChallengeCard } from '@/components/ui/DailyChallengeCard';
+import { isMafiaHalloween } from '@/lib/halloween';
 import { NewsCard } from '@/components/ui/NewsCard';
 import { LobbyChatPanel } from '@/components/social/LobbyChatPanel';
 import { VoidClansIcon } from '@/components/ui/VoidClansIcon';
@@ -456,12 +457,20 @@ export function RoomsPage({ onOpenClans, onOpenLeaderboard }: { onOpenClans?: ()
 
           {/* Title */}
           <div className="flex-1 min-w-0">
-            <h1
-              className="font-display font-bold gradient-text tracking-wide leading-none truncate"
-              style={{ fontSize: 'clamp(18px, 5vw, 24px)' }}
-            >
-              VOID MAFIA
-            </h1>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <h1
+                className="font-display font-bold gradient-text tracking-wide leading-none truncate"
+                style={{ fontSize: 'clamp(18px, 5vw, 24px)' }}
+              >
+                VOID MAFIA
+              </h1>
+              {/* Outside the h1: gradient-text clips its background to the
+                  glyphs, which would leave an emoji inside it invisible. */}
+              {isMafiaHalloween() && (
+                <span aria-hidden className="flex-shrink-0 leading-none"
+                  style={{ fontSize: 'clamp(15px, 4vw, 19px)', filter: 'drop-shadow(0 0 6px rgba(255,138,31,0.7))' }}>🎃</span>
+              )}
+            </div>
             <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
               <p className="text-[12px] font-mono text-white/20 tracking-wider truncate">
                 SOCIAL DEDUCTION
@@ -971,6 +980,7 @@ export function RoomsPage({ onOpenClans, onOpenLeaderboard }: { onOpenClans?: ()
             anyone came to this page, so they read at the foot of it. */}
         {family === 'classic' && (
           <div className="mt-7 pt-5" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+            {isMafiaHalloween() && <HalloweenNote />}
             <SeasonBanner />
             <DailyChallengeCard />
           </div>
@@ -1039,6 +1049,22 @@ export function RoomsPage({ onOpenClans, onOpenLeaderboard }: { onOpenClans?: ()
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+/** What Halloween changes at the table, at the foot of the room list. */
+function HalloweenNote() {
+  return (
+    <div className="rounded-xl px-3.5 py-3 mb-3 flex items-start gap-3"
+      style={{ background: 'linear-gradient(135deg, rgba(255,138,31,0.10), rgba(255,45,85,0.06))', border: '1px solid rgba(255,138,31,0.28)' }}>
+      <span className="text-[22px] leading-none pt-0.5" aria-hidden>🧛</span>
+      <div className="min-w-0">
+        <p className="font-display font-bold text-[13.5px]" style={{ color: '#ffb066' }}>ჰელოუინის ღამეები · 1 ნოემბრამდე</p>
+        <p className="font-mono text-[11px] text-white/60 leading-snug pt-0.5">
+          7+ მოთამაშიან ოთახებში შეიძლება ვამპირი შეგხვდეს: ღამით კბენს და უკვდავია — მხოლოდ დღის კენჭისყრა კლავს.
+        </p>
+      </div>
     </div>
   );
 }

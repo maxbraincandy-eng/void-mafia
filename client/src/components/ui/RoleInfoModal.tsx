@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { isMafiaHalloween } from '@/lib/halloween';
 import { motion, AnimatePresence } from 'framer-motion';
 import { RoleKey } from '@/types/index';
 import { useT } from '@/store/langStore';
@@ -27,6 +28,7 @@ const ROLES_META: RoleMeta[] = [
   // NEUTRAL
   { key: 'maniac',      icon: '🌀',  team: 'neutral' },
   { key: 'jester',      icon: '🃏',  team: 'neutral' },
+  ...(isMafiaHalloween() ? [{ key: 'vampire' as const, icon: '🧛', team: 'neutral' as const }] : []),
   // CULT
   { key: 'cult_leader', icon: '🕯️',  team: 'cult' },
   { key: 'cultist',     icon: '🔮',  team: 'cult' },

@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { isMafiaHalloween } from '@/lib/halloween';
 import { tNow, useT } from '@/store/langStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
@@ -54,6 +55,8 @@ const ROLE_GROUPS: Array<{
       { key: 'maniac',   name: 'Maniac',   icon: '🌀', desc: 'Lone killer — wins by being the last player alive.',           max: 2 },
       { key: 'jester',   name: 'Jester',   icon: '🃏', desc: 'Wants to be voted out. Wins by convincing town to eliminate.', max: 2 },
       { key: 'arsonist', name: 'Arsonist', icon: '🔥', desc: 'Douses players with gas, then ignites — killing all at once.', max: 2 },
+      // Halloween only — and only one: two night-immortal killers end a table.
+      ...(isMafiaHalloween() ? [{ key: 'vampire' as const, name: 'Vampire', icon: '🧛', desc: 'Halloween — bites one player a night; only the day vote can kill it.', max: 1 }] : []),
     ],
   },
   {
@@ -79,7 +82,7 @@ function computeBalance(roles: GameSettings['roles'], playerCount: number) {
   const town    = (roles.sheriff ?? 0) + (roles.doctor ?? 0) + (roles.bodyguard ?? 0) +
                   (roles.spy ?? 0) + (roles.vigilante ?? 0) + (roles.escort ?? 0) +
                   (roles.veteran ?? 0) + (roles.tracker ?? 0) + (roles.mayor ?? 0);
-  const neutral = (roles.maniac ?? 0) + (roles.jester ?? 0) + (roles.arsonist ?? 0);
+  const neutral = (roles.maniac ?? 0) + (roles.jester ?? 0) + (roles.arsonist ?? 0) + (isMafiaHalloween() ? (roles.vampire ?? 0) : 0);
   const cult    = roles.cult_leader ?? 0;
   const yakuza  = (roles.yakuza ?? 0) + (roles.shogun ?? 0);
   const specified = mafia + town + neutral + cult + yakuza;

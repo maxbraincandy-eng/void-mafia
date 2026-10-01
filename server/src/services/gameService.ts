@@ -770,7 +770,7 @@ export function resolveNight(room: Room): void {
   }
   for (const killId of veteranKillTargets) {
     const victim = room.players.get(killId);
-    if (victim && victim.isAlive) {
+    if (victim && victim.isAlive && victim.role !== 'vampire') {
       victim.isAlive = false;
       victim.deathType = 'night';
       room.killedLastNight.push({ id: killId, name: victim.name, lastWill: victim.lastWill ?? null });
@@ -796,6 +796,7 @@ export function resolveNight(room: Room): void {
       for (const dousedId of room.dousedPlayers) {
         const doused = room.players.get(dousedId);
         if (!doused || !doused.isAlive) continue;
+        if (doused.role === 'vampire') continue;          // nothing kills a vampire at night
         if (savedByDoctor.has(dousedId)) { room.savedLastNight = true; continue; }
         doused.isAlive = false;
         doused.deathType = 'night';
@@ -835,12 +836,15 @@ export function resolveNight(room: Room): void {
   const maniacKills    = actions.filter(a => a.role === 'maniac').map(a => a.targetId);
   const vigilanteKills = actions.filter(a => a.role === 'vigilante').map(a => a.targetId);
   const yakuzaKills    = actions.filter(a => a.role === 'yakuza').map(a => a.targetId);
+  const vampireBites   = actions.filter(a => a.role === 'vampire').map(a => a.targetId);
   // Skip veteran-alerted targets (veteran kills them already; or veteran is immune while on alert)
-  const killIntents = [...mafiaKills, ...maniacKills, ...vigilanteKills, ...yakuzaKills].filter(id => !alertedVeterans.has(id));
+  const killIntents = [...mafiaKills, ...maniacKills, ...vigilanteKills, ...yakuzaKills, ...vampireBites].filter(id => !alertedVeterans.has(id));
 
   for (const targetId of killIntents) {
     const target = room.players.get(targetId);
     if (!target || !target.isAlive) continue;
+    // Halloween: a vampire cannot die at night. Only the day's vote can end it.
+    if (target.role === 'vampire') continue;
 
     if (savedByDoctor.has(targetId)) {
       room.savedLastNight = true;
@@ -915,6 +919,9 @@ export function submitNightAction(room: Room, actor: Player, targetId: string): 
 
   // Vigilante cannot target themselves
   if (actor.role === 'vigilante' && isSelfTarget) throw new Error('You cannot target yourself.');
+
+  // Vampire cannot bite themselves
+  if (actor.role === 'vampire' && isSelfTarget) throw new Error('You cannot bite yourself.');
 
   // Escort cannot target themselves
   if (actor.role === 'escort' && isSelfTarget) throw new Error('You cannot target yourself.');
@@ -1163,6 +1170,7 @@ export function checkWin(room: Room): boolean {
   const neutralAlive    = alive.filter(p => p.team === 'neutral').length;
   const yakuzaAlive     = alive.filter(p => p.team === 'yakuza').length;
   const yakuzaKillerAlive = alive.some(p => p.role === 'yakuza');
+  const vampireAlive    = alive.some(p => p.role === 'vampire');
 
   // Cult win: leader alive and cult outnumbers everyone else
   if (cultLeaderAlive && cultAlive >= mafiaAlive + townAlive + neutralAlive + yakuzaAlive && cultAlive > 0) {
@@ -1185,7 +1193,8 @@ export function checkWin(room: Room): boolean {
 
   // Yakuza faction is completely dead — check remaining factions without yakuza
   // Town wins: all mafia, cult, and yakuza eliminated
-  if (mafiaAlive === 0 && cultAlive === 0 && yakuzaAlive === 0) {
+  // A living vampire is still killing every night, so the town has not won yet.
+  if (mafiaAlive === 0 && cultAlive === 0 && yakuzaAlive === 0 && !vampireAlive) {
     room.winner = 'town';
     return true;
   }

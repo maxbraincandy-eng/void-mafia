@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button';
 
 const WAKE_ROLES = new Set<RoleKey>([
   'mafia', 'don', 'sheriff', 'doctor', 'bodyguard', 'maniac', 'vigilante',
-  'escort', 'tracker', 'veteran', 'arsonist', 'cult_leader', 'yakuza',
+  'escort', 'tracker', 'veteran', 'arsonist', 'cult_leader', 'yakuza', 'vampire',
 ]);
 
 export function NightPanel() {

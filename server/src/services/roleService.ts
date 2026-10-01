@@ -1,5 +1,6 @@
 import { Role, RoleKey, GameSettings, Team } from '../types/index.js';
 import { shuffle } from '../utils/helpers.js';
+import { isMafiaHalloween } from './halloween.js';
 
 export function validateRoleDistribution(playerCount: number, settings: GameSettings): void {
   const r = settings.roles;
@@ -15,7 +16,23 @@ export function validateRoleDistribution(playerCount: number, settings: GameSett
   }
 }
 
-export function buildAutoRoleDeck(count: number): RoleKey[] {
+/**
+ * Halloween: a table of seven or more gets one vampire in place of a citizen.
+ * Seven, because below that a night-immortal solo killer ends the game for the
+ * town before the town has had a day to find it.
+ */
+function withHalloween(deck: RoleKey[], count: number, now: number): RoleKey[] {
+  if (!isMafiaHalloween(now) || count < 7) return deck;
+  const i = deck.indexOf('citizen');
+  if (i >= 0) deck[i] = 'vampire';
+  return deck;
+}
+
+export function buildAutoRoleDeck(count: number, now: number = Date.now()): RoleKey[] {
+  return withHalloween(buildAutoRoleDeckPlain(count), count, now);
+}
+
+function buildAutoRoleDeckPlain(count: number): RoleKey[] {
   const presets: Partial<Record<number, RoleKey[]>> = {
     4:  ['mafia', 'sheriff', 'citizen', 'citizen'],
     5:  ['mafia', 'sheriff', 'doctor', 'citizen', 'citizen'],
@@ -224,6 +241,16 @@ export const ROLES: Record<RoleKey, Role> = {
     color: 'red',
     glowColor: '#ef4444',
   },
+  vampire: {
+    key: 'vampire',
+    name: 'Vampire',
+    team: 'neutral',
+    description: 'A Halloween night hunter. No night attack can kill you — only the town\'s vote can.',
+    ability: 'Each night, bite one player to kill them. Immortal at night. Appears suspicious to the Sheriff.',
+    wakeAtNight: true,
+    color: 'red',
+    glowColor: '#ff2d55',
+  },
   shogun: {
     key: 'shogun',
     name: 'Shogun',
@@ -244,7 +271,7 @@ export function getRole(key: RoleKey): Role {
  * Build a shuffled role deck entirely from room settings.
  * Citizens fill any remaining slots.
  */
-export function buildRoleDeck(settings: GameSettings, playerCount: number): RoleKey[] {
+export function buildRoleDeck(settings: GameSettings, playerCount: number, now: number = Date.now()): RoleKey[] {
   const r = settings.roles;
   const deck: RoleKey[] = [];
 
@@ -269,6 +296,8 @@ export function buildRoleDeck(settings: GameSettings, playerCount: number): Role
   push('mayor',       r.mayor       ?? 0);
   push('yakuza',      r.yakuza      ?? 0);
   push('shogun',      r.shogun      ?? 0);
+  // Seasonal: a vampire asked for in November is simply not dealt.
+  if (isMafiaHalloween(now)) push('vampire', Math.min(1, r.vampire ?? 0));
 
   while (deck.length < playerCount) deck.push('citizen');
 
@@ -282,5 +311,5 @@ export function getTeam(role: RoleKey): Team {
 export function isSuspiciousToSheriff(role: RoleKey): boolean {
   // Yakuza checks suspicious; Shogun checks clean (hidden support)
   // Don appears innocent; cult_leader and arsonist are suspicious
-  return role === 'mafia' || role === 'cult_leader' || role === 'arsonist' || role === 'yakuza';
+  return role === 'mafia' || role === 'cult_leader' || role === 'arsonist' || role === 'yakuza' || role === 'vampire';
 }

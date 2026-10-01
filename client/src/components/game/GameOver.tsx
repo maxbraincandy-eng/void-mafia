@@ -28,7 +28,7 @@ const WINNER_BG: Record<Team, string> = {
 
 const ROLE_ICONS: Record<RoleKey, string> = {
   mafia: '◆', citizen: '◈', sheriff: '✦', doctor: '+', don: '♛',
-  maniac: '∞', jester: '✧', bodyguard: '⬡',
+  maniac: '∞', jester: '✧', bodyguard: '⬡', vampire: '🦇',
   spy: '◉', escort: '✿', vigilante: '⚖',
   cult_leader: '⛤', cultist: '◎', veteran: '★',
   tracker: '◯', arsonist: '△', mayor: '♔',
@@ -43,6 +43,7 @@ const ROLE_CARD_IMAGES: Partial<Record<RoleKey | string, string>> = {
   mafia:       '/roles/mafia.svg',
   don:         '/roles/don.svg',
   maniac:      '/roles/maniac.svg',
+  vampire:     '/roles/vampire.svg',
   jester:      '/roles/jester.svg',
   bodyguard:   '/roles/bodyguard.svg',
   spy:         '/roles/spy.svg',
@@ -59,7 +60,7 @@ const ROLE_COLORS: Record<RoleKey, string> = {
   mafia: 'text-neon-pink', don: 'text-neon-pink',
   citizen: 'text-neon-cyan', sheriff: 'text-blue-400', doctor: 'text-neon-green',
   bodyguard: 'text-neon-green', spy: 'text-cyan-400', vigilante: 'text-yellow-400', escort: 'text-pink-400',
-  maniac: 'text-neon-purple', jester: 'text-purple-400',
+  maniac: 'text-neon-purple', jester: 'text-purple-400', vampire: 'text-red-400',
   cult_leader: 'text-fuchsia-400', cultist: 'text-fuchsia-300',
   veteran: 'text-yellow-400', tracker: 'text-blue-400',
   arsonist: 'text-orange-400', mayor: 'text-yellow-300',

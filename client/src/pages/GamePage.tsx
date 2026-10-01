@@ -31,6 +31,8 @@ import { PlayerGrid } from '@/components/game/PlayerGrid';
 import { EliminationCinematic } from '@/components/game/EliminationCinematic';
 import { GameEventLog } from '@/components/game/GameEventLog';
 import { PhaseAtmosphere } from '@/components/game/PhaseAtmosphere';
+import { HalloweenLayer } from '@/components/game/HalloweenLayer';
+import { isMafiaHalloween } from '@/lib/halloween';
 import { VoteEliminationOverlay } from '@/components/game/VoteEliminationOverlay';
 import { CultConversionOverlay } from '@/components/game/CultConversionOverlay';
 import { VoteRevealScreen } from '@/components/game/VoteRevealScreen';
@@ -1539,6 +1541,8 @@ export function GamePage() {
 
       {/* ── Phase atmosphere (ambient tinted background per phase) ── */}
       <PhaseAtmosphere phase={phase} />
+      {/* Halloween: decoration and the night-falls swarm, in season only. */}
+      {isMafiaHalloween() && <HalloweenLayer phase={phase} />}
 
       {/* Night music — YouTube audio for idle citizens/dead/spectators */}
       <NightMusic
