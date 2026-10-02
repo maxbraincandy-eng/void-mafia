@@ -39,6 +39,8 @@ export const FRAMES: FrameDef[] = [
   { id: 'frame_neon_sheriff', name: 'Neon Sheriff',  rarity: 'uncommon',  colors: ['#00e5ff', '#00ff88'], glow: '#00e5ff50' },
   // Halloween 2026: kept by everyone who finished a classic Mafia game that October.
   { id: 'frame_halloween_2026', name: 'Halloween 2026', rarity: 'exclusive', colors: ['#ff8a1f', '#6b21a8'], glow: '#ff8a1f80', badge: '🎃' },
+  // Trick or Treat: bought with candy, or the season's first prize.
+  { id: 'frame_jack_o_lantern', name: "Jack-o'-Lantern", rarity: 'exclusive', colors: ['#ffb020', '#ff5a00'], glow: '#ff8a1f90', badge: '🎃' },
 ];
 
 export const TITLES: TitleDef[] = [
@@ -52,6 +54,9 @@ export const TITLES: TitleDef[] = [
   { id: 'title_shadow_shogun',  name: 'Shadow Shogun',     rarity: 'epic',      color: '#00e5ff' },
   { id: 'title_cult_prophet',   name: 'Cult Prophet',      rarity: 'epic',      color: '#cc00ff' },
   { id: 'title_godfather',      name: 'The Godfather',     rarity: 'legendary', color: '#facc15' },
+  // Trick or Treat.
+  { id: 'title_candy_king',     name: 'ტკბილეულის მეფე',   rarity: 'exclusive', color: '#ff8a1f' },
+  { id: 'title_halloween_champion_2026', name: 'ჰელოუინის ჩემპიონი 2026', rarity: 'exclusive', color: '#ffb020' },
 ];
 
 export const ROLE_SKINS: RoleSkinDef[] = [

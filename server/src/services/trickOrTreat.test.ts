@@ -150,3 +150,13 @@ test('the shared line shows the path, never an unopened door', () => {
   assert.ok(!line.includes('👻'), 'the shared line gave away a door that was never opened');
   assert.ok(line.includes('🏠 3'));
 });
+
+test('gear: an amulet to start with, a lit first door, a sweeter bag', () => {
+  const w = newWalk(['amulet', 'lantern', 'sweet'], () => 0.5);
+  assert.equal(w.amulet, true);
+  assert.equal(w.sweet, true);
+  assert.ok(w.peek, 'the lantern did not light the first door');
+  const plain = knock(newWalk([], () => 0.5), () => 0.5).door;
+  const sweet = knock(newWalk(['sweet']), () => 0.5).door;
+  assert.equal(sweet.amount, plain.amount + 1);
+});

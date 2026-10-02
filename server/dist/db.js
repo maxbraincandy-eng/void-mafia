@@ -1554,6 +1554,35 @@ export async function initializeDatabase() {
   `;
     await sql `CREATE INDEX IF NOT EXISTS idx_tot_user_day ON tot_runs(user_id, date_key)`;
     await sql `CREATE INDEX IF NOT EXISTS idx_tot_season ON tot_runs(season, status)`;
+    /*
+     * What candy was spent on. The wallet is candy carried home minus this; the
+     * season board reads tot_runs alone, so spending never costs a place on it.
+     * `coins` is set for an exchange, and is what the daily coin cap sums.
+     */
+    await sql `
+    CREATE TABLE IF NOT EXISTS tot_spend (
+      id         TEXT PRIMARY KEY,
+      user_id    TEXT NOT NULL,
+      season     INTEGER NOT NULL,
+      date_key   TEXT NOT NULL,
+      kind       TEXT NOT NULL,
+      item       TEXT NOT NULL,
+      candy      INTEGER NOT NULL,
+      coins      INTEGER NOT NULL DEFAULT 0,
+      created_at BIGINT NOT NULL
+    )
+  `;
+    await sql `CREATE INDEX IF NOT EXISTS idx_tot_spend_user ON tot_spend(user_id, season, date_key)`;
+    // One row per paid season prize: the key is what makes paying it twice impossible.
+    await sql `
+    CREATE TABLE IF NOT EXISTS tot_prizes (
+      season   INTEGER NOT NULL,
+      rank     INTEGER NOT NULL,
+      user_id  TEXT NOT NULL,
+      paid_at  BIGINT NOT NULL,
+      PRIMARY KEY (season, rank)
+    )
+  `;
     // VOID IQ — cognitive test attempts + public leaderboard
     await sql `
     CREATE TABLE IF NOT EXISTS iq_attempts (

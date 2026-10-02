@@ -53,6 +53,9 @@ beforeEach(async () => {
 
 async function clean(): Promise<void> {
   await db.sql`DELETE FROM tot_runs WHERE user_id LIKE 'tott\\_%'`;
+  await db.sql`DELETE FROM tot_spend WHERE user_id LIKE 'tott\\_%'`;
+  await db.sql`DELETE FROM tot_prizes WHERE user_id LIKE 'tott\\_%'`;
+  await db.sql`DELETE FROM coin_transactions WHERE player_id LIKE 'tott\\_%'`.catch(() => {});
   await db.sql`DELETE FROM players WHERE id LIKE 'tott\\_%'`;
 }
 
@@ -184,4 +187,126 @@ test('a guest plays but is not on the board', { skip }, async () => {
   assert.ok((await S.getState(guest, t)).total > 0);
   const { top } = await S.getBoard(null, t);
   assert.ok(!top.some(r => r.userId === guest), 'a guest socket id made the board');
+});
+
+// ── The shop ──────────────────────────────────────────────────────────────
+
+/** Candy banked straight into the season, as if from walks already done. */
+async function bank(who: string, candy: number, season = 2026, dateKey = '2026-10-01'): Promise<void> {
+  await db.sql`
+    INSERT INTO tot_runs (id, user_id, season, date_key, state, status, banked, started_at, finished_at)
+    VALUES (${'tott_' + Math.random().toString(36).slice(2)}, ${who}, ${season}, ${dateKey}, '{}', 'home', ${candy}, 1, 1)
+  `;
+}
+
+test('gear costs candy, is on the walk, and spending leaves the season score alone', { skip }, async () => {
+  const t = OCT(22);
+  await bank(A, 50);
+  await S.startWalk(A, t, ['amulet', 'sweet']);
+  const st = await S.getState(A, t);
+  assert.equal(st.candy, 50 - 15 - 20);
+  assert.equal(st.total, 50, 'spending lowered the season score');
+  assert.equal(st.walk?.amulet, true);
+  assert.equal(st.walk?.sweet, true);
+  const door = await S.knockDoor(A, t, () => 0.5);
+  assert.equal(door.kind, 'candy');
+  assert.ok(door.amount >= 2, 'the sweet bag did not add one');
+});
+
+test('gear the wallet cannot pay for starts nothing and takes nothing', { skip }, async () => {
+  const t = OCT(22);
+  await bank(A, 12);
+  await assert.rejects(S.startWalk(A, t, ['amulet']), /არ გყოფნის/);
+  const st = await S.getState(A, t);
+  assert.equal(st.walk, null);
+  assert.equal(st.candy, 12);
+  await assert.rejects(S.startWalk(A, t, ['nonsense']), /არ არსებობს/);
+});
+
+test('extra walks: two a day, each one more walk', { skip }, async () => {
+  const t = OCT(23);
+  await bank(A, 100);
+  for (let i = 0; i < R.RUNS_PER_DAY; i++) { await S.startWalk(A, t); await S.walkHome(A, t); }
+  await assert.rejects(S.startWalk(A, t), /ხვალ/);
+  await S.buyExtraWalk(A, t);
+  let st = await S.getState(A, t);
+  assert.equal(st.runsLeft, 1);
+  assert.equal(st.candy, 100 - R.EXTRA_WALK_PRICE);
+  await S.startWalk(A, t); await S.walkHome(A, t);
+  await S.buyExtraWalk(A, t);
+  await assert.rejects(S.buyExtraWalk(A, t), /აღარ/);
+  st = await S.getState(A, t);
+  assert.equal(st.runsLeft, 1);
+  assert.equal(st.extraWalksToday, 2);
+});
+
+test('exchange: tens only, 100 coins a day, paid into the coin balance', { skip }, async () => {
+  const t = OCT(24);
+  await bank(A, 300);
+  const C = await import('./services/coinService.js');
+  const before = await C.getCoins(A);
+  await assert.rejects(S.exchangeCandy(A, 15, t), /ჯერადად/);
+  assert.equal(await S.exchangeCandy(A, 60, t), 60);
+  await assert.rejects(S.exchangeCandy(A, 50, t), /კიდევ 40/);
+  assert.equal(await S.exchangeCandy(A, 40, t), 40);
+  assert.equal(await C.getCoins(A), before + 100);
+  const st = await S.getState(A, t);
+  assert.equal(st.candy, 200);
+  assert.equal(st.coinsExchangedToday, 100);
+  // A new day, a new hundred.
+  assert.equal(await S.exchangeCandy(A, 10, OCT(25)), 10);
+});
+
+test('exchanges sent together never cross the wallet or the daily cap', { skip }, async () => {
+  const t = OCT(26);
+  await bank(A, 30);
+  const rs = await Promise.allSettled(Array.from({ length: 5 }, () => S.exchangeCandy(A, 10, t)));
+  assert.equal(rs.filter(r => r.status === 'fulfilled').length, 3);
+  assert.equal((await S.getState(A, t)).candy, 0);
+});
+
+test('a guest cannot exchange or buy — there is nowhere to keep it', { skip }, async () => {
+  const t = OCT(26);
+  const guest = 'tott_guest_x';
+  await bank(guest, 500);
+  await assert.rejects(S.exchangeCandy(guest, 10, t), /ანგარიში/);
+  await assert.rejects(S.buyCosmetic(guest, 'title_candy_king', t), /ანგარიში/);
+  assert.equal((await S.getState(guest, t)).candy, 500);
+});
+
+test('a cosmetic is bought once and lands on the profile', { skip }, async () => {
+  const t = OCT(27);
+  await bank(A, 400);
+  await S.buyCosmetic(A, 'title_candy_king', t);
+  const P = await import('./services/playerService.js');
+  assert.ok((await P.getCosmetics(A)).unlockedItems.includes('title_candy_king'));
+  await assert.rejects(S.buyCosmetic(A, 'title_candy_king', t), /შენია/);
+  const st = await S.getState(A, t);
+  assert.equal(st.candy, 400 - R.COSMETICS.title_candy_king.price);
+  assert.deepEqual(st.owned, ['title_candy_king']);
+  await assert.rejects(S.buyCosmetic(A, 'frame_gold', t), /არ არის/);
+});
+
+test('season prizes: nothing before the close, the top three once after', { skip }, async () => {
+  // A season of its own, so nobody else in this database is on its board.
+  const year = 2031;
+  const ids = ['tott_p1', 'tott_p2', 'tott_p3', 'tott_p4'];
+  for (const [i, id] of ids.entries()) {
+    await db.sql`
+      INSERT INTO players (id, username, avatar, joined_at, last_seen_at)
+      VALUES (${id}, ${'P' + i}, '🎃', ${Date.now()}, ${Date.now()})
+    `;
+    await bank(id, 400 - i * 100, year);
+  }
+  assert.deepEqual(await S.awardSeasonPrizes(year, Date.UTC(year, 9, 31, 12)), []);
+  const after = Date.UTC(year, 10, 5, 12);
+  const paid = await S.awardSeasonPrizes(year, after);
+  assert.deepEqual(paid.map(p => p.userId), ['tott_p1', 'tott_p2', 'tott_p3']);
+  assert.deepEqual(await S.awardSeasonPrizes(year, after), [], 'prizes were paid twice');
+  const C = await import('./services/coinService.js');
+  const P = await import('./services/playerService.js');
+  assert.equal(await C.getCoins('tott_p4'), 0);
+  assert.ok((await P.getCosmetics('tott_p1')).unlockedItems.includes('frame_jack_o_lantern'));
+  assert.ok((await P.getCosmetics('tott_p3')).unlockedItems.includes('title_halloween_champion_2026'));
+  assert.ok(await C.getCoins('tott_p1') >= 500);
 });

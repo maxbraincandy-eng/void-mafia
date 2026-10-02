@@ -34,9 +34,53 @@ export interface Walk {
   peek: Door | null;
   status: 'walking' | 'home' | 'scared';
   banked: number;
+  /** Bought for this walk: every candy and treat door gives one more. */
+  sweet?: boolean;
 }
 
-export const newWalk = (): Walk => ({ doors: [], bag: 0, amulet: false, peek: null, status: 'walking', banked: 0 });
+// ── The shop ────────────────────────────────────────────────────────────────
+//
+// Candy is worth something only if it can be spent, so it can be: on gear for
+// the next walk (which is how a careful player goes further), on more walks,
+// on coins, and on things to wear. Spending never lowers a player's place on
+// the season board — that counts candy carried home, not candy kept.
+
+export type GearId = 'amulet' | 'lantern' | 'sweet';
+export const GEAR: Record<GearId, { price: number; label: string; emoji: string; desc: string }> = {
+  amulet:  { price: 15, emoji: '🧿', label: 'ამულეტი',        desc: 'გასეირნებას ამულეტით იწყებ — პირველ მოჩვენებას მოიგერიებ' },
+  lantern: { price: 10, emoji: '🎃', label: 'ფარანი',          desc: 'პირველი კარი წინასწარ განათებულია' },
+  sweet:   { price: 20, emoji: '🍭', label: 'ტკბილი ტომარა',  desc: 'ყოველ კანფეტს და ტკბილეულს +1' },
+};
+
+/** A walk bought more than this many times a day stops being a daily game. */
+export const EXTRA_WALKS_PER_DAY = 2;
+export const EXTRA_WALK_PRICE = 25;
+
+/** 10 candy for 10 coins, in tens, at most 100 coins a day. */
+export const EXCHANGE_STEP = 10;
+export const EXCHANGE_COINS_PER_DAY = 100;
+export const coinsFor = (candy: number) => candy;
+
+export type CosmeticId = 'title_candy_king' | 'frame_jack_o_lantern';
+export const COSMETICS: Record<CosmeticId, { price: number; label: string; emoji: string }> = {
+  title_candy_king:     { price: 150, emoji: '👑', label: 'სათაური „ტკბილეულის მეფე"' },
+  frame_jack_o_lantern: { price: 250, emoji: '🎃', label: 'ჩარჩო „ჯეკის ფარანი"' },
+};
+
+/** What the top three of the season are given when it closes. */
+export const SEASON_PRIZES: { rank: number; coins: number; items: string[] }[] = [
+  { rank: 1, coins: 500, items: ['title_halloween_champion_2026', 'frame_jack_o_lantern'] },
+  { rank: 2, coins: 300, items: ['title_halloween_champion_2026'] },
+  { rank: 3, coins: 150, items: ['title_halloween_champion_2026'] },
+];
+
+export function newWalk(gear: GearId[] = [], rng: () => number = Math.random): Walk {
+  const w: Walk = { doors: [], bag: 0, amulet: false, peek: null, status: 'walking', banked: 0 };
+  if (gear.includes('amulet')) w.amulet = true;
+  if (gear.includes('sweet')) w.sweet = true;
+  if (gear.includes('lantern')) w.peek = rollDoor(1, rng);
+  return w;
+}
 
 /** The chance that door number `n` (1-based) is a ghost. */
 export function ghostChance(n: number): number {
@@ -71,6 +115,7 @@ export function knock(w: Walk, rng: () => number = Math.random): { walk: Walk; d
   switch (door.kind) {
     case 'candy':
     case 'treat':
+      if (walk.sweet) door = { ...door, amount: door.amount + 1 };
       walk.bag += door.amount;
       break;
     case 'amulet':

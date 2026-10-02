@@ -13,7 +13,7 @@
  * The walk is stored whole, as JSON, after every door — so a reconnect or a
  * restart in the middle of a street picks up exactly where it was.
  */
-import { type Walk, type Door } from './trickOrTreatRules.js';
+import { type Walk, type Door, GEAR, COSMETICS, SEASON_PRIZES } from './trickOrTreatRules.js';
 export interface TotState {
     season: {
         active: boolean;
@@ -32,6 +32,25 @@ export interface TotState {
     total: number;
     best: number;
     walks: number;
+    /** Candy in the wallet: carried home this season, minus what was spent. */
+    candy: number;
+    extraWalksToday: number;
+    coinsExchangedToday: number;
+    /** Shop cosmetics already bought. */
+    owned: string[];
+    shop: {
+        gear: typeof GEAR;
+        extraWalk: {
+            price: number;
+            perDay: number;
+        };
+        exchange: {
+            step: number;
+            coinsPerDay: number;
+        };
+        cosmetics: typeof COSMETICS;
+        prizes: typeof SEASON_PRIZES;
+    };
 }
 export interface TotBoardRow {
     rank: number;
@@ -45,8 +64,31 @@ declare class TotError extends Error {
 }
 export { TotError };
 export declare function getState(userId: string, now?: number): Promise<TotState>;
-/** Start a walk. Refused outside the season, at the daily limit, or mid-walk. */
-export declare function startWalk(userId: string, now?: number): Promise<void>;
+/**
+ * Start a walk, optionally with gear bought from the wallet.
+ * Refused outside the season, at the day's allowance, mid-walk, or short of candy.
+ */
+export declare function startWalk(userId: string, now?: number, gear?: string[], rng?: () => number): Promise<void>;
+/** One more walk today, for candy — at most EXTRA_WALKS_PER_DAY. */
+export declare function buyExtraWalk(userId: string, now?: number): Promise<void>;
+/**
+ * Candy into coins: in steps of EXCHANGE_STEP, at most EXCHANGE_COINS_PER_DAY
+ * coins a day, and only for a player with an account — a guest has nowhere to
+ * keep coins. The candy is claimed under the lock; the coins are paid after,
+ * and if paying fails the claim is taken back, so candy is never lost.
+ */
+export declare function exchangeCandy(userId: string, candy: number, now?: number): Promise<number>;
+/** A cosmetic from the shop: bought once, kept on the profile. */
+export declare function buyCosmetic(userId: string, item: string, now?: number): Promise<void>;
+/**
+ * Pay the season's prizes, once, after it has closed. Safe to call at any time
+ * and as often as liked: before the season ends it does nothing, and a prize
+ * already paid is refused by tot_prizes' key.
+ */
+export declare function awardSeasonPrizes(year: number, now?: number): Promise<{
+    rank: number;
+    userId: string;
+}[]>;
 /** Open the next door of the walk in progress. */
 export declare function knockDoor(userId: string, now?: number, rng?: () => number): Promise<Door>;
 /** Go home and bank the bag. */
@@ -58,7 +100,7 @@ export declare function walkHome(userId: string, now?: number): Promise<number>;
  * is new every visit, so a guest row is a stranger nobody can find again —
  * and a fresh id per visit would also be a fresh daily allowance per visit.
  */
-export declare function getBoard(userId: string | null, now?: number, limit?: number): Promise<{
+export declare function getBoard(userId: string | null, now?: number, limit?: number, season?: number): Promise<{
     top: TotBoardRow[];
     me: TotBoardRow | null;
 }>;

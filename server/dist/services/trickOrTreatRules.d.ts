@@ -30,8 +30,36 @@ export interface Walk {
     peek: Door | null;
     status: 'walking' | 'home' | 'scared';
     banked: number;
+    /** Bought for this walk: every candy and treat door gives one more. */
+    sweet?: boolean;
 }
-export declare const newWalk: () => Walk;
+export type GearId = 'amulet' | 'lantern' | 'sweet';
+export declare const GEAR: Record<GearId, {
+    price: number;
+    label: string;
+    emoji: string;
+    desc: string;
+}>;
+/** A walk bought more than this many times a day stops being a daily game. */
+export declare const EXTRA_WALKS_PER_DAY = 2;
+export declare const EXTRA_WALK_PRICE = 25;
+/** 10 candy for 10 coins, in tens, at most 100 coins a day. */
+export declare const EXCHANGE_STEP = 10;
+export declare const EXCHANGE_COINS_PER_DAY = 100;
+export declare const coinsFor: (candy: number) => number;
+export type CosmeticId = 'title_candy_king' | 'frame_jack_o_lantern';
+export declare const COSMETICS: Record<CosmeticId, {
+    price: number;
+    label: string;
+    emoji: string;
+}>;
+/** What the top three of the season are given when it closes. */
+export declare const SEASON_PRIZES: {
+    rank: number;
+    coins: number;
+    items: string[];
+}[];
+export declare function newWalk(gear?: GearId[], rng?: () => number): Walk;
 /** The chance that door number `n` (1-based) is a ghost. */
 export declare function ghostChance(n: number): number;
 /**

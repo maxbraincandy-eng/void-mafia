@@ -14,7 +14,38 @@
 export const RUNS_PER_DAY = 5;
 /** A walk ends by itself here; nobody should be able to knock for ever. */
 export const MAX_DOORS = 30;
-export const newWalk = () => ({ doors: [], bag: 0, amulet: false, peek: null, status: 'walking', banked: 0 });
+export const GEAR = {
+    amulet: { price: 15, emoji: '🧿', label: 'ამულეტი', desc: 'გასეირნებას ამულეტით იწყებ — პირველ მოჩვენებას მოიგერიებ' },
+    lantern: { price: 10, emoji: '🎃', label: 'ფარანი', desc: 'პირველი კარი წინასწარ განათებულია' },
+    sweet: { price: 20, emoji: '🍭', label: 'ტკბილი ტომარა', desc: 'ყოველ კანფეტს და ტკბილეულს +1' },
+};
+/** A walk bought more than this many times a day stops being a daily game. */
+export const EXTRA_WALKS_PER_DAY = 2;
+export const EXTRA_WALK_PRICE = 25;
+/** 10 candy for 10 coins, in tens, at most 100 coins a day. */
+export const EXCHANGE_STEP = 10;
+export const EXCHANGE_COINS_PER_DAY = 100;
+export const coinsFor = (candy) => candy;
+export const COSMETICS = {
+    title_candy_king: { price: 150, emoji: '👑', label: 'სათაური „ტკბილეულის მეფე"' },
+    frame_jack_o_lantern: { price: 250, emoji: '🎃', label: 'ჩარჩო „ჯეკის ფარანი"' },
+};
+/** What the top three of the season are given when it closes. */
+export const SEASON_PRIZES = [
+    { rank: 1, coins: 500, items: ['title_halloween_champion_2026', 'frame_jack_o_lantern'] },
+    { rank: 2, coins: 300, items: ['title_halloween_champion_2026'] },
+    { rank: 3, coins: 150, items: ['title_halloween_champion_2026'] },
+];
+export function newWalk(gear = [], rng = Math.random) {
+    const w = { doors: [], bag: 0, amulet: false, peek: null, status: 'walking', banked: 0 };
+    if (gear.includes('amulet'))
+        w.amulet = true;
+    if (gear.includes('sweet'))
+        w.sweet = true;
+    if (gear.includes('lantern'))
+        w.peek = rollDoor(1, rng);
+    return w;
+}
 /** The chance that door number `n` (1-based) is a ghost. */
 export function ghostChance(n) {
     return Math.min(0.55, 0.06 + 0.04 * (n - 1));
@@ -51,6 +82,8 @@ export function knock(w, rng = Math.random) {
     switch (door.kind) {
         case 'candy':
         case 'treat':
+            if (walk.sweet)
+                door = { ...door, amount: door.amount + 1 };
             walk.bag += door.amount;
             break;
         case 'amulet':
