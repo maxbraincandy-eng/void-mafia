@@ -507,14 +507,14 @@ export function PostCardV2({
     finally { setSavingEdit(false); }
   }
 
-  const cardBorder = isMrMax ? 'rgba(255,215,0,0.4)' : 'rgba(155,0,255,0.2)';
-  const cardBg = isMrMax ? 'rgba(255,215,0,0.04)' : 'rgba(255,255,255,0.02)';
+  const cardBorder = isMrMax ? 'rgba(214,180,92,0.32)' : 'rgba(255,255,255,0.085)';
+  const cardBg = isMrMax ? 'linear-gradient(145deg, rgba(214,180,92,0.055), rgba(21,23,32,0.96) 42%)' : 'linear-gradient(145deg, rgba(255,255,255,0.035), rgba(21,23,32,0.96) 38%)';
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-2xl border px-4 py-3.5 space-y-3"
+      className="rounded-2xl border px-4 py-4 space-y-3.5 shadow-[0_8px_28px_rgba(0,0,0,0.16)]"
       style={{ borderColor: cardBorder, background: cardBg }}
     >
       {post.isPinned && (
