@@ -245,7 +245,7 @@ export function FeedTabV2({ onOpenProfile, onOpenMyProfile }: { onOpenProfile: (
           <button
             type="button"
             onClick={() => setShowComposer(true)}
-            aria-label={t.commB.createPost ?? 'Create post'}
+            aria-label="პოსტის შექმნა"
             className="flex h-10 w-10 items-center justify-center rounded-full border border-violet-300/25 bg-violet-400/15 text-xl font-light text-violet-100 transition-all hover:bg-violet-400/25 active:scale-95"
           >
             +
