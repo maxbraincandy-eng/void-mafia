@@ -197,148 +197,155 @@ export function FeedTabV2({ onOpenProfile, onOpenMyProfile }: { onOpenProfile: (
   }, []);
 
   return (
-    <div className="space-y-4">
-      {/* The keyframes the live ring uses, mounted once for the whole feed. */}
+    <div className="mx-auto w-full max-w-3xl space-y-5 pb-6">
       <AvatarStatusStyles />
-      <div className="flex items-center justify-between mb-1">
-        <h2 className="font-display font-bold text-white text-lg">{t.community.feed.title}</h2>
-        {/*
-          The two actions are one group, on the right.
 
-          They were three children of a `justify-between` row, so the browser
-          spread them evenly and put a hand's width of nothing between "go live"
-          and "post" — the header read as three unrelated things rather than a
-          title and its actions.
-
-          Going live is its own button rather than a tab inside the composer:
-          the other two open a form and this opens a camera, and burying "the
-          camera turns on now" inside a sheet that otherwise writes text is how
-          somebody goes live by accident.
-        */}
-        <div className="flex items-center gap-2">
-        <button
-          onClick={() => setShowGoLive(true)}
-          className="w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-90"
-          style={{
-            background: iAmLive ? 'rgba(255,45,85,0.9)' : 'rgba(255,45,85,0.14)',
-            border: `1px solid ${iAmLive ? '#ff2d55' : 'rgba(255,45,85,0.45)'}`,
-            animation: iAmLive ? 'liveRingPulse 1.8s ease-in-out infinite' : undefined,
-          }}
-          title={iAmLive ? 'შენ ეთერში ხარ' : 'პირდაპირი ეთერი'}
-        ><LiveDot size={15} color={iAmLive ? '#fff' : '#ff5c7a'} /></button>
-        <button
-          onClick={() => setShowComposer(true)}
-          className="w-9 h-9 rounded-full flex items-center justify-center text-lg transition-all active:scale-90"
-          style={{ background: 'linear-gradient(135deg, rgba(155,0,255,0.3), rgba(0,245,255,0.2))', border: '1px solid rgba(155,0,255,0.45)' }}
-        >
-          +
-        </button>
+      {/* Main social header: clear hierarchy, with profile kept out of feed filters. */}
+      <header className="flex items-center justify-between gap-3 pt-1">
+        <div className="min-w-0">
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-violet-300/70">VOID SOCIAL</p>
+          <h2 className="font-display text-xl font-bold tracking-tight text-white sm:text-2xl">
+            {t.community.feed.title}
+          </h2>
         </div>
-      </div>
 
-      {/* Who is on air, above the stories row: a broadcast is happening now and
-          a story happened earlier. */}
-      <LiveStrip
-        onWatch={id => useLiveStore.getState().requestWatch(id)}
-        onResume={() => setShowGoLive(true)}
-      />
+        <div className="flex shrink-0 items-center gap-2">
+          {onOpenMyProfile && (
+            <button
+              type="button"
+              onClick={onOpenMyProfile}
+              aria-label={t.commB.myProfile}
+              title={t.commB.myProfile}
+              className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-white/[0.05] transition-colors hover:border-violet-300/50 hover:bg-white/[0.08] active:scale-95"
+            >
+              {profile?.avatarUrl ? (
+                <img src={profile.avatarUrl} alt="" className="h-full w-full object-cover" />
+              ) : profile?.avatar ? (
+                <span className="text-lg leading-none">{profile.avatar}</span>
+              ) : (
+                <span className="text-sm font-semibold text-white/70">U</span>
+              )}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowGoLive(true)}
+            className="flex h-10 items-center gap-2 rounded-full border px-3 text-xs font-semibold transition-all active:scale-95"
+            style={{
+              background: iAmLive ? 'rgba(255,45,85,0.16)' : 'rgba(255,255,255,0.04)',
+              borderColor: iAmLive ? 'rgba(255,75,105,0.55)' : 'rgba(255,255,255,0.10)',
+              color: iAmLive ? '#ff7890' : 'rgba(255,255,255,0.78)',
+              animation: iAmLive ? 'liveRingPulse 1.8s ease-in-out infinite' : undefined,
+            }}
+            title={iAmLive ? 'შენ ეთერში ხარ' : 'პირდაპირი ეთერი'}
+          >
+            <LiveDot size={10} color={iAmLive ? '#ff7890' : '#ff647f'} />
+            <span>{iAmLive ? 'LIVE' : 'Live'}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowComposer(true)}
+            aria-label={t.commB.createPost ?? 'Create post'}
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-violet-300/25 bg-violet-400/15 text-xl font-light text-violet-100 transition-all hover:bg-violet-400/25 active:scale-95"
+          >
+            +
+          </button>
+        </div>
+      </header>
 
-      {/* Active hashtag */}
+      {/* Live broadcasts stay visible, but no longer compete with the page title. */}
+      <section className="overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.025] px-3 py-3 sm:px-4">
+        <LiveStrip
+          onWatch={id => useLiveStore.getState().requestWatch(id)}
+          onResume={() => setShowGoLive(true)}
+        />
+      </section>
+
       {activeHashtag && (
-        <div className="flex items-center gap-2">
-          <span className="font-mono text-xs" style={{ color: '#00f5ff' }}>#{activeHashtag}</span>
-          <button onClick={() => setActiveHashtag(null)} className="font-mono text-[12px] text-white/40 hover:text-white/70 transition-colors">✕</button>
+        <div className="flex items-center gap-2 rounded-xl border border-cyan-300/15 bg-cyan-300/[0.06] px-3 py-2">
+          <span className="text-xs font-semibold text-cyan-200">#{activeHashtag}</span>
+          <button
+            type="button"
+            onClick={() => setActiveHashtag(null)}
+            aria-label="Clear hashtag filter"
+            className="ml-auto flex h-6 w-6 items-center justify-center rounded-full text-white/45 transition-colors hover:bg-white/10 hover:text-white"
+          >
+            ×
+          </button>
         </div>
       )}
 
-      {/* Category bar: ყველა → ჩემი პროფილი → გამოწერილი */}
-      <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none">
-        {/* ყველა */}
-        <button
-          onClick={() => pickCategory('all')}
-          className="px-3 py-1.5 rounded-full font-mono text-[12px] uppercase tracking-wider whitespace-nowrap transition-all flex-shrink-0 active:scale-95"
-          style={{
-            background: feedCategory === 'all' ? 'linear-gradient(135deg, rgba(155,0,255,0.28), rgba(0,245,255,0.16))' : 'rgba(255,255,255,0.03)',
-            border: `1px solid ${feedCategory === 'all' ? 'rgba(155,0,255,0.45)' : 'rgba(255,255,255,0.08)'}`,
-            color: feedCategory === 'all' ? '#fff' : 'rgba(255,255,255,0.4)',
-          }}
-        >
-          {t.community.feedCategories.all}
-        </button>
+      {/* Stories are a primary social action, not another feed filter. */}
+      <section className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#151720]/80 px-3 py-3 sm:px-4">
+        <StoriesStrip onOpenProfile={onOpenProfile} />
+      </section>
 
-        {/* ჩემი პროფილი — neon glow */}
-        <button
-          onClick={() => onOpenMyProfile?.()}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full font-mono text-[12px] uppercase tracking-wider whitespace-nowrap transition-all flex-shrink-0 active:scale-95"
-          style={{
-            background: 'linear-gradient(135deg, rgba(0,245,255,0.12), rgba(155,0,255,0.12))',
-            border: '1px solid rgba(0,245,255,0.35)',
-            color: '#00f5ff',
-            textShadow: '0 0 8px rgba(0,245,255,0.6), 0 0 16px rgba(0,245,255,0.3)',
-            boxShadow: '0 0 10px rgba(0,245,255,0.15), inset 0 0 8px rgba(0,245,255,0.05)',
-          }}
-        >
-          {profile?.avatarUrl ? (
-            <img src={profile.avatarUrl} alt="" style={{ width: 16, height: 16, borderRadius: '50%', objectFit: 'cover', border: '1px solid rgba(0,245,255,0.4)' }} />
-          ) : profile?.avatar ? (
-            <span style={{ fontSize: 13, lineHeight: 1 }}>{profile.avatar}</span>
-          ) : null}
-          {t.commB.myProfile}
-        </button>
+      <section className="overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.025] px-3 py-3 sm:px-4">
+        <FriendsPresenceStrip onOpenProfile={onOpenProfile} />
+      </section>
 
-        {/* გამოწერილი */}
-        <button
-          onClick={() => pickCategory('following')}
-          className="px-3 py-1.5 rounded-full font-mono text-[12px] uppercase tracking-wider whitespace-nowrap transition-all flex-shrink-0 active:scale-95"
-          style={{
-            background: feedCategory === 'following' ? 'linear-gradient(135deg, rgba(155,0,255,0.28), rgba(0,245,255,0.16))' : 'rgba(255,255,255,0.03)',
-            border: `1px solid ${feedCategory === 'following' ? 'rgba(155,0,255,0.45)' : 'rgba(255,255,255,0.08)'}`,
-            color: feedCategory === 'following' ? '#fff' : 'rgba(255,255,255,0.4)',
-          }}
-        >
-          {t.community.feedCategories.following}
-        </button>
-      </div>
-
-      {/* Stories (24h) */}
-      <StoriesStrip onOpenProfile={onOpenProfile} />
-
-      {/* Online friends presence strip */}
-      <FriendsPresenceStrip onOpenProfile={onOpenProfile} />
+      {/* Compact feed switcher. Profile is a destination, not a feed category. */}
+      <nav
+        aria-label="Feed filters"
+        className="flex items-center gap-1 rounded-xl border border-white/[0.07] bg-[#151720]/90 p-1"
+      >
+        {([
+          { id: 'all' as FeedCategory, label: t.community.feedCategories.all },
+          { id: 'following' as FeedCategory, label: t.community.feedCategories.following },
+        ]).map(item => {
+          const active = feedCategory === item.id;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => pickCategory(item.id)}
+              aria-pressed={active}
+              className="min-h-10 flex-1 rounded-lg px-4 py-2 text-xs font-semibold transition-all active:scale-[0.98]"
+              style={{
+                color: active ? '#fff' : 'rgba(255,255,255,0.48)',
+                background: active ? 'linear-gradient(110deg, rgba(139,92,246,0.25), rgba(99,102,241,0.13))' : 'transparent',
+                boxShadow: active ? 'inset 0 0 0 1px rgba(167,139,250,0.22)' : 'none',
+              }}
+            >
+              {item.label}
+            </button>
+          );
+        })}
+      </nav>
 
       {loading ? (
-        <div className="space-y-3 pt-2">
+        <div className="space-y-3 pt-1">
           {Array.from({ length: 3 }, (_, i) => <SkeletonPost key={i} />)}
         </div>
       ) : loadError ? (
-        <div className="flex flex-col items-center gap-3 py-10">
+        <div className="flex flex-col items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] py-12">
           <span className="text-2xl">📡</span>
-          <p className="font-mono text-[12px] text-white/40 text-center">{loadError}</p>
+          <p className="max-w-xs text-center text-xs text-white/50">{loadError}</p>
           <button
+            type="button"
             onClick={doLoad}
-            className="px-4 py-2 rounded-xl font-mono text-xs uppercase tracking-wider transition-all active:scale-95"
-            style={{ background: 'rgba(155,0,255,0.12)', border: '1px solid rgba(155,0,255,0.35)', color: '#c084fc' }}
+            className="rounded-xl border border-violet-300/25 bg-violet-400/15 px-4 py-2 text-xs font-semibold text-violet-100 transition-colors hover:bg-violet-400/25 active:scale-95"
           >
             {t.commB.retry}
           </button>
         </div>
       ) : feedV2Posts.length === 0 ? (
-        <EmptyState text={t.community.feed.empty} />
+        <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] px-3 py-5">
+          <EmptyState text={t.community.feed.empty} />
+        </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {feedV2Posts.map(post => (
             <PostCardV2 key={post.id} post={post} onOpenProfile={onOpenProfile} />
           ))}
           <div ref={bottomRef} className="h-4" />
-          {loadingMore && <Spinner color="#9b00ff" />}
+          {loadingMore && <Spinner color="#a78bfa" />}
         </div>
       )}
 
       <AnimatePresence>
         {showComposer && <PostComposerV2 onClose={() => setShowComposer(false)} />}
-        {/* The viewer itself is a global overlay in `App.tsx` — tapping a live
-            avatar has to work from a lobby and a profile too, and mounting it
-            here as well would join and leave the room twice. */}
+        {/* The viewer itself is global in App.tsx; mounting it here would double-join. */}
         {showGoLive && <GoLive onClose={() => setShowGoLive(false)} />}
       </AnimatePresence>
     </div>
