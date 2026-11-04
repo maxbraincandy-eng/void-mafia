@@ -7,29 +7,29 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    # Without --detach the CLI streams the build; this stops a hung stream from
-    # holding a runner for the default six hours.
-    #
-    # Raised from 25: `railway up` now takes about ten minutes per service even
-    # when it decides to skip, so two services plus a verify pass did not fit
-    # and the verify step was being cancelled mid-poll — which reads as "the
-    # deploy is still going" when it has in fact already failed.
-    #
-    # 75 now: each upload is capped at 15 minutes by railway-up.sh, so two
-    # uploads, a retry of both and the live checks fit, and a stalled upload no
-    # longer takes the whole job down with it.
+    # Build both committed production bundles on the runner before uploading.
+    # Railway's Nixpacks build phase is intentionally a no-op: it serves the
+    # pre-built server/dist and client/dist. A source-only change must therefore
+    # never be uploaded with stale dist artifacts.
     timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build server and client bundles
+        run: npm run build
+
       - name: Install Railway CLI
         run: npm install -g @railway/cli
 
-      # `--detach` was hiding every failure: the CLI returns as soon as the
-      # upload is accepted, so a Railway-side build or healthcheck failure left
-      # this job green while the old container kept serving. Deploys silently
-      # stopped landing for three days and the workflow reported success the
-      # whole time. Waiting is slower and tells the truth.
       - name: Deploy server
         run: ./.github/scripts/railway-up.sh 226d60e0-8aee-42f4-83b3-2151ee30dced server
         env:
@@ -42,9 +42,6 @@ jobs:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           RAILWAY_PROJECT_ID: 08c2a0d2-1c54-4c07-8497-8130c7baa696
 
-      # The deploy is only real when the running server reports the build we
-      # just pushed. Without this a "successful" deploy that quietly rolled back
-      # still looks like a win.
       - name: Verify the live build matches this commit
         id: verify
         continue-on-error: true
@@ -53,43 +50,19 @@ jobs:
           echo "expected=$EXPECTED" >> "$GITHUB_OUTPUT"
           ./.github/scripts/wait-for-build.sh "$EXPECTED" 15
 
-      # ── The skip ────────────────────────────────────────────────────────
-      #
-      # Railway decides for itself whether an upload changed anything, and when
-      # it decides not it answers `no changes detected in watch paths, build
-      # will skip`, leaves the old container running, and `railway up` still
-      # exits 0. That is what happened to v592 and again to v656, where the
-      # server skipped and production stayed on v655 for an hour while every
-      # step reported success.
-      #
-      # `railway.toml` sets `watchPatterns = ["**"]` to stop exactly this, and
-      # it did not — Railway now warns on every deploy that config-as-code is
-      # deprecated, so the file can no longer be relied on to carry it.
-      #
-      # A retry is worth one attempt: a second upload carries a new stamp in
-      # railway.toml (see scripts/railway-up.sh), so it is a changed upload
-      # even when the code is the same as the first.
-      # What it cannot do is force a build Railway has decided not to run —
-      # `railway redeploy` would only restart the image already there, which in
-      # a skip is the OLD one. So this tries, and then tells the truth.
       - name: Upload again if the build did not land
         if: steps.verify.outcome == 'failure'
         run: |
-          echo "::warning::the upload did not become live — Railway most likely skipped the build"
+          echo "::warning::the upload did not become live — retrying once"
           ./.github/scripts/railway-up.sh 226d60e0-8aee-42f4-83b3-2151ee30dced server
           ./.github/scripts/railway-up.sh 958a7cd3-adc4-49ad-a955-27c6df5794d8 client
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           RAILWAY_PROJECT_ID: 08c2a0d2-1c54-4c07-8497-8130c7baa696
 
-      # The step allowed to fail the job. If it does, the cause is on Railway's
-      # side and the fix is in its dashboard, so say so here rather than leaving
-      # somebody to find this file.
       - name: Confirm the live build
         run: |
           ./.github/scripts/wait-for-build.sh "${{ steps.verify.outputs.expected }}" 20 || {
-            echo "::error::The deploy did not land. Railway skipped the build — clear the"
-            echo "::error::service's Watch Paths in the dashboard (Settings → Build), or set"
-            echo "::error::them to ** so every push deploys. railway.toml no longer carries it."
+            echo "::error::The deploy did not land. Check Railway service Watch Paths and deployment logs."
             exit 1
           }
