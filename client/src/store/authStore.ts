@@ -163,12 +163,13 @@ export const useAuthStore = create<AuthStore>((set, get) => {
     loginEmail: async (email: string, password: string) => {
       set({ isLoading: true, error: null });
       try {
-        const res = await new Promise<Res<{ uid: string; profile: PlayerProfilePublic }>>((resolve) => {
+        const res = await new Promise<Res<{ uid: string; profile: PlayerProfilePublic; sessionToken: string }>>((resolve) => {
           (socket as any).emit('player:login_email', { email, password }, resolve);
         });
         if (!res.ok) throw new Error(res.error);
         localStorage.setItem(UID_KEY, res.data.uid);
         localStorage.setItem(NAME_KEY, res.data.profile.username);
+        localStorage.setItem(TOKEN_KEY, res.data.sessionToken);
         set({
           uid: res.data.uid,
           username: res.data.profile.username,
