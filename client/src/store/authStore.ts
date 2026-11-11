@@ -186,22 +186,13 @@ export const useAuthStore = create<AuthStore>((set, get) => {
 
     logout: () => {
       const token = localStorage.getItem(TOKEN_KEY);
+      if (socket.connected) (socket as any).emit('player:logout', () => {});
       if (token) {
-        const revokeHttp = () => fetch('/api/auth/logout', {
+        void fetch('/api/auth/logout', {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}` },
           credentials: 'include',
         }).catch(() => {});
-        if (socket.connected) {
-          let acknowledged = false;
-          (socket as any).emit('player:logout', (res: any) => {
-            acknowledged = true;
-            if (!res?.ok) void revokeHttp();
-          });
-          setTimeout(() => { if (!acknowledged) void revokeHttp(); }, 1500);
-        } else {
-          void revokeHttp();
-        }
       }
       localStorage.removeItem(UID_KEY);
       localStorage.removeItem(NAME_KEY);
