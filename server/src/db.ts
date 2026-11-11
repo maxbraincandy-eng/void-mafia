@@ -26,6 +26,11 @@ function buildDatabaseUrl(): string | undefined {
 }
 
 const DATABASE_URL = buildDatabaseUrl();
+const DATABASE_SSL = process.env.NODE_ENV === 'production'
+  ? (process.env.DATABASE_SSL_CA
+      ? { ca: process.env.DATABASE_SSL_CA, rejectUnauthorized: true }
+      : true)
+  : undefined;
 
 console.log('[Database] provider = postgresql');
 console.log(`[Database] DATABASE_URL exists = ${!!DATABASE_URL}`);
@@ -42,7 +47,7 @@ const bigintParser = {
 // fail immediately and index.ts will restart the process after 8 s.
 // The key thing is the healthcheck at /health stays reachable.
 export const sql = postgres(DATABASE_URL ?? 'postgresql://no-db-url-set:5432/void', {
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined,
+  ssl: DATABASE_SSL,
   max: 20,
   idle_timeout: 20,
   connect_timeout: 10,
