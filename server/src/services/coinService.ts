@@ -440,74 +440,65 @@ export async function sendGift(
   message: string,
 ): Promise<{ newSenderBalance: number; giftEntry: PlayerGift }> {
   if (senderId === recipientId) throw new Error('Cannot send a gift to yourself.');
-
-  const [giftRow] = await sql`SELECT * FROM gift_catalog WHERE id = ${giftId} AND active = 1` as any[];
-  if (!giftRow) throw new Error('Gift not found or unavailable.');
-
-  const [[senderRow], [recipientRow]] = await Promise.all([
-    sql`SELECT coins, username, avatar, avatar_url, public_id FROM players WHERE id = ${senderId}` as any,
-    sql`SELECT username, public_id FROM players WHERE id = ${recipientId}` as any,
-  ]);
-  if (!senderRow)    throw new Error('Sender not found.');
-  if (!recipientRow) throw new Error('Recipient not found.');
-
-  const senderCoins = Number(senderRow.coins);
-  const giftPrice   = Number(giftRow.price);
-  if (senderCoins < giftPrice) {
-    throw new Error(`Not enough coins. You need ${giftPrice} but have ${senderCoins}.`);
-  }
-
-  const { id: txId, balanceAfter: newSenderBalance } = await recordTransaction(
-    senderId, 'gift_sent', -giftPrice,
-    `Sent gift: ${giftRow.name} → ${recipientRow.username}`,
-    { relatedUserId: recipientId, relatedGiftId: giftId },
-  );
-
-  const senderPublicId    = senderRow.public_id   != null ? Number(senderRow.public_id)   : null;
-  const receiverPublicId  = recipientRow.public_id != null ? Number(recipientRow.public_id) : null;
-  const giftImageUrl      = giftRow.image_url ?? '';
-
+  const transactionId = generateId();
   const giftEntryId = generateId();
   const now = Date.now();
-  const safeMessage = message.slice(0, 120);
-  await sql`
-    INSERT INTO player_gifts
-      (id, recipient_id, sender_id, gift_id, message, transaction_id, created_at,
-       sender_public_id, sender_name, receiver_public_id, receiver_name,
-       gift_key, gift_image_url, coin_cost, gift_rarity, gift_stars, gift_category)
-    VALUES
-      (${giftEntryId}, ${recipientId}, ${senderId}, ${giftId},
-       ${safeMessage}, ${txId}, ${now},
-       ${senderPublicId}, ${senderRow.username},
-       ${receiverPublicId}, ${recipientRow.username},
-       ${giftId}, ${giftImageUrl}, ${giftPrice},
-       ${giftRow.rarity}, ${Number(giftRow.stars)}, ${giftRow.category ?? 'symbols'})
-  `;
+  const safeMessage = String(message ?? '').slice(0, 120);
 
-  const giftEntry: PlayerGift = {
-    id: giftEntryId,
-    recipientId,
-    receiverPublicId,
-    receiverName: recipientRow.username,
-    senderId,
-    senderPublicId,
-    senderUsername: senderRow.username,
-    senderAvatar: senderRow.avatar ?? '',
-    senderAvatarUrl: senderRow.avatar_url ?? null,
-    giftId,
-    giftKey: giftId,
-    giftName: giftRow.name,
-    giftIcon: giftRow.icon,
-    giftImageUrl,
-    giftRarity: giftRow.rarity,
-    giftStars: Number(giftRow.stars),
-    coinCost: giftPrice,
-    message: safeMessage,
-    transactionId: txId,
-    createdAt: now,
-  };
+  return sql.begin(async tx => {
+    const [giftRow] = await tx`SELECT * FROM gift_catalog WHERE id = ${giftId} AND active = 1` as any[];
+    if (!giftRow) throw new Error('Gift not found or unavailable.');
+    const [senderRow] = await tx`
+      SELECT coins, username, avatar, avatar_url, public_id
+      FROM players WHERE id = ${senderId} FOR UPDATE
+    ` as any[];
+    const [recipientRow] = await tx`
+      SELECT username, public_id FROM players WHERE id = ${recipientId}
+    ` as any[];
+    if (!senderRow) throw new Error('Sender not found.');
+    if (!recipientRow) throw new Error('Recipient not found.');
 
-  return { newSenderBalance, giftEntry };
+    const giftPrice = Number(giftRow.price);
+    const [updatedSender] = await tx`
+      UPDATE players SET coins = coins - ${giftPrice}
+      WHERE id = ${senderId} AND coins >= ${giftPrice}
+      RETURNING coins AS balance_after, coins + ${giftPrice} AS balance_before, public_id
+    ` as any[];
+    if (!updatedSender) throw new Error('Not enough coins to send this gift.');
+
+    const senderPublicId = senderRow.public_id != null ? Number(senderRow.public_id) : null;
+    const receiverPublicId = recipientRow.public_id != null ? Number(recipientRow.public_id) : null;
+    const giftImageUrl = giftRow.image_url ?? '';
+    await tx`
+      INSERT INTO coin_transactions
+        (id, player_id, public_id, type, amount, balance_before, balance_after,
+         related_user_id, related_gift_id, description, granted_by, created_at)
+      VALUES
+        (${transactionId}, ${senderId}, ${senderPublicId}, 'gift_sent', ${-giftPrice},
+         ${Number(updatedSender.balance_before)}, ${Number(updatedSender.balance_after)},
+         ${recipientId}, ${giftId}, ${`Sent gift: ${giftRow.name} → ${recipientRow.username}`}, NULL, ${now})
+    `;
+    await tx`
+      INSERT INTO player_gifts
+        (id, recipient_id, sender_id, gift_id, message, transaction_id, created_at,
+         sender_public_id, sender_name, receiver_public_id, receiver_name,
+         gift_key, gift_image_url, coin_cost, gift_rarity, gift_stars, gift_category)
+      VALUES
+        (${giftEntryId}, ${recipientId}, ${senderId}, ${giftId}, ${safeMessage}, ${transactionId}, ${now},
+         ${senderPublicId}, ${senderRow.username}, ${receiverPublicId}, ${recipientRow.username},
+         ${giftId}, ${giftImageUrl}, ${giftPrice}, ${giftRow.rarity}, ${Number(giftRow.stars)}, ${giftRow.category ?? 'symbols'})
+    `;
+
+    const giftEntry: PlayerGift = {
+      id: giftEntryId, recipientId, receiverPublicId, receiverName: recipientRow.username,
+      senderId, senderPublicId, senderUsername: senderRow.username,
+      senderAvatar: senderRow.avatar ?? '', senderAvatarUrl: senderRow.avatar_url ?? null,
+      giftId, giftKey: giftId, giftName: giftRow.name, giftIcon: giftRow.icon,
+      giftImageUrl, giftRarity: giftRow.rarity, giftStars: Number(giftRow.stars),
+      coinCost: giftPrice, message: safeMessage, transactionId, createdAt: now,
+    };
+    return { newSenderBalance: Number(updatedSender.balance_after), giftEntry };
+  });
 }
 
 // ── Live gifts ────────────────────────────────────────────────────────
