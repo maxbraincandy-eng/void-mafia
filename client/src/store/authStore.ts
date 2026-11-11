@@ -185,6 +185,14 @@ export const useAuthStore = create<AuthStore>((set, get) => {
     },
 
     logout: () => {
+      const token = localStorage.getItem(TOKEN_KEY);
+      if (token) {
+        void fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          credentials: 'include',
+        }).catch(() => {});
+      }
       localStorage.removeItem(UID_KEY);
       localStorage.removeItem(NAME_KEY);
       localStorage.removeItem(TOKEN_KEY);
