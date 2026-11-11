@@ -5,10 +5,7 @@ import type { Res } from '@/types/index';
 
 const UID_KEY  = 'void-mafia-uid';
 const NAME_KEY = 'void-mafia-username';
-
-function generateUid(): string {
-  return 'u_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
-}
+const TOKEN_KEY = 'void-mafia-session-token';
 
 interface AuthStore {
   uid: string | null;
@@ -48,18 +45,27 @@ export const useAuthStore = create<AuthStore>((set, get) => {
 
   socket.on('connect', () => {
     const { uid, username } = get();
-    if (uid && username) {
-      const referralCode = localStorage.getItem('vm_pending_ref') ?? undefined;
-      socket.emit('player:auth', { uid, username, referralCode }, (res: any) => {
-        if (res?.ok) {
-          if (referralCode) localStorage.removeItem('vm_pending_ref');
-          set({ profile: res.data, isAuthed: true, isLoading: false, localAvatar: res.data?.avatarUrl ?? null });
-          fetchClanMembership();
-          // Signal gameStore to attempt session restore after page refresh
-          window.dispatchEvent(new Event('vm:auth-ready'));
-        }
-      });
+    if (!uid || !username) return;
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) {
+      // Old client-only identities cannot safely prove ownership of a stored uid.
+      localStorage.removeItem(UID_KEY);
+      localStorage.removeItem(NAME_KEY);
+      set({ uid: null, username: null, isAuthed: false, isLoading: false, profile: null,
+        error: 'Please sign in again to secure your account.' });
+      return;
     }
+    const referralCode = localStorage.getItem('vm_pending_ref') ?? undefined;
+    socket.emit('player:auth', { uid, username, token, referralCode }, (res: any) => {
+      if (res?.ok) {
+        if (referralCode) localStorage.removeItem('vm_pending_ref');
+        set({ profile: res.data, isAuthed: true, isLoading: false, localAvatar: res.data?.avatarUrl ?? null });
+        fetchClanMembership();
+        window.dispatchEvent(new Event('vm:auth-ready'));
+      } else {
+        set({ isAuthed: false, isLoading: false, error: res?.error ?? 'Please sign in again.' });
+      }
+    });
   });
 
   return {
@@ -81,10 +87,15 @@ export const useAuthStore = create<AuthStore>((set, get) => {
         if (!data.ok || !data.uid) throw new Error('OAuth session not found');
         const uid = data.uid as string;
         const username = data.username as string;
+        const ticketRes = await fetch('/api/auth/socket-ticket', { credentials: 'include' });
+        const ticket = await ticketRes.json();
+        if (!ticketRes.ok || !ticket.sessionToken) throw new Error(ticket.error ?? 'OAuth session expired.');
+        const sessionToken = ticket.sessionToken as string;
         localStorage.setItem(UID_KEY, uid);
         localStorage.setItem(NAME_KEY, username);
+        localStorage.setItem(TOKEN_KEY, sessionToken);
         const authRes = await new Promise<Res<PlayerProfilePublic>>((resolve) => {
-          socket.emit('player:auth', { uid, username }, resolve);
+          (socket as any).emit('player:auth', { uid, username, token: sessionToken }, resolve);
         });
         if (!authRes.ok) throw new Error(authRes.error);
         set({
@@ -105,30 +116,19 @@ export const useAuthStore = create<AuthStore>((set, get) => {
     login: async (username: string) => {
       set({ isLoading: true, error: null });
       try {
-        let uid = localStorage.getItem(UID_KEY);
-        if (!uid) {
-          uid = generateUid();
-          localStorage.setItem(UID_KEY, uid);
-        }
-        localStorage.setItem(NAME_KEY, username);
-
-        const referralCode = localStorage.getItem('vm_pending_ref') ?? undefined;
-        const res = await new Promise<Res<PlayerProfilePublic>>((resolve) => {
-          socket.emit('player:auth', { uid, username, referralCode }, resolve);
+        const res = await new Promise<Res<{ uid: string; profile: PlayerProfilePublic; sessionToken: string }>>((resolve) => {
+          (socket as any).emit('player:guest_create', { username }, resolve);
         });
-
         if (!res.ok) throw new Error(res.error);
-
+        const { uid, profile, sessionToken } = res.data;
+        localStorage.setItem(UID_KEY, uid);
+        localStorage.setItem(NAME_KEY, profile.username);
+        localStorage.setItem(TOKEN_KEY, sessionToken);
+        const referralCode = localStorage.getItem('vm_pending_ref') ?? undefined;
         if (referralCode) localStorage.removeItem('vm_pending_ref');
-        set({
-          uid,
-          username,
-          profile: res.data,
-          localAvatar: res.data?.avatarUrl ?? null,
-          isAuthed: true,
-          isLoading: false,
-          error: null,
-        });
+        set({ uid, username: profile.username, profile, localAvatar: profile.avatarUrl ?? null,
+          isAuthed: true, isLoading: false, error: null });
+        fetchClanMembership();
       } catch (e: any) {
         set({ isLoading: false, error: e.message ?? 'Login failed.' });
         throw e;
@@ -138,12 +138,13 @@ export const useAuthStore = create<AuthStore>((set, get) => {
     register: async (email: string, password: string, username: string) => {
       set({ isLoading: true, error: null });
       try {
-        const res = await new Promise<Res<{ uid: string; profile: PlayerProfilePublic }>>((resolve) => {
+        const res = await new Promise<Res<{ uid: string; profile: PlayerProfilePublic; sessionToken: string }>>((resolve) => {
           (socket as any).emit('player:register', { email, password, username }, resolve);
         });
         if (!res.ok) throw new Error(res.error);
         localStorage.setItem(UID_KEY, res.data.uid);
         localStorage.setItem(NAME_KEY, res.data.profile.username);
+        localStorage.setItem(TOKEN_KEY, res.data.sessionToken);
         set({
           uid: res.data.uid,
           username: res.data.profile.username,
@@ -186,6 +187,7 @@ export const useAuthStore = create<AuthStore>((set, get) => {
     logout: () => {
       localStorage.removeItem(UID_KEY);
       localStorage.removeItem(NAME_KEY);
+      localStorage.removeItem(TOKEN_KEY);
       set({ uid: null, username: null, profile: null, localAvatar: null, isAuthed: false, myClanId: null, myClanRole: null });
     },
 
