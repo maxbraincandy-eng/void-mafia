@@ -2227,7 +2227,7 @@ export function attachSocketHandlers(io: AppServer): void {
         deliverPendingCall(socket, profile.id);
         broadcastOnlineCount(io);
         socket.emit('player:profile', toPublicProfile(profile));
-        cb(ok({ uid: profile.id, profile: toPublicProfile(profile), sessionToken: issueSocketToken(profile.id) }));
+        cb(ok({ uid: profile.id, profile: toPublicProfile(profile), sessionToken: await issueSocketToken(profile.id) }));
 
         // Check profile completion bonus on login
         checkProfileCompletionBonus(profile.id).then(r => {
@@ -2260,8 +2260,8 @@ export function attachSocketHandlers(io: AppServer): void {
         if (!match) { cb({ ok: false, error: 'Current password is incorrect.' }); return; }
 
         const newHash = await bcrypt.hash(newPassword, 10);
-        await sql`UPDATE players SET password_hash = ${newHash} WHERE id = ${uid}`;
-        cb({ ok: true });
+        await sql`UPDATE players SET password_hash = ${newHash}, auth_version = auth_version + 1 WHERE id = ${uid}`;
+        cb({ ok: true, sessionToken: await issueSocketToken(uid) });
       } catch (e: any) {
         cb({ ok: false, error: e.message ?? 'Failed to change password.' });
       }
