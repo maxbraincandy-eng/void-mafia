@@ -200,7 +200,9 @@ function ConnectedAccountsSection() {
 
   useEffect(() => {
     if (!uid) return;
-    fetch(`/api/auth/linked?uid=${encodeURIComponent(uid)}`)
+    const token = localStorage.getItem('void-mafia-session-token');
+    if (!token) return;
+    fetch('/api/auth/linked', { headers: { Authorization: `Bearer ${token}` }, credentials: 'include' })
       .then(r => r.json())
       .then(data => { if (data.ok) setProviders(data.providers); })
       .catch(() => {});
@@ -209,23 +211,32 @@ function ConnectedAccountsSection() {
   const linkOAuth = async (provider: 'google' | 'facebook' | 'apple') => {
     if (!uid) return;
     try {
-      await fetch('/api/auth/init-link', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        credentials: 'include', body: JSON.stringify({ uid }),
+      const token = localStorage.getItem('void-mafia-session-token');
+      if (!token) throw new Error('Please sign in again.');
+      const response = await fetch('/api/auth/init-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        credentials: 'include',
+        body: JSON.stringify({}),
       });
+      if (!response.ok) throw new Error('Could not verify this account.');
       window.location.href = `/api/auth/${provider}?link=1`;
-    } catch { setErr('Failed to start linking. Please try again.'); }
+    } catch { setErr('Failed to start linking. Please sign in again and retry.'); }
   };
 
   const unlink = async (provider: string) => {
     if (!uid) return;
     try {
-      const res = await fetch(`/api/auth/unlink/${provider}?uid=${encodeURIComponent(uid)}`, {
-        method: 'DELETE', credentials: 'include',
+      const token = localStorage.getItem('void-mafia-session-token');
+      if (!token) throw new Error('Please sign in again.');
+      const res = await fetch(`/api/auth/unlink/${provider}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
       });
       const data = await res.json();
       if (data.ok) setProviders(prev => prev.filter(p => p.provider !== provider));
-      else setErr('Unlink failed.');
+      else setErr(data.error ?? 'Unlink failed.');
     } catch { setErr('Unlink failed.'); }
   };
 
