@@ -577,6 +577,7 @@ export async function initializeDatabase(): Promise<void> {
   await sql`ALTER TABLE coin_transactions ADD COLUMN IF NOT EXISTS public_id INTEGER`;
   await sql`ALTER TABLE coin_transactions ADD COLUMN IF NOT EXISTS related_user_id TEXT`;
   await sql`ALTER TABLE coin_transactions ADD COLUMN IF NOT EXISTS related_gift_id TEXT`;
+  await sql`ALTER TABLE coin_transactions ADD COLUMN IF NOT EXISTS refunded_at BIGINT`;
   // player_gifts — add denormalized fields for richer records
   await sql`ALTER TABLE player_gifts ADD COLUMN IF NOT EXISTS sender_public_id INTEGER`;
   await sql`ALTER TABLE player_gifts ADD COLUMN IF NOT EXISTS sender_name TEXT`;
