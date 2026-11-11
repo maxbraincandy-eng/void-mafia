@@ -267,7 +267,7 @@ app.post('/api/push/subscribe', async (req, res) => {
 });
 
 app.delete('/api/push/subscribe', async (req, res) => {
-  const userId = req.session.uid ?? verifySocketToken(bearerTokenFromHeader(req.headers.authorization));
+  const userId = req.session.uid ?? await verifySocketToken(bearerTokenFromHeader(req.headers.authorization));
   const { endpoint } = req.body ?? {};
   if (!userId) { res.status(401).json({ ok: false, error: 'Not authenticated.' }); return; }
   if (typeof endpoint !== 'string' || !endpoint) { res.status(400).json({ ok: false }); return; }
