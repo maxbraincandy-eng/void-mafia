@@ -5936,14 +5936,7 @@ export function attachSocketHandlers(io: AppServer): void {
       try {
         const profileId = socket.data.profileId;
         if (!profileId) throw new Error('Not authenticated.');
-        // Check not already owned
-        const cosmetics = await getCosmetics(profileId);
-        if (cosmetics.unlockedItems.includes(itemId)) throw new Error('Item already owned.');
-        // Deduct coins
-        const { newBalance } = await purchaseCosmeticItem(profileId, itemId);
-        // Unlock the item
-        cosmetics.unlockedItems.push(itemId);
-        await sql`UPDATE players SET cosmetics = ${JSON.stringify(cosmetics)} WHERE id = ${profileId}`;
+        const { newBalance, cosmetics } = await purchaseCosmeticItem(profileId, itemId);
         socket.emit('coins:updated', { coins: newBalance });
         cb(ok({ cosmetics, newBalance }));
       } catch (e: any) { cb(err(e.message)); }
