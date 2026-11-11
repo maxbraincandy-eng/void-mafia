@@ -130,68 +130,71 @@ async function recordTransaction(
   description: string,
   opts: { grantedBy?: string; relatedUserId?: string; relatedGiftId?: string } = {},
 ): Promise<{ id: string; balanceBefore: number; balanceAfter: number }> {
-  // Read before and after in one atomic statement
-  const [row] = await sql`
-    WITH before AS (SELECT coins, public_id FROM players WHERE id = ${playerId})
-    UPDATE players
-    SET coins = GREATEST(0, coins + ${amount})
-    WHERE id = ${playerId}
-    RETURNING coins AS balance_after,
-              (SELECT coins FROM before) AS balance_before,
-              (SELECT public_id FROM before) AS player_public_id
-  ` as any[];
-  if (!row) throw new Error('Player record not found — cannot update coins.');
-  const balanceBefore = Number(row.balance_before ?? 0);
-  const balanceAfter  = Number(row.balance_after);
-  const playerPublicId = row.player_public_id != null ? Number(row.player_public_id) : null;
-
-  const id = generateId();
-  await sql`
-    INSERT INTO coin_transactions
-      (id, player_id, public_id, type, amount, balance_before, balance_after,
-       related_user_id, related_gift_id, description, granted_by, created_at)
-    VALUES
-      (${id}, ${playerId}, ${playerPublicId}, ${type}, ${amount}, ${balanceBefore}, ${balanceAfter},
-       ${opts.relatedUserId ?? null}, ${opts.relatedGiftId ?? null},
-       ${description}, ${opts.grantedBy ?? null}, ${Date.now()})
-  `;
-  return { id, balanceBefore, balanceAfter };
+  return sql.begin(async tx => {
+    const [row] = await tx`
+      UPDATE players
+      SET coins = coins + ${amount}
+      WHERE id = ${playerId} AND coins + ${amount} >= 0
+      RETURNING coins AS balance_after, coins - ${amount} AS balance_before, public_id
+    ` as any[];
+    if (!row) throw new Error('Player not found or insufficient coin balance.');
+    const balanceBefore = Number(row.balance_before);
+    const balanceAfter = Number(row.balance_after);
+    const playerPublicId = row.public_id != null ? Number(row.public_id) : null;
+    const id = generateId();
+    await tx`
+      INSERT INTO coin_transactions
+        (id, player_id, public_id, type, amount, balance_before, balance_after,
+         related_user_id, related_gift_id, description, granted_by, created_at)
+      VALUES
+        (${id}, ${playerId}, ${playerPublicId}, ${type}, ${amount}, ${balanceBefore}, ${balanceAfter},
+         ${opts.relatedUserId ?? null}, ${opts.relatedGiftId ?? null},
+         ${description}, ${opts.grantedBy ?? null}, ${Date.now()})
+    `;
+    return { id, balanceBefore, balanceAfter };
+  });
 }
 
 export async function claimDailyReward(playerId: string): Promise<{ coins: number; balance: number; alreadyClaimed: boolean; boosted?: boolean }> {
   const dateKey = new Date().toISOString().slice(0, 10);
-  // Claim the day first, then pay. Checking and then paying let two taps (or a
-  // retried request) both pass the check and both get paid; the primary key
-  // lets exactly one of them insert this row.
-  const claimed = await sql`
-    INSERT INTO daily_coin_claims (player_id, date_key, coins_awarded, claimed_at)
-    VALUES (${playerId}, ${dateKey}, 0, ${Date.now()})
-    ON CONFLICT (player_id, date_key) DO NOTHING
-    RETURNING 1
-  ` as any[];
-  if (claimed.length === 0) {
-    const balance = await getCoins(playerId);
-    return { coins: 0, balance, alreadyClaimed: true };
-  }
-  try {
-    // Coin Magnet perk: +25% while it lasts. Applied here because the daily
-    // reward is the game's actual recurring coin faucet — imported lazily so
-    // coinService and perkService (which imports coinService) don't form a cycle.
-    const { applyCoinMagnet } = await import('./perkService.js');
-    const { amount, boosted } = await applyCoinMagnet(playerId, DAILY_REWARD_COINS);
-    const { balanceAfter } = await recordTransaction(
-      playerId, 'daily_reward', amount, boosted ? 'Daily reward (+25% magnet)' : 'Daily reward',
-    );
-    await sql`
+  // Resolve the perk first; the claim, credit, and ledger then commit together.
+  const { applyCoinMagnet } = await import('./perkService.js');
+  const { amount, boosted } = await applyCoinMagnet(playerId, DAILY_REWARD_COINS);
+  const now = Date.now();
+
+  return sql.begin(async tx => {
+    const claimed = await tx`
+      INSERT INTO daily_coin_claims (player_id, date_key, coins_awarded, claimed_at)
+      VALUES (${playerId}, ${dateKey}, 0, ${now})
+      ON CONFLICT (player_id, date_key) DO NOTHING
+      RETURNING 1
+    ` as any[];
+    if (claimed.length === 0) {
+      const [row] = await tx`SELECT coins FROM players WHERE id = ${playerId}` as any[];
+      return { coins: 0, balance: Number(row?.coins ?? 0), alreadyClaimed: true };
+    }
+
+    const [balance] = await tx`
+      UPDATE players SET coins = coins + ${amount}
+      WHERE id = ${playerId}
+      RETURNING coins AS balance_after, coins - ${amount} AS balance_before, public_id
+    ` as any[];
+    if (!balance) throw new Error('Player record not found.');
+    await tx`
+      INSERT INTO coin_transactions
+        (id, player_id, public_id, type, amount, balance_before, balance_after,
+         related_user_id, related_gift_id, description, granted_by, created_at)
+      VALUES
+        (${generateId()}, ${playerId}, ${balance.public_id ?? null}, 'daily_reward', ${amount},
+         ${Number(balance.balance_before)}, ${Number(balance.balance_after)}, NULL, NULL,
+         ${boosted ? 'Daily reward (+25% magnet)' : 'Daily reward'}, NULL, ${now})
+    `;
+    await tx`
       UPDATE daily_coin_claims SET coins_awarded = ${amount}
       WHERE player_id = ${playerId} AND date_key = ${dateKey}
     `;
-    return { coins: amount, balance: balanceAfter, alreadyClaimed: false, boosted };
-  } catch (e) {
-    // Not paid, so the day is not spent: release it for a retry.
-    await sql`DELETE FROM daily_coin_claims WHERE player_id = ${playerId} AND date_key = ${dateKey}`.catch(() => {});
-    throw e;
-  }
+    return { coins: amount, balance: Number(balance.balance_after), alreadyClaimed: false, boosted };
+  });
 }
 
 export async function grantCoins(
@@ -259,26 +262,62 @@ const PURCHASABLE_COSMETICS: Record<string, { name: string; price: number }> = {
 export async function purchaseCosmeticItem(
   playerId: string,
   itemId: string,
-): Promise<{ newBalance: number }> {
+): Promise<{ newBalance: number; cosmetics: any }> {
   const item = PURCHASABLE_COSMETICS[itemId];
   if (!item) throw new Error('Item not available for purchase.');
-  const balance = await getCoins(playerId);
-  if (balance < item.price) throw new Error(`Not enough coins. Need ${item.price}, have ${balance}.`);
-  const { balanceAfter } = await recordTransaction(
-    playerId, 'deduct', -item.price,
-    `Purchased cosmetic: ${item.name}`,
-  );
-  return { newBalance: balanceAfter };
+  return sql.begin(async tx => {
+    const [row] = await tx`SELECT coins, cosmetics FROM players WHERE id = ${playerId} FOR UPDATE` as any[];
+    if (!row) throw new Error('Player not found.');
+    let cosmetics: any;
+    try { cosmetics = JSON.parse(row.cosmetics ?? '{}'); } catch { cosmetics = {}; }
+    if (!Array.isArray(cosmetics.unlockedItems)) cosmetics.unlockedItems = [];
+    if (cosmetics.unlockedItems.includes(itemId)) throw new Error('Item already owned.');
+    const balanceBefore = Number(row.coins ?? 0);
+    if (balanceBefore < item.price) throw new Error(`Not enough coins. Need ${item.price}, have ${balanceBefore}.`);
+    const balanceAfter = balanceBefore - item.price;
+    cosmetics.unlockedItems.push(itemId);
+    await tx`UPDATE players SET coins = ${balanceAfter}, cosmetics = ${JSON.stringify(cosmetics)} WHERE id = ${playerId}`;
+    const id = generateId();
+    await tx`
+      INSERT INTO coin_transactions
+        (id, player_id, public_id, type, amount, balance_before, balance_after,
+         related_user_id, related_gift_id, description, granted_by, created_at)
+      SELECT ${id}, id, public_id, 'deduct', ${-item.price}, ${balanceBefore}, ${balanceAfter},
+             NULL, ${itemId}, ${`Purchased cosmetic: ${item.name}`}, NULL, ${Date.now()}
+      FROM players WHERE id = ${playerId}
+    `;
+    return { newBalance: balanceAfter, cosmetics };
+  });
 }
 
 export async function refundGift(txId: string, ownerId: string): Promise<void> {
-  const [tx] = await sql`SELECT * FROM coin_transactions WHERE id = ${txId}` as any[];
-  if (!tx) throw new Error('Transaction not found.');
-  if (tx.type !== 'gift_sent') throw new Error('Only gift_sent transactions can be refunded.');
-  const amount = Math.abs(Number(tx.amount));
-  await recordTransaction(tx.player_id, 'refund', amount, `Refund for tx ${txId}`, { grantedBy: ownerId, relatedGiftId: txId });
+  await sql.begin(async tx => {
+    const now = Date.now();
+    const [original] = await tx`
+      UPDATE coin_transactions
+      SET refunded_at = ${now}
+      WHERE id = ${txId} AND type = 'gift_sent' AND refunded_at IS NULL
+      RETURNING player_id, amount
+    ` as any[];
+    if (!original) throw new Error('Gift transaction not found or already refunded.');
+    const amount = Math.abs(Number(original.amount));
+    const [balance] = await tx`
+      UPDATE players SET coins = coins + ${amount}
+      WHERE id = ${original.player_id}
+      RETURNING coins AS balance_after, coins - ${amount} AS balance_before, public_id
+    ` as any[];
+    if (!balance) throw new Error('Player record not found.');
+    await tx`
+      INSERT INTO coin_transactions
+        (id, player_id, public_id, type, amount, balance_before, balance_after,
+         related_user_id, related_gift_id, description, granted_by, created_at)
+      VALUES
+        (${generateId()}, ${original.player_id}, ${balance.public_id ?? null}, 'refund', ${amount},
+         ${Number(balance.balance_before)}, ${Number(balance.balance_after)}, NULL, ${txId},
+         ${`Refund for tx ${txId}`}, ${ownerId}, ${now})
+    `;
+  });
 }
-
 export async function getTransactions(playerId: string, limit = 50): Promise<CoinTransaction[]> {
   const rows = await sql`
     SELECT * FROM coin_transactions WHERE player_id = ${playerId}
@@ -407,74 +446,65 @@ export async function sendGift(
   message: string,
 ): Promise<{ newSenderBalance: number; giftEntry: PlayerGift }> {
   if (senderId === recipientId) throw new Error('Cannot send a gift to yourself.');
-
-  const [giftRow] = await sql`SELECT * FROM gift_catalog WHERE id = ${giftId} AND active = 1` as any[];
-  if (!giftRow) throw new Error('Gift not found or unavailable.');
-
-  const [[senderRow], [recipientRow]] = await Promise.all([
-    sql`SELECT coins, username, avatar, avatar_url, public_id FROM players WHERE id = ${senderId}` as any,
-    sql`SELECT username, public_id FROM players WHERE id = ${recipientId}` as any,
-  ]);
-  if (!senderRow)    throw new Error('Sender not found.');
-  if (!recipientRow) throw new Error('Recipient not found.');
-
-  const senderCoins = Number(senderRow.coins);
-  const giftPrice   = Number(giftRow.price);
-  if (senderCoins < giftPrice) {
-    throw new Error(`Not enough coins. You need ${giftPrice} but have ${senderCoins}.`);
-  }
-
-  const { id: txId, balanceAfter: newSenderBalance } = await recordTransaction(
-    senderId, 'gift_sent', -giftPrice,
-    `Sent gift: ${giftRow.name} → ${recipientRow.username}`,
-    { relatedUserId: recipientId, relatedGiftId: giftId },
-  );
-
-  const senderPublicId    = senderRow.public_id   != null ? Number(senderRow.public_id)   : null;
-  const receiverPublicId  = recipientRow.public_id != null ? Number(recipientRow.public_id) : null;
-  const giftImageUrl      = giftRow.image_url ?? '';
-
+  const transactionId = generateId();
   const giftEntryId = generateId();
   const now = Date.now();
-  const safeMessage = message.slice(0, 120);
-  await sql`
-    INSERT INTO player_gifts
-      (id, recipient_id, sender_id, gift_id, message, transaction_id, created_at,
-       sender_public_id, sender_name, receiver_public_id, receiver_name,
-       gift_key, gift_image_url, coin_cost, gift_rarity, gift_stars, gift_category)
-    VALUES
-      (${giftEntryId}, ${recipientId}, ${senderId}, ${giftId},
-       ${safeMessage}, ${txId}, ${now},
-       ${senderPublicId}, ${senderRow.username},
-       ${receiverPublicId}, ${recipientRow.username},
-       ${giftId}, ${giftImageUrl}, ${giftPrice},
-       ${giftRow.rarity}, ${Number(giftRow.stars)}, ${giftRow.category ?? 'symbols'})
-  `;
+  const safeMessage = String(message ?? '').slice(0, 120);
 
-  const giftEntry: PlayerGift = {
-    id: giftEntryId,
-    recipientId,
-    receiverPublicId,
-    receiverName: recipientRow.username,
-    senderId,
-    senderPublicId,
-    senderUsername: senderRow.username,
-    senderAvatar: senderRow.avatar ?? '',
-    senderAvatarUrl: senderRow.avatar_url ?? null,
-    giftId,
-    giftKey: giftId,
-    giftName: giftRow.name,
-    giftIcon: giftRow.icon,
-    giftImageUrl,
-    giftRarity: giftRow.rarity,
-    giftStars: Number(giftRow.stars),
-    coinCost: giftPrice,
-    message: safeMessage,
-    transactionId: txId,
-    createdAt: now,
-  };
+  return sql.begin(async tx => {
+    const [giftRow] = await tx`SELECT * FROM gift_catalog WHERE id = ${giftId} AND active = 1` as any[];
+    if (!giftRow) throw new Error('Gift not found or unavailable.');
+    const [senderRow] = await tx`
+      SELECT coins, username, avatar, avatar_url, public_id
+      FROM players WHERE id = ${senderId} FOR UPDATE
+    ` as any[];
+    const [recipientRow] = await tx`
+      SELECT username, public_id FROM players WHERE id = ${recipientId}
+    ` as any[];
+    if (!senderRow) throw new Error('Sender not found.');
+    if (!recipientRow) throw new Error('Recipient not found.');
 
-  return { newSenderBalance, giftEntry };
+    const giftPrice = Number(giftRow.price);
+    const [updatedSender] = await tx`
+      UPDATE players SET coins = coins - ${giftPrice}
+      WHERE id = ${senderId} AND coins >= ${giftPrice}
+      RETURNING coins AS balance_after, coins + ${giftPrice} AS balance_before, public_id
+    ` as any[];
+    if (!updatedSender) throw new Error('Not enough coins to send this gift.');
+
+    const senderPublicId = senderRow.public_id != null ? Number(senderRow.public_id) : null;
+    const receiverPublicId = recipientRow.public_id != null ? Number(recipientRow.public_id) : null;
+    const giftImageUrl = giftRow.image_url ?? '';
+    await tx`
+      INSERT INTO coin_transactions
+        (id, player_id, public_id, type, amount, balance_before, balance_after,
+         related_user_id, related_gift_id, description, granted_by, created_at)
+      VALUES
+        (${transactionId}, ${senderId}, ${senderPublicId}, 'gift_sent', ${-giftPrice},
+         ${Number(updatedSender.balance_before)}, ${Number(updatedSender.balance_after)},
+         ${recipientId}, ${giftId}, ${`Sent gift: ${giftRow.name} → ${recipientRow.username}`}, NULL, ${now})
+    `;
+    await tx`
+      INSERT INTO player_gifts
+        (id, recipient_id, sender_id, gift_id, message, transaction_id, created_at,
+         sender_public_id, sender_name, receiver_public_id, receiver_name,
+         gift_key, gift_image_url, coin_cost, gift_rarity, gift_stars, gift_category)
+      VALUES
+        (${giftEntryId}, ${recipientId}, ${senderId}, ${giftId}, ${safeMessage}, ${transactionId}, ${now},
+         ${senderPublicId}, ${senderRow.username}, ${receiverPublicId}, ${recipientRow.username},
+         ${giftId}, ${giftImageUrl}, ${giftPrice}, ${giftRow.rarity}, ${Number(giftRow.stars)}, ${giftRow.category ?? 'symbols'})
+    `;
+
+    const giftEntry: PlayerGift = {
+      id: giftEntryId, recipientId, receiverPublicId, receiverName: recipientRow.username,
+      senderId, senderPublicId, senderUsername: senderRow.username,
+      senderAvatar: senderRow.avatar ?? '', senderAvatarUrl: senderRow.avatar_url ?? null,
+      giftId, giftKey: giftId, giftName: giftRow.name, giftIcon: giftRow.icon,
+      giftImageUrl, giftRarity: giftRow.rarity, giftStars: Number(giftRow.stars),
+      coinCost: giftPrice, message: safeMessage, transactionId, createdAt: now,
+    };
+    return { newSenderBalance: Number(updatedSender.balance_after), giftEntry };
+  });
 }
 
 // ── Live gifts ────────────────────────────────────────────────────────
@@ -926,8 +956,8 @@ export async function creditPurchasedCoins(
  */
 export async function creditStorePurchase(args: {
   profileId: string;
-  platform: string;       // 'android' | 'ios' | 'revenuecat'
-  transactionId: string;  // store's unique transaction id
+  platform: string;
+  transactionId: string;
   productId: string;
   coins: number;
   raw?: unknown;
@@ -937,28 +967,38 @@ export async function creditStorePurchase(args: {
   if (!platform || !transactionId) throw new Error('platform and transactionId required.');
   if (!Number.isInteger(coins) || coins <= 0) throw new Error('coins must be a positive integer.');
 
-  // Claim the purchase row. ON CONFLICT DO NOTHING means a duplicate
-  // (platform, transaction_id) returns zero rows → we skip crediting.
-  const rows = await sql`
-    INSERT INTO store_purchases
-      (id, player_id, platform, transaction_id, product_id, coins, raw, created_at)
-    VALUES
-      (${generateId()}, ${profileId}, ${platform}, ${transactionId}, ${productId},
-       ${coins}, ${args.raw != null ? JSON.stringify(args.raw) : null}, ${Date.now()})
-    ON CONFLICT (platform, transaction_id) DO NOTHING
-    RETURNING id
-  ` as any[];
+  // Claim, balance update, and ledger row share one transaction. A retry after
+  // a crash can therefore never leave a claimed purchase without its credit.
+  return sql.begin(async tx => {
+    const rows = await tx`
+      INSERT INTO store_purchases
+        (id, player_id, platform, transaction_id, product_id, coins, raw, created_at)
+      VALUES
+        (${generateId()}, ${profileId}, ${platform}, ${transactionId}, ${productId},
+         ${coins}, ${args.raw != null ? JSON.stringify(args.raw) : null}, ${Date.now()})
+      ON CONFLICT (platform, transaction_id) DO NOTHING
+      RETURNING id
+    ` as any[];
+    if (rows.length === 0) return { credited: false, newBalance: null };
 
-  if (rows.length === 0) {
-    // Already processed — idempotent no-op.
-    return { credited: false, newBalance: null };
-  }
-
-  const { balanceAfter } = await recordTransaction(
-    profileId, 'grant', coins,
-    `IAP ${platform} ${productId} (${transactionId})`,
-  );
-  return { credited: true, newBalance: balanceAfter };
+    const [balance] = await tx`
+      UPDATE players SET coins = coins + ${coins}
+      WHERE id = ${profileId}
+      RETURNING coins AS balance_after, coins - ${coins} AS balance_before, public_id
+    ` as any[];
+    if (!balance) throw new Error('Player record not found.');
+    const transactionIdForLedger = generateId();
+    await tx`
+      INSERT INTO coin_transactions
+        (id, player_id, public_id, type, amount, balance_before, balance_after,
+         related_user_id, related_gift_id, description, granted_by, created_at)
+      VALUES
+        (${transactionIdForLedger}, ${profileId}, ${balance.public_id ?? null}, 'grant', ${coins},
+         ${Number(balance.balance_before)}, ${Number(balance.balance_after)}, NULL, NULL,
+         ${`Purchase ${platform} ${productId} (${transactionId})`}, NULL, ${Date.now()})
+    `;
+    return { credited: true, newBalance: Number(balance.balance_after) };
+  });
 }
 
 export async function getGiftLeaderboard(): Promise<{

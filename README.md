@@ -50,8 +50,13 @@ npm start
 
 Create a `.env` file in the repo root (or set these in your hosting provider):
 
+Production requires `AUTH_SESSION_SECRET` to be a random value at least 32 characters long.
+When PostgreSQL uses a private or custom certificate authority, set `DATABASE_SSL_CA` to its PEM certificate.
+
 | Variable | Required | Description |
 |---|---|---|
+| `AUTH_SESSION_SECRET` | Production | Random signing secret, at least 32 characters |
+| `DATABASE_SSL_CA` | If needed | PEM CA certificate for a private PostgreSQL TLS certificate |
 | `PORT` | No | HTTP port (default: `3000`) |
 | `NODE_ENV` | No | `development` or `production` |
 | `MODERATOR_IDS` | No | Comma-separated profile IDs granted `moderator` level |
@@ -69,6 +74,12 @@ SENIOR_MOD_IDS=ghi789
 ADMIN_IDS=jkl000
 OWNER_IDS=mno111
 ```
+
+---
+
+## Account Security Upgrade
+
+Socket sign-in now requires a server-signed session token. Existing accounts with email or OAuth sign-in can recover access by signing in again. Legacy guest-only profiles did not have a secret proving ownership, so the server will not accept their old client-stored IDs as credentials. Those database rows are retained, but their profile data cannot be safely attached to a new guest account automatically.
 
 ---
 

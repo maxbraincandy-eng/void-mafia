@@ -26,7 +26,8 @@ import { assertSocialOnly } from './poker/compliance.js';
 import { pokerEnabled } from './poker/poker.js';
 import { configurePassport, createAuthRouter } from './auth.js';
 import { initPushService, getVapidPublicKey, sendPushToUser as _sendPush } from './pushService.js';
-import { creditPurchasedCoins, creditStorePurchase, grantCoins } from './services/coinService.js';
+import { creditStorePurchase, grantCoins } from './services/coinService.js';
+import { bearerTokenFromHeader, verifySocketToken } from './services/socketAuth.js';
 import { computeTrending, settleWeeklyLeaderboard } from './services/communityService.js';
 import { createHermesRouter } from './routes/hermes.js';
 import { createLiveKitRouter } from './routes/livekitRoutes.js';
@@ -114,8 +115,12 @@ app.use((req, res, next) => {
   next();
 });
 app.use(cookieParser());
+const AUTH_SESSION_SECRET = process.env.AUTH_SESSION_SECRET || (IS_PROD ? '' : 'void-mafia-dev-secret');
+if (!AUTH_SESSION_SECRET) throw new Error('AUTH_SESSION_SECRET must be configured in production.');
+if (IS_PROD && AUTH_SESSION_SECRET.length < 32) throw new Error('AUTH_SESSION_SECRET must be at least 32 characters in production.');
+
 app.use(session({
-  secret: process.env.AUTH_SESSION_SECRET ?? 'void-mafia-dev-secret',
+  secret: AUTH_SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
   cookie: {
@@ -128,8 +133,10 @@ app.use(session({
 app.use(passport.initialize());
 configurePassport();
 
-app.use('/api/auth', createAuthRouter());
+// Preserve the signed webhook bytes before the general JSON parser consumes them.
+app.use('/api/shop/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json());
+app.use('/api/auth', createAuthRouter());
 app.use('/api/hermes', createHermesRouter());
 app.use('/livekit', createLiveKitRouter());
 app.use('/api/gif', createGifRouter());
@@ -246,24 +253,26 @@ app.get('/api/push/vapid-key', (_req, res) => {
 });
 
 app.post('/api/push/subscribe', async (req, res) => {
-  const userId = (req.session as any)?.profileId ?? (req.session as any)?.userId;
+  const userId = (await verifySocketToken(bearerTokenFromHeader(req.headers.authorization))) ?? req.session.uid;
   if (!userId) { res.status(401).json({ ok: false, error: 'Not authenticated' }); return; }
   const { endpoint, keys } = req.body ?? {};
-  if (!endpoint || !keys?.p256dh || !keys?.auth) { res.status(400).json({ ok: false, error: 'Invalid subscription' }); return; }
+  if (typeof endpoint !== 'string' || !keys?.p256dh || !keys?.auth) { res.status(400).json({ ok: false, error: 'Invalid subscription' }); return; }
   try {
     await sql`
       INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth)
       VALUES (${userId}, ${endpoint}, ${keys.p256dh}, ${keys.auth})
-      ON CONFLICT (endpoint) DO UPDATE SET user_id = EXCLUDED.user_id
+      ON CONFLICT (endpoint) DO UPDATE SET user_id = EXCLUDED.user_id, p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth
     `;
     res.json({ ok: true });
-  } catch (e: any) { res.status(500).json({ ok: false, error: e.message }); }
+  } catch { res.status(500).json({ ok: false, error: 'Could not save subscription.' }); }
 });
 
 app.delete('/api/push/subscribe', async (req, res) => {
+  const userId = (await verifySocketToken(bearerTokenFromHeader(req.headers.authorization))) ?? req.session.uid;
   const { endpoint } = req.body ?? {};
-  if (!endpoint) { res.status(400).json({ ok: false }); return; }
-  await sql`DELETE FROM push_subscriptions WHERE endpoint = ${endpoint}`;
+  if (!userId) { res.status(401).json({ ok: false, error: 'Not authenticated.' }); return; }
+  if (typeof endpoint !== 'string' || !endpoint) { res.status(400).json({ ok: false }); return; }
+  await sql`DELETE FROM push_subscriptions WHERE endpoint = ${endpoint} AND user_id = ${userId}`;
   res.json({ ok: true });
 });
 
@@ -275,10 +284,15 @@ app.get('/api/shop/packages', (_req, res) => {
 // ── Stripe: create checkout session ──────────────────────────────────
 app.post('/api/shop/checkout', express.json(), async (req, res) => {
   if (!stripe) { res.status(503).json({ ok: false, error: 'Payments not configured.' }); return; }
-  const { packageId, profileId } = req.body ?? {};
+  const profileId = await verifySocketToken(bearerTokenFromHeader(req.headers.authorization));
+  if (!profileId) { res.status(401).json({ ok: false, error: 'Not authenticated.' }); return; }
+  const requestedProfileId = req.body?.profileId;
+  if (requestedProfileId && requestedProfileId !== profileId) {
+    res.status(403).json({ ok: false, error: 'Profile does not match the signed-in account.' }); return;
+  }
+  const { packageId } = req.body ?? {};
   const pkg = COIN_PACKAGES.find(p => p.id === packageId);
   if (!pkg) { res.status(400).json({ ok: false, error: 'Invalid package.' }); return; }
-  if (!profileId || typeof profileId !== 'string') { res.status(400).json({ ok: false, error: 'Not authenticated.' }); return; }
   try {
     const origin = IS_PROD ? 'https://voidmafia.one' : `http://localhost:5173`;
     const session = await stripe.checkout.sessions.create({
@@ -321,13 +335,23 @@ app.post('/api/shop/webhook', express.raw({ type: 'application/json' }), async (
   }
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session;
-    const { profileId, coins } = session.metadata ?? {};
-    if (profileId && coins) {
+    const { profileId, coins, packageId } = session.metadata ?? {};
+    const pkg = COIN_PACKAGES.find(p => p.id === packageId);
+    if (session.mode === 'payment' && session.payment_status === 'paid' && profileId && pkg && Number(coins) === pkg.coins) {
       try {
-        await creditPurchasedCoins(profileId, parseInt(coins, 10), `Coin purchase (${session.id})`);
-        console.log(`[shop] granted ${coins} coins to ${profileId}`);
+        const result = await creditStorePurchase({
+          profileId,
+          platform: 'stripe',
+          transactionId: session.id,
+          productId: pkg.id,
+          coins: pkg.coins,
+          raw: event,
+        });
+        if (result.credited) console.log(`[shop] granted ${pkg.coins} coins to ${profileId}`);
       } catch (e: any) {
         console.error('[shop] grant coins failed:', e.message);
+        res.status(500).json({ received: false });
+        return;
       }
     }
   }

@@ -26,6 +26,11 @@ function buildDatabaseUrl(): string | undefined {
 }
 
 const DATABASE_URL = buildDatabaseUrl();
+const DATABASE_SSL = process.env.NODE_ENV === 'production'
+  ? (process.env.DATABASE_SSL_CA
+      ? { ca: process.env.DATABASE_SSL_CA, rejectUnauthorized: true }
+      : true)
+  : undefined;
 
 console.log('[Database] provider = postgresql');
 console.log(`[Database] DATABASE_URL exists = ${!!DATABASE_URL}`);
@@ -42,7 +47,7 @@ const bigintParser = {
 // fail immediately and index.ts will restart the process after 8 s.
 // The key thing is the healthcheck at /health stays reachable.
 export const sql = postgres(DATABASE_URL ?? 'postgresql://no-db-url-set:5432/void', {
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined,
+  ssl: DATABASE_SSL,
   max: 20,
   idle_timeout: 20,
   connect_timeout: 10,
@@ -461,6 +466,7 @@ export async function initializeDatabase(): Promise<void> {
 
   // ── Economy system ─────────────────────────────────────────────────────
   await sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS coins INTEGER NOT NULL DEFAULT 0`;
+  await sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS auth_version INTEGER NOT NULL DEFAULT 0`;
 
   // Virtual Space combat: lifetime knockouts dealt (KO leaderboard).
   await sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS space_knockouts INTEGER NOT NULL DEFAULT 0`;
@@ -577,6 +583,7 @@ export async function initializeDatabase(): Promise<void> {
   await sql`ALTER TABLE coin_transactions ADD COLUMN IF NOT EXISTS public_id INTEGER`;
   await sql`ALTER TABLE coin_transactions ADD COLUMN IF NOT EXISTS related_user_id TEXT`;
   await sql`ALTER TABLE coin_transactions ADD COLUMN IF NOT EXISTS related_gift_id TEXT`;
+  await sql`ALTER TABLE coin_transactions ADD COLUMN IF NOT EXISTS refunded_at BIGINT`;
   // player_gifts — add denormalized fields for richer records
   await sql`ALTER TABLE player_gifts ADD COLUMN IF NOT EXISTS sender_public_id INTEGER`;
   await sql`ALTER TABLE player_gifts ADD COLUMN IF NOT EXISTS sender_name TEXT`;

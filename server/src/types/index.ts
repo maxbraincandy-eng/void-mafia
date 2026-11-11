@@ -1099,10 +1099,11 @@ export interface ClientToServerEvents {
   'live:session': (data: { sessionId: string }, cb: Cb<unknown>) => void;
   'live:mine':    (data: unknown | Cb<unknown>, cb?: Cb<unknown>) => void;
   'live:who':     (data: { userIds: string[] }, cb: Cb<Record<string, { sessionId: string; title: string; viewers: number }>>) => void;
-  'player:auth':        (data: { uid: string; username: string; referralCode?: string }, cb: Cb<PlayerProfilePublic>) => void;
-  'profile:referral_count': (cb: Cb<number>) => void;
-  'player:register':    (data: { email: string; password: string; username: string }, cb: Cb<{ uid: string; profile: PlayerProfilePublic }>) => void;
-  'player:login_email': (data: { email: string; password: string }, cb: Cb<{ uid: string; profile: PlayerProfilePublic }>) => void;
+  'player:auth':        (data: { uid: string; username: string; token: string; referralCode?: string }, cb: Cb<PlayerProfilePublic>) => void;
+  'player:logout':      (cb: Cb<null>) => void;
+  'player:guest_create': (data: { username: string; referralCode?: string }, cb: Cb<{ uid: string; profile: PlayerProfilePublic; sessionToken: string }>) => void;
+  'player:register':    (data: { email: string; password: string; username: string }, cb: Cb<{ uid: string; profile: PlayerProfilePublic; sessionToken: string }>) => void;
+  'player:login_email': (data: { email: string; password: string }, cb: Cb<{ uid: string; profile: PlayerProfilePublic; sessionToken: string }>) => void;
   'player:stats':       (data: { profileId: string }, cb: Cb<PlayerProfilePublic>) => void;
   'player:report':      (data: { targetProfileId: string; roomId: string | null; reason: ReportReason; details: string }, cb: Cb<null>) => void;
   'room:create':        (data: { name: string; roomName?: string; settings?: Record<string, unknown> }, cb: Cb<RoomPublic>) => void;

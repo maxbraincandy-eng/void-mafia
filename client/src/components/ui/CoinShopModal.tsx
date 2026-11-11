@@ -136,7 +136,10 @@ export function CoinShopModal({ open, onClose, profileId, coins: propCoins, onCo
     try {
       const res = await fetch('/api/shop/checkout', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('void-mafia-session-token') ?? ''}`,
+        },
         body: JSON.stringify({ packageId: pkg.id, profileId }),
       });
       const data = await res.json();

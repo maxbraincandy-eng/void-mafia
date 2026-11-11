@@ -220,9 +220,9 @@ export async function registerWithEmail(
 export async function authenticateWithEmail(email: string, password: string): Promise<PlayerProfile> {
   const normalised = email.trim().toLowerCase();
   const [row] = await sql`SELECT * FROM players WHERE email = ${normalised}` as any[];
-  if (!row || !row.password_hash) throw new Error('Email not found. Please register first.');
+  if (!row || !row.password_hash) throw new Error('Invalid email or password.');
   const match = await bcrypt.compare(password, row.password_hash);
-  if (!match) throw new Error('Incorrect password.');
+  if (!match) throw new Error('Invalid email or password.');
   await sql`UPDATE players SET last_seen_at = ${Date.now()} WHERE id = ${row.id}`;
   return rowToProfile({ ...row, last_seen_at: Date.now() });
 }

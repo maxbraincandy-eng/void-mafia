@@ -157,6 +157,7 @@ import {
 } from './services/voiceService.js';
 import { createAccessToken, isLiveKitEnabled } from './services/livekitService.js';
 import { sql } from './db.js';
+import { issueSocketToken, verifySocketToken } from './services/socketAuth.js';
 import bcrypt from 'bcryptjs';
 import { sendPushToUser } from './pushService.js';
 import {
@@ -303,6 +304,32 @@ function rateOk(socketId: string, limit = 15): boolean {
   if (!r || now > r.resetAt) { rateLimits.set(socketId, { count: 1, resetAt: now + 1000 }); return true; }
   if (r.count >= limit) return false;
   r.count++; return true;
+}
+
+// Credential failures are counted by normalized account key, not socket id,
+// so reconnecting cannot reset the password-guessing budget.
+const loginFailureWindows = new Map<string, number[]>();
+const LOGIN_FAILURE_WINDOW_MS = 60_000;
+const LOGIN_FAILURE_LIMIT = 10;
+
+function loginAttemptAllowed(email: string): boolean {
+  const now = Date.now();
+  const key = email.trim().toLowerCase();
+  const hits = (loginFailureWindows.get(key) ?? []).filter(at => now - at < LOGIN_FAILURE_WINDOW_MS);
+  loginFailureWindows.set(key, hits);
+  if (loginFailureWindows.size > 10_000) {
+    for (const [k, times] of loginFailureWindows) {
+      if (times.length === 0 || now - times[times.length - 1] >= LOGIN_FAILURE_WINDOW_MS) loginFailureWindows.delete(k);
+    }
+  }
+  return hits.length < LOGIN_FAILURE_LIMIT;
+}
+
+function recordLoginFailure(email: string): void {
+  const key = email.trim().toLowerCase();
+  const hits = loginFailureWindows.get(key) ?? [];
+  hits.push(Date.now());
+  loginFailureWindows.set(key, hits);
 }
 
 /**
@@ -1283,8 +1310,11 @@ const ChatSchema = z.object({
 const AuthSchema = z.object({
   uid: z.string().min(1).max(64),
   username: z.string().min(1).max(24),
+  token: z.string().min(1).max(2048),
   referralCode: z.string().max(8).optional(),
 });
+
+const GuestCreateSchema = z.object({ username: z.string().min(1).max(24), referralCode: z.string().max(8).optional() });
 
 const ReportSchema = z.object({
   targetProfileId: z.string().min(1),
@@ -2098,7 +2128,7 @@ export function attachSocketHandlers(io: AppServer): void {
         } catch { /* non-serialisable — let Zod reject it */ }
       }
 
-      const authEvents = new Set(['player:auth', 'player:register', 'player:login_email']);
+      const authEvents = new Set(['player:auth', 'player:guest_create', 'player:register', 'player:login_email']);
       const limit = authEvents.has(event) ? 3 : 40;
       if (!rateOk(socket.id, limit)) {
         socket.emit('error', { message: 'Too many requests. Slow down.' });
@@ -2114,7 +2144,12 @@ export function attachSocketHandlers(io: AppServer): void {
       if (!_dbReady) { cb(err('Server is starting up — please wait a few seconds and try again.')); return; }
       try {
         const parsed = AuthSchema.parse(data);
-        const profile = await getOrCreatePlayer(parsed.uid, parsed.username);
+        if (await verifySocketToken(parsed.token, parsed.uid) !== parsed.uid) {
+          cb(err('Session expired. Please sign in again.'));
+          return;
+        }
+        const profile = await getPlayer(parsed.uid);
+        if (!profile) { cb(err('Account not found. Please sign in again.')); return; }
 
         // Check ban
         const ban = await getActiveBan(parsed.uid);
@@ -2146,6 +2181,49 @@ export function attachSocketHandlers(io: AppServer): void {
       }
     });
 
+    socket.on('player:logout' as any, async (cb: any) => {
+      const profileId = socket.data.profileId;
+      if (!profileId) { cb(err('Not authenticated.')); return; }
+      try {
+        await sql`UPDATE players SET auth_version = auth_version + 1 WHERE id = ${profileId}`;
+        cb(ok(null));
+        // Let the existing disconnect path clean up presence and room membership.
+        setTimeout(() => socket.disconnect(true), 0);
+      } catch {
+        cb(err('Could not revoke the session.'));
+      }
+    });
+
+    // Guest identity is issued by the server. Never let a client choose an existing uid.
+    socket.on('player:guest_create' as any, async (data: any, cb: any) => {
+      if (!_dbReady) { cb(err('Server is starting up — please wait a few seconds and try again.')); return; }
+      try {
+        const { username, referralCode } = GuestCreateSchema.parse(data);
+        const uid = `guest_${randomUUID()}`;
+        const profile = await getOrCreatePlayer(uid, username);
+        const ban = await getActiveBan(uid);
+        if (ban) throw new Error('Account unavailable.');
+        const sessionToken = await issueSocketToken(uid);
+        socket.data.profileId = uid;
+        enforceSessionUniqueness(io, uid, socket.id);
+        markOnline(uid);
+        deliverPendingCall(socket, uid);
+        broadcastOnlineCount(io);
+        if (maintenanceMode) socket.emit('maintenance:status', { enabled: true });
+        await grantStarterCosmetics(uid);
+        if (referralCode) applyReferral(uid, referralCode).catch(() => {});
+        const freshProfile = await getPlayer(uid);
+        if (!freshProfile) throw new Error('Could not load player profile.');
+        socket.emit('player:profile', toPublicProfile(freshProfile));
+        cb(ok({ uid, profile: toPublicProfile(freshProfile), sessionToken }));
+        checkProfileCompletionBonus(uid).then(r => {
+          if (r.awarded) socket.emit('coin:bonus' as any, { type: 'profile_complete', coins: 300, newBalance: r.newBalance });
+        }).catch(() => {});
+      } catch (e: any) {
+        cb(err(e.message ?? 'Guest registration failed.'));
+      }
+    });
+
     // ── Email Register ───────────────────────────────────────────────
     socket.on('player:register', async (data, cb) => {
       try {
@@ -2154,6 +2232,7 @@ export function attachSocketHandlers(io: AppServer): void {
           password: z.string().min(6).max(128),
           username: z.string().min(2).max(24),
         }).parse(data);
+        if (Buffer.byteLength(password, 'utf8') > 72) throw new Error('Password must be at most 72 bytes.');
 
         const profile = await registerWithEmail(email, password, username);
         socket.data.profileId = profile.id;
@@ -2162,7 +2241,7 @@ export function attachSocketHandlers(io: AppServer): void {
         deliverPendingCall(socket, profile.id);
         broadcastOnlineCount(io);
         socket.emit('player:profile', toPublicProfile(profile));
-        cb(ok({ uid: profile.id, profile: toPublicProfile(profile) }));
+        cb(ok({ uid: profile.id, profile: toPublicProfile(profile), sessionToken: await issueSocketToken(profile.id) }));
       } catch (e: any) {
         cb(err(e.message ?? 'Registration failed.'));
       }
@@ -2176,7 +2255,22 @@ export function attachSocketHandlers(io: AppServer): void {
           password: z.string().min(1),
         }).parse(data);
 
-        const profile = await authenticateWithEmail(email, password);
+        if (!loginAttemptAllowed(email)) {
+          cb(err('Too many sign-in attempts. Please wait a minute and try again.'));
+          return;
+        }
+        let profile: Awaited<ReturnType<typeof authenticateWithEmail>>;
+        try {
+          profile = await authenticateWithEmail(email, password);
+          loginFailureWindows.delete(email.trim().toLowerCase());
+        } catch (e: any) {
+          if (e.message === 'Invalid email or password.') {
+            recordLoginFailure(email);
+            cb(err(e.message));
+            return;
+          }
+          throw e;
+        }
         const ban = await getActiveBan(profile.id);
         if (ban) {
           cb(err(`You are banned until ${new Date(ban.expiresAt).toLocaleString()}. Reason: ${ban.reason}`));
@@ -2188,7 +2282,7 @@ export function attachSocketHandlers(io: AppServer): void {
         deliverPendingCall(socket, profile.id);
         broadcastOnlineCount(io);
         socket.emit('player:profile', toPublicProfile(profile));
-        cb(ok({ uid: profile.id, profile: toPublicProfile(profile) }));
+        cb(ok({ uid: profile.id, profile: toPublicProfile(profile), sessionToken: await issueSocketToken(profile.id) }));
 
         // Check profile completion bonus on login
         checkProfileCompletionBonus(profile.id).then(r => {
@@ -2207,6 +2301,12 @@ export function attachSocketHandlers(io: AppServer): void {
           currentPassword: z.string().min(1),
           newPassword:     z.string().min(6),
         }).parse(data);
+        if (Buffer.byteLength(newPassword, 'utf8') > 72) throw new Error('Password must be at most 72 bytes.');
+        const authenticatedProfileId = socket.data.profileId;
+        if (!authenticatedProfileId || authenticatedProfileId !== uid) {
+          cb({ ok: false, error: 'Not authenticated for this account.' });
+          return;
+        }
 
         const rows = await sql`SELECT password_hash, email FROM players WHERE id = ${uid} LIMIT 1` as any[];
         if (!rows[0]) { cb({ ok: false, error: 'Player not found.' }); return; }
@@ -2216,8 +2316,8 @@ export function attachSocketHandlers(io: AppServer): void {
         if (!match) { cb({ ok: false, error: 'Current password is incorrect.' }); return; }
 
         const newHash = await bcrypt.hash(newPassword, 10);
-        await sql`UPDATE players SET password_hash = ${newHash} WHERE id = ${uid}`;
-        cb({ ok: true });
+        await sql`UPDATE players SET password_hash = ${newHash}, auth_version = auth_version + 1 WHERE id = ${uid}`;
+        cb({ ok: true, sessionToken: await issueSocketToken(uid) });
       } catch (e: any) {
         cb({ ok: false, error: e.message ?? 'Failed to change password.' });
       }
@@ -5898,14 +5998,7 @@ export function attachSocketHandlers(io: AppServer): void {
       try {
         const profileId = socket.data.profileId;
         if (!profileId) throw new Error('Not authenticated.');
-        // Check not already owned
-        const cosmetics = await getCosmetics(profileId);
-        if (cosmetics.unlockedItems.includes(itemId)) throw new Error('Item already owned.');
-        // Deduct coins
-        const { newBalance } = await purchaseCosmeticItem(profileId, itemId);
-        // Unlock the item
-        cosmetics.unlockedItems.push(itemId);
-        await sql`UPDATE players SET cosmetics = ${JSON.stringify(cosmetics)} WHERE id = ${profileId}`;
+        const { newBalance, cosmetics } = await purchaseCosmeticItem(profileId, itemId);
         socket.emit('coins:updated', { coins: newBalance });
         cb(ok({ cosmetics, newBalance }));
       } catch (e: any) { cb(err(e.message)); }
@@ -7015,8 +7108,12 @@ export function attachSocketHandlers(io: AppServer): void {
 
     socket.on('push:unsubscribe', async (data, cb) => {
       try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
         const { endpoint } = data as any;
-        if (endpoint) await sql`DELETE FROM push_subscriptions WHERE endpoint = ${endpoint}`;
+        if (endpoint) {
+          await sql`DELETE FROM push_subscriptions WHERE endpoint = ${endpoint} AND user_id = ${profileId}`;
+        }
         cb(ok(null));
       } catch (e: any) { cb(err(e.message)); }
     });
