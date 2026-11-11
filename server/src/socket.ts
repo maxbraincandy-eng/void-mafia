@@ -1288,7 +1288,7 @@ const AuthSchema = z.object({
   referralCode: z.string().max(8).optional(),
 });
 
-const GuestCreateSchema = z.object({ username: z.string().min(1).max(24) });
+const GuestCreateSchema = z.object({ username: z.string().min(1).max(24), referralCode: z.string().max(8).optional() });
 
 const ReportSchema = z.object({
   targetProfileId: z.string().min(1),
@@ -2159,7 +2159,7 @@ export function attachSocketHandlers(io: AppServer): void {
     socket.on('player:guest_create' as any, async (data: any, cb: any) => {
       if (!_dbReady) { cb(err('Server is starting up — please wait a few seconds and try again.')); return; }
       try {
-        const { username } = GuestCreateSchema.parse(data);
+        const { username, referralCode } = GuestCreateSchema.parse(data);
         const uid = `guest_${randomUUID()}`;
         const profile = await getOrCreatePlayer(uid, username);
         const ban = await getActiveBan(uid);
@@ -2172,6 +2172,7 @@ export function attachSocketHandlers(io: AppServer): void {
         broadcastOnlineCount(io);
         if (maintenanceMode) socket.emit('maintenance:status', { enabled: true });
         await grantStarterCosmetics(uid);
+        if (referralCode) applyReferral(uid, referralCode).catch(() => {});
         const freshProfile = await getPlayer(uid);
         if (!freshProfile) throw new Error('Could not load player profile.');
         socket.emit('player:profile', toPublicProfile(freshProfile));
@@ -2226,7 +2227,7 @@ export function attachSocketHandlers(io: AppServer): void {
         deliverPendingCall(socket, profile.id);
         broadcastOnlineCount(io);
         socket.emit('player:profile', toPublicProfile(profile));
-        cb(ok({ uid: profile.id, profile: toPublicProfile(profile) }));
+        cb(ok({ uid: profile.id, profile: toPublicProfile(profile), sessionToken: issueSocketToken(profile.id) }));
 
         // Check profile completion bonus on login
         checkProfileCompletionBonus(profile.id).then(r => {
@@ -2245,6 +2246,11 @@ export function attachSocketHandlers(io: AppServer): void {
           currentPassword: z.string().min(1),
           newPassword:     z.string().min(6),
         }).parse(data);
+        const authenticatedProfileId = socket.data.profileId;
+        if (!authenticatedProfileId || authenticatedProfileId !== uid) {
+          cb({ ok: false, error: 'Not authenticated for this account.' });
+          return;
+        }
 
         const rows = await sql`SELECT password_hash, email FROM players WHERE id = ${uid} LIMIT 1` as any[];
         if (!rows[0]) { cb({ ok: false, error: 'Player not found.' }); return; }
