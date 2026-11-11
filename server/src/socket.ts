@@ -157,6 +157,7 @@ import {
 } from './services/voiceService.js';
 import { createAccessToken, isLiveKitEnabled } from './services/livekitService.js';
 import { sql } from './db.js';
+import { issueSocketToken, verifySocketToken } from './services/socketAuth.js';
 import bcrypt from 'bcryptjs';
 import { sendPushToUser } from './pushService.js';
 import {
@@ -1283,8 +1284,11 @@ const ChatSchema = z.object({
 const AuthSchema = z.object({
   uid: z.string().min(1).max(64),
   username: z.string().min(1).max(24),
+  token: z.string().min(1).max(2048),
   referralCode: z.string().max(8).optional(),
 });
+
+const GuestCreateSchema = z.object({ username: z.string().min(1).max(24) });
 
 const ReportSchema = z.object({
   targetProfileId: z.string().min(1),
@@ -2098,7 +2102,7 @@ export function attachSocketHandlers(io: AppServer): void {
         } catch { /* non-serialisable — let Zod reject it */ }
       }
 
-      const authEvents = new Set(['player:auth', 'player:register', 'player:login_email']);
+      const authEvents = new Set(['player:auth', 'player:guest_create', 'player:register', 'player:login_email']);
       const limit = authEvents.has(event) ? 3 : 40;
       if (!rateOk(socket.id, limit)) {
         socket.emit('error', { message: 'Too many requests. Slow down.' });
@@ -2114,7 +2118,12 @@ export function attachSocketHandlers(io: AppServer): void {
       if (!_dbReady) { cb(err('Server is starting up — please wait a few seconds and try again.')); return; }
       try {
         const parsed = AuthSchema.parse(data);
-        const profile = await getOrCreatePlayer(parsed.uid, parsed.username);
+        if (verifySocketToken(parsed.token, parsed.uid) !== parsed.uid) {
+          cb(err('Session expired. Please sign in again.'));
+          return;
+        }
+        const profile = await getPlayer(parsed.uid);
+        if (!profile) { cb(err('Account not found. Please sign in again.')); return; }
 
         // Check ban
         const ban = await getActiveBan(parsed.uid);
@@ -2146,6 +2155,35 @@ export function attachSocketHandlers(io: AppServer): void {
       }
     });
 
+    // Guest identity is issued by the server. Never let a client choose an existing uid.
+    socket.on('player:guest_create' as any, async (data: any, cb: any) => {
+      if (!_dbReady) { cb(err('Server is starting up — please wait a few seconds and try again.')); return; }
+      try {
+        const { username } = GuestCreateSchema.parse(data);
+        const uid = `guest_${randomUUID()}`;
+        const profile = await getOrCreatePlayer(uid, username);
+        const ban = await getActiveBan(uid);
+        if (ban) throw new Error('Account unavailable.');
+        const sessionToken = issueSocketToken(uid);
+        socket.data.profileId = uid;
+        enforceSessionUniqueness(io, uid, socket.id);
+        markOnline(uid);
+        deliverPendingCall(socket, uid);
+        broadcastOnlineCount(io);
+        if (maintenanceMode) socket.emit('maintenance:status', { enabled: true });
+        await grantStarterCosmetics(uid);
+        const freshProfile = await getPlayer(uid);
+        if (!freshProfile) throw new Error('Could not load player profile.');
+        socket.emit('player:profile', toPublicProfile(freshProfile));
+        cb(ok({ uid, profile: toPublicProfile(freshProfile), sessionToken }));
+        checkProfileCompletionBonus(uid).then(r => {
+          if (r.awarded) socket.emit('coin:bonus' as any, { type: 'profile_complete', coins: 300, newBalance: r.newBalance });
+        }).catch(() => {});
+      } catch (e: any) {
+        cb(err(e.message ?? 'Guest registration failed.'));
+      }
+    });
+
     // ── Email Register ───────────────────────────────────────────────
     socket.on('player:register', async (data, cb) => {
       try {
@@ -2162,7 +2200,7 @@ export function attachSocketHandlers(io: AppServer): void {
         deliverPendingCall(socket, profile.id);
         broadcastOnlineCount(io);
         socket.emit('player:profile', toPublicProfile(profile));
-        cb(ok({ uid: profile.id, profile: toPublicProfile(profile) }));
+        cb(ok({ uid: profile.id, profile: toPublicProfile(profile), sessionToken: issueSocketToken(profile.id) }));
       } catch (e: any) {
         cb(err(e.message ?? 'Registration failed.'));
       }
