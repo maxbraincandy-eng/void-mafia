@@ -2155,6 +2155,19 @@ export function attachSocketHandlers(io: AppServer): void {
       }
     });
 
+    socket.on('player:logout' as any, async (cb: any) => {
+      const profileId = socket.data.profileId;
+      if (!profileId) { cb(err('Not authenticated.')); return; }
+      try {
+        await sql`UPDATE players SET auth_version = auth_version + 1 WHERE id = ${profileId}`;
+        cb(ok(null));
+        // Let the existing disconnect path clean up presence and room membership.
+        setTimeout(() => socket.disconnect(true), 0);
+      } catch {
+        cb(err('Could not revoke the session.'));
+      }
+    });
+
     // Guest identity is issued by the server. Never let a client choose an existing uid.
     socket.on('player:guest_create' as any, async (data: any, cb: any) => {
       if (!_dbReady) { cb(err('Server is starting up — please wait a few seconds and try again.')); return; }
