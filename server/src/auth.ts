@@ -6,6 +6,7 @@ import AppleStrategy from 'passport-apple';
 import { v4 as uuidv4 } from 'uuid';
 import { sql } from './db.js';
 import { getOrCreatePlayer } from './services/playerService.js';
+import { bearerTokenFromHeader, issueSocketToken, verifySocketToken } from './services/socketAuth.js';
 
 // ── Session type augmentation ─────────────────────────────────────────
 declare module 'express-session' {
@@ -203,6 +204,12 @@ export function createAuthRouter(): Router {
     }
   });
 
+  // Mint a socket credential only from an OAuth session verified by this server.
+  router.get('/socket-ticket', (req, res) => {
+    if (!req.session.uid) { res.status(401).json({ ok: false, error: 'Not authenticated.' }); return; }
+    res.json({ ok: true, sessionToken: issueSocketToken(req.session.uid) });
+  });
+
   // GET /api/auth/logout
   router.post('/logout', (req, res) => {
     req.session.destroy(() => {
@@ -351,35 +358,48 @@ export function createAuthRouter(): Router {
     }
   );
 
-  // POST /api/auth/init-link — sets session.linkUid before redirecting to OAuth
+  // Start OAuth linking only for the identity proven by a signed socket credential.
   router.post('/init-link', (req, res) => {
-    const uid = req.body?.uid as string | undefined;
-    if (!uid) { res.status(400).json({ ok: false, error: 'Missing uid' }); return; }
+    const uid = verifySocketToken(bearerTokenFromHeader(req.headers.authorization));
+    if (!uid) { res.status(401).json({ ok: false, error: 'Not authenticated.' }); return; }
     req.session.linkUid = uid;
     req.session.uid = uid;
-    res.json({ ok: true });
+    req.session.save(err => {
+      if (err) { res.status(500).json({ ok: false, error: 'Could not start account linking.' }); return; }
+      res.json({ ok: true });
+    });
   });
 
   // ── Linked accounts (for profile page) ───────────────────────────
   router.get('/linked', async (req, res) => {
-    const uid = req.session.uid ?? req.query.uid as string;
-    if (!uid) { res.json({ ok: true, providers: [] }); return; }
+    const uid = req.session.uid ?? verifySocketToken(bearerTokenFromHeader(req.headers.authorization));
+    if (!uid) { res.status(401).json({ ok: false, error: 'Not authenticated.' }); return; }
     try {
       const providers = await getLinkedProviders(uid);
       res.json({ ok: true, providers });
-    } catch (e) {
+    } catch {
       res.status(500).json({ ok: false, error: 'DB error' });
     }
   });
 
   // DELETE /api/auth/unlink/:provider
   router.delete('/unlink/:provider', async (req, res) => {
-    const uid = req.session.uid ?? (req.query.uid as string);
-    if (!uid) { res.status(401).json({ ok: false, error: 'Not authenticated' }); return; }
+    const uid = req.session.uid ?? verifySocketToken(bearerTokenFromHeader(req.headers.authorization));
+    if (!uid) { res.status(401).json({ ok: false, error: 'Not authenticated.' }); return; }
+    const provider = String(req.params.provider ?? '');
+    if (!['google', 'facebook', 'apple'].includes(provider)) {
+      res.status(400).json({ ok: false, error: 'Invalid provider.' }); return;
+    }
     try {
-      await sql`DELETE FROM auth_accounts WHERE user_id = ${uid} AND provider = ${req.params.provider}`;
+      const [player] = await sql`SELECT password_hash FROM players WHERE id = ${uid} LIMIT 1` as any[];
+      const providers = await getLinkedProviders(uid);
+      if (providers.length <= 1 && !player?.password_hash) {
+        res.status(400).json({ ok: false, error: 'Add another sign-in method before disconnecting this one.' });
+        return;
+      }
+      await sql`DELETE FROM auth_accounts WHERE user_id = ${uid} AND provider = ${provider}`;
       res.json({ ok: true });
-    } catch (e) {
+    } catch {
       res.status(500).json({ ok: false, error: 'DB error' });
     }
   });
