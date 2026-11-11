@@ -157,38 +157,44 @@ async function recordTransaction(
 
 export async function claimDailyReward(playerId: string): Promise<{ coins: number; balance: number; alreadyClaimed: boolean; boosted?: boolean }> {
   const dateKey = new Date().toISOString().slice(0, 10);
-  // Claim the day first, then pay. Checking and then paying let two taps (or a
-  // retried request) both pass the check and both get paid; the primary key
-  // lets exactly one of them insert this row.
-  const claimed = await sql`
-    INSERT INTO daily_coin_claims (player_id, date_key, coins_awarded, claimed_at)
-    VALUES (${playerId}, ${dateKey}, 0, ${Date.now()})
-    ON CONFLICT (player_id, date_key) DO NOTHING
-    RETURNING 1
-  ` as any[];
-  if (claimed.length === 0) {
-    const balance = await getCoins(playerId);
-    return { coins: 0, balance, alreadyClaimed: true };
-  }
-  try {
-    // Coin Magnet perk: +25% while it lasts. Applied here because the daily
-    // reward is the game's actual recurring coin faucet — imported lazily so
-    // coinService and perkService (which imports coinService) don't form a cycle.
-    const { applyCoinMagnet } = await import('./perkService.js');
-    const { amount, boosted } = await applyCoinMagnet(playerId, DAILY_REWARD_COINS);
-    const { balanceAfter } = await recordTransaction(
-      playerId, 'daily_reward', amount, boosted ? 'Daily reward (+25% magnet)' : 'Daily reward',
-    );
-    await sql`
+  // Resolve the perk first; the claim, credit, and ledger then commit together.
+  const { applyCoinMagnet } = await import('./perkService.js');
+  const { amount, boosted } = await applyCoinMagnet(playerId, DAILY_REWARD_COINS);
+  const now = Date.now();
+
+  return sql.begin(async tx => {
+    const claimed = await tx`
+      INSERT INTO daily_coin_claims (player_id, date_key, coins_awarded, claimed_at)
+      VALUES (${playerId}, ${dateKey}, 0, ${now})
+      ON CONFLICT (player_id, date_key) DO NOTHING
+      RETURNING 1
+    ` as any[];
+    if (claimed.length === 0) {
+      const [row] = await tx`SELECT coins FROM players WHERE id = ${playerId}` as any[];
+      return { coins: 0, balance: Number(row?.coins ?? 0), alreadyClaimed: true };
+    }
+
+    const [balance] = await tx`
+      UPDATE players SET coins = coins + ${amount}
+      WHERE id = ${playerId}
+      RETURNING coins AS balance_after, coins - ${amount} AS balance_before, public_id
+    ` as any[];
+    if (!balance) throw new Error('Player record not found.');
+    await tx`
+      INSERT INTO coin_transactions
+        (id, player_id, public_id, type, amount, balance_before, balance_after,
+         related_user_id, related_gift_id, description, granted_by, created_at)
+      VALUES
+        (${generateId()}, ${playerId}, ${balance.public_id ?? null}, 'daily_reward', ${amount},
+         ${Number(balance.balance_before)}, ${Number(balance.balance_after)}, NULL, NULL,
+         ${boosted ? 'Daily reward (+25% magnet)' : 'Daily reward'}, NULL, ${now})
+    `;
+    await tx`
       UPDATE daily_coin_claims SET coins_awarded = ${amount}
       WHERE player_id = ${playerId} AND date_key = ${dateKey}
     `;
-    return { coins: amount, balance: balanceAfter, alreadyClaimed: false, boosted };
-  } catch (e) {
-    // Not paid, so the day is not spent: release it for a retry.
-    await sql`DELETE FROM daily_coin_claims WHERE player_id = ${playerId} AND date_key = ${dateKey}`.catch(() => {});
-    throw e;
-  }
+    return { coins: amount, balance: Number(balance.balance_after), alreadyClaimed: false, boosted };
+  });
 }
 
 export async function grantCoins(
