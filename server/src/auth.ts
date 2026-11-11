@@ -205,13 +205,13 @@ export function createAuthRouter(): Router {
   });
 
   // Mint a socket credential only from an OAuth session verified by this server.
-  router.get('/socket-ticket', (req, res) => {
+  router.get('/socket-ticket', async (req, res) => {
     if (!req.session.uid) { res.status(401).json({ ok: false, error: 'Not authenticated.' }); return; }
-    res.json({ ok: true, sessionToken: issueSocketToken(req.session.uid) });
+    res.json({ ok: true, sessionToken: await issueSocketToken(req.session.uid) });
   });
 
   // GET /api/auth/logout
-  router.post('/logout', (req, res) => {
+  router.post('/logout', async (req, res) => {
     req.session.destroy(() => {
       res.json({ ok: true });
     });
@@ -359,8 +359,8 @@ export function createAuthRouter(): Router {
   );
 
   // Start OAuth linking only for the identity proven by a signed socket credential.
-  router.post('/init-link', (req, res) => {
-    const uid = verifySocketToken(bearerTokenFromHeader(req.headers.authorization));
+  router.post('/init-link', async (req, res) => {
+    const uid = await verifySocketToken(bearerTokenFromHeader(req.headers.authorization));
     if (!uid) { res.status(401).json({ ok: false, error: 'Not authenticated.' }); return; }
     req.session.linkUid = uid;
     req.session.uid = uid;
@@ -372,7 +372,7 @@ export function createAuthRouter(): Router {
 
   // ── Linked accounts (for profile page) ───────────────────────────
   router.get('/linked', async (req, res) => {
-    const uid = req.session.uid ?? verifySocketToken(bearerTokenFromHeader(req.headers.authorization));
+    const uid = req.session.uid ?? await verifySocketToken(bearerTokenFromHeader(req.headers.authorization));
     if (!uid) { res.status(401).json({ ok: false, error: 'Not authenticated.' }); return; }
     try {
       const providers = await getLinkedProviders(uid);
