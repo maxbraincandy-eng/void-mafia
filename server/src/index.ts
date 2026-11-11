@@ -117,6 +117,7 @@ app.use((req, res, next) => {
 app.use(cookieParser());
 const AUTH_SESSION_SECRET = process.env.AUTH_SESSION_SECRET || (IS_PROD ? '' : 'void-mafia-dev-secret');
 if (!AUTH_SESSION_SECRET) throw new Error('AUTH_SESSION_SECRET must be configured in production.');
+if (IS_PROD && AUTH_SESSION_SECRET.length < 32) throw new Error('AUTH_SESSION_SECRET must be at least 32 characters in production.');
 
 app.use(session({
   secret: AUTH_SESSION_SECRET,
