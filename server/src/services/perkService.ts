@@ -22,7 +22,7 @@
  * client gets nothing a clean one wouldn't.
  */
 import { sql } from '../db.js';
-import { getCoins, deductCoins } from './coinService.js';
+import { generateId } from '../utils/helpers.js';
 import type { PlayerPerksState, EntranceStyle, RoomSkinId, VoiceMaskPreset } from '../types/index.js';
 
 export type PerkId =
@@ -184,42 +184,53 @@ async function savePerks(profileId: string, perks: PerkState): Promise<void> {
 export async function buyPerk(profileId: string, perkId: string): Promise<{ perks: PerkState; coins: number }> {
   const def = PERK_ITEMS[perkId as PerkId];
   if (!def) throw new Error('უცნობი ნივთი');
-  const perks = await getPerks(profileId);
 
-  // One table, so a new own-once perk can never be forgotten here and end up
-  // re-buyable (charging twice for the same thing).
   const ownedFlag: Partial<Record<PerkId, keyof PerkState>> = {
     invisible: 'ownsInvisible', anon: 'ownsAnon', entrance: 'ownsEntrance',
     roomskin: 'ownsRoomSkin', voicemask: 'ownsVoiceMask', notebook: 'ownsNotebook',
   };
-  if (def.kind === 'toggle' || def.kind === 'unlock') {
-    const flag = ownedFlag[def.id];
-    if (!flag) throw new Error('უცნობი ნივთი');
-    if (perks[flag]) throw new Error('უკვე გაქვს');
-  }
 
-  const balance = await getCoins(profileId);
-  if (balance < def.price) throw new Error(`არ გყოფნის მონეტა. საჭიროა ${def.price}, გაქვს ${balance}.`);
-  // deductCoins does not itself guard the balance, so the check above is what
-  // prevents a negative balance; charge before granting so a thrown grant can't
-  // leave the item ungranted-but-paid.
-  const { newBalance } = await deductCoins(profileId, profileId, def.price, `Perk: ${def.name}`);
+  return sql.begin(async tx => {
+    const [row] = await tx`
+      SELECT coins, public_id, cosmetics FROM players WHERE id = ${profileId} FOR UPDATE
+    ` as any[];
+    if (!row) throw new Error('Player not found.');
+    let cosmetics: any;
+    try { cosmetics = JSON.parse(row.cosmetics ?? '{}') || {}; } catch { cosmetics = {}; }
+    const perks = normalise(cosmetics);
+    if (def.kind === 'toggle' || def.kind === 'unlock') {
+      const flag = ownedFlag[def.id];
+      if (!flag) throw new Error('უცნობი ნივთი');
+      if (perks[flag]) throw new Error('უკვე გაქვს');
+    }
 
-  if (def.kind === 'toggle' || def.kind === 'unlock') {
-    (perks as any)[ownedFlag[def.id] as string] = true;
-  } else if (def.kind === 'duration') {
-    // Extend from the later of now / current expiry, so topping up an active
-    // one never shortens it.
-    const field: 'vipUntil' | 'coinMagnetUntil' = def.id === 'coinmagnet' ? 'coinMagnetUntil' : 'vipUntil';
-    const base = Math.max(now(), perks[field] ?? 0);
-    perks[field] = base + (def.hours ?? 0) * 3_600_000;
-  } else if (def.kind === 'consumable') {
-    const field: 'xpBoostGames' | 'stickers' | 'postBoosts' =
-      def.id === 'stickers' ? 'stickers' : def.id === 'postboost' ? 'postBoosts' : 'xpBoostGames';
-    perks[field] += def.units ?? 0;
-  }
-  await savePerks(profileId, perks);
-  return { perks, coins: newBalance };
+    const balanceBefore = Number(row.coins ?? 0);
+    if (balanceBefore < def.price) throw new Error(`არ გყოფნის მონეტა. საჭიროა ${def.price}, გაქვს ${balanceBefore}.`);
+    const newBalance = balanceBefore - def.price;
+
+    if (def.kind === 'toggle' || def.kind === 'unlock') {
+      (perks as any)[ownedFlag[def.id] as string] = true;
+    } else if (def.kind === 'duration') {
+      const field: 'vipUntil' | 'coinMagnetUntil' = def.id === 'coinmagnet' ? 'coinMagnetUntil' : 'vipUntil';
+      const base = Math.max(now(), perks[field] ?? 0);
+      perks[field] = base + (def.hours ?? 0) * 3_600_000;
+    } else if (def.kind === 'consumable') {
+      const field: 'xpBoostGames' | 'stickers' | 'postBoosts' =
+        def.id === 'stickers' ? 'stickers' : def.id === 'postboost' ? 'postBoosts' : 'xpBoostGames';
+      perks[field] += def.units ?? 0;
+    }
+    cosmetics.perks = perks;
+    await tx`UPDATE players SET coins = ${newBalance}, cosmetics = ${JSON.stringify(cosmetics)} WHERE id = ${profileId}`;
+    await tx`
+      INSERT INTO coin_transactions
+        (id, player_id, public_id, type, amount, balance_before, balance_after,
+         related_user_id, related_gift_id, description, granted_by, created_at)
+      VALUES
+        (${generateId()}, ${profileId}, ${row.public_id ?? null}, 'deduct', ${-def.price},
+         ${balanceBefore}, ${newBalance}, NULL, NULL, ${`Perk: ${def.name}`}, NULL, ${Date.now()})
+    `;
+    return { perks, coins: newBalance };
+  });
 }
 
 const TOGGLE_FIELDS: Record<TogglePerk, { owns: keyof PerkState; mode: keyof PerkState }> = {
