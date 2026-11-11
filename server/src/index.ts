@@ -252,7 +252,7 @@ app.get('/api/push/vapid-key', (_req, res) => {
 });
 
 app.post('/api/push/subscribe', async (req, res) => {
-  const userId = req.session.uid ?? verifySocketToken(bearerTokenFromHeader(req.headers.authorization));
+  const userId = req.session.uid ?? await verifySocketToken(bearerTokenFromHeader(req.headers.authorization));
   if (!userId) { res.status(401).json({ ok: false, error: 'Not authenticated' }); return; }
   const { endpoint, keys } = req.body ?? {};
   if (typeof endpoint !== 'string' || !keys?.p256dh || !keys?.auth) { res.status(400).json({ ok: false, error: 'Invalid subscription' }); return; }
@@ -283,7 +283,7 @@ app.get('/api/shop/packages', (_req, res) => {
 // ── Stripe: create checkout session ──────────────────────────────────
 app.post('/api/shop/checkout', express.json(), async (req, res) => {
   if (!stripe) { res.status(503).json({ ok: false, error: 'Payments not configured.' }); return; }
-  const profileId = verifySocketToken(bearerTokenFromHeader(req.headers.authorization));
+  const profileId = await verifySocketToken(bearerTokenFromHeader(req.headers.authorization));
   if (!profileId) { res.status(401).json({ ok: false, error: 'Not authenticated.' }); return; }
   const requestedProfileId = req.body?.profileId;
   if (requestedProfileId && requestedProfileId !== profileId) {
