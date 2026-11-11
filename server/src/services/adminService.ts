@@ -32,7 +32,7 @@ export async function adminGetUserProfile(playerId: string): Promise<any | null>
   // Active suspension
   const [suspension] = await sql`
     SELECT * FROM community_suspensions
-    WHERE player_id = ${playerId} AND active = 1 AND expires_at > ${Date.now()}
+    WHERE player_id = ${playerId} AND active = 1 AND (expires_at = 0 OR expires_at > ${Date.now()})
     ORDER BY issued_at DESC LIMIT 1
   ` as any[];
 
