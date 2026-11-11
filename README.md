@@ -57,9 +57,6 @@ When PostgreSQL uses a private or custom certificate authority, set `DATABASE_SS
 |---|---|---|
 | `AUTH_SESSION_SECRET` | Production | Random signing secret, at least 32 characters |
 | `DATABASE_SSL_CA` | If needed | PEM CA certificate for a private PostgreSQL TLS certificate |
-
-| Variable | Required | Description |
-|---|---|---|
 | `PORT` | No | HTTP port (default: `3000`) |
 | `NODE_ENV` | No | `development` or `production` |
 | `MODERATOR_IDS` | No | Comma-separated profile IDs granted `moderator` level |
