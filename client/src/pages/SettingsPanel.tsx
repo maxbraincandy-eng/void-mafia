@@ -5,7 +5,6 @@ import { useAuthStore } from '@/store/authStore';
 import { socket, emitWithAck } from '@/lib/socket';
 import { useT } from '@/store/langStore';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
-import type { Res } from '@/types/index';
 
 interface Props {
   open: boolean;
