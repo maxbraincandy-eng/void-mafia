@@ -285,13 +285,33 @@ export async function purchaseCosmeticItem(
 }
 
 export async function refundGift(txId: string, ownerId: string): Promise<void> {
-  const [tx] = await sql`SELECT * FROM coin_transactions WHERE id = ${txId}` as any[];
-  if (!tx) throw new Error('Transaction not found.');
-  if (tx.type !== 'gift_sent') throw new Error('Only gift_sent transactions can be refunded.');
-  const amount = Math.abs(Number(tx.amount));
-  await recordTransaction(tx.player_id, 'refund', amount, `Refund for tx ${txId}`, { grantedBy: ownerId, relatedGiftId: txId });
+  await sql.begin(async tx => {
+    const now = Date.now();
+    const [original] = await tx`
+      UPDATE coin_transactions
+      SET refunded_at = ${now}
+      WHERE id = ${txId} AND type = 'gift_sent' AND refunded_at IS NULL
+      RETURNING player_id, amount
+    ` as any[];
+    if (!original) throw new Error('Gift transaction not found or already refunded.');
+    const amount = Math.abs(Number(original.amount));
+    const [balance] = await tx`
+      UPDATE players SET coins = coins + ${amount}
+      WHERE id = ${original.player_id}
+      RETURNING coins AS balance_after, coins - ${amount} AS balance_before, public_id
+    ` as any[];
+    if (!balance) throw new Error('Player record not found.');
+    await tx`
+      INSERT INTO coin_transactions
+        (id, player_id, public_id, type, amount, balance_before, balance_after,
+         related_user_id, related_gift_id, description, granted_by, created_at)
+      VALUES
+        (${generateId()}, ${original.player_id}, ${balance.public_id ?? null}, 'refund', ${amount},
+         ${Number(balance.balance_before)}, ${Number(balance.balance_after)}, NULL, ${txId},
+         ${`Refund for tx ${txId}`}, ${ownerId}, ${now})
+    `;
+  });
 }
-
 export async function getTransactions(playerId: string, limit = 50): Promise<CoinTransaction[]> {
   const rows = await sql`
     SELECT * FROM coin_transactions WHERE player_id = ${playerId}
