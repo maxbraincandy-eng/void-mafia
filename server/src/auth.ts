@@ -213,7 +213,7 @@ export function createAuthRouter(): Router {
   // GET /api/auth/logout
   router.post('/logout', async (req, res) => {
     try {
-      const uid = req.session.uid ?? await verifySocketToken(bearerTokenFromHeader(req.headers.authorization));
+      const uid = (await verifySocketToken(bearerTokenFromHeader(req.headers.authorization))) ?? req.session.uid;
       if (uid) await sql`UPDATE players SET auth_version = auth_version + 1 WHERE id = ${uid}`;
       req.session.destroy(() => res.json({ ok: true }));
     } catch {
@@ -376,7 +376,7 @@ export function createAuthRouter(): Router {
 
   // ── Linked accounts (for profile page) ───────────────────────────
   router.get('/linked', async (req, res) => {
-    const uid = req.session.uid ?? await verifySocketToken(bearerTokenFromHeader(req.headers.authorization));
+    const uid = (await verifySocketToken(bearerTokenFromHeader(req.headers.authorization))) ?? req.session.uid;
     if (!uid) { res.status(401).json({ ok: false, error: 'Not authenticated.' }); return; }
     try {
       const providers = await getLinkedProviders(uid);
@@ -388,7 +388,7 @@ export function createAuthRouter(): Router {
 
   // DELETE /api/auth/unlink/:provider
   router.delete('/unlink/:provider', async (req, res) => {
-    const uid = req.session.uid ?? await verifySocketToken(bearerTokenFromHeader(req.headers.authorization));
+    const uid = (await verifySocketToken(bearerTokenFromHeader(req.headers.authorization))) ?? req.session.uid;
     if (!uid) { res.status(401).json({ ok: false, error: 'Not authenticated.' }); return; }
     const provider = String(req.params.provider ?? '');
     if (!['google', 'facebook', 'apple'].includes(provider)) {
