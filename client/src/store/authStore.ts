@@ -116,15 +116,15 @@ export const useAuthStore = create<AuthStore>((set, get) => {
     login: async (username: string) => {
       set({ isLoading: true, error: null });
       try {
+        const referralCode = localStorage.getItem('vm_pending_ref') ?? undefined;
         const res = await new Promise<Res<{ uid: string; profile: PlayerProfilePublic; sessionToken: string }>>((resolve) => {
-          (socket as any).emit('player:guest_create', { username }, resolve);
+          (socket as any).emit('player:guest_create', { username, referralCode }, resolve);
         });
         if (!res.ok) throw new Error(res.error);
         const { uid, profile, sessionToken } = res.data;
         localStorage.setItem(UID_KEY, uid);
         localStorage.setItem(NAME_KEY, profile.username);
         localStorage.setItem(TOKEN_KEY, sessionToken);
-        const referralCode = localStorage.getItem('vm_pending_ref') ?? undefined;
         if (referralCode) localStorage.removeItem('vm_pending_ref');
         set({ uid, username: profile.username, profile, localAvatar: profile.avatarUrl ?? null,
           isAuthed: true, isLoading: false, error: null });
