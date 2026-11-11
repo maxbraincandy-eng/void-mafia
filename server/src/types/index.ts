@@ -1104,6 +1104,7 @@ export interface ClientToServerEvents {
   'player:guest_create': (data: { username: string; referralCode?: string }, cb: Cb<{ uid: string; profile: PlayerProfilePublic; sessionToken: string }>) => void;
   'player:register':    (data: { email: string; password: string; username: string }, cb: Cb<{ uid: string; profile: PlayerProfilePublic; sessionToken: string }>) => void;
   'player:login_email': (data: { email: string; password: string }, cb: Cb<{ uid: string; profile: PlayerProfilePublic; sessionToken: string }>) => void;
+  'profile:referral_count': (cb: Cb<number>) => void;
   'player:stats':       (data: { profileId: string }, cb: Cb<PlayerProfilePublic>) => void;
   'player:report':      (data: { targetProfileId: string; roomId: string | null; reason: ReportReason; details: string }, cb: Cb<null>) => void;
   'room:create':        (data: { name: string; roomName?: string; settings?: Record<string, unknown> }, cb: Cb<RoomPublic>) => void;
