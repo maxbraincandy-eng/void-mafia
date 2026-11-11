@@ -306,6 +306,32 @@ function rateOk(socketId: string, limit = 15): boolean {
   r.count++; return true;
 }
 
+// Credential failures are counted by normalized account key, not socket id,
+// so reconnecting cannot reset the password-guessing budget.
+const loginFailureWindows = new Map<string, number[]>();
+const LOGIN_FAILURE_WINDOW_MS = 60_000;
+const LOGIN_FAILURE_LIMIT = 10;
+
+function loginAttemptAllowed(email: string): boolean {
+  const now = Date.now();
+  const key = email.trim().toLowerCase();
+  const hits = (loginFailureWindows.get(key) ?? []).filter(at => now - at < LOGIN_FAILURE_WINDOW_MS);
+  loginFailureWindows.set(key, hits);
+  if (loginFailureWindows.size > 10_000) {
+    for (const [k, times] of loginFailureWindows) {
+      if (times.length === 0 || now - times[times.length - 1] >= LOGIN_FAILURE_WINDOW_MS) loginFailureWindows.delete(k);
+    }
+  }
+  return hits.length < LOGIN_FAILURE_LIMIT;
+}
+
+function recordLoginFailure(email: string): void {
+  const key = email.trim().toLowerCase();
+  const hits = loginFailureWindows.get(key) ?? [];
+  hits.push(Date.now());
+  loginFailureWindows.set(key, hits);
+}
+
 /**
  * Password-recovery attempts, per socket, over a minute.
  *
@@ -2229,7 +2255,22 @@ export function attachSocketHandlers(io: AppServer): void {
           password: z.string().min(1),
         }).parse(data);
 
-        const profile = await authenticateWithEmail(email, password);
+        if (!loginAttemptAllowed(email)) {
+          cb(err('Too many sign-in attempts. Please wait a minute and try again.'));
+          return;
+        }
+        let profile: PlayerProfile;
+        try {
+          profile = await authenticateWithEmail(email, password);
+          loginFailureWindows.delete(email.trim().toLowerCase());
+        } catch (e: any) {
+          if (e.message === 'Invalid email or password.') {
+            recordLoginFailure(email);
+            cb(err(e.message));
+            return;
+          }
+          throw e;
+        }
         const ban = await getActiveBan(profile.id);
         if (ban) {
           cb(err(`You are banned until ${new Date(ban.expiresAt).toLocaleString()}. Reason: ${ban.reason}`));
