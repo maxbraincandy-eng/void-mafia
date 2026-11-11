@@ -212,9 +212,13 @@ export function createAuthRouter(): Router {
 
   // GET /api/auth/logout
   router.post('/logout', async (req, res) => {
-    req.session.destroy(() => {
-      res.json({ ok: true });
-    });
+    try {
+      const uid = req.session.uid ?? await verifySocketToken(bearerTokenFromHeader(req.headers.authorization));
+      if (uid) await sql`UPDATE players SET auth_version = auth_version + 1 WHERE id = ${uid}`;
+      req.session.destroy(() => res.json({ ok: true }));
+    } catch {
+      res.status(500).json({ ok: false, error: 'Could not end the session.' });
+    }
   });
 
   // ── Google ──────────────────────────────────────────────────────
@@ -384,7 +388,7 @@ export function createAuthRouter(): Router {
 
   // DELETE /api/auth/unlink/:provider
   router.delete('/unlink/:provider', async (req, res) => {
-    const uid = req.session.uid ?? verifySocketToken(bearerTokenFromHeader(req.headers.authorization));
+    const uid = req.session.uid ?? await verifySocketToken(bearerTokenFromHeader(req.headers.authorization));
     if (!uid) { res.status(401).json({ ok: false, error: 'Not authenticated.' }); return; }
     const provider = String(req.params.provider ?? '');
     if (!['google', 'facebook', 'apple'].includes(provider)) {
