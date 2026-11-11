@@ -252,7 +252,7 @@ app.get('/api/push/vapid-key', (_req, res) => {
 });
 
 app.post('/api/push/subscribe', async (req, res) => {
-  const userId = req.session.uid ?? await verifySocketToken(bearerTokenFromHeader(req.headers.authorization));
+  const userId = (await verifySocketToken(bearerTokenFromHeader(req.headers.authorization))) ?? req.session.uid;
   if (!userId) { res.status(401).json({ ok: false, error: 'Not authenticated' }); return; }
   const { endpoint, keys } = req.body ?? {};
   if (typeof endpoint !== 'string' || !keys?.p256dh || !keys?.auth) { res.status(400).json({ ok: false, error: 'Invalid subscription' }); return; }
@@ -267,7 +267,7 @@ app.post('/api/push/subscribe', async (req, res) => {
 });
 
 app.delete('/api/push/subscribe', async (req, res) => {
-  const userId = req.session.uid ?? await verifySocketToken(bearerTokenFromHeader(req.headers.authorization));
+  const userId = (await verifySocketToken(bearerTokenFromHeader(req.headers.authorization))) ?? req.session.uid;
   const { endpoint } = req.body ?? {};
   if (!userId) { res.status(401).json({ ok: false, error: 'Not authenticated.' }); return; }
   if (typeof endpoint !== 'string' || !endpoint) { res.status(400).json({ ok: false }); return; }
