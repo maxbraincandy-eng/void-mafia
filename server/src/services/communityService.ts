@@ -597,7 +597,7 @@ export async function communityBanPlayer(targetId: string, bannedBy: string, rea
   await sql`UPDATE community_bans SET active = 0 WHERE player_id = ${targetId}`;
   const id = generateId();
   const now = Date.now();
-  const expiresAt = now + durationSeconds * 1000;
+  const expiresAt = durationSeconds <= 0 ? 0 : now + durationSeconds * 1000;
   await sql`
     INSERT INTO community_bans (id, player_id, banned_by, reason, issued_at, expires_at, active)
     VALUES (${id}, ${targetId}, ${bannedBy}, ${reason.trim().slice(0, 300)}, ${now}, ${expiresAt}, 1)
@@ -612,7 +612,7 @@ export async function communityUnbanPlayer(targetId: string): Promise<void> {
 export async function getActiveCommunityBan(targetId: string): Promise<CommunityBanRecord | null> {
   const now = Date.now();
   const [row] = await sql`
-    SELECT * FROM community_bans WHERE player_id = ${targetId} AND active = 1 AND expires_at > ${now}
+    SELECT * FROM community_bans WHERE player_id = ${targetId} AND active = 1 AND (expires_at = 0 OR expires_at > ${now})
     ORDER BY expires_at DESC LIMIT 1
   ` as any[];
   if (!row) return null;
