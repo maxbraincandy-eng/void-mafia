@@ -2259,7 +2259,7 @@ export function attachSocketHandlers(io: AppServer): void {
           cb(err('Too many sign-in attempts. Please wait a minute and try again.'));
           return;
         }
-        let profile: PlayerProfile;
+        let profile: Awaited<ReturnType<typeof authenticateWithEmail>>;
         try {
           profile = await authenticateWithEmail(email, password);
           loginFailureWindows.delete(email.trim().toLowerCase());
