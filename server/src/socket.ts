@@ -2206,6 +2206,7 @@ export function attachSocketHandlers(io: AppServer): void {
           password: z.string().min(6).max(128),
           username: z.string().min(2).max(24),
         }).parse(data);
+        if (Buffer.byteLength(password, 'utf8') > 72) throw new Error('Password must be at most 72 bytes.');
 
         const profile = await registerWithEmail(email, password, username);
         socket.data.profileId = profile.id;
@@ -2259,6 +2260,7 @@ export function attachSocketHandlers(io: AppServer): void {
           currentPassword: z.string().min(1),
           newPassword:     z.string().min(6),
         }).parse(data);
+        if (Buffer.byteLength(newPassword, 'utf8') > 72) throw new Error('Password must be at most 72 bytes.');
         const authenticatedProfileId = socket.data.profileId;
         if (!authenticatedProfileId || authenticatedProfileId !== uid) {
           cb({ ok: false, error: 'Not authenticated for this account.' });
@@ -7065,8 +7067,12 @@ export function attachSocketHandlers(io: AppServer): void {
 
     socket.on('push:unsubscribe', async (data, cb) => {
       try {
+        const profileId = socket.data.profileId;
+        if (!profileId) throw new Error('Not authenticated.');
         const { endpoint } = data as any;
-        if (endpoint) await sql`DELETE FROM push_subscriptions WHERE endpoint = ${endpoint}`;
+        if (endpoint) {
+          await sql`DELETE FROM push_subscriptions WHERE endpoint = ${endpoint} AND user_id = ${profileId}`;
+        }
         cb(ok(null));
       } catch (e: any) { cb(err(e.message)); }
     });
