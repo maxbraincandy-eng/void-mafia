@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { emitWithAck } from '@/lib/socket';
 
 interface Res<T> { ok: boolean; data: T; error?: string }
-type Tab = 'users' | 'reports' | 'content' | 'recovery' | 'audit' | 'badges';
+type Tab = 'overview' | 'users' | 'reports' | 'content' | 'recovery' | 'audit' | 'badges';
 
 interface AdminPanelProps {
   onClose: () => void;
@@ -229,7 +229,7 @@ function UsersTab({ myModLevel }: { myModLevel: string }) {
         )}
 
         {/* Reason */}
-        <Section title="Reason (optional)">
+        <Section title="Reason (required for bans)">
           <Input value={reason} onChange={setReason} placeholder="Provide a reason for the action…" />
         </Section>
 
@@ -252,7 +252,10 @@ function UsersTab({ myModLevel }: { myModLevel: string }) {
           </div>
           <div style={{ width: '100%', height: 1, background: BORDER, margin: '6px 0' }} />
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            <Btn label="Community Ban" color={DANGER} onClick={() => doAction('ban')} small />
+            <Btn label="Ban 1d" color={DANGER} onClick={() => doAction('ban', { duration: 86400 })} disabled={!reason.trim()} small />
+            <Btn label="Ban 7d" color={DANGER} onClick={() => doAction('ban', { duration: 604800 })} disabled={!reason.trim()} small />
+            <Btn label="Ban 30d" color={DANGER} onClick={() => doAction('ban', { duration: 2592000 })} disabled={!reason.trim()} small />
+            {(myModLevel === 'admin' || myModLevel === 'owner') && <Btn label="Permanent" color={DANGER} onClick={() => doAction('ban', { duration: 0 })} disabled={!reason.trim()} small />}
             {s.ban && <Btn label="Unban" color={GREEN} onClick={() => doAction('unban')} small />}
           </div>
         </Section>
@@ -689,8 +692,78 @@ function BadgesTab() {
   );
 }
 
+// ── Overview ────────────────────────────────────────────────────────────
+function OverviewTab({ onNavigate, myModLevel }: { onNavigate: (tab: Tab) => void; myModLevel: string }) {
+  const [stats, setStats] = useState<Record<string, number> | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await emitWithAck<null, Res<Record<string, number>>>('mod:get_dashboard');
+      if (res.ok) setStats(res.data);
+      else setError(res.error ?? 'Could not load admin overview.');
+    } catch (e: any) {
+      setError(e?.message ?? 'Could not load admin overview.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const cards = [
+    { label: 'Online players', value: stats?.onlinePlayers, color: CYAN },
+    { label: 'Active rooms', value: stats?.activeRooms, color: PURPLE },
+    { label: 'Open reports', value: stats?.openReports, color: WARN },
+    { label: 'New users today', value: stats?.newUsersToday, color: GREEN },
+    { label: 'Bans · 24h', value: stats?.recentBans, color: DANGER },
+    { label: 'Voice users', value: stats?.voiceUsers, color: ACCENT },
+  ];
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <div>
+          <div style={{ color: WHITE, fontSize: 18, fontWeight: 800 }}>Live overview</div>
+          <div style={{ color: MUTED, fontSize: 11, marginTop: 3 }}>Server activity and moderation workload</div>
+        </div>
+        <Btn label={loading ? 'Loading…' : '↻ Refresh'} onClick={() => void load()} disabled={loading} small />
+      </div>
+      {error && <StatusBar text={error} isError />}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+        {cards.map(card => (
+          <div key={card.label} style={{ background: BG2, border: `1px solid ${BORDER}`, borderRadius: 10, padding: '12px 14px' }}>
+            <div style={{ color: MUTED, fontSize: 10, textTransform: 'uppercase', letterSpacing: 1 }}>{card.label}</div>
+            <div style={{ color: card.color, fontSize: 24, fontWeight: 800, marginTop: 5 }}>{card.value ?? (loading ? '…' : '—')}</div>
+          </div>
+        ))}
+      </div>
+      <Section title="Quick access">
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <Btn label="Review reports" color={WARN} onClick={() => onNavigate('reports')} small />
+          <Btn label="Find a user" color={CYAN} onClick={() => onNavigate('users')} small />
+          <Btn label="Moderate content" color={PURPLE} onClick={() => onNavigate('content')} small />
+          {(myModLevel === 'admin' || myModLevel === 'owner') && <Btn label="Audit log" color={ACCENT} onClick={() => onNavigate('audit')} small />}
+          {myModLevel === 'owner' && <Btn label="Deleted content" color={GREEN} onClick={() => onNavigate('recovery')} small />}
+        </div>
+      </Section>
+      {stats && (
+        <Row style={{ display: 'flex', justifyContent: 'space-between', gap: 12, color: MUTED, fontSize: 12 }}>
+          <span>Spectating {stats.spectatingPlayers ?? 0}</span>
+          <span>Peak online {stats.peakOnline ?? 0}</span>
+          <span>Avg. match {stats.avgMatchSeconds ?? 0}s</span>
+        </Row>
+      )}
+    </div>
+  );
+}
+
 // ── Main AdminPanel ────────────────────────────────────────────────────
 const TABS: { id: Tab; label: string; icon: string; minLevel?: string }[] = [
+  { id: 'overview', label: 'Overview', icon: '◈' },
   { id: 'users',    label: 'Users',    icon: '👥' },
   { id: 'reports',  label: 'Reports',  icon: '🚨' },
   { id: 'content',  label: 'Content',  icon: '📋' },
@@ -706,7 +779,7 @@ const RANK_COLOR: Record<string, string> = {
 };
 
 export default function AdminPanel({ onClose, myModLevel }: AdminPanelProps) {
-  const [tab, setTab] = useState<Tab>('users');
+  const [tab, setTab] = useState<Tab>('overview');
   const myLevel = LEVEL_ORDER[myModLevel] ?? 0;
   const visibleTabs = TABS.filter(t => !t.minLevel || myLevel >= (LEVEL_ORDER[t.minLevel] ?? 99));
 
@@ -797,6 +870,7 @@ export default function AdminPanel({ onClose, myModLevel }: AdminPanelProps) {
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.14 }}
             >
+              {tab === 'overview' && <OverviewTab onNavigate={setTab} myModLevel={myModLevel} />}
               {tab === 'users'    && <UsersTab myModLevel={myModLevel} />}
               {tab === 'reports'  && <ReportsTab />}
               {tab === 'content'  && <ContentTab myModLevel={myModLevel} />}

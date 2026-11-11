@@ -8290,6 +8290,12 @@ export function attachSocketHandlers(io: AppServer): void {
           action: string; playerId: string; reason?: string; duration?: number;
           profileLocked?: boolean; secretModeDisabled?: boolean; forcePublic?: boolean;
         };
+        const requesterRank = { moderator: 1, senior_moderator: 2, admin: 3, owner: 4 }[requester.moderatorLevel as 'moderator' | 'senior_moderator' | 'admin' | 'owner'] ?? 0;
+        const target = playerId ? await getPlayer(playerId) : null;
+        if (!target) { cb(err('User not found.')); return; }
+        const targetRank = { moderator: 1, senior_moderator: 2, admin: 3, owner: 4 }[target.moderatorLevel as 'moderator' | 'senior_moderator' | 'admin' | 'owner'] ?? 0;
+        if (target.id === requester.id || targetRank >= requesterRank) { cb(err('You cannot moderate yourself or an equal/higher-ranked moderator.')); return; }
+        const actionReason = String(reason ?? '').trim().slice(0, 300);
         if (action === 'warn') {
           await issueWarning(playerId, requester.id, reason ?? '');
           await logCommunityModAction(requester.id, 'warn', playerId, null, reason ?? '');
@@ -8306,8 +8312,14 @@ export function attachSocketHandlers(io: AppServer): void {
           await liftSuspension(playerId);
           await logCommunityModAction(requester.id, 'unsuspend', playerId, null, '');
         } else if (action === 'ban') {
-          await communityBanPlayer(playerId, requester.id, reason ?? '', 0);
-          await logCommunityModAction(requester.id, 'ban', playerId, null, reason ?? '');
+          const banDuration = Number(duration ?? 0);
+          if (!actionReason) { cb(err('A reason is required for a community ban.')); return; }
+          if (!Number.isFinite(banDuration) || !Number.isInteger(banDuration) || banDuration < 0 || banDuration > 2_592_000) {
+            cb(err('Ban duration must be between 1 second and 30 days, or zero for permanent.')); return;
+          }
+          if (banDuration === 0 && requesterRank < 3) { cb(err('Permanent community bans require admin or owner rank.')); return; }
+          await communityBanPlayer(playerId, requester.id, actionReason, banDuration);
+          await logCommunityModAction(requester.id, 'ban', playerId, null, `${actionReason} (duration: ${banDuration === 0 ? 'permanent' : `${banDuration}s`})`);
         } else if (action === 'unban') {
           await communityUnbanPlayer(playerId);
           await logCommunityModAction(requester.id, 'unban', playerId, null, '');
