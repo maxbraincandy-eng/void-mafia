@@ -939,8 +939,8 @@ export async function creditPurchasedCoins(
  */
 export async function creditStorePurchase(args: {
   profileId: string;
-  platform: string;       // 'android' | 'ios' | 'revenuecat'
-  transactionId: string;  // store's unique transaction id
+  platform: string;
+  transactionId: string;
   productId: string;
   coins: number;
   raw?: unknown;
@@ -950,28 +950,38 @@ export async function creditStorePurchase(args: {
   if (!platform || !transactionId) throw new Error('platform and transactionId required.');
   if (!Number.isInteger(coins) || coins <= 0) throw new Error('coins must be a positive integer.');
 
-  // Claim the purchase row. ON CONFLICT DO NOTHING means a duplicate
-  // (platform, transaction_id) returns zero rows → we skip crediting.
-  const rows = await sql`
-    INSERT INTO store_purchases
-      (id, player_id, platform, transaction_id, product_id, coins, raw, created_at)
-    VALUES
-      (${generateId()}, ${profileId}, ${platform}, ${transactionId}, ${productId},
-       ${coins}, ${args.raw != null ? JSON.stringify(args.raw) : null}, ${Date.now()})
-    ON CONFLICT (platform, transaction_id) DO NOTHING
-    RETURNING id
-  ` as any[];
+  // Claim, balance update, and ledger row share one transaction. A retry after
+  // a crash can therefore never leave a claimed purchase without its credit.
+  return sql.begin(async tx => {
+    const rows = await tx`
+      INSERT INTO store_purchases
+        (id, player_id, platform, transaction_id, product_id, coins, raw, created_at)
+      VALUES
+        (${generateId()}, ${profileId}, ${platform}, ${transactionId}, ${productId},
+         ${coins}, ${args.raw != null ? JSON.stringify(args.raw) : null}, ${Date.now()})
+      ON CONFLICT (platform, transaction_id) DO NOTHING
+      RETURNING id
+    ` as any[];
+    if (rows.length === 0) return { credited: false, newBalance: null };
 
-  if (rows.length === 0) {
-    // Already processed — idempotent no-op.
-    return { credited: false, newBalance: null };
-  }
-
-  const { balanceAfter } = await recordTransaction(
-    profileId, 'grant', coins,
-    `IAP ${platform} ${productId} (${transactionId})`,
-  );
-  return { credited: true, newBalance: balanceAfter };
+    const [balance] = await tx`
+      UPDATE players SET coins = coins + ${coins}
+      WHERE id = ${profileId}
+      RETURNING coins AS balance_after, coins - ${coins} AS balance_before, public_id
+    ` as any[];
+    if (!balance) throw new Error('Player record not found.');
+    const transactionIdForLedger = generateId();
+    await tx`
+      INSERT INTO coin_transactions
+        (id, player_id, public_id, type, amount, balance_before, balance_after,
+         related_user_id, related_gift_id, description, granted_by, created_at)
+      VALUES
+        (${transactionIdForLedger}, ${profileId}, ${balance.public_id ?? null}, 'grant', ${coins},
+         ${Number(balance.balance_before)}, ${Number(balance.balance_after)}, NULL, NULL,
+         ${`Purchase ${platform} ${productId} (${transactionId})`}, NULL, ${Date.now()})
+    `;
+    return { credited: true, newBalance: Number(balance.balance_after) };
+  });
 }
 
 export async function getGiftLeaderboard(): Promise<{
