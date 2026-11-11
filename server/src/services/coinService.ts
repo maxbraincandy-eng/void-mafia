@@ -130,32 +130,29 @@ async function recordTransaction(
   description: string,
   opts: { grantedBy?: string; relatedUserId?: string; relatedGiftId?: string } = {},
 ): Promise<{ id: string; balanceBefore: number; balanceAfter: number }> {
-  // Read before and after in one atomic statement
-  const [row] = await sql`
-    WITH before AS (SELECT coins, public_id FROM players WHERE id = ${playerId})
-    UPDATE players
-    SET coins = GREATEST(0, coins + ${amount})
-    WHERE id = ${playerId}
-    RETURNING coins AS balance_after,
-              (SELECT coins FROM before) AS balance_before,
-              (SELECT public_id FROM before) AS player_public_id
-  ` as any[];
-  if (!row) throw new Error('Player record not found — cannot update coins.');
-  const balanceBefore = Number(row.balance_before ?? 0);
-  const balanceAfter  = Number(row.balance_after);
-  const playerPublicId = row.player_public_id != null ? Number(row.player_public_id) : null;
-
-  const id = generateId();
-  await sql`
-    INSERT INTO coin_transactions
-      (id, player_id, public_id, type, amount, balance_before, balance_after,
-       related_user_id, related_gift_id, description, granted_by, created_at)
-    VALUES
-      (${id}, ${playerId}, ${playerPublicId}, ${type}, ${amount}, ${balanceBefore}, ${balanceAfter},
-       ${opts.relatedUserId ?? null}, ${opts.relatedGiftId ?? null},
-       ${description}, ${opts.grantedBy ?? null}, ${Date.now()})
-  `;
-  return { id, balanceBefore, balanceAfter };
+  return sql.begin(async tx => {
+    const [row] = await tx`
+      UPDATE players
+      SET coins = coins + ${amount}
+      WHERE id = ${playerId} AND coins + ${amount} >= 0
+      RETURNING coins AS balance_after, coins - ${amount} AS balance_before, public_id
+    ` as any[];
+    if (!row) throw new Error('Player not found or insufficient coin balance.');
+    const balanceBefore = Number(row.balance_before);
+    const balanceAfter = Number(row.balance_after);
+    const playerPublicId = row.public_id != null ? Number(row.public_id) : null;
+    const id = generateId();
+    await tx`
+      INSERT INTO coin_transactions
+        (id, player_id, public_id, type, amount, balance_before, balance_after,
+         related_user_id, related_gift_id, description, granted_by, created_at)
+      VALUES
+        (${id}, ${playerId}, ${playerPublicId}, ${type}, ${amount}, ${balanceBefore}, ${balanceAfter},
+         ${opts.relatedUserId ?? null}, ${opts.relatedGiftId ?? null},
+         ${description}, ${opts.grantedBy ?? null}, ${Date.now()})
+    `;
+    return { id, balanceBefore, balanceAfter };
+  });
 }
 
 export async function claimDailyReward(playerId: string): Promise<{ coins: number; balance: number; alreadyClaimed: boolean; boosted?: boolean }> {
@@ -259,16 +256,32 @@ const PURCHASABLE_COSMETICS: Record<string, { name: string; price: number }> = {
 export async function purchaseCosmeticItem(
   playerId: string,
   itemId: string,
-): Promise<{ newBalance: number }> {
+): Promise<{ newBalance: number; cosmetics: any }> {
   const item = PURCHASABLE_COSMETICS[itemId];
   if (!item) throw new Error('Item not available for purchase.');
-  const balance = await getCoins(playerId);
-  if (balance < item.price) throw new Error(`Not enough coins. Need ${item.price}, have ${balance}.`);
-  const { balanceAfter } = await recordTransaction(
-    playerId, 'deduct', -item.price,
-    `Purchased cosmetic: ${item.name}`,
-  );
-  return { newBalance: balanceAfter };
+  return sql.begin(async tx => {
+    const [row] = await tx`SELECT coins, cosmetics FROM players WHERE id = ${playerId} FOR UPDATE` as any[];
+    if (!row) throw new Error('Player not found.');
+    let cosmetics: any;
+    try { cosmetics = JSON.parse(row.cosmetics ?? '{}'); } catch { cosmetics = {}; }
+    if (!Array.isArray(cosmetics.unlockedItems)) cosmetics.unlockedItems = [];
+    if (cosmetics.unlockedItems.includes(itemId)) throw new Error('Item already owned.');
+    const balanceBefore = Number(row.coins ?? 0);
+    if (balanceBefore < item.price) throw new Error(`Not enough coins. Need ${item.price}, have ${balanceBefore}.`);
+    const balanceAfter = balanceBefore - item.price;
+    cosmetics.unlockedItems.push(itemId);
+    await tx`UPDATE players SET coins = ${balanceAfter}, cosmetics = ${JSON.stringify(cosmetics)} WHERE id = ${playerId}`;
+    const id = generateId();
+    await tx`
+      INSERT INTO coin_transactions
+        (id, player_id, public_id, type, amount, balance_before, balance_after,
+         related_user_id, related_gift_id, description, granted_by, created_at)
+      SELECT ${id}, id, public_id, 'deduct', ${-item.price}, ${balanceBefore}, ${balanceAfter},
+             NULL, ${itemId}, ${`Purchased cosmetic: ${item.name}`}, NULL, ${Date.now()}
+      FROM players WHERE id = ${playerId}
+    `;
+    return { newBalance: balanceAfter, cosmetics };
+  });
 }
 
 export async function refundGift(txId: string, ownerId: string): Promise<void> {
