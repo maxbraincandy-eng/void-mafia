@@ -316,10 +316,12 @@ function ChangePasswordSection() {
     if (newPw.length < 6) { setErr('New password must be at least 6 characters.'); return; }
     setLoading(true); setErr(''); setMsg('');
     try {
-      const res = await new Promise<Res<void>>((resolve) => {
+      const res = await new Promise<Res<{ sessionToken: string }>>((resolve) => {
         (socket as any).emit('player:change_password', { uid, currentPassword: currentPw, newPassword: newPw }, resolve);
       });
       if (!res.ok) throw new Error((res as any).error);
+      const sessionToken = (res as any).data?.sessionToken;
+      if (sessionToken) localStorage.setItem('void-mafia-session-token', sessionToken);
       setMsg('Password changed successfully!');
       setCurrentPw(''); setNewPw(''); setConfirmPw('');
     } catch (e: any) {
