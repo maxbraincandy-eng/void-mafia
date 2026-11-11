@@ -2118,7 +2118,7 @@ export function attachSocketHandlers(io: AppServer): void {
       if (!_dbReady) { cb(err('Server is starting up — please wait a few seconds and try again.')); return; }
       try {
         const parsed = AuthSchema.parse(data);
-        if (verifySocketToken(parsed.token, parsed.uid) !== parsed.uid) {
+        if (await verifySocketToken(parsed.token, parsed.uid) !== parsed.uid) {
           cb(err('Session expired. Please sign in again.'));
           return;
         }
@@ -2164,7 +2164,7 @@ export function attachSocketHandlers(io: AppServer): void {
         const profile = await getOrCreatePlayer(uid, username);
         const ban = await getActiveBan(uid);
         if (ban) throw new Error('Account unavailable.');
-        const sessionToken = issueSocketToken(uid);
+        const sessionToken = await issueSocketToken(uid);
         socket.data.profileId = uid;
         enforceSessionUniqueness(io, uid, socket.id);
         markOnline(uid);
@@ -2201,7 +2201,7 @@ export function attachSocketHandlers(io: AppServer): void {
         deliverPendingCall(socket, profile.id);
         broadcastOnlineCount(io);
         socket.emit('player:profile', toPublicProfile(profile));
-        cb(ok({ uid: profile.id, profile: toPublicProfile(profile), sessionToken: issueSocketToken(profile.id) }));
+        cb(ok({ uid: profile.id, profile: toPublicProfile(profile), sessionToken: await issueSocketToken(profile.id) }));
       } catch (e: any) {
         cb(err(e.message ?? 'Registration failed.'));
       }
