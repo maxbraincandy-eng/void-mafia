@@ -5591,12 +5591,11 @@ export function attachSocketHandlers(io: AppServer): void {
 
     // ── Voice: Relay Offer ──────────────────────────────────────────
     socket.on('voice:offer', ({ to, sdp }, cb) => {
-      const channel = voiceGetSharedChannel(socket.id, to);
-      if (!channel) {
-        // Log but still relay — peers may have a valid existing PC while voice
-        // state is transiently out of sync (phase transitions, reconnects).
-        // Blocking here silently kills camera renegotiation.
-        console.warn(`[voice:offer] No shared channel ${socket.id}→${to}, relaying anyway`);
+      if (!voiceGetSharedChannel(socket.id, to)) {
+        // Never relay SDP to an arbitrary socket. Both peers must be members
+        // of the same server-authorized voice channel before negotiation.
+        if (typeof cb === 'function') cb(err('Voice peers do not share an authorized channel.'));
+        return;
       }
       io.to(to).emit('voice:offer', { from: socket.id, sdp });
       if (typeof cb === 'function') cb(ok(null));
@@ -5604,13 +5603,22 @@ export function attachSocketHandlers(io: AppServer): void {
 
     // ── Voice: Relay Answer ─────────────────────────────────────────
     socket.on('voice:answer', ({ to, sdp }, cb) => {
+      if (!voiceGetSharedChannel(socket.id, to)) {
+        if (typeof cb === 'function') cb(err('Voice peers do not share an authorized channel.'));
+        return;
+      }
       io.to(to).emit('voice:answer', { from: socket.id, sdp });
-      cb(ok(null));
+      if (typeof cb === 'function') cb(ok(null));
     });
 
     // ── Voice: Relay ICE Candidate ──────────────────────────────────
-    socket.on('voice:ice-candidate', ({ to, candidate }) => {
+    socket.on('voice:ice-candidate', ({ to, candidate }, cb) => {
+      if (!voiceGetSharedChannel(socket.id, to)) {
+        if (typeof cb === 'function') cb(err('Voice peers do not share an authorized channel.'));
+        return;
+      }
       io.to(to).emit('voice:ice-candidate', { from: socket.id, candidate });
+      if (typeof cb === 'function') cb(ok(null));
     });
 
     // ── Voice: Camera state signal ──────────────────────────────────
